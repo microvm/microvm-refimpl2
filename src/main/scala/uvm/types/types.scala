@@ -6,12 +6,18 @@ abstract class Type extends IdentifiedSettable {
   override final def toString: String = Type.prettyPrint(this)
 }
 
+abstract class FPType extends Type
+
+abstract class AbstractRefType extends Type {
+  def ty: Type
+}
+
 case class TypeInt(var length: Int) extends Type
-case class TypeFloat() extends Type
-case class TypeDouble() extends Type
-case class TypeRef(var ty: Type) extends Type
-case class TypeIRef(var ty: Type) extends Type
-case class TypeWeakRef(var ty: Type) extends Type
+case class TypeFloat() extends FPType
+case class TypeDouble() extends FPType
+case class TypeRef(var ty: Type) extends AbstractRefType
+case class TypeIRef(var ty: Type) extends AbstractRefType
+case class TypeWeakRef(var ty: Type) extends AbstractRefType
 case class TypeStruct(var fieldTy: Seq[Type]) extends Type
 case class TypeArray(var elemTy: Type, var len: Long) extends Type
 case class TypeHybrid(var fixedPart: Type, var varPart: Type) extends Type

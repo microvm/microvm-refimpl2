@@ -17,10 +17,14 @@ class Function extends IdentifiedSettable {
 
 class CFG {
   var func: Function = null
-  var bbs: Seq[BasicBlock] = Nil
+  var bbs: Seq[BasicBlock] = null
   var entry: BasicBlock = null
+  var params: Seq[Parameter] = null
+
+  var bbNs: Namespace[BasicBlock] = null // Consider using one global bb ns
+  var instNs: Namespace[Instruction] = null // Consider using one global value ns
 }
 
 class BasicBlock extends IdentifiedSettable {
-  var insts: Seq[Instruction] = Nil
+  var insts: Seq[Instruction] = null
 }
