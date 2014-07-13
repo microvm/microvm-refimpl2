@@ -1,0 +1,23 @@
+.funcsig @foo = void ()
+
+.funcsig @bar = int<64> (int<32> int<16>)
+
+.funcsig @baz = int<32> (int<32> iref<iref<int<8>>>)
+
+.funcsig @sig_fs = void (int<32>)
+
+.typedef @sig_t = func<@sig_fs>
+
+.funcdecl @signal <@sig_t (int<32> @sig_t)>
+
+.const @zero <int<32>> = 0
+
+.funcdef @main <@baz> (%argc %argv) {
+    %entry:
+        RET <int<32>> @zero
+}
+
+.funcdef @implicitentry <@foo> () {
+        RET <int<32>> @zero
+}
+

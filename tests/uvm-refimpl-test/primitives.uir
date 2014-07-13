@@ -1,0 +1,36 @@
+.typedef @i8 = int<8>
+.typedef @i16 = int<16>
+.typedef @i32 = int<32>
+.typedef @i64 = int<64>
+.typedef @float = float
+.typedef @double = double
+
+.typedef @void = void
+
+.funcsig @noparamsnoret = @void ()
+
+.const @TRUE <@i64> = 1
+.const @FALSE <@i64> = 0
+
+.funcsig @i_ii = @i64 (@i64 @i64)
+
+.typedef @refvoid = ref<@void>
+.const @NULLREF <@refvoid> = NULL
+
+.typedef @StructFoo = struct <@i32 @i64 @float @double>
+
+.const @STRUCT_FOO <@StructFoo> = {1 2 3.0f 4.0d}
+
+.typedef @refi64 = ref<@i64>
+.typedef @irefi64 = iref<@i64>
+.typedef @weakrefi64 = weakref<@i64>
+
+.typedef @StructBar = struct <
+    @i64 @i32 @i16 @i8 @float @double
+    @refi64 @irefi64 @weakrefi64
+>
+
+.typedef @refBar = ref<@StructBar>
+.typedef @irefBar = iref<@StructBar>
+
+.typedef @hCharArray = hybrid<@i64 @i8>

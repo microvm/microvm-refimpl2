@@ -1,0 +1,37 @@
+.typedef @i1  = int<1>
+.typedef @i8  = int<8>
+.typedef @i16 = int<16>
+.typedef @i32 = int<32>
+.typedef @i64 = int<64>
+
+.typedef @f = float
+.typedef @d = double
+
+.typedef @rv  = ref<void>
+.typedef @irv = iref<void>
+.typedef @wrv = weakref<void>
+
+.typedef @ri16   = ref<@i16>
+.typedef @ri16_2 = ref<int<16>>
+
+.typedef @s0 = struct<>
+.typedef @s1 = struct<int<8> @i16 int<32> @i64
+    float double ref<void> @irv @wrv @ri16 ref<int<16>>>
+
+.typedef @cons = struct<@i64 ref<@cons>>
+
+.typedef @a0 = array<int<8> 100>
+.typedef @a1 = array<struct<double int<64>> 10>
+.typedef @a2 = array<@a1 10>
+
+.typedef @h0 = hybrid <void int<8>>
+.typedef @h1 = hybrid <struct<@i32 @i32 float> @i64>
+
+.typedef @v = void
+
+.typedef @f0 = func <void ()>
+.typedef @f1 = func <int<32> (int<32> iref<iref<int<8>>>)>
+
+.typedef @th = thread
+.typedef @st = stack
+.typedef @tr64 = tagref64

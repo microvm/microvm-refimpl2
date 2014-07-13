@@ -1,0 +1,29 @@
+<project name="uvm-compiler" default="build" basedir=".">
+	<property name="antlr-jar" location="lib/antlr-4.2-complete.jar" />
+
+	<property name="uvm-dir" location="src" />
+
+	<property name="uir-rule" location="uIR.g4" />
+	<property name="uir-parser-package" value="uvm.ir.textinput.gen" />
+	<property name="uir-parser-path" value="uvm/ir/textinput/gen" />
+	<property name="uir-parser-generated" location="target/uir-parser-generated" />
+
+	<target name="build-uir-parser">
+		<echo message="Generating uIR parser from ${uir-rule} to ${uir-parser-generated}" />
+		<mkdir dir="${uir-parser-generated}" />
+		<java jar="${antlr-jar}" fork="true" failonerror="true">
+			<arg value="${uir-rule}" />
+			<arg line="-no-listener" />
+			<arg line="-package ${uir-parser-package}" />
+			<arg line="-o ${uir-parser-generated}/${uir-parser-path}/" />
+		</java>
+	</target>
+
+	<target name="clean">
+		<delete dir="${uir-parser-generated}" />
+	</target>
+
+	<target name="build" depends="build-uir-parser">
+	</target>
+
+</project>

@@ -1,0 +1,341 @@
+.funcdef @intBinOpTest <void (int<32> int<32>)> (%p0 %p1) {
+    %add  = ADD  <int<32>> %p0 %p1
+    %sub  = SUB  <int<32>> %p0 %p1
+    %mul  = MUL  <int<32>> %p0 %p1
+    %udiv = UDIV <int<32>> %p0 %p1
+    %sdiv = SDIV <int<32>> %p0 %p1
+    %urem = UREM <int<32>> %p0 %p1
+    %srem = SREM <int<32>> %p0 %p1
+    %shl  = SHL  <int<32>> %p0 %p1
+    %lshr = LSHR <int<32>> %p0 %p1
+    %ashr = ASHR <int<32>> %p0 %p1
+    %and  = AND  <int<32>> %p0 %p1
+    %or   = OR   <int<32>> %p0 %p1
+    %xor  = XOR  <int<32>> %p0 %p1
+    
+    RETVOID
+}
+
+.funcdef @fpBinOpTest <void (double double)> (%p0 %p1) {
+    %fadd = FADD <double> %p0 %p1
+    %fsub = FSUB <double> %p0 %p1
+    %fmul = FMUL <double> %p0 %p1
+    %fdiv = FDIV <double> %p0 %p1
+    %frem = FREM <double> %p0 %p1
+    
+    RETVOID
+}
+
+.funcdef @intCmpTest <void (int<64> int<64>)> (%p0 %p1) {
+    %eq  = EQ  <int<64>> %p0 %p1
+    %ne  = NE  <int<64>> %p0 %p1
+    %ult = ULT <int<64>> %p0 %p1
+    %ule = ULE <int<64>> %p0 %p1
+    %ugt = UGT <int<64>> %p0 %p1
+    %uge = UGE <int<64>> %p0 %p1
+    %slt = SLT <int<64>> %p0 %p1
+    %sle = SLE <int<64>> %p0 %p1
+    %sgt = SGT <int<64>> %p0 %p1
+    %sge = SGE <int<64>> %p0 %p1
+    
+    RETVOID
+}
+
+.funcdef @fpCmpTest <void (float float)> (%p0 %p1) {
+    %ftrue  = FTRUE  <float> %p0 %p1
+    %ffalse = FFALSE <float> %p0 %p1
+    %ford = FORD <float> %p0 %p1
+    %foeq = FOEQ <float> %p0 %p1
+    %fone = FONE <float> %p0 %p1
+    %folt = FOLT <float> %p0 %p1
+    %fole = FOLE <float> %p0 %p1
+    %fogt = FOGT <float> %p0 %p1
+    %foge = FOGE <float> %p0 %p1
+    %funo = FUNO <float> %p0 %p1
+    %fueq = FUEQ <float> %p0 %p1
+    %fune = FUNE <float> %p0 %p1
+    %fult = FULT <float> %p0 %p1
+    %fule = FULE <float> %p0 %p1
+    %fugt = FUGT <float> %p0 %p1
+    %fuge = FUGE <float> %p0 %p1
+    
+    RETVOID
+}
+
+.funcdef @convTest <void (int<32> int<64> float double)> (%p0 %p1 %p2 %p3) {
+    %trunc  = TRUNC <int<64> int<32>> %p1
+    %zext   = ZEXT  <int<32> int<64>> %p0
+    %sext   = SEXT  <int<32> int<64>> %p0
+
+    %fptrunc = FPTRUNC <double float> %p3
+    %fpext   = FPEXT   <float double> %p2
+
+    %fptoui = FPTOUI <double int<64>> %p3
+    %fptosi = FPTOSI <double int<64>> %p3
+    %uitofp = UITOFP <int<64> double> %p1
+    %sitofp = SITOFP <int<64> double> %p1
+
+    %bitcast0 = BITCAST <int<32> float>  %p0
+    %bitcast1 = BITCAST <int<64> double> %p1
+    %bitcast2 = BITCAST <float int<32>>  %p2
+    %bitcast3 = BITCAST <double int<64>> %p3
+
+    RETVOID
+}
+
+.funcdef @refCastTest <void (ref<void> iref<void> func<void ()>)> (%p0 %p1 %p2) {
+    %refcast  = REFCAST  <ref<void> ref<int<32>>> %p0
+    %irefcast = IREFCAST <iref<void> iref<int<64>>> %p1
+    %funccast = FUNCCAST <func<void()> func<@iiisig>> %p2
+    
+    RETVOID
+}
+
+.funcdef @ctrlFlow <void (int<32>)> (%p0) {
+    %entry:
+        %br1 = BRANCH %head
+    
+    %head:
+        %phi  = PHI <int<32>> { %entry: 0; %next: %i2; }
+        %zero = EQ <int<32>> %p0 0
+        %br2 = BRANCH2 %zero %body %exit
+        
+    %body:
+        %switch = SWITCH <int<32>> %phi %other { 1: %one; 2: %two; }
+    %one:
+        %br3 = BRANCH %next
+    %two:
+        %br4 = BRANCH %next
+    %other:
+        %br5 = BRANCH %next
+    %next:
+        %i2 = SUB <int<32>> %phi 1
+        %br6 = BRANCH %head
+        
+    %exit:
+        RETVOID
+}
+
+.funcsig @iiisig = int<64> (int<64> int<64>)
+
+.funcdecl @callee1 <void ()>
+
+.funcdef @callee2 <@iiisig> (%p0 %p1) {
+    %rv = ADD <int<64>> %p0 %p1
+    %ret = RET <int<64>> %rv
+}
+
+.funcdef @callee3 <@iiisig> (%p0 %p1) {
+    %exc = NEW <double>
+    %throw = THROW %exc
+}
+
+.funcdef @caller1 <void ()> () {
+        %v1 = CALL <void ()> @callee1 ()
+        %v2 = CALL <@iiisig> @callee2 (1 2)
+        %v3 = INVOKE <@iiisig> @callee3 (3 4) %cont %catch
+
+    %cont:
+        %v4 = CALL <void ()> @callee1 () KEEPALIVE (%v2 %v3)
+        %v5 = INVOKE <@iiisig> @callee3 (%v3 %v3) %cont2 %catch KEEPALIVE (%v2)
+
+    %cont2:
+        %retv = RETVOID
+
+    %catch:
+        %exc = LANDINGPAD
+        RETVOID
+}
+
+.funcdef @caller2 <@iiisig> (%p0 %p1) {
+    %tc = TAILCALL <@iiisig> @callee2 (%p0 %p1)
+}
+
+.typedef @sid = struct <int<64> double>
+.const @sid1 <@sid> = {42 3.14d}
+
+.funcdef @aggregate <void ()> () {
+    %e0 = EXTRACTVALUE <@sid 0> @sid1
+    %e1 = EXTRACTVALUE <@sid 1> @sid1
+    %i0 = INSERTVALUE <@sid 0> @sid1 40
+    %i1 = INSERTVALUE <@sid 1> @sid1 40.0d
+    
+    RETVOID
+}
+
+.typedef @al = array <int<64> 10>
+.typedef @hic = hybrid <int<64> int<8>>
+
+.funcdef @memops <void (int<64> int<64>)> (%p0 %p1) {
+    %new            = NEW <int<64>>
+    %newhybrid      = NEWHYBRID <@hic> %p0
+    %alloca         = ALLOCA <int<64>>
+    %allocahybrid   = ALLOCAHYBRID <@hic> %p0
+    
+    %new2           = NEW <@sid>
+    %alloca2        = ALLOCA <@al>
+    
+    %getiref        = GETIREF <@sid> %new2
+    
+    %getfieldiref   = GETFIELDIREF <@sid 0> %getiref
+    %getelemiref    = GETELEMIREF <@al> %alloca2 %p1
+    
+    %getfixedpartiref   = GETFIXEDPARTIREF <@hic> %allocahybrid
+    %getvarpartiref     = GETVARPARTIREF <@hic> %allocahybrid
+    
+    %shiftiref      = SHIFTIREF <int<8>> %getvarpartiref %p1
+    
+    %load       = LOAD <int<64>> %alloca
+    %store      = STORE <int<64>> %alloca 42
+    %cmpxchg    = CMPXCHG ACQUIRE MONOTONIC <int<64>> %alloca 42 0
+    %atomicrmw  = ATOMICRMW ACQ_REL ADD <int<64>> %alloca 50
+    
+    %fence = FENCE MONOTONIC
+    
+    RETVOID
+}
+
+.funcdef @memorder <void (iref<int<64>>)> (%p0) {
+    %l0 = LOAD NOT_ATOMIC   <int<64>> %p0
+    %l1 = LOAD UNORDERED    <int<64>> %p0
+    %l2 = LOAD MONOTONIC    <int<64>> %p0
+    %f3 = FENCE ACQUIRE
+    %f4 = FENCE RELEASE
+    %f5 = FENCE ACQ_REL
+    %l6 = LOAD SEQ_CST      <int<64>> %p0
+
+    RETVOID
+}
+
+.funcdef @atomicrmwops <void (iref<int<64>> int<64>)> (%p0 %p1) {
+    %old0 = ATOMICRMW ACQ_REL XCHG  <int<64>> %p0 %p1
+    %old1 = ATOMICRMW ACQ_REL ADD   <int<64>> %p0 %p1
+    %old2 = ATOMICRMW ACQ_REL SUB   <int<64>> %p0 %p1
+    %old3 = ATOMICRMW ACQ_REL AND   <int<64>> %p0 %p1
+    %old4 = ATOMICRMW ACQ_REL NAND  <int<64>> %p0 %p1
+    %old5 = ATOMICRMW ACQ_REL OR    <int<64>> %p0 %p1
+    %old6 = ATOMICRMW ACQ_REL XOR   <int<64>> %p0 %p1
+    %old7 = ATOMICRMW ACQ_REL MAX   <int<64>> %p0 %p1
+    %old8 = ATOMICRMW ACQ_REL MIN   <int<64>> %p0 %p1
+    %old9 = ATOMICRMW ACQ_REL UMAX  <int<64>> %p0 %p1
+    %olda = ATOMICRMW ACQ_REL UMIN  <int<64>> %p0 %p1
+
+    RETVOID
+}
+
+.funcdef @traps <void ()> () {
+        %a  = ADD <int<64>> 30 40
+        %b  = SUB <int<64>> 30 40
+        %c  = MUL <int<64>> 30 40
+        %wp = WATCHPOINT 1 <int<64>> %body %wpcont %wpexc KEEPALIVE (%a)
+    
+    %body:
+        %tp = TRAP <int<32>> %trapcont %trapexc KEEPALIVE (%b %wp)
+    
+    %wpcont:
+        RETVOID
+        
+    %wpexc:
+        %exc = LANDINGPAD
+        THROW %exc
+    
+    %trapcont:
+        RETVOID
+    
+    %trapexc:
+        %exc2 = LANDINGPAD
+        THROW %exc2
+}
+
+.funcdef @ccall <void (int<64>)> (%p0) {
+    %rv = CCALL DEFAULT <void (double)> %p0 (3.14d)
+    
+    RETVOID
+}
+
+.global @globalexc <ref<int<64>>>
+
+.funcdef @stack_and_intrinsic <void (int<64>)> (%p0) {
+        %a  = ADD <int<64>> 30 40
+        %b  = SUB <int<64>> 30 40
+        %c  = MUL <int<64>> 30 40
+        
+        %ns = NEWSTACK <@iiisig> @callee2 (5 6)
+        
+        %i  = ICALL @uvm.swap_stack(%ns) KEEPALIVE (%b)
+        
+        %j  = IINVOKE @uvm.kill_stack(%ns) %nor %exc KEEPALIVE (%b %c)
+        
+    %nor:
+        RETVOID
+    %exc:
+        %the_exc = LOAD <ref<int<64>>> @globalexc
+        THROW %the_exc
+}
+
+.funcsig @rainbow_sig = float (int<8> int<16> int<32> int<64> float double)
+.funcdecl @rainbow <@rainbow_sig>
+
+.typedef @rainbows = struct <int<8> int<16> int<32> int<64> float double>
+
+.typedef @garray_t = array<int<32> 200>
+.global @garray <@garray_t>
+
+.const @funcaddr <int<64>> = 0x0000001234567800
+
+.const @true <int<1>> = 1
+.const @false <int<1>> = 0
+
+.typedef @word = int<64>
+
+.const @n95 <@word> = 95
+.const @n96 <@word> = 96
+.const @n97 <@word> = 97
+.const @n98 <@word> = 98
+
+.funcdef @inference <float ()> () {
+        %add  = ADD  <int<8>>  41 42
+        %sub  = SUB  <int<16>> 43 44
+        %mul  = MUL  <int<32>> 45 46
+        %udiv = UDIV <int<64>> 47 48
+        %fadd = FADD <float>   49.0f 50.0f
+        %fsub = FSUB <double>  51.0d 52.0d
+        
+        %eq   = EQ   <int<64>> 53 54
+        %fueq = FUEQ <double>  55.0d 56.0d
+        
+        %trunc  = TRUNC <int<64> int<32>> 57
+        %fptrunc = FPTRUNC <double float> 58.0d
+        
+        %refcast  = REFCAST  <ref<void> ref<int<32>>> NULL
+        %irefcast = IREFCAST <iref<void> iref<int<64>>> NULL
+        
+        %select = SELECT <double> @true 59.0d 60.0d
+    
+    %bb2:
+        %switch = SWITCH <int<32>> 61 %bb3 { 62:%bb4; }
+    %bb3:
+        %phi    = PHI <int<32>> { %bb2: 63; }
+        %call   = CALL <@rainbow_sig> @rainbow (64 65 66 67 68.0f 69.0d)
+        %invoke = INVOKE <@rainbow_sig> @rainbow (70 71 72 73 74.0f 75.0d) %bb4 %bb5
+    %bb4:
+        %tailcall = TAILCALL <@rainbow_sig> @rainbow (76 77 78 79 80.0f 81.0d)
+    %bb5:
+        %extractvalue   = EXTRACTVALUE <@rainbows 0> {82 83 84 85 86.0f 87.0d}
+        %insertvalue    = INSERTVALUE <@rainbows 0> {88 89 90 91 92.0f 93.0d} 94
+        
+        %newhybrid      = NEWHYBRID <hybrid<void int<8>>> @n95
+        %allocahybrid   = ALLOCAHYBRID <hybrid<void int<8>>> @n96
+        
+        %getelemiref    = GETELEMIREF <@garray_t> @garray @n97
+        %shiftiref      = SHIFTIREF <int<32>> %getelemiref @n98
+        
+        %store      = STORE <int<32>> %shiftiref 99
+        %cmpxchg    = CMPXCHG ACQ_REL MONOTONIC <int<32>> %shiftiref 100 101
+        %atomicrmw  = ATOMICRMW ACQ_REL ADD <int<32>> %shiftiref 102
+        
+        %ccall      = CCALL DEFAULT <@rainbow_sig> @funcaddr (103 104 105 106 107.0f 108.0d)
+        %newstack   = NEWSTACK <@rainbow_sig> @rainbow (109 110 111 112 113.0f 114.0d)
+        
+        RETVOID
+}

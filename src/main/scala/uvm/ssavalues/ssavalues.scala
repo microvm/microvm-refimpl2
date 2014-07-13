@@ -212,13 +212,13 @@ case class InstTailCall(var sig: FuncSig, var callee: Value, var args: Seq[Value
 
 case class InstRet(var retTy: Type, var retVal: Value) extends AbstractRet
 
-case class InstRetVoid extends AbstractRet
+case class InstRetVoid() extends AbstractRet
 
 case class InstThrow(var excVal: Value) extends Instruction {
   def ty = VOID
 }
 
-case class InstLandingpad extends Instruction {
+case class InstLandingpad() extends Instruction {
   def ty = REFVOID
 }
 

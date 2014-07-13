@@ -4,7 +4,11 @@
 	<classpathentry kind="src" path="src/test/scala"/>
 	<classpathentry kind="src" path="src/main/java"/>
 	<classpathentry kind="src" path="src/test/java"/>
-	<classpathentry kind="con" path="org.scala-ide.sdt.launching.SCALA_CONTAINER"/>
+	<classpathentry kind="src" path="target/uir-parser-generated"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7"/>
+	<classpathentry kind="lib" path="lib/antlr-4.2-complete.jar"/>
+	<classpathentry kind="lib" path="lib/scalatest_2.11-2.2.0.jar"/>
+	<classpathentry kind="lib" path="lib/scala-parser-combinators_2.11-1.0.1.jar" sourcepath="lib/scala-parser-combinators_2.11-1.0.1-sources.jar"/>
+	<classpathentry kind="con" path="org.scala-ide.sdt.launching.SCALA_CONTAINER"/>
 	<classpathentry kind="output" path="target/eclipsebuild"/>
 </classpath>
