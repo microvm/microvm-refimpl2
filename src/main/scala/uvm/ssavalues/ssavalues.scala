@@ -13,9 +13,9 @@ abstract class Value extends IdentifiedSettable {
 
 // Constants
 
-abstract class Constant extends Value
+abstract class GlobalValue extends Value
 
-abstract class DeclaredConstant extends Constant {
+abstract class DeclaredConstant extends GlobalValue {
   var constTy: Type
   def ty = constTy
 }
@@ -23,26 +23,28 @@ abstract class DeclaredConstant extends Constant {
 case class ConstInt(var constTy: Type, var num: BigInt) extends DeclaredConstant
 case class ConstFloat(var constTy: Type, var num: Float) extends DeclaredConstant
 case class ConstDouble(var constTy: Type, var num: Double) extends DeclaredConstant
-case class ConstStruct(var constTy: Type, var fields: Seq[Constant]) extends DeclaredConstant
+case class ConstStruct(var constTy: Type, var fields: Seq[GlobalValue]) extends DeclaredConstant
 case class ConstNull(var constTy: Type) extends DeclaredConstant
 
-case class ConstFunc(var func: Function) extends Constant {
+case class ConstFunc(var func: Function) extends GlobalValue {
   def ty = func.sig.retTy
 }
 
-case class ConstGlobalData(var gd: GlobalData) extends Constant {
+case class ConstGlobalData(var gd: GlobalData) extends GlobalValue {
   def ty = gd.ty
 }
 
-// Parameter
+// Local values: Parameter and Instructions
 
-case class Parameter(var sig: FuncSig, var index: Int) extends Value {
+abstract class LocalValue extends Value
+
+case class Parameter(var sig: FuncSig, var index: Int) extends LocalValue {
   def ty = sig.retTy
 }
 
 // Instructions
 
-abstract class Instruction extends Value
+abstract class Instruction extends LocalValue
 
 /// enumerations
 

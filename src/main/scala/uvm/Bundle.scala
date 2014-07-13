@@ -9,5 +9,5 @@ class Bundle {
   val declConstNs = new SimpleNamespace[DeclaredConstant]()
   val globalDataNS = new SimpleNamespace[GlobalData]()
   val funcNs = new SimpleNamespace[Function]()
-  val globalValueNS = new SimpleNamespace[Constant]()
+  val globalValueNS = new SimpleNamespace[GlobalValue]()
 }

@@ -39,37 +39,45 @@ object UvmIRParser extends RegexParsers {
 
   def topLevel: Parser[TopLevel] = typeDef | funcSigDef | constDef | globalDataDef | funcDecl | funcDef
 
+  def t = typeExpr
+  def s = funcSigExpr
+  def v = valueExpr
+  def l = lid
+  def g = gid
+
   def typeDef: Parser[TypeDef] = ".typedef" ~> gid ~< "=" ~ typeCons ^^^^ TypeDef
   def funcSigDef: Parser[FuncSigDef] = ".funcsig" ~> gid ~< "=" ~ funcSigCons ^^^^ FuncSigDef
-  def constDef: Parser[ConstDef] = ".const" ~> gid ~ ang(typeExpr) ~< "=" ~ constCons ^^^^ ConstDef
-  def globalDataDef: Parser[GlobalDataDef] = ".global" ~> gid ~ ang(typeExpr) ^^^^ GlobalDataDef
-  def funcDecl: Parser[FuncDecl] = ".funcdecl" ~> gid ~ ang(funcSigExpr) ^^^^ FuncDecl
-  def funcDef: Parser[FuncDef] = ".funcdef" ~> gid ~ ang(funcSigExpr) ~ paren(rep(lid)) ~< "=" ~ funcBodyDef ^^^^ FuncDef
+  def constDef: Parser[ConstDef] = ".const" ~> gid ~ ang(t) ~< "=" ~ constCons ^^^^ ConstDef
+  def globalDataDef: Parser[GlobalDataDef] = ".global" ~> gid ~ ang(t) ^^^^ GlobalDataDef
+  def funcDecl: Parser[FuncDecl] = ".funcdecl" ~> gid ~ ang(s) ^^^^ FuncDecl
+  def funcDef: Parser[FuncDef] = ".funcdef" ~> gid ~ ang(s) ~ paren(rep(l)) ~ funcBodyDef ^^^^ FuncDef
 
-  def typeExpr: Parser[TypeExpr] = gid ^^ TypeRef | typeCons
+  def typeExpr: Parser[TypeExpr] = gid ^^ ReferredType | typeCons
   def typeCons: Parser[TypeCons] =
     "int" ~> ang(intLit.asInt) ^^ IntCons |
       "float" ^^^ FloatCons |
       "double" ^^^ DoubleCons |
-      "ref" ~> ang(typeExpr) ^^ RefCons |
-      "iref" ~> ang(typeExpr) ^^ IRefCons |
-      "weakref" ~> ang(typeExpr) ^^ WeakRefCons |
-      "struct" ~> ang(rep(typeExpr)) ^^ StructCons |
-      "array" ~> ang(typeExpr ~ intLit.asLong) ^^^^ ArrayCons |
+      "ref" ~> ang(t) ^^ RefCons |
+      "iref" ~> ang(t) ^^ IRefCons |
+      "weakref" ~> ang(t) ^^ WeakRefCons |
+      "struct" ~> ang(rep(t)) ^^ StructCons |
+      "array" ~> ang(t ~ intLit.asLong) ^^^^ ArrayCons |
+      "hybrid" ~> ang(t ~ t) ^^^^ HybridCons |
       "void" ^^^ VoidCons |
-      "func" ~> ang(funcSigExpr) ^^ FuncCons |
+      "func" ~> ang(s) ^^ FuncCons |
       "thread" ^^^ ThreadCons |
       "stack" ^^^ StackCons |
       "tagref64" ^^^ TagRef64Cons
 
-  def funcSigExpr: Parser[FuncSigExpr] = gid ^^ FuncSigRef | funcSigCons
-  def funcSigCons: Parser[FuncSigCons] = typeExpr ~ paren(rep(typeExpr)) ^^^^ FuncSigCons
+  def funcSigExpr: Parser[FuncSigExpr] = funcSigCons | g ^^ ReferredFuncSig
+  def funcSigCons: Parser[FuncSigCons] = t ~ paren(rep(t)) ^^^^ FuncSigCons
 
-  def constExpr: Parser[ConstExpr] = gid ^^ ConstRef | constCons
+  def constExpr: Parser[ConstExpr] = g ^^ ReferredConst | constCons
   def constCons: Parser[ConstCons] =
-    intLit ^^ IntConstCons |
-      floatLit ^^ FloatConstCons |
+    floatLit ^^ FloatConstCons |
       doubleLit ^^ DoubleConstCons |
+      intLit ^^ IntConstCons |
+      brace(rep(constExpr)) ^^ StructConstCons |
       "NULL" ^^^ NullConstCons
 
   def funcBodyDef: Parser[FuncBodyDef] = brace(entryBlock ~ rep(regularBlock)) ^^^^ FuncBodyDef
@@ -77,15 +85,9 @@ object UvmIRParser extends RegexParsers {
   def entryBlock: Parser[BasicBlockDef] = opt(label) ~ rep1(inst) ^^^^ BasicBlockDef
   def regularBlock: Parser[BasicBlockDef] = (label ^^ { Some(_) }) ~ rep1(inst) ^^^^ BasicBlockDef
 
-  def label: Parser[LID] = lid <~ ":"
+  def label: Parser[LID] = l <~ ":"
 
-  def inst: Parser[InstDef] = opt(lid <~ "=") ~ instCons ^^^^ InstDef
-
-  def t = typeExpr
-  def s = funcSigExpr
-  def v = valueExpr
-  def l = lid
-  def g = gid
+  def inst: Parser[InstDef] = opt(l <~ "=") ~ instCons ^^^^ InstDef
 
   def instCons: Parser[InstCons] =
     binOptr ~ ang(t) ~ v ~ v ^^^^ BinOpCons |
@@ -94,8 +96,8 @@ object UvmIRParser extends RegexParsers {
       "SELECT" ~> ang(t) ~ v ~ v ~ v ^^^^ SelectCons |
       "BRANCH" ~> l ^^ BranchCons |
       "BRANCH2" ~> v ~ l ~ l ^^^^ Branch2Cons |
-      "SWITCH" ~> ang(t) ~ v ~ l ~ vbMap ^^^^ SwitchCons |
-      "PHI" ~> ang(t) ~ bvMap ^^^^ PhiCons |
+      "SWITCH" ~> ang(t) ~ v ~ l ~ brace(vbMap) ^^^^ SwitchCons |
+      "PHI" ~> ang(t) ~ brace(bvMap) ^^^^ PhiCons |
       "CALL" ~> ang(s) ~ v ~ args ~ maybeKeepAlive ^^^^ CallCons |
       "INVOKE" ~> ang(s) ~ v ~ args ~ l ~ l ~ maybeKeepAlive ^^^^ InvokeCons |
       "TAILCALL" ~> ang(s) ~ v ~ args ^^^^ TailCallCons |
@@ -112,6 +114,7 @@ object UvmIRParser extends RegexParsers {
       "GETIREF" ~> ang(t) ~ v ^^^^ GetIRefCons |
       "GETFIELDIREF" ~> ang(t ~ intLit.asInt) ~ v ^^^^ GetFieldIRefCons |
       "GETELEMIREF" ~> ang(t) ~ v ~ v ^^^^ GetElemIRefCons |
+      "SHIFTIREF" ~> ang(t) ~ v ~ v ^^^^ ShiftIRefCons |
       "GETFIXEDPARTIREF" ~> ang(t) ~ v ^^^^ GetFixedPartIRefCons |
       "GETVARPARTIREF" ~> ang(t) ~ v ^^^^ GetVarPartIRefCons |
       "LOAD" ~> maybeMemOrd ~ ang(t) ~ v ^^^^ LoadCons |
@@ -130,14 +133,14 @@ object UvmIRParser extends RegexParsers {
   def bvMap: Parser[Seq[(LID, ValueExpr)]] = rep(lid ~< ":" ~ valueExpr ~< ";" ^^ { case a ~ b => (a, b) })
 
   def args: Parser[Seq[ValueExpr]] = paren(rep(v))
-  def keepAlive: Parser[Seq[ValueExpr]] = "KEEPALIVE" ~> args
-  def maybeKeepAlive: Parser[Seq[ValueExpr]] = opt(keepAlive) ^^ { _.getOrElse(Nil) }
+  def keepAlive: Parser[Seq[LID]] = "KEEPALIVE" ~> paren(rep(l))
+  def maybeKeepAlive: Parser[Seq[LID]] = opt(keepAlive) ^^ { _.getOrElse(Nil) }
 
   def valueExpr: Parser[ValueExpr] = id ^^ RefValue | constCons ^^ InlineValue
 
-  def binOptr: Parser[String] = "ADD|SUB|MUL|UDIV|SDIV|UREM|SREM|SHL|LSHR|ASHR|AND|OR|XOR".r
+  def binOptr: Parser[String] = "ADD|SUB|MUL|UDIV|SDIV|UREM|SREM|SHL|LSHR|ASHR|AND|OR|XOR|FADD|FSUB|FMUL|FDIV|FREM".r
   def cmpOptr: Parser[String] = "EQ|NE|ULT|ULE|UGT|UGE|SLT|SLE|SGT|SGE|FTRUE|FFALSE|FEQ|FNE|FORD|FOEQ|FONE|FOLT|FOLE|FOGT|FOGE|FUNO|FUEQ|FUNE|FULT|FULE|FUGT|FUGE".r
-  def convOptr: Parser[String] = "TRUNC|ZEXT|SEXT|FPTRUNC|FPEXT|FPTOUI|FPTOSI|UPTOFP|SITPFO|BITCAST|REFCAST|IREFCAST|FUNCCAST".r
+  def convOptr: Parser[String] = "TRUNC|ZEXT|SEXT|FPTRUNC|FPEXT|FPTOUI|FPTOSI|UITOFP|SITOFP|BITCAST|REFCAST|IREFCAST|FUNCCAST".r
   def memOrd: Parser[String] = "NOT_ATOMIC|UNORDERED|MONOTONIC|ACQUIRE|RELEASE|ACQ_REL|SEQ_CST".r
   def atomicRMWOp: Parser[String] = "XCHG|ADD|SUB|AND|NAND|OR|XOR|MIN|MAX|UMIN|UMAX".r
   def callConv: Parser[String] = "DEFAULT".r
@@ -162,21 +165,21 @@ object UvmIRParser extends RegexParsers {
   }
 
   def intLit: Parser[BigInt] =
-    sign ~ """[1-9][0-9]*""" ^^ parseInt(10) |
-      sign ~< "0" ~ """[0-9]*""" ^^ parseInt(8) |
-      sign ~< "0x" ~ """[0-9a-fA-F]*""" ^^ parseInt(16)
+    sign ~< "0x" ~ """[0-9a-fA-F]+""".r ^^ parseInt(16) |
+      sign ~< "0" ~ """[0-9]+""".r ^^ parseInt(8) |
+      sign ~ """([1-9][0-9]*)|0""".r ^^ parseInt(10)
 
   def floatLit: Parser[Float] =
     """[+-]?[0-9]+\.[0-9]+(e[+-]?[0-9]+)?""".r <~ "f" ^^ { _.toFloat } |
       "nan" <~ "f" ^^^ Float.NaN |
-      "inf" <~ "f" ^^^ Float.PositiveInfinity |
+      "+inf" <~ "f" ^^^ Float.PositiveInfinity |
       "-inf" <~ "f" ^^^ Float.NegativeInfinity |
       "bitsf" ~> paren(intLit.asInt) ^^ { java.lang.Float.intBitsToFloat(_) }
 
   def doubleLit: Parser[Double] =
     """[+-]?[0-9]+\.[0-9]+(e[+-]?[0-9]+)?""".r <~ "d" ^^ { _.toDouble } |
       "nan" <~ "d" ^^^ Double.NaN |
-      "inf" <~ "d" ^^^ Double.PositiveInfinity |
+      "+inf" <~ "d" ^^^ Double.PositiveInfinity |
       "-inf" <~ "d" ^^^ Double.NegativeInfinity |
       "bitsd" ~> paren(intLit.asLong) ^^ { java.lang.Double.longBitsToDouble(_) }
 
@@ -184,8 +187,9 @@ object UvmIRParser extends RegexParsers {
   def apply(input: java.io.Reader): IR = handleNoSuccess(parseAll(ir, input))
 
   private def handleNoSuccess(pr: ParseResult[IR]): IR = pr match {
-    case Success(irNode, _) => irNode
-    case NoSuccess(msg, _) => throw new TextIRParsingException(msg)
+    case Success(irNode, next) => irNode
+    case NoSuccess(msg, next) => throw new TextIRParsingException(
+      "line %d, col %d: %s".format(next.pos.line, next.pos.column, msg))
   }
 }
 
@@ -197,7 +201,7 @@ object UvmIRAST {
   case class TypeDef(name: GID, cons: TypeCons) extends TopLevel
 
   abstract class TypeExpr
-  case class TypeRef(id: GID) extends TypeExpr
+  case class ReferredType(id: GID) extends TypeExpr
 
   abstract class TypeCons extends TypeExpr
   case class IntCons(length: Int) extends TypeCons
@@ -218,13 +222,13 @@ object UvmIRAST {
   case class FuncSigDef(name: GID, cons: FuncSigCons) extends TopLevel
 
   abstract class FuncSigExpr
-  case class FuncSigRef(id: GID) extends FuncSigExpr
+  case class ReferredFuncSig(id: GID) extends FuncSigExpr
   case class FuncSigCons(retTy: TypeExpr, paramTy: Seq[TypeExpr]) extends FuncSigExpr
 
   case class ConstDef(name: GID, ty: TypeExpr, cons: ConstCons) extends TopLevel
 
   abstract class ConstExpr
-  case class ConstRef(id: GID) extends ConstExpr
+  case class ReferredConst(id: GID) extends ConstExpr
 
   abstract class ConstCons extends ConstExpr
   case class IntConstCons(num: BigInt) extends ConstCons
@@ -259,8 +263,8 @@ object UvmIRAST {
   case class Branch2Cons(cond: ValueExpr, ifTrue: LID, ifFalse: LID) extends InstCons
   case class SwitchCons(opndTy: TypeExpr, opnd: ValueExpr, defDest: LID, cases: Seq[(ValueExpr, LID)]) extends InstCons
   case class PhiCons(opndTy: TypeExpr, cases: Seq[(LID, ValueExpr)]) extends InstCons
-  case class CallCons(sig: FuncSigExpr, callee: ValueExpr, args: Seq[ValueExpr], keepAlives: Seq[ValueExpr]) extends InstCons
-  case class InvokeCons(sig: FuncSigExpr, callee: ValueExpr, args: Seq[ValueExpr], nor: LID, exc: LID, keepAlives: Seq[ValueExpr]) extends InstCons
+  case class CallCons(sig: FuncSigExpr, callee: ValueExpr, args: Seq[ValueExpr], keepAlives: Seq[LID]) extends InstCons
+  case class InvokeCons(sig: FuncSigExpr, callee: ValueExpr, args: Seq[ValueExpr], nor: LID, exc: LID, keepAlives: Seq[LID]) extends InstCons
   case class TailCallCons(sig: FuncSigExpr, callee: ValueExpr, args: Seq[ValueExpr]) extends InstCons
   case class RetCons(retTy: TypeExpr, retVal: ValueExpr) extends InstCons
   case object RetVoidCons extends InstCons
@@ -284,12 +288,12 @@ object UvmIRAST {
     loc: ValueExpr, expected: ValueExpr, desired: ValueExpr) extends InstCons
   case class AtomicRMWCons(ord: String, op: String, referentTy: TypeExpr, loc: ValueExpr, newVal: ValueExpr) extends InstCons
   case class FenceCons(ord: String) extends InstCons
-  case class TrapCons(retTy: TypeExpr, nor: LID, exc: LID, keepAlives: Seq[ValueExpr]) extends InstCons
-  case class WatchpointCons(wpID: Int, retTy: TypeExpr, dis: LID, nor: LID, exc: LID, keepAlives: Seq[ValueExpr]) extends InstCons
+  case class TrapCons(retTy: TypeExpr, nor: LID, exc: LID, keepAlives: Seq[LID]) extends InstCons
+  case class WatchpointCons(wpID: Int, retTy: TypeExpr, dis: LID, nor: LID, exc: LID, keepAlives: Seq[LID]) extends InstCons
   case class CCallCons(callConv: String, sig: FuncSigExpr, callee: ValueExpr, args: Seq[ValueExpr]) extends InstCons
   case class NewStackCons(sig: FuncSigExpr, callee: ValueExpr, args: Seq[ValueExpr]) extends InstCons
-  case class ICallCons(iFunc: GID, args: Seq[ValueExpr], keepAlives: Seq[ValueExpr]) extends InstCons
-  case class IInvokeCons(iFunc: GID, args: Seq[ValueExpr], nor: LID, exc: LID, keepAlives: Seq[ValueExpr]) extends InstCons
+  case class ICallCons(iFunc: GID, args: Seq[ValueExpr], keepAlives: Seq[LID]) extends InstCons
+  case class IInvokeCons(iFunc: GID, args: Seq[ValueExpr], nor: LID, exc: LID, keepAlives: Seq[LID]) extends InstCons
 
   abstract class ID(name: String)
   case class GID(name: String) extends ID(name)

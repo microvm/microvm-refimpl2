@@ -22,7 +22,7 @@ class CFG {
   var params: Seq[Parameter] = null
 
   var bbNs: Namespace[BasicBlock] = null // Consider using one global bb ns
-  var instNs: Namespace[Instruction] = null // Consider using one global value ns
+  var lvNs: Namespace[LocalValue] = null // Consider using one global value ns
 }
 
 class BasicBlock extends IdentifiedSettable {
