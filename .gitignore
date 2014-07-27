@@ -1,2 +1,5 @@
-/target
-/.cache
+target
+.cache
+.project
+.classpath
+.settings

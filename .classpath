@@ -1,14 +1,21 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry kind="src" path="src/main/scala"/>
-	<classpathentry kind="src" path="src/test/scala"/>
-	<classpathentry kind="src" path="src/main/java"/>
-	<classpathentry kind="src" path="src/test/java"/>
-	<classpathentry kind="src" path="target/uir-parser-generated"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7"/>
-	<classpathentry kind="lib" path="lib/antlr-4.2-complete.jar"/>
-	<classpathentry kind="lib" path="lib/scalatest_2.11-2.2.0.jar"/>
-	<classpathentry kind="lib" path="lib/scala-parser-combinators_2.11-1.0.1.jar" sourcepath="lib/scala-parser-combinators_2.11-1.0.1-sources.jar"/>
-	<classpathentry kind="con" path="org.scala-ide.sdt.launching.SCALA_CONTAINER"/>
-	<classpathentry kind="output" path="target/eclipsebuild"/>
+  <classpathentry output="target/scala-2.11/classes" kind="src" path="src/main/scala"/>
+  <classpathentry output="target/scala-2.11/classes" kind="src" path="src/main/java"/>
+  <classpathentry output="target/scala-2.11/classes" kind="src" path="target/gen/main"/>
+  <classpathentry output="target/scala-2.11/classes" kind="src" path="src/main/resources"/>
+  <classpathentry output="target/scala-2.11/test-classes" kind="src" path="src/test/scala"/>
+  <classpathentry output="target/scala-2.11/test-classes" kind="src" path="src/test/java"/>
+  <classpathentry output="target/scala-2.11/test-classes" kind="src" path="src/test/resources"/>
+  <classpathentry sourcepath="/home/wks/.ivy2/cache/org.antlr/antlr4/srcs/antlr4-4.3-sources.jar" kind="lib" path="/home/wks/.ivy2/cache/org.antlr/antlr4/jars/antlr4-4.3.jar"/>
+  <classpathentry sourcepath="/home/wks/.ivy2/cache/org.antlr/antlr4-runtime/srcs/antlr4-runtime-4.3-sources.jar" kind="lib" path="/home/wks/.ivy2/cache/org.antlr/antlr4-runtime/jars/antlr4-runtime-4.3.jar"/>
+  <classpathentry sourcepath="/home/wks/.ivy2/cache/org.abego.treelayout/org.abego.treelayout.core/srcs/org.abego.treelayout.core-1.0.1-sources.jar" kind="lib" path="/home/wks/.ivy2/cache/org.abego.treelayout/org.abego.treelayout.core/jars/org.abego.treelayout.core-1.0.1.jar"/>
+  <classpathentry sourcepath="/home/wks/.ivy2/cache/org.antlr/antlr4-annotations/srcs/antlr4-annotations-4.3-sources.jar" kind="lib" path="/home/wks/.ivy2/cache/org.antlr/antlr4-annotations/jars/antlr4-annotations-4.3.jar"/>
+  <classpathentry sourcepath="/home/wks/.ivy2/cache/org.antlr/antlr-runtime/srcs/antlr-runtime-3.5.2-sources.jar" kind="lib" path="/home/wks/.ivy2/cache/org.antlr/antlr-runtime/jars/antlr-runtime-3.5.2.jar"/>
+  <classpathentry sourcepath="/home/wks/.ivy2/cache/org.antlr/ST4/srcs/ST4-4.0.8-sources.jar" kind="lib" path="/home/wks/.ivy2/cache/org.antlr/ST4/jars/ST4-4.0.8.jar"/>
+  <classpathentry sourcepath="/home/wks/.ivy2/cache/org.scala-lang.modules/scala-parser-combinators_2.11/srcs/scala-parser-combinators_2.11-1.0.2-sources.jar" kind="lib" path="/home/wks/.ivy2/cache/org.scala-lang.modules/scala-parser-combinators_2.11/bundles/scala-parser-combinators_2.11-1.0.2.jar"/>
+  <classpathentry kind="con" path="org.scala-ide.sdt.launching.SCALA_CONTAINER"/>
+  <classpathentry sourcepath="/home/wks/.ivy2/cache/org.scalatest/scalatest_2.11/srcs/scalatest_2.11-2.2.0-sources.jar" kind="lib" path="/home/wks/.ivy2/cache/org.scalatest/scalatest_2.11/bundles/scalatest_2.11-2.2.0.jar"/>
+  <classpathentry sourcepath="/home/wks/.ivy2/cache/org.scala-lang.modules/scala-xml_2.11/srcs/scala-xml_2.11-1.0.1-sources.jar" kind="lib" path="/home/wks/.ivy2/cache/org.scala-lang.modules/scala-xml_2.11/bundles/scala-xml_2.11-1.0.1.jar"/>
+  <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+  <classpathentry kind="output" path="bin"/>
 </classpath>
