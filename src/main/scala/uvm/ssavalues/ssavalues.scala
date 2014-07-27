@@ -5,7 +5,7 @@ import uvm.types._
 import uvm.types.CommonTypes._
 import uvm.ifuncs._
 
-abstract class Value extends IdentifiedSettable {
+abstract class Value extends Identified {
   def ty: Type
 
   def resolve() {}
@@ -15,7 +15,7 @@ abstract class Value extends IdentifiedSettable {
 
 abstract class GlobalValue extends Value
 
-abstract class DeclaredConstant extends GlobalValue {
+abstract class DeclaredConstant extends GlobalValue with IdentifiedSettable {
   var constTy: Type
   def ty = constTy
 }
@@ -28,23 +28,27 @@ case class ConstNull(var constTy: Type) extends DeclaredConstant
 
 case class ConstFunc(var func: Function) extends GlobalValue {
   def ty = func.sig.retTy
+  override def id: Int = func.id
+  override def name: Option[String] = func.name
 }
 
 case class ConstGlobalData(var gd: GlobalData) extends GlobalValue {
   def ty = gd.ty
+  override def id: Int = gd.id
+  override def name: Option[String] = gd.name
 }
 
 // Local values: Parameter and Instructions
 
 abstract class LocalValue extends Value
 
-case class Parameter(var sig: FuncSig, var index: Int) extends LocalValue {
+case class Parameter(var sig: FuncSig, var index: Int) extends LocalValue with IdentifiedSettable {
   def ty = sig.retTy
 }
 
 // Instructions
 
-abstract class Instruction extends LocalValue
+abstract class Instruction extends LocalValue with IdentifiedSettable
 
 /// enumerations
 
@@ -148,12 +152,11 @@ abstract class StackAlloc extends AbstractAlloc {
 
 abstract class WeakRefLoader extends Instruction {
   def referentTy: Type
-  var ty: TypeRef = null
+  var ty: Type = null
   override def resolve() {
     referentTy match {
       case TypeWeakRef(t) => { ty = TypeRef(t) }
-      case TypeRef(t) => { ty = referentTy.asInstanceOf[TypeRef] }
-      case _ => { throw new TypeResolutionException("Expect weakref or ref, %s found".format(referentTy)) }
+      case t => { ty = t }
     }
   }
 }
@@ -284,7 +287,7 @@ case class InstFence(var ord: MemoryOrdering) extends Instruction {
 }
 
 case class InstAtomicRMW(var ord: MemoryOrdering, var op: AtomicRMWOptr,
-  var referentTy: Type, var loc: Value, var newVal: Value) extends Instruction {
+  var referentTy: Type, var loc: Value, var opnd: Value) extends Instruction {
   def ty = referentTy
 }
 

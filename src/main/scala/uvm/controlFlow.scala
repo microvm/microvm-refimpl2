@@ -21,8 +21,8 @@ class CFG {
   var entry: BasicBlock = null
   var params: Seq[Parameter] = null
 
-  var bbNs: Namespace[BasicBlock] = null // Consider using one global bb ns
-  var lvNs: Namespace[LocalValue] = null // Consider using one global value ns
+  val bbNs: Namespace[BasicBlock] = new SimpleNamespace[BasicBlock] // Consider using one global bb ns
+  val lvNs: Namespace[LocalValue] = new SimpleNamespace[LocalValue] // Consider using one global value ns
 }
 
 class BasicBlock extends IdentifiedSettable {

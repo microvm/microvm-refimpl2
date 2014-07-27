@@ -3,6 +3,7 @@ package uvm.ir.textinput
 import uvm._
 import uvm.types._
 import uvm.ssavalues._
+import uvm.ifuncs._
 
 object UvmIRReader {
   import UvmIRAST._
@@ -27,12 +28,18 @@ object UvmIRReader {
   }
 
   class Later {
+    var tooLate = false
     var jobs: List[() => Unit] = Nil
     def apply(job: () => Unit) {
-      jobs = job :: jobs
+      if (tooLate) {
+        job()
+      } else {
+        jobs = job :: jobs
+      }
     }
 
     def doAll() {
+      tooLate = true
       while (!jobs.isEmpty) {
         val job = jobs.head
         jobs = jobs.tail
@@ -70,6 +77,7 @@ object UvmIRReader {
         case WeakRefCons(t) => TypeWeakRef(null).later(phase1) { _.ty = resTy(t) }
         case StructCons(fs) => TypeStruct(null).later(phase1) { _.fieldTy = fs.map(resTy) }
         case ArrayCons(et, l) => TypeArray(null, l).later(phase1) { _.elemTy = resTy(et) }
+        case HybridCons(fp, vp) => TypeHybrid(null, null).later(phase1) { h => h.fixedPart = resTy(fp); h.varPart = resTy(vp) }
         case VoidCons => TypeVoid()
         case FuncCons(s) => TypeFunc(null).later(phase1) { _.sig = resSig(s) }
         case ThreadCons => TypeThread()
@@ -106,6 +114,7 @@ object UvmIRReader {
         sig.name = Some(n.name)
         bundle.funcSigNs.add(sig)
       }
+      case _ => {}
     }
 
     phase1.doAll()
@@ -139,7 +148,6 @@ object UvmIRReader {
 
     def mkGlobalDataConst(gd: GlobalData): ConstGlobalData = {
       val gdc = ConstGlobalData(gd)
-      gdc.id = IDFactory.getID()
       return gdc
     }
 
@@ -151,18 +159,17 @@ object UvmIRReader {
 
     def mkFuncConst(func: Function): ConstFunc = {
       val fc = ConstFunc(func)
-      fc.id = IDFactory.getID()
       return fc
     }
 
     def declFunc(n: GID, s: FuncSigExpr): Function = {
       val sig = resSig(s)
       val func = mkFunc(sig)
+      func.id = IDFactory.getID()
       func.name = Some(n.name)
       bundle.funcNs.add(func)
 
       val fc = mkFuncConst(func)
-      fc.name = Some(n.name)
       bundle.globalValueNS.add(fc)
 
       return func
@@ -185,7 +192,6 @@ object UvmIRReader {
         bundle.globalDataNS.add(gd)
 
         val gdc = mkGlobalDataConst(gd)
-        gdc.name = Some(n.name)
         bundle.globalValueNS.add(gdc)
       }
       case FuncDecl(n, s) => {
@@ -195,6 +201,7 @@ object UvmIRReader {
         val func = declFunc(n, s)
         funcDefs = (func, ps, body) :: funcDefs
       }
+      case _ => {}
     }
 
     phase2.doAll()
@@ -223,8 +230,11 @@ object UvmIRReader {
         cfg.bbNs.add(bb)
 
         phase3 { () =>
-          bb.insts = for (instDef <- bbd.insts)
-            yield mkInst(instDef)
+          bb.insts = for (instDef <- bbd.insts) yield {
+            val inst = mkInst(instDef)
+            cfg.lvNs.add(inst)
+            inst
+          }
         }
 
         return bb
@@ -317,15 +327,104 @@ object UvmIRReader {
             }
           case LandingpadCons =>
             InstLandingpad()
+          case ExtractValueCons(t, n, v) =>
+            InstExtractValue(resTy(t).asInstanceOf[TypeStruct], n, null).later(phase4) { i =>
+              i.opnd = vc(i.strTy, v)
+            }
+          case InsertValueCons(t, n, v, nv) =>
+            InstInsertValue(resTy(t).asInstanceOf[TypeStruct], n, null, null).later(phase4) { i =>
+              i.opnd = vc(i.strTy, v); i.newVal = vc(i.strTy.fieldTy(n), nv)
+            }
+          case NewCons(t) => InstNew(resTy(t))
+          case NewHybridCons(t, v) =>
+            InstNewHybrid(resTy(t).asInstanceOf[TypeHybrid], null).later(phase4) { i =>
+              i.length = vnc(v)
+            }
+          case AllocaCons(t) => InstAlloca(resTy(t))
+          case AllocaHybridCons(t, v) =>
+            InstAllocaHybrid(resTy(t).asInstanceOf[TypeHybrid], null).later(phase4) { i =>
+              i.length = vnc(v)
+            }
+          case GetIRefCons(t, v) =>
+            InstGetIRef(resTy(t), null).later(phase4) { i =>
+              i.opnd = vc(i.referentTy, v)
+            }
+          case GetFieldIRefCons(t, n, v) =>
+            InstGetFieldIRef(resTy(t).asInstanceOf[TypeStruct], n, null).later(phase4) { i =>
+              i.opnd = vc(i.referentTy, v)
+            }
+          case GetElemIRefCons(t, v, n) =>
+            InstGetElemIRef(resTy(t).asInstanceOf[TypeArray], null, null).later(phase4) { i =>
+              i.opnd = vc(i.referentTy, v); i.index = vc(i.referentTy, n)
+            }
+          case ShiftIRefCons(t, v, n) =>
+            InstShiftIRef(resTy(t), null, null).later(phase4) { i =>
+              i.opnd = vc(i.referentTy, v); i.offset = vc(i.referentTy, n)
+            }
+          case GetFixedPartIRefCons(t, v) =>
+            InstGetFixedPartIRef(resTy(t).asInstanceOf[TypeHybrid], null).later(phase4) { i =>
+              i.opnd = vc(i.referentTy, v)
+            }
+          case GetVarPartIRefCons(t, v) =>
+            InstGetVarPartIRef(resTy(t).asInstanceOf[TypeHybrid], null).later(phase4) { i =>
+              i.opnd = vc(i.referentTy, v)
+            }
+          case LoadCons(o, t, v) =>
+            InstLoad(MemoryOrdering.withName(o), resTy(t), null).later(phase4) { i =>
+              i.loc = vnc(v)
+            }
+          case StoreCons(o, t, v, nv) =>
+            InstStore(MemoryOrdering.withName(o), resTy(t), null, null).later(phase4) { i =>
+              i.loc = vnc(v); i.newVal = vc(i.referentTy, nv)
+            }
+          case CmpXchgCons(os, of, t, v, e, d) =>
+            InstCmpXchg(MemoryOrdering.withName(os), MemoryOrdering.withName(of),
+              resTy(t), null, null, null).later(phase4) { i =>
+                i.loc = vnc(v); i.expected = vc(i.referentTy, e); i.desired = vc(i.referentTy, d)
+              }
+          case AtomicRMWCons(o, op, t, v, v2) =>
+            InstAtomicRMW(MemoryOrdering.withName(o), AtomicRMWOptr.withName(op),
+              resTy(t), null, null).later(phase4) { i =>
+                i.loc = vnc(v); i.opnd = vc(i.referentTy, v2)
+              }
+          case FenceCons(o) => InstFence(MemoryOrdering.withName(o))
+          case TrapCons(t, n, e, ka) =>
+            InstTrap(resTy(t), resBB(n), resBB(e), null).later(phase4) { i =>
+              i.keepAlives = resKA(ka)
+            }
+          case WatchpointCons(wid, t, d, n, e, ka) =>
+            InstWatchpoint(wid, resTy(t), resBB(d), resBB(n), resBB(e), null).later(phase4) { i =>
+              i.keepAlives = resKA(ka)
+            }
+          case CCallCons(cc, s, f, a) =>
+            InstCCall(CallConv.withName(cc), resSig(s), null, null).later(phase4) { i =>
+              i.callee = vnc(f); i.args = resArgs(i.sig, a)
+            }
+          case NewStackCons(s, f, a) =>
+            InstNewStack(resSig(s), null, null).later(phase4) { i =>
+              i.callee = vnc(f); i.args = resArgs(i.sig, a)
+            }
+          case ICallCons(f, a, ka) =>
+            InstICall(IFuncs(f.name), null, null).later(phase4) { i =>
+              i.args = resArgs(i.iFunc.sig, a); i.keepAlives = resKA(ka)
+            }
+          case IInvokeCons(f, a, n, e, ka) =>
+            InstIInvoke(IFuncs(f.name), null, resBB(n), resBB(e), null).later(phase4) { i =>
+              i.args = resArgs(i.iFunc.sig, a); i.keepAlives = resKA(ka)
+            }
+
         }
+
+        inst.id = IDFactory.getID()
+        inst.name = for (lid <- instDef.name) yield lid.name
 
         return inst
       }
 
       val entry = makeBB(body.entry)
-      val rest = body.bbs.map(makeBB).toList
+      val rest = body.bbs.map(makeBB)
 
-      val bbs = entry :: rest
+      val bbs = Seq(entry) ++ rest
 
       cfg.bbs = bbs
       cfg.entry = entry
@@ -333,6 +432,10 @@ object UvmIRReader {
       phase3.doAll()
 
       phase4.doAll()
+
+      for (bb <- cfg.bbs; i <- bb.insts) {
+        i.resolve()
+      }
     }
 
     for ((func, ps, body) <- funcDefs) {
