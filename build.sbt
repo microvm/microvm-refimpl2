@@ -22,10 +22,4 @@ antlr4GenListener in Antlr4 := false
 
 antlr4GenVisitor in Antlr4 := false
 
-sourceManaged := file("target/gen")
-
-unmanagedSourceDirectories in Compile <++= baseDirectory { base =>
-  Seq(
-    base / "target/gen/main"
-  )
-}
+EclipseKeys.createSrc := EclipseCreateSrc.Default + EclipseCreateSrc.Resource + EclipseCreateSrc.Managed
