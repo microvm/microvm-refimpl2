@@ -3,6 +3,11 @@ package uvm.ir.textinput
 import scala.reflect._
 import org.scalatest._
 
+import uvm._
+import uvm.types._
+import uvm.ssavalues._
+import uvm.ifuncs._
+
 trait ExtraMatchers extends Assertions with Matchers {
   implicit class AnythingExtraMatchers(val thing: Any) {
     def shouldBeA[T: ClassTag](f: T => Unit): Unit = {
@@ -12,11 +17,54 @@ trait ExtraMatchers extends Assertions with Matchers {
       }
       f(thing.asInstanceOf[T])
     }
+    
+    def shouldBeATypeIntOf(len: Int) {
+      thing shouldBeA[TypeInt] {_.length shouldEqual len}
+    }
+    
+    def shouldBeAConstIntOf(len: Int, num: BigInt) {
+      thing shouldBeA[ConstInt] { its =>
+        its.ty shouldBeATypeIntOf(len)
+        its.num shouldEqual num
+      }
+    }
+        
+    def shouldBeAConstFloatOf(something: Any) {
+      thing shouldBeA[ConstFloat] { its =>
+        its.ty shouldBeA[TypeFloat] thatsIt
+        something match {
+          case `nan` => assert(its.num.isNaN)
+          case ExactFloat(num) => its.num shouldEqual num
+          case num: Float => its.num shouldEqual (num +- 0.001F)
+          case _ => its.num shouldEqual something
+        }
+      }
+    }
+    
+    def shouldBeAConstDoubleOf(something: Any) {
+      thing shouldBeA[ConstDouble] { its =>
+        its.ty shouldBeA[TypeDouble] thatsIt
+        something match {
+          case `nan` => assert(its.num.isNaN)
+          case ExactDouble(num) => its.num shouldEqual num
+          case num: Double => its.num shouldEqual (num +- 0.001F)
+          case _ => its.num shouldEqual something
+        }
+      }
+    }
   }
 
   val thatsIt = { f: Any => }
+  case object nan
+  case class ExactFloat(num: Float)
+  case class ExactDouble(num: Double)
+  def exactly(num: Float) = ExactFloat(num)
+  def exactly(num: Double) = ExactDouble(num)
+  
+  def bitsf(num: Int) = java.lang.Float.intBitsToFloat(num)
+  def bitsd(num: Long) = java.lang.Double.longBitsToDouble(num)
 }
 
-object ExtraMatchers extends ExtraMatchers {
+object ExtraMatchers {
 
 }

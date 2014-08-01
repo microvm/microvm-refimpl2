@@ -132,7 +132,7 @@ object UvmIRReader {
         case FloatConstCons(num) => ConstFloat(t, num)
         case DoubleConstCons(num) => ConstDouble(t, num)
         case StructConstCons(fs) => ConstStruct(t, null).later(phase2) {
-          _.fields = for (f <- fs) yield resGV(t, f)
+          _.fields = for ((ft,f) <- t.asInstanceOf[TypeStruct].fieldTy.zip(fs)) yield resGV(ft, f)
         }
         case NullConstCons => ConstNull(t)
       }
