@@ -8,6 +8,8 @@ abstract class Namespace[T <: Identified] {
   def get(name: String): Option[T]
 
   def add(obj: T): Unit
+  
+  def all: Iterable[T]
 }
 
 class SimpleNamespace[T <: Identified] extends Namespace[T] {
@@ -39,4 +41,6 @@ class SimpleNamespace[T <: Identified] extends Namespace[T] {
       case Some(name) => nameMap.put(name, obj)
     }
   }
+  
+  def all = idMap.values
 }
