@@ -184,8 +184,68 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
   }
   def validateFunctions(bundle: Bundle) {
     val our = bundle
+    
+    our sig "@foo" shouldBeA[FuncSig] { its =>
+      its.retTy shouldBeA[TypeVoid] thatsIt
+      its.paramTy shouldBe empty
+    }
 
+    our sig "@bar" shouldBeA[FuncSig] { its =>
+      its.retTy shouldBeATypeIntOf 64
+      its paramTy 0 shouldBeATypeIntOf 32
+      its paramTy 1 shouldBeATypeIntOf 16
+    }
+    
+    our sig "@baz" shouldBeA[FuncSig] { its =>
+      its.retTy shouldBeATypeIntOf 32
+      its paramTy 0 shouldBeATypeIntOf 32
+      its paramTy 1 shouldBeA[TypeIRef] { _.ty shouldBeA[TypeIRef] {
+        _.ty shouldBeATypeIntOf 8
+      }}
+    }
+    
+    our sig "@sig_fs" shouldBeA[FuncSig] { its =>
+      its.retTy shouldBeA[TypeVoid] thatsIt
+      its paramTy 0 shouldBeATypeIntOf 32
+    }
+    
+    our ty "@sig_t" shouldBeA[TypeFunc] { _.sig shouldBe (our sig "@sig_fs") }
+
+    our func "@signal" shouldBeA[Function] { its =>
+      its.cfg shouldBe None
+      its.sig shouldBeA[FuncSig] { whose =>
+        whose.retTy shouldBe (our ty "@sig_t")
+        whose paramTy 0 shouldBeATypeIntOf 32
+        whose paramTy 1 shouldBe (our ty "@sig_t")
+      }
+    }
+    
+    our const "@zero" shouldBeA[ConstInt] { its =>
+      its.constTy shouldBeATypeIntOf 32
+      its.num shouldBe 0
+    }
+    
+    our func "@main" shouldBeA[Function] { theFunc =>
+      val its = theFunc
+      its.cfg shouldNot be(None)
+      its.cfg.get.func shouldBe theFunc
+      its.sig shouldBe (our sig "@baz")
+      its.cfg.get.params(0).name shouldBe Some("%argc")
+      its.cfg.get.params(1).name shouldBe Some("%argv")
+      its.cfg.get.entry.name shouldBe Some("%entry")
+      its.cfg.get.bbs.size shouldBe 1
+      
+    }
+    
+    our func "@implicitentry" shouldBeA[Function] { its =>
+      its.cfg shouldNot be(None)
+      its.sig shouldBe (our sig "@foo")
+      its.cfg.get.params shouldBe empty
+      its.cfg.get.entry.name shouldBe None
+      its.cfg.get.bbs.size shouldBe 1
+    }
   }
+  
   def validateInstructions(bundle: Bundle) {
     val our = bundle
 

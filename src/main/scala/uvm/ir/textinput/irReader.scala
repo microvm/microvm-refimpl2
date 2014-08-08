@@ -209,6 +209,7 @@ object UvmIRReader {
     def defFunc(func: Function, ps: Seq[LID], body: FuncBodyDef) {
       val cfg = new CFG()
       cfg.func = func
+      func.cfg = Some(cfg)
 
       cfg.params = ps.zipWithIndex.map {
         case (n, i) =>
