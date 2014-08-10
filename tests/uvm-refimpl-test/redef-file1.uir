@@ -1,0 +1,29 @@
+// require primitives.uir
+
+.funcsig @IntReturner = @i64 ()
+
+.funcdef @meaning_of_life <@IntReturner> () {
+    RET <@i64> 42
+}
+
+.funcdecl @foxsay <@IntReturner>
+
+.funcdef @main <@noparamsnoret> () {
+    %cur_meaning = CALL <@IntReturner> @meaning_of_life ()
+    %checkpoint1 = TRAP <@void> %step2 %step2 KEEPALIVE (%cur_meaning)
+    
+%step2:
+    %fox = CALL <@IntReturner> @foxsay ()
+    %checkpoint2 = TRAP <@void> %step3 %step3 KEEPALIVE (%fox)
+    
+%step3:
+    %change_meaning = TRAP <@void> %step4 %step4 KEEPALIVE ()
+
+%step4:
+    %new_meaning = CALL <@IntReturner> @meaning_of_life ()
+    %checkpoint3 = TRAP <@void> %exit %exit KEEPALIVE (%new_meaning)
+    
+%exit:
+    ICALL @uvm.thread_exit ()
+    THROW @NULLREF
+}

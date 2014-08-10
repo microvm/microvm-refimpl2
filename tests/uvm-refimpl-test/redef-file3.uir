@@ -1,0 +1,3 @@
+.funcdef @meaning_of_life <@IntReturner> () {
+    RET <@i64> 43
+}

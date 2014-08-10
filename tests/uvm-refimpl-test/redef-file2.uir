@@ -1,0 +1,3 @@
+.funcdef @foxsay <@IntReturner> () {
+    RET <@i64> 99
+}

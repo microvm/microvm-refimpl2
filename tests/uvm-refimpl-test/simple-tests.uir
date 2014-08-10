@@ -1,0 +1,165 @@
+// require primitives.uir
+
+.funcdef @factorial_rec <@i64 (@i64)> (%n) {
+    %zero = EQ <@i64> %n 0
+    BRANCH2 %zero %iszero %notzero
+    
+%iszero:
+    RET <@i64> 1
+
+%notzero:
+    %nm1 = SUB <@i64> %n 1
+    %rec = CALL <@i64 (@i64)> @factorial_rec (%nm1)
+    %result = MUL <@i64> %n %rec
+    RET <@i64> %result
+}
+
+.funcdef @factorial_iter <@i64 (@i64)> (%n) {
+%entry:
+    BRANCH %head
+
+%head:
+    %i = PHI <@i64> { %entry: 1; %next: %i2; }
+    %prod = PHI <@i64> { %entry: 1; %next: %prod2; }
+    %cmp = SLE <@i64> %i %n
+    BRANCH2 %cmp %body %exit
+
+%body:
+    %prod2 = MUL <@i64> %prod %i
+    %i2 = ADD <@i64> %i 1
+    BRANCH %next
+
+%next:
+    BRANCH %head
+
+%exit:
+    RET <@i64> %prod
+}
+
+.funcdef @factorial_tailrec <@i64 (@i64 @i64)> (%n %prod) {
+   %zero = EQ <@i64> %n 0
+    BRANCH2 %zero %iszero %notzero
+    
+%iszero:
+    RET <@i64> %prod
+
+%notzero:
+    %nm1 = SUB <@i64> %n 1
+    %mul = MUL <@i64> %n %prod
+    TAILCALL <@i64 (@i64 @i64)> @factorial_tailrec (%nm1 %mul)
+}
+
+.funcdef @test_fac <@noparamsnoret> () {
+    %r1 = CALL <@i64 (@i64)> @factorial_rec (10)
+    %r2 = CALL <@i64 (@i64)> @factorial_iter (10)
+    %r3 = CALL <@i64 (@i64 @i64)> @factorial_tailrec (10 1)
+    %checktrap = TRAP <@void> %exit %exit KEEPALIVE (%r1 %r2 %r3)
+%exit:
+    ICALL @uvm.thread_exit()
+    THROW @NULLREF
+}
+
+.funcdef @fibonacci_rec <@i64 (@i64)> (%n) {
+    %zero = EQ <@i64> %n 0
+    BRANCH2 %zero %iszero %notzero
+    
+%iszero:
+    RET <@i64> 0
+    
+%notzero:
+    %one = EQ <@i64> %n 1
+    BRANCH2 %one %isone %notone
+    
+%isone:
+    RET <@i64> 1
+
+%notone:
+    %nm1 = SUB <@i64> %n 1
+    %nm2 = SUB <@i64> %n 2
+    %rec1 = CALL <@i64 (@i64)> @fibonacci_rec (%nm1)
+    %rec2 = CALL <@i64 (@i64)> @fibonacci_rec (%nm2)
+    %result = ADD <@i64> %rec1 %rec2
+    RET <@i64> %result
+}
+
+// M(n) = [F_{n+1} F_n  ;
+//         F_n     F_{n-1} ]
+//      = M(1) ^ n
+// M(1) = [1 1;
+//         1 0]
+// M(0) = [1 0;
+//         0 1]
+.funcdef @fibonacci_mat <@i64 (@i64)> (%n) {
+%entry:
+    BRANCH %head
+    
+%head:
+    %a = PHI <@i64> { %entry: 1; %next: %a2; }
+    %b = PHI <@i64> { %entry: 1; %next: %b2; }
+    %c = PHI <@i64> { %entry: 1; %next: %c2; }
+    %d = PHI <@i64> { %entry: 0; %next: %d2; }
+    %aa = PHI <@i64> { %entry: 1; %next: %aa2; }
+    %bb = PHI <@i64> { %entry: 0; %next: %bb2; }
+    %cc = PHI <@i64> { %entry: 0; %next: %cc2; }
+    %dd = PHI <@i64> { %entry: 1; %next: %dd2; }
+    %nn = PHI <@i64> { %entry: %n; %next: %nn2; }
+    %watch = TRAP <@void> %head2 %head2 KEEPALIVE (%a %b %c %d %aa %bb %cc %dd %nn)
+%head2:
+    %nn0 = EQ <@i64> %nn 0
+    BRANCH2 %nn0 %exit %body
+    
+%body:
+    %nodd = AND <@i64> %nn 1
+    BRANCH2 %nodd %odd %even
+
+%odd:
+    %aa_a = MUL <@i64> %aa %a
+    %bb_c = MUL <@i64> %bb %c
+    %aa_b = MUL <@i64> %aa %b
+    %bb_d = MUL <@i64> %bb %d
+    %cc_a = MUL <@i64> %cc %a
+    %dd_c = MUL <@i64> %dd %c
+    %cc_b = MUL <@i64> %cc %b
+    %dd_d = MUL <@i64> %dd %d
+
+    %aa3 = ADD <@i64> %aa_a %bb_c
+    %bb3 = ADD <@i64> %aa_b %bb_d
+    %cc3 = ADD <@i64> %cc_a %dd_c
+    %dd3 = ADD <@i64> %cc_b %dd_d
+    BRANCH %next
+    
+%even:
+    BRANCH %next
+    
+%next:
+    %aa2 = PHI <@i64> { %odd: %aa3; %even: %aa; }
+    %bb2 = PHI <@i64> { %odd: %bb3; %even: %bb; }
+    %cc2 = PHI <@i64> { %odd: %cc3; %even: %cc; }
+    %dd2 = PHI <@i64> { %odd: %dd3; %even: %dd; }
+    
+    %a_a = MUL <@i64> %a %a
+    %a_b = MUL <@i64> %a %b
+    %a_c = MUL <@i64> %a %c
+    %b_c = MUL <@i64> %b %c
+    %b_d = MUL <@i64> %b %d
+    %c_d = MUL <@i64> %c %d
+    %d_d = MUL <@i64> %d %d
+    %a2 = ADD <@i64> %a_a %b_c
+    %b2 = ADD <@i64> %a_b %b_d
+    %c2 = ADD <@i64> %a_c %c_d
+    %d2 = ADD <@i64> %b_c %d_d
+    %nn2 = ASHR <@i64> %nn 1
+    BRANCH %head
+    
+%exit:
+    RET <@i64> %bb
+}
+
+.funcdef @test_fib <@noparamsnoret> () {
+    %r1 = CALL <@i64 (@i64)> @fibonacci_rec (10)
+    %r2 = CALL <@i64 (@i64)> @fibonacci_mat (10)
+    %checktrap = TRAP <@void> %exit %exit KEEPALIVE (%r1 %r2)
+%exit:
+    ICALL @uvm.thread_exit()
+    THROW @NULLREF
+}

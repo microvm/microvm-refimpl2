@@ -9,12 +9,20 @@
 
 .funcsig @noparamsnoret = @void ()
 
+.typedef @funcdumb = func<@noparamsnoret>
+
+.typedef @thread = thread
+.typedef @stack = stack
+.typedef @tagref64 = tagref64
+
 .const @TRUE <@i64> = 1
 .const @FALSE <@i64> = 0
 
 .funcsig @i_ii = @i64 (@i64 @i64)
 
 .typedef @refvoid = ref<@void>
+.typedef @irefvoid = iref<@void>
+.typedef @weakrefvoid = weakref<@void>
 .const @NULLREF <@refvoid> = NULL
 
 .funcdef @binops32 <@void (@i32 @i32)> (%p0 %p1) {
@@ -346,6 +354,330 @@
     %allocahybrid = ALLOCAHYBRID <@hCharArray> %sz
 
     %trap = TRAP <@void> %exit %exit KEEPALIVE (%new %newhybrid %alloca %allocahybrid)
+%exit:
+    ICALL @uvm.thread_exit ()
+    THROW @NULLREF
+}
+
+.typedef @ArrayBaz = array <@i16 1024>
+.const @THREE <@i64> = 3
+
+.typedef @JavaLikeByteArray = hybrid <@i32 @i8>
+
+.const @I64_1024 <@i64> = 1024
+
+.funcdef @memAddressing <@noparamsnoret> () {
+    %bar_ref  = NEW <@StructBar>
+    %bar_iref = GETIREF <@StructBar> %bar_ref
+    %bar_3    = GETFIELDIREF <@StructBar 3> %bar_iref
+    
+    %baz_iref = ALLOCA <@ArrayBaz>
+    %baz_3    = GETELEMIREF <@ArrayBaz> %baz_iref @THREE
+    %baz_6    = SHIFTIREF <@i16> %baz_3 @THREE
+    
+    %ja_ref   = NEWHYBRID <@JavaLikeByteArray> @I64_1024
+    %ja_iref  = GETIREF <@JavaLikeByteArray> %ja_ref
+    %ja_fix   = GETFIXEDPARTIREF <@JavaLikeByteArray> %ja_iref
+    %ja_var   = GETVARPARTIREF <@JavaLikeByteArray> %ja_iref
+
+    %trap = TRAP <@void> %exit %exit KEEPALIVE (%bar_ref %bar_iref %bar_3
+                %baz_iref %baz_3 %baz_6 %ja_ref %ja_iref %ja_fix %ja_var)
+%exit:
+    ICALL @uvm.thread_exit ()
+    THROW @NULLREF
+    
+}
+
+.global @g_i8   <@i8>
+.global @g_i16  <@i16>
+.global @g_i32  <@i32>
+.global @g_i64  <@i64>
+.global @g_f    <@float>
+.global @g_d    <@double>
+.global @g_r    <@refvoid>
+.global @g_ir   <@irefvoid>
+.global @g_wr   <@weakrefvoid>
+    
+.global @g_func <@funcdumb>
+    
+.global @g_thr  <@thread>
+.global @g_sta  <@stack>
+.global @g_tr64 <@tagref64>
+
+.funcdef @memAccessing <@noparamsnoret> () {
+    STORE <@i8>  @g_i8  41
+    STORE <@i16> @g_i16 42
+    STORE <@i32> @g_i32 43
+    STORE <@i64> @g_i64 44
+    STORE <@float>  @g_f 45.0f
+    STORE <@double> @g_d 46.0d
+    
+    %void_r  = NEW <@void>
+    %void_ir = ALLOCA <@void>
+    
+    STORE <@refvoid>     @g_r  %void_r
+    STORE <@irefvoid>    @g_ir %void_ir
+    STORE <@weakrefvoid> @g_wr %void_r
+
+    STORE <@funcdumb> @g_func @memAccessing
+    
+    %li8  = LOAD <@i8>  @g_i8
+    %li16 = LOAD <@i16> @g_i16
+    %li32 = LOAD <@i32> @g_i32
+    %li64 = LOAD <@i64> @g_i64
+    %lf   = LOAD <@float>  @g_f
+    %ld   = LOAD <@double> @g_d
+    
+    %lr   = LOAD <@refvoid>     @g_r
+    %lir  = LOAD <@irefvoid>    @g_ir
+    %lwr  = LOAD <@weakrefvoid> @g_wr
+
+    %lfunc = LOAD <@funcdumb> @g_func
+
+    %trap = TRAP <@void> %exit %exit KEEPALIVE (%void_r %void_ir %li8 %li16
+                %li32 %li64 %lf %ld %lr %lir %lwr %lfunc)
+%exit:
+    ICALL @uvm.thread_exit ()
+    THROW @NULLREF
+}
+
+.funcdef @memAccessingAtomic <@noparamsnoret> () {
+    STORE SEQ_CST <@i32> @g_i32 43
+    STORE SEQ_CST <@i64> @g_i64 44
+
+    %void_r   = NEW <@void>
+    %void_r2  = NEW <@void>
+    %void_r3  = NEW <@void>
+    
+    STORE <@refvoid>     @g_r  %void_r
+
+    %cx32_1 = CMPXCHG SEQ_CST UNORDERED <@i32> @g_i32 43 53
+    %cx32_2 = CMPXCHG SEQ_CST UNORDERED <@i32> @g_i32 43 63
+    %cx64_1 = CMPXCHG SEQ_CST UNORDERED <@i64> @g_i64 44 54
+    %cx64_2 = CMPXCHG SEQ_CST UNORDERED <@i64> @g_i64 44 64
+    
+    %l32 = LOAD SEQ_CST <@i32> @g_i32
+    %l64 = LOAD SEQ_CST <@i64> @g_i64
+    
+    %cxr_1 = CMPXCHG SEQ_CST UNORDERED <@refvoid> @g_r %void_r %void_r2
+    %cxr_2 = CMPXCHG SEQ_CST UNORDERED <@refvoid> @g_r %void_r %void_r3
+    
+    %lr   = LOAD <@refvoid>     @g_r
+    
+    STORE <@i64> @g_i64 1
+    
+    %rmw0 = ATOMICRMW SEQ_CST XCHG  <@i64> @g_i64 0x55ab  // 1 -> 0x55ab
+    %rmw1 = ATOMICRMW SEQ_CST ADD   <@i64> @g_i64 3       // 0x55ab -> 0x55ae 
+    %rmw2 = ATOMICRMW SEQ_CST SUB   <@i64> @g_i64 4       // 0x55ae -> 0x55aa
+    %rmw3 = ATOMICRMW SEQ_CST AND   <@i64> @g_i64 0x5a5a  // 0x55aa -> 0x500a
+    %rmw4 = ATOMICRMW SEQ_CST NAND  <@i64> @g_i64 0x5a5a  // 0x500a -> ~0x500a
+    %rmw5 = ATOMICRMW SEQ_CST OR    <@i64> @g_i64 0x5000  // ~0x500a -> ~0x000a
+    %rmw6 = ATOMICRMW SEQ_CST XOR   <@i64> @g_i64 0x55aa  // ~0x000a -> ~0x55a0 
+    %rmw7 = ATOMICRMW SEQ_CST MIN   <@i64> @g_i64 -0x7fffffffffffffde // ~0x55a0 -> -0x7fffffffffffffde
+    %rmw8 = ATOMICRMW SEQ_CST MAX   <@i64> @g_i64 42      // -0x7fffffffffffffde -> 42
+    %rmw9 = ATOMICRMW SEQ_CST UMIN  <@i64> @g_i64 11      // 42 -> 11
+    %rmwA = ATOMICRMW SEQ_CST UMAX  <@i64> @g_i64 0xffffffffffffffde // 11 -> 0xffffffffffffffde
+    
+    %l64_2 = LOAD SEQ_CST <@i64> @g_i64
+
+    %trap = TRAP <@void> %exit %exit KEEPALIVE (%void_r %void_r2 %void_r3
+                %cx32_1 %cx32_2 %cx64_1 %cx64_2 %l32 %l64 %cxr_1 %cxr_2 %lr
+                %rmw0 %rmw1 %rmw2 %rmw3 %rmw4 %rmw5 %rmw6 %rmw7 %rmw8 %rmw9 %rmwA %l64_2)
+%exit:
+    ICALL @uvm.thread_exit ()
+    THROW @NULLREF
+}
+
+.funcdef @watchpointtest <@noparamsnoret> () {
+    BRANCH %head
+    
+%head:
+    %wp = WATCHPOINT 42 <@i64> %dis %ena %enaexc KEEPALIVE ()
+
+%dis:
+    %trapdis = TRAP <@void> %exit %exit KEEPALIVE ()
+
+%ena:
+    %trapena = TRAP <@void> %exit %exit KEEPALIVE (%wp)
+
+%enaexc:
+    %exc = LANDINGPAD
+    %trapena = TRAP <@void> %exit %exit KEEPALIVE (%exc)
+
+%exit:
+    ICALL @uvm.thread_exit ()
+    THROW @NULLREF
+}
+
+.funcdef @testswapstack <@noparamsnoret> () {
+    %valueret = ALLOCA <@i64>
+    %shouldstop = ALLOCA <@i64> // initially zeroed
+    %thisstack = ICALL @uvm.current_stack ()
+    
+    %iter = NEWSTACK <@itersig> @rangeiter (3 %thisstack %valueret %shouldstop)
+    ICALL @uvm.swap_stack (%iter)
+    BRANCH %head
+    
+%head:
+    %value = LOAD <@i64> %valueret
+    %stop  = LOAD <@i64> %shouldstop
+    TRAP <@void> %head2 %head2 KEEPALIVE (%value %stop)
+
+%head2:
+    %eq = EQ <@i64> %stop 0
+    BRANCH2 %eq %body %exit
+
+%body:
+    ICALL @uvm.swap_stack (%iter)
+    BRANCH %head
+
+%exit:
+    ICALL @uvm.thread_exit ()
+    THROW @NULLREF
+}
+
+.typedef @irefi64 = iref<@i64>
+
+.typedef @irefstack = iref<@stack>
+
+.funcsig @itersig = @void (@i64 @stack @irefi64 @irefi64)
+
+.funcdef @rangeiter <@itersig> (%n %src %valueret %shouldstop) {
+%entry:
+    BRANCH %head
+
+%head:
+    %i = PHI <@i64> {
+        %entry: 0;
+        %body: %i2;
+        }
+    %lt = SLT <@i64> %i %n
+    BRANCH2 %lt %body %exit
+    
+%body:
+    STORE <@i64> %valueret %i
+    ICALL @uvm.swap_stack (%src)
+    %i2 = ADD <@i64> %i 1
+    BRANCH %head
+
+%exit:
+    STORE <@i64> %shouldstop 1
+    ICALL @uvm.swap_and_kill (%src)
+    THROW @NULLREF // unreachable
+}
+
+.const @I64_100 <@i64> = 100
+.const @I64_50 <@i64> = 50
+.const @I64_0 <@i64> = 0
+.typedef @LongAry = hybrid <@void @i64>
+
+.funcdef @testmultithreading <@noparamsnoret> () {
+%entry:
+    %ary_r = NEWHYBRID <@LongAry> @I64_100
+    %ary_ir = GETIREF <@LongAry> %ary_r
+    %ary0_ir = GETVARPARTIREF <@LongAry> %ary_ir
+    BRANCH %head
+
+%head:
+    %i = PHI <@i64> { %entry: 0; %body: %i2; }
+    %cmp = SLT <@i64> %i @I64_100
+    BRANCH2 %cmp %body %next
+
+%body:
+    %aryi_ir = SHIFTIREF <@i64> %ary0_ir %i
+    STORE <@i64> %aryi_ir %i
+    %i2 = ADD <@i64> %i 1
+    BRANCH %head
+    
+%next:
+    %result0 = ALLOCA <@i64>
+    %sta0 = NEWSTACK <@summingslavesig> @summingslave (%ary0_ir @I64_50 %result0)
+    %result1 = ALLOCA <@i64>
+    %ary50_ir = SHIFTIREF <@i64> %ary0_ir @I64_50
+    %sta1 = NEWSTACK <@summingslavesig> @summingslave (%ary50_ir @I64_50 %result1)
+    
+    %thr0 = ICALL @uvm.new_thread (%sta0)
+    %thr1 = ICALL @uvm.new_thread (%sta1)
+    
+    BRANCH %wait0
+
+%wait0:
+    %res0val = LOAD SEQ_CST <@i64> %result0
+    %cz0 = EQ <@i64> %res0val @I64_0
+    BRANCH2 %cz0 %wait0 %wait1
+    
+%wait1:
+    %res1val = LOAD SEQ_CST <@i64> %result1
+    %cz1 = EQ <@i64> %res1val @I64_0
+    BRANCH2 %cz1 %wait1 %getresult
+    
+%getresult:
+    %sum = ADD <@i64> %res0val %res1val
+    TRAP <@void> %exit %exit KEEPALIVE (%sum)
+    
+%exit:
+    ICALL @uvm.thread_exit ()
+    THROW @NULLREF
+}
+
+.funcsig @summingslavesig = @void (@irefi64 @i64 @irefi64)
+
+.funcdef @summingslave <@summingslavesig> (%ary %sz %result) {
+%entry:
+    BRANCH %head
+    
+%head:
+    %sum = PHI <@i64> { %entry: 0; %body: %sum2; }
+    %i = PHI <@i64> { %entry: 0; %body: %i2; }
+    %cmp = SLT <@i64> %i %sz
+    BRANCH2 %cmp %body %exit
+
+%body:
+    %curptr = SHIFTIREF <@i64> %ary %i
+    %curnum = LOAD <@i64> %curptr
+    %sum2 = ADD <@i64> %sum %curnum
+    %i2 = ADD <@i64> %i 1
+    BRANCH %head
+
+%exit:
+    STORE SEQ_CST <@i64> %result %sum
+    ICALL @uvm.thread_exit ()
+    THROW @NULLREF
+}
+
+.typedef @i6 = int<6>
+.typedef @i52 = int<52>
+
+.const @I6_31 <@i6> = 31
+.const @I52_SAMPLE <@i52> = 0xfedcba9876543
+.const @D_42 <@double> = 42.0d
+
+.funcdef @testtr64 <@noparamsnoret> () {
+    %someobj = NEW <@i64>
+    %rv = REFCAST <@refi64 @refvoid> %someobj
+
+    %f = ICALL @uvm.tr64.from_fp  (@D_42)
+    %i = ICALL @uvm.tr64.from_int (@I52_SAMPLE)
+    %r = ICALL @uvm.tr64.from_ref (%rv @I6_31)
+    
+    %f_is_f = ICALL @uvm.tr64.is_fp  (%f)
+    %f_is_i = ICALL @uvm.tr64.is_int (%f)
+    %f_is_r = ICALL @uvm.tr64.is_ref (%f)
+    %i_is_f = ICALL @uvm.tr64.is_fp  (%i)
+    %i_is_i = ICALL @uvm.tr64.is_int (%i)
+    %i_is_r = ICALL @uvm.tr64.is_ref (%i)
+    %r_is_f = ICALL @uvm.tr64.is_fp  (%r)
+    %r_is_i = ICALL @uvm.tr64.is_int (%r)
+    %r_is_r = ICALL @uvm.tr64.is_ref (%r)
+    
+    %fb = ICALL @uvm.tr64.to_fp  (%f)
+    %ib = ICALL @uvm.tr64.to_int (%i)
+    %rb = ICALL @uvm.tr64.to_ref (%r)
+    %rt = ICALL @uvm.tr64.to_tag (%r)
+    
+    TRAP <@void> %exit %exit KEEPALIVE (%rv %f %i %r %f_is_f %f_is_i %f_is_r
+            %i_is_f %i_is_i %i_is_r %r_is_f %r_is_i %r_is_r %fb %ib %rb %rt)
+            
 %exit:
     ICALL @uvm.thread_exit ()
     THROW @NULLREF

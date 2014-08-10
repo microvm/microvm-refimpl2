@@ -8,8 +8,8 @@ class UvmIRReaderSpec extends AbstractReaderSpec {
   
   override def theSubject = "UvmIRReader"
 
-  override def parseFile(fileName: String): Bundle = {
-    UvmIRReader.read(new java.io.FileReader(fileName))
+  override def parseFile(fileName: String, globalBundle: Bundle): Bundle = {
+    UvmIRReader.read(new java.io.FileReader(fileName), globalBundle)
   }
 
 

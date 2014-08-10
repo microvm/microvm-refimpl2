@@ -1,0 +1,6 @@
+.funcdef @foxsay <@IntReturner> () {
+    %ret = RET <@i64> 99
+}
+.funcdef @meaning_of_life <@IntReturner> () {
+    %ret = RET <@i64> 43
+}

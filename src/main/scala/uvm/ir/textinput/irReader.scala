@@ -5,17 +5,17 @@ import uvm.types._
 import uvm.ssavalues._
 import uvm.ifuncs._
 
-object UvmIRReader {
+object UvmIRReader { 
   import UvmIRAST._
 
-  def read(ir: CharSequence): Bundle = {
+  def read(ir: CharSequence, globalBundle: Bundle): Bundle = {
     val ast = UvmIRParser(ir)
-    read(ast)
+    read(ast, globalBundle)
   }
 
-  def read(ir: java.io.Reader): Bundle = {
+  def read(ir: java.io.Reader, globalBundle: Bundle): Bundle = {
     val ast = UvmIRParser(ir)
-    read(ast)
+    read(ast, globalBundle)
   }
 
   object IDFactory {
@@ -57,13 +57,13 @@ object UvmIRReader {
     }
   }
 
-  def read(ir: IR): Bundle = {
+  def read(ir: IR, globalBundle: Bundle): Bundle = {
     val bundle = new Bundle()
 
     val phase1 = new Later()
 
     def resTy(te: TypeExpr): Type = te match {
-      case ReferredType(g) => bundle.typeNs(g.name)
+      case ReferredType(g) => bundle.typeNs.get(g.name).getOrElse(globalBundle.typeNs(g.name))
       case tc: TypeCons => mkType(tc)
     }
 
@@ -90,7 +90,7 @@ object UvmIRReader {
     }
 
     def resSig(se: FuncSigExpr): FuncSig = se match {
-      case ReferredFuncSig(g) => bundle.funcSigNs(g.name)
+      case ReferredFuncSig(g) => bundle.funcSigNs.get(g.name).getOrElse(globalBundle.funcSigNs(g.name))
       case FuncSigCons(r, ps) => mkSig(r, ps)
     }
 
@@ -122,7 +122,7 @@ object UvmIRReader {
     val phase2 = new Later()
 
     def resGV(t: Type, ce: ConstExpr): GlobalValue = ce match {
-      case ReferredConst(g) => bundle.globalValueNS(g.name)
+      case ReferredConst(g) => bundle.globalValueNs.get(g.name).getOrElse(globalBundle.globalValueNs(g.name))
       case c: ConstCons => mkConst(t, c)
     }
 
@@ -161,16 +161,23 @@ object UvmIRReader {
       val fc = ConstFunc(func)
       return fc
     }
+    
+    def tryReuseFuncID(name: String): Option[Int] = {
+      globalBundle.funcNs.get(name).map(_.id)
+    }
 
     def declFunc(n: GID, s: FuncSigExpr): Function = {
       val sig = resSig(s)
       val func = mkFunc(sig)
-      func.id = IDFactory.getID()
+      val maybeOldID = tryReuseFuncID(n.name)
+      func.id = maybeOldID.getOrElse(IDFactory.getID())
       func.name = Some(n.name)
       bundle.funcNs.add(func)
-
-      val fc = mkFuncConst(func)
-      bundle.globalValueNS.add(fc)
+      
+      if (maybeOldID == None) {
+        val fc = mkFuncConst(func)
+        bundle.globalValueNs.add(fc)
+      }
 
       return func
     }
@@ -183,16 +190,16 @@ object UvmIRReader {
         val con = mkConst(ty, c)
         con.name = Some(n.name)
         bundle.declConstNs.add(con)
-        bundle.globalValueNS.add(con)
+        bundle.globalValueNs.add(con)
       }
       case GlobalDataDef(n, t) => {
         val ty = resTy(t)
         val gd = mkGlobalData(ty)
         gd.name = Some(n.name)
-        bundle.globalDataNS.add(gd)
+        bundle.globalDataNs.add(gd)
 
         val gdc = mkGlobalDataConst(gd)
-        bundle.globalValueNS.add(gdc)
+        bundle.globalValueNs.add(gdc)
       }
       case FuncDecl(n, s) => {
         declFunc(n, s)
@@ -245,7 +252,7 @@ object UvmIRReader {
 
       def resVal(ty: Option[Type], ve: ValueExpr): Value = ve match {
         case RefValue(id) => id match {
-          case GID(n) => bundle.globalValueNS(n)
+          case GID(n) => bundle.globalValueNs(n)
           case LID(n) => cfg.lvNs(n)
         }
         case InlineValue(cc) => ty match {

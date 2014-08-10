@@ -11,9 +11,9 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
   
   implicit class MagicalOur(b: Bundle) {
     def ty = b.typeNs
-    def const = b.globalValueNS
-    def globalValue = b.globalValueNS
-    def globalData = b.globalDataNS
+    def const = b.globalValueNs
+    def globalValue = b.globalValueNs
+    def globalData = b.globalDataNs
     def sig = b.funcSigNs
     def func = b.funcNs
   }
@@ -1006,5 +1006,46 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         its.args(5) shouldBeAConstDoubleOf(114.0d)
       }
     }
+  }
+  
+  def validateRedef(globalBundle: Bundle, bundle: Bundle) {
+    val ourOld = globalBundle
+    val ourNew = bundle
+    
+    in (ourOld func "@meaning_of_life") { (func, cfg) =>
+      val my = cfg
+      
+      my inst "%ret" shouldBeA[InstRet] { _.retVal shouldBeAConstIntOf(64, 42) }
+    }
+    
+    (ourOld func "@foxsay").cfg shouldBe None
+    
+    (ourNew func "@meaning_of_life").id shouldEqual (ourOld func "@meaning_of_life").id
+    (ourNew func "@foxsay").id shouldEqual (ourOld func "@foxsay").id
+    
+    in (ourNew func "@meaning_of_life") { (func, cfg) =>
+      val my = cfg
+      
+      my inst "%ret" shouldBeA[InstRet] { its =>
+        its.retTy shouldBe (ourOld ty "@i64")
+        its.retVal shouldBeAConstIntOf(64, 43)
+      }
+    }
+    
+    (ourNew func "@foxsay").cfg shouldNot be(None)
+    
+    in (ourNew func "@foxsay") { (func, cfg) =>
+      val my = cfg
+      
+      my inst "%ret" shouldBeA[InstRet] { _.retVal shouldBeAConstIntOf(64, 99) }
+    }
+  }
+  
+  def validateRedefAfterMerge(globalBundle: Bundle, bundle: Bundle) {
+    val ourGlobal = globalBundle
+    val ourNew = bundle
+    
+    (ourGlobal func "@foxsay").cfg shouldBe (ourNew func "@foxsay").cfg
+    (ourGlobal func "@meaning_of_life").cfg shouldBe (ourNew func "@meaning_of_life").cfg
   }
 }

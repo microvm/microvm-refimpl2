@@ -1,0 +1,9 @@
+.typedef @i64 = int<64>
+
+.funcsig @IntReturner = @i64 ()
+
+.funcdef @meaning_of_life <@IntReturner> () {
+    %ret = RET <@i64> 42
+}
+
+.funcdecl @foxsay <@IntReturner>
