@@ -115,7 +115,7 @@ trait HasExceptionalDest extends Instruction {
 }
 
 trait HasKeepAlives extends Instruction {
-  def keepAlives: Seq[Value]
+  var keepAlives: Seq[Value]
 }
 
 abstract class AbstractCall extends HasArgs with CallLike
