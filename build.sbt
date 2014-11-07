@@ -1,8 +1,8 @@
 organization := "org.microvm"
 
-name := "simplest-microvm-project"
+name := "microvm-refimpl2"
 
-description := "An attempt to make the simplest (in term of conciseness) Micro-VM implementation"
+description := "The second reference implementation of MicroVM"
 
 licenses := Seq("CC BY-SA 4.0" -> url("https://creativecommons.org/licenses/by-sa/4.0/legalcode"))
 
