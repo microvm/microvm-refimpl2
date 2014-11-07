@@ -1,14 +1,10 @@
-/*
- * defines uVM IR text form
- */
-
-grammar uIR;
+grammar UIR;
 
 ir
-    :   metaData*
+    :   topLevelDef*
     ;
 
-metaData
+topLevelDef
     :   typeDef
     |   funcSigDef
     |   constDef
@@ -18,252 +14,234 @@ metaData
     ;
 
 typeDef
-    :   '.typedef' GLOBAL_ID '=' typeConstructor
+    :   '.typedef' nam=GLOBAL_NAME '=' ctor=typeConstructor
     ;
 
 funcSigDef
-    :   '.funcsig' GLOBAL_ID '=' funcSigConstructor
+    :   '.funcsig' nam=GLOBAL_NAME '=' ctor=funcSigConstructor
     ;
 
 constDef
-    :   '.const' GLOBAL_ID '<' type '>' '=' constExpr
+    :   '.const' nam=GLOBAL_NAME '<' ty=type '>' '=' ctor=constConstructor
     ;
     
 globalDef
-    :   '.global' GLOBAL_ID '<' type '>'
+    :   '.global' nam=GLOBAL_NAME '<' ty=type '>'
     ;
 
 funcDecl
-    :   '.funcdecl' GLOBAL_ID '<' funcSig '>'
+    :   '.funcdecl' nam=GLOBAL_NAME '<' sig=funcSig '>'
     ;
     
 funcDef
-    :   '.funcdef' GLOBAL_ID '<' funcSig '>' paramList funcBody
-    ;
-
-type
-    :   GLOBAL_ID           # ReferencedType
-    |   typeConstructor     # InLineType
+    :   '.funcdef' nam=GLOBAL_NAME 'VERSION' ver=GLOBAL_NAME '<' sig=funcSig '>' params=paramList body=funcBody
     ;
 
 typeConstructor
-    :   'int' '<' intLiteral '>'            # IntType
-    |   'float'                             # FloatType
-    |   'double'                            # DoubleType
-    |   'ref' '<' type '>'                  # RefType
-    |   'iref' '<' type '>'                 # IRefType
-    |   'weakref' '<' type '>'              # WeakRefType
-    |   'struct' '<' type* '>'              # StructType
-    |   'array' '<' type intLiteral '>'     # ArrayType
-    |   'hybrid' '<' type type '>'          # HybridType
-    |   'void'                              # VoidType
-    |   'func' '<' funcSig '>'              # FuncType
-    |   'thread'                            # ThreadType
-    |   'stack'                             # StackType
-    |   'tagref64'                          # TagRef64Type
-    ;
-
-funcSig
-    :   GLOBAL_ID           # ReferencedFuncSig
-    |   funcSigConstructor  # InLineFuncSig
+    :   'int' '<' length=intLiteral '>'                         # TypeInt
+    |   'float'                                                 # TypeFloat
+    |   'double'                                                # TypeDouble
+    |   'ref' '<' type '>'                                      # TypeRef
+    |   'iref' '<' type '>'                                     # TypeIRef
+    |   'weakref' '<' type '>'                                  # TypeWeakRef
+    |   'struct' '<' type+ '>'                                  # TypeStruct
+    |   'array' '<' type length=intLiteral '>'                  # TypeArray
+    |   'hybrid' '<' fixedTy=type varTy=type '>'                # TypeHybrid
+    |   'void'                                                  # TypeVoid
+    |   'func' '<' funcSig '>'                                  # TypeFunc
+    |   'thread'                                                # TypeThread
+    |   'stack'                                                 # TypeStack
+    |   'tagref64'                                              # TypeTagRef64
+    |   'vector' '<' type length=intLiteral '>'                 # TypeVector
     ;
 
 funcSigConstructor
-    :   type '(' type* ')'
+    :   retTy=type '(' (paramTy=type*) ')'
+    ;
+
+constConstructor
+    :   intLiteral                  # ConstInt
+    |   floatLiteral                # ConstFloat
+    |   doubleLiteral               # ConstDouble
+    |   '{' constant* '}'           # ConstStruct
+    |   'NULL'                      # ConstNull
+    |   'VEC' '{' constant* '}'     # ConstVector
+    ;
+
+type
+    :   GLOBAL_NAME
+    ;
+
+funcSig
+    :   GLOBAL_NAME
     ;
 
 constant
-    :   GLOBAL_ID           # ReferencedConst
-    |   constExpr           # InLineConst
-    ;
-
-constExpr
-    :   intLiteral          # IntConst
-    |   floatLiteral        # FloatConst
-    |   doubleLiteral       # DoubleConst
-    |   '{' constant* '}'   # StructConst
-    |   'NULL'              # NullConst
+    :   GLOBAL_NAME
     ;
 
 paramList
-    :   '(' LOCAL_ID* ')'
+    :   '(' name* ')'
     ;
 
 funcBody
-    :   '{' basicBlocks '}'
+    :   '{' basicBlock* '}'
     ;
 
-basicBlocks
-    :   entryBlock regularBlock*
-    ;
-
-entryBlock
-    :   label? inst+
-    ;
-
-regularBlock
+basicBlock
     :   label inst+
     ;
 
 label
-    :   LOCAL_ID ':'
+    :   name ':'
     ;
 
 inst
-    :   (LOCAL_ID '=')? instBody
+    :   (name '=')? instBody
     ;
 
 instBody
     // Integer/FP Arithmetic
-    :   binops '<' type '>' value value         # InstBinOp
+    :   binop '<' type '>' op1=value op2=value excClause                # InstBinOp
 
     // Integer/FP Comparison
-    |   cmpops '<' type '>' value value         # InstCmp
+    |   cmpop '<' type '>' op1=value op2=value                          # InstCmp
 
     // Conversions
-    |   convops  '<' type type '>' value            # InstConversion
+    |   convop  '<' fromTy=type toTy=type '>' opnd=value                # InstConversion
     
     // Select
-    |   'SELECT' '<' type '>' value value value     # InstSelect
+    |   'SELECT' '<' condTy=type resTy=type '>' cond=value ifTrue=value ifFalse=value       # InstSelect
 
     // Intra-function Control Flow
-    |   'BRANCH' LOCAL_ID                           # InstBranch
-    |   'BRANCH2' value LOCAL_ID LOCAL_ID           # InstBranch2
-    |   'SWITCH' '<' type '>' value LOCAL_ID '{'
-            (value ':' LOCAL_ID ';')* '}'           # InstSwitch
+    |   'BRANCH' bbName                                                 # InstBranch
+    |   'BRANCH2' cond=value ifTrue=bbName ifFalse=bbName               # InstBranch2
+    |   'SWITCH' '<' type '>' opnd=value defDest=bbName '{'
+            (caseVal=value ':' caseDest=bbName ';')* '}'                # InstSwitch
     |   'PHI' '<' type '>' '{'
-            (LOCAL_ID ':' value ';')* '}'           # InstPhi
+            (caseSrc=bbName ':' caseVal=value ';')* '}'                 # InstPhi
 
     // Inter-function Control Flow
-    |   'CALL' funcCallBody keepAlive?              # InstCall
-    |   'INVOKE' funcCallBody LOCAL_ID LOCAL_ID keepAlive? # InstInvoke
+    |   'CALL' funcCallBody excClause keepAliveClause                   # InstCall
     |   'TAILCALL' funcCallBody                     # InstTailCall
 
-    |   'RET' '<' type '>' value                    # InstRet
+    |   'RET' '<' type '>' retVal=value             # InstRet
     |   'RETVOID'                                   # InstRetVoid
-    |   'THROW' value                               # InstThrow
+    |   'THROW' exc=value                           # InstThrow
     |   'LANDINGPAD'                                # InstLandingPad
 
     // Aggregate Operations
-    |   'EXTRACTVALUE' '<' type intLiteral '>' value        # InstExtractValue
-    |   'INSERTVALUE' '<' type intLiteral '>' value value   # InstInsertValue
+    |   'EXTRACTVALUE' '<' type intLiteral '>' opnd=value               # InstExtractValue
+    |   'INSERTVALUE' '<' type intLiteral '>' opnd=value newVal=value   # InstInsertValue
+    |   'EXTRACTELEMENT' '<' vecTy=type indTy=type '>' opnd=value index=value                           # InstExtractElement
+    |   'INSERTELEMENT' '<' vecTy=type indTy=type '>' opnd=value index=value opnd=value newVal=value    # InstInsertElement
+    |   'SHUFFLEVECTOR' '<' vecTy=type maskTy=type '>' vec1=value vec2=value mask=value                 # InstShuffleVector
 
     // Memory Operations
-    |   'NEW'           '<' type '>'                # InstNew
-    |   'NEWHYBRID'     '<' type '>' value          # InstNewHybrid
-    |   'ALLOCA'        '<' type '>'                # InstAlloca
-    |   'ALLOCAHYBRID'  '<' type '>' value          # InstAllocaHybrid
+    |   'NEW'           '<' allocTy=type '>' excClause                              # InstNew
+    |   'NEWHYBRID'     '<' allocTy=type lenTy=type '>' length=value excClause      # InstNewHybrid
+    |   'ALLOCA'        '<' allocTy=type '>' excClause                              # InstAlloca
+    |   'ALLOCAHYBRID'  '<' allocTy=type lenTy=type '>' length=value excClause      # InstAllocaHybrid
     
-    |   'GETIREF'       '<' type '>' value              # InstGetIRef
+    |   'GETIREF'       '<' refTy=type '>' opnd=value                               # InstGetIRef
 
-    |   'GETFIELDIREF'  '<' type intLiteral '>' value   # InstGetFieldIRef
-    |   'GETELEMIREF'   '<' type '>' value value        # InstGetElemIRef
-    |   'SHIFTIREF'     '<' type '>' value value        # InstShiftIRef
-    |   'GETFIXEDPARTIREF'  '<' type '>' value          # InstGetFixedPartIRef
-    |   'GETVARPARTIREF'    '<' type '>' value          # InstGetVarPartIRef
+    |   'GETFIELDIREF'  '<' refTy=type index=intLiteral '>' opnd=value              # InstGetFieldIRef
+    |   'GETELEMIREF'   '<' refTy=type indTy=type '>' opnd=value index=value        # InstGetElemIRef
+    |   'SHIFTIREF'     '<' refTy=type offTy=type '>' opnd=value offset=value       # InstShiftIRef
+    |   'GETFIXEDPARTIREF'  '<' refTy=type '>' opnd=value                           # InstGetFixedPartIRef
+    |   'GETVARPARTIREF'    '<' refTy=type '>' opnd=value                           # InstGetVarPartIRef
     
-    |   'LOAD' atomicord? '<' type '>' value            # InstLoad
-    |   'STORE' atomicord? '<' type '>' value value     # InstStore
-    |   'CMPXCHG' atomicord atomicord
-                    '<' type '>' value value value      # InstCmpXchg
-    |   'ATOMICRMW' atomicord atomicrmwop
-                '<' type '>' value value                # InstAtomicRMW
+    |   'LOAD' memord? '<' type '>' loc=value excClause                             # InstLoad
+    |   'STORE' memord? '<' type '>' loc=value newVal=value excClause               # InstStore
+    |   'CMPXCHG' (isWeak='WEAK'?) ordSucc=memord ordFail=memord
+                    '<' type '>' loc=value expected=value desired=value excClause   # InstCmpXchg
+    |   'ATOMICRMW' memord atomicrmwop '<' type '>' loc=value opnd=value excClause  # InstAtomicRMW
 
-    |   'FENCE' atomicord                               # InstFence
+    |   'FENCE' memord                                                              # InstFence
 
     // Trap
-    |   'TRAP' '<' type '>'
-            LOCAL_ID LOCAL_ID keepAlive                 # InstTrap
-    |   'WATCHPOINT' intLiteral '<' type '>'
-            LOCAL_ID LOCAL_ID LOCAL_ID keepAlive        # InstWatchPoint
+    |   'TRAP' '<' type '>' excClause keepAliveClause                               # InstTrap
+    |   'WATCHPOINT' wpid=intLiteral '<' type '>'
+            dis=bbName ena=bbName ('WPEXC' '(' wpExc=bbName ')')? keepAliveClause   # InstWatchPoint
 
     // Foreign Function Interface
-    |   'CCALL' callconv funcCallBody                   # InstCCall
+    |   'CCALL' '<' type '>' callconv funcCallBody      # InstCCall
 
     // Thread and Stack Operations
-    |   'NEWSTACK' funcCallBody                         # InstNewStack
+    |   'NEWSTACK' funcCallBody excClause                                                   # InstNewStack
+    |   'SWAPSTACK' swappee=value curStackClause newStackClause excClause keepAliveClause   # InstSwapStack
 
-    // Intrinsic Functions
-    |   'ICALL' GLOBAL_ID args keepAlive?               # InstICall
-    |   'IINVOKE' GLOBAL_ID args
-            LOCAL_ID LOCAL_ID keepAlive?                # InstIInvoke
+    // Common Instructions
+    |   'COMMINST' typeList? argList? excClause keepAliveClause     # InstCommInst
+    ;
+
+bbName
+    :   name
+    ;
+
+value
+    :   name
     ;
 
 funcCallBody
-    :   '<' funcSig '>' value args
+    :   '<' funcSig '>' callee=value argList
     ;
 
-args
+excClause
+    :   ('EXC' '(' nor=bbName exc=bbName ')')?
+    ;
+
+keepAliveClause
+    :   ('KEEPALIVE' '(' value* ')')?
+    ;
+
+typeList
+    :   '<' type* '>'
+    ;
+
+argList
     :   '(' value* ')'
     ;
 
-keepAlive
-    :   'KEEPALIVE' '(' value* ')'
+curStackClause
+    :   'RET_WITH' '<' type '>'     # CurStackRetWith
+    |   'KILL_OLD'                  # CurStackKillOld
     ;
 
-callconv : 'DEFAULT' ;
-
-binops : ibinops | fbinops ;
-
-ibinops
-    : 'ADD'
-    | 'SUB'
-    | 'MUL'
-    | 'UDIV'
-    | 'SDIV'
-    | 'UREM'
-    | 'SREM'
-    | 'SHL'
-    | 'LSHR'
-    | 'ASHR'
-    | 'AND'
-    | 'OR'
-    | 'XOR'
-    ;
-    
-fbinops
-    : 'FADD' | 'FSUB' | 'FMUL' | 'FDIV' | 'FREM'
+newStackClause
+    :   'PASS_PARAM' '<' type '>' value     # NewStackPassParam
+    |   'NO_PARAM'                          # NewStackNoParam
+    |   'THROW_EXC' exc=value               # NewStackThrowExc
     ;
 
-cmpops : icmpops | fcmpops ;
-
-icmpops
-    : 'EQ'
-    | 'NE'
-    | 'SGT'
-    | 'SLT'
-    | 'SGE'
-    | 'SLE'
-    | 'UGT'
-    | 'ULT'
-    | 'UGE'
-    | 'ULE'
+binop
+    : 'ADD' | 'SUB' | 'MUL' | 'UDIV' | 'SDIV' | 'UREM' | 'SREM' | 'SHL' | 'LSHR' | 'ASHR' | 'AND' | 'OR' | 'XOR'
+    | 'FADD'| 'FSUB' | 'FMUL' | 'FDIV' | 'FREM'
     ;
 
-fcmpops
-    : 'FTRUE' | 'FFALSE' 
+cmpop
+    : 'EQ' | 'NE' | 'SGT' | 'SLT' | 'SGE' | 'SLE' | 'UGT' | 'ULT' | 'UGE' | 'ULE'
+    | 'FTRUE' | 'FFALSE'
     | 'FUNO' | 'FUEQ' | 'FUNE' | 'FUGT' | 'FULT' | 'FUGE' | 'FULE'
     | 'FORD' | 'FOEQ' | 'FONE' | 'FOGT' | 'FOLT' | 'FOGE' | 'FOLE'
     ;
     
-convops
+convop
     : 'TRUNC' | 'ZEXT' | 'SEXT' | 'FPTRUNC' | 'FPEXT'
-    | 'FPTOUI' | 'FPTOSI' | 'UITOFP' | 'SITOFP' | 'BITCAST'
-    | 'REFCAST' | 'IREFCAST' | 'FUNCCAST'
+    | 'FPTOUI' | 'FPTOSI' | 'UITOFP' | 'SITOFP'
+    | 'BITCAST' | 'REFCAST'
     ;
 
-atomicord
-    : 'NOT_ATOMIC' | 'UNORDERED' | 'MONOTONIC' | 'ACQUIRE' | 'RELEASE'
-    | 'ACQ_REL' | 'SEQ_CST'
+memord
+    : 'NOT_ATOMIC' | 'RELAXED' | 'CONSUME' | 'ACQUIRE' | 'RELEASE' | 'ACQ_REL' | 'SEQ_CST'
     ;
 
 atomicrmwop
-    : 'XCHG' | 'ADD' | 'SUB' | 'AND' | 'NAND' | 'OR' | 'XOR'
-    | 'MAX' | 'MIN' | 'UMAX' | 'UMIN'
+    : 'XCHG' | 'ADD' | 'SUB' | 'AND' | 'NAND' | 'OR' | 'XOR' | 'MAX' | 'MIN' | 'UMAX' | 'UMIN'
     ;
-value
-    :   identifier      # ReferencedValue
-    |   constExpr       # InlineConstValue
+
+callconv
+    :   'DEFAULT'
     ;
 
 intLiteral
@@ -278,6 +256,7 @@ floatLiteral
     |   NAN 'f'     # FloatNan
     |   'bitsf' '(' intLiteral ')'   # FloatBits
     ;
+
 doubleLiteral
     :   FP_NUM 'd'  # DoubleNumber
     |   INF 'd'     # DoubleInf
@@ -285,9 +264,9 @@ doubleLiteral
     |   'bitsd' '(' intLiteral ')'   # DoubleBits
     ;
 
-identifier
-    :   GLOBAL_ID
-    |   LOCAL_ID
+name
+    :   GLOBAL_NAME
+    |   LOCAL_NAME
     ;
 
 // LEXER
@@ -316,12 +295,12 @@ NAN
     :   'nan'
     ;
 
-GLOBAL_ID
-    :   GLOBAL_ID_PREFIX IDCHAR+
+GLOBAL_NAME
+    :   GLOBAL_NAME_PREFIX IDCHAR+
     ;
 
-LOCAL_ID
-    :   LOCAL_ID_PREFIX IDCHAR+
+LOCAL_NAME
+    :   LOCAL_NAME_PREFIX IDCHAR+
     ;
 
 fragment
@@ -340,10 +319,10 @@ HEX_DIGIT
     ;
 
 fragment
-GLOBAL_ID_PREFIX: '@';
+GLOBAL_NAME_PREFIX: '@';
 
 fragment
-LOCAL_ID_PREFIX: '%';
+LOCAL_NAME_PREFIX: '%';
 
 fragment
 IDCHAR
