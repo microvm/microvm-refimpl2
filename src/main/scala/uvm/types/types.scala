@@ -26,6 +26,7 @@ case class TypeFunc(var sig: FuncSig) extends Type
 case class TypeThread() extends Type
 case class TypeStack() extends Type
 case class TypeTagRef64() extends Type
+case class TypeVector(var elemTy: Type, var len: Long) extends Type
 
 object Type {
   def prettyPrint(ty: Type): String = ty match {
@@ -43,6 +44,7 @@ object Type {
     case TypeThread() => "thread"
     case TypeStack() => "stack"
     case TypeTagRef64() => "tagref64"
+    case TypeVector(elemTy, len) => "vector<%s %d>".format(elemTy.repr, len)
     case _ => "unknown type " + ty.getClass.getName
   }
 }
@@ -53,7 +55,6 @@ object CommonTypes {
   val I16 = TypeInt(16)
   val I32 = TypeInt(32)
   val I64 = TypeInt(64)
-  val IWORD = TypeInt(64)
   val FLOAT = TypeFloat()
   val DOUBLE = TypeDouble()
   val VOID = TypeVoid()

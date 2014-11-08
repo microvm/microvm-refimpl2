@@ -2,7 +2,7 @@ package junks
 
 import uvm._
 import uvm.types._
-import uvm.ssavalues._
+import uvm.ssavariables._
 
 object Main extends App {
   val i64 = TypeInt(64)

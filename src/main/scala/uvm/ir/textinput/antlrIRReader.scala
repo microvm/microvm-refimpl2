@@ -4,8 +4,8 @@ import scala.collection.JavaConversions._
 
 import uvm._
 import uvm.types._
-import uvm.ssavalues._
-import uvm.ifuncs._
+import uvm.ssavariables._
+import uvm.comminsts._
 import uvm.ir.textinput.gen._
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.tree.TerminalNode

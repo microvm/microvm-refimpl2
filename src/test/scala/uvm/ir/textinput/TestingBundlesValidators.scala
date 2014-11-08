@@ -4,8 +4,8 @@ import org.scalatest._
 
 import uvm._
 import uvm.types._
-import uvm.ssavalues._
-import uvm.ifuncs._
+import uvm.ssavariables._
+import uvm.comminsts._
 
 trait TestingBundlesValidators extends Matchers with ExtraMatchers {
   

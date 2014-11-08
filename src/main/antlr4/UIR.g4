@@ -165,7 +165,7 @@ instBody
             dis=bbName ena=bbName ('WPEXC' '(' wpExc=bbName ')')? keepAliveClause   # InstWatchPoint
 
     // Foreign Function Interface
-    |   'CCALL' '<' type '>' callconv funcCallBody      # InstCCall
+    |   'CCALL' '<' funcTy=type funcSig '>' callconv funcCallBody      # InstCCall
 
     // Thread and Stack Operations
     |   'NEWSTACK' funcCallBody excClause                                                   # InstNewStack

@@ -1,7 +1,7 @@
 package uvm
 
 import uvm.types._
-import uvm.ssavalues._
+import uvm.ssavariables._
 
 case class FuncSig(var retTy: Type, var paramTy: Seq[Type]) extends IdentifiedSettable
 
@@ -10,19 +10,21 @@ object FuncSig {
     "%s (%s)".format(sig.retTy.repr, sig.paramTy.map(_.repr).mkString(" "))
 }
 
-class Function extends IdentifiedSettable {
+class Function extends GlobalVariable {
   var sig: FuncSig = null
-  var cfg: Option[CFG] = None
+  var versions: Seq[FuncVersion] = Nil
 }
 
-class CFG {
+/**
+ * A version of a function. Also known as a "control flow graph".
+ */
+class FuncVersion extends IdentifiedSettable {
   var func: Function = null
   var bbs: Seq[BasicBlock] = null
   var entry: BasicBlock = null
   var params: Seq[Parameter] = null
 
-  val bbNs: Namespace[BasicBlock] = new SimpleNamespace[BasicBlock] // Consider using one global bb ns
-  val lvNs: Namespace[LocalValue] = new SimpleNamespace[LocalValue] // Consider using one global value ns
+  val bbNs: Namespace[BasicBlock] = new SimpleNamespace[BasicBlock]
 }
 
 class BasicBlock extends IdentifiedSettable {

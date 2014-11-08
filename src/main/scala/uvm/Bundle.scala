@@ -1,7 +1,7 @@
 package uvm
 
 import uvm.types._
-import uvm.ssavalues._
+import uvm.ssavariables._
 
 class Bundle {
   val typeNs = new SimpleNamespace[Type]()

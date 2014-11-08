@@ -5,8 +5,8 @@ import org.scalatest._
 
 import uvm._
 import uvm.types._
-import uvm.ssavalues._
-import uvm.ifuncs._
+import uvm.ssavariables._
+import uvm.comminsts._
 
 trait ExtraMatchers extends Assertions with Matchers {
   implicit class AnythingExtraMatchers(val thing: Any) {
