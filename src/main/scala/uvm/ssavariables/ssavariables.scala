@@ -24,15 +24,17 @@ case class ConstStruct(var constTy: Type, var fields: Seq[GlobalVariable]) exten
 
 case class ConstNull(var constTy: Type) extends Constant
 
+case class ConstVector(var constTy: Type, var elems: Seq[Constant]) extends Constant
+
 case class GlobalCell(var cellTy: Type) extends GlobalVariable
 
 // Local variables: Parameters and Instructions
 
 abstract class LocalVariable extends SSAVariable {
-  var funcVer: FuncVersion = null
+  var funcVer: FuncVer = null
 }
 
-case class Parameter(override var funcVer: FuncVersion, var index: Int) extends LocalVariable
+case class Parameter(override var funcVer: FuncVer, var index: Int) extends LocalVariable
 
 // Instructions
 

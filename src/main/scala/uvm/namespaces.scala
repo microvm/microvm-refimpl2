@@ -24,7 +24,7 @@ class SimpleNamespace[T <: Identified] extends Namespace[T] {
   def get(id: Int): Option[T] = idMap.get(id)
   def get(name: String): Option[T] = nameMap.get(name)
 
-  def add(obj: T): Unit = {
+  def add(obj: T) {
     for (obj2 <- get(obj.id)) {
       throw new NameConflictException(
         "Object %s ID-conflicts with %s".format(obj.repr, obj2.repr))

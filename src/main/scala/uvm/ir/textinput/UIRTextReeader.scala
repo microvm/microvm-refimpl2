@@ -1,61 +1,60 @@
 package uvm.ir.textinput
 
-import scala.collection.JavaConversions._
-
-import uvm._
-import uvm.types._
-import uvm.ssavariables._
-import uvm.comminsts._
-import uvm.ir.textinput.gen._
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.tree.TerminalNode
-import uIRParser._
+import uvm._
+import uvm.ir.textinput.gen.UIRParser._
+import uvm.ir.textinput.gen._
+import uvm.ssavariables._
+import uvm.types._
 
-object AntlrUvmIRReader {
-  import Later.Laterable
+import scala.collection.JavaConversions._
+
+class UIRTextReader(val idFactory: IDFactory) {
+  import uvm.ir.textinput.Later.Laterable
 
   def read(ir: String, globalBundle: Bundle): Bundle = {
     val input = new ANTLRInputStream(ir)
-    val lexer = new uIRLexer(input)
-    val tokens = new CommonTokenStream(lexer)
-    val parser = new uIRParser(tokens)
-    val ast = parser.ir();
-    read(ast, globalBundle)
+    read(input, globalBundle)
   }
 
   def read(ir: java.io.Reader, globalBundle: Bundle): Bundle = {
     val input = new ANTLRInputStream(ir)
-    val lexer = new uIRLexer(input)
+    read(input, globalBundle)
+  }
+
+  def read(ir: ANTLRInputStream, globalBundle: Bundle): Bundle = {
+    val lexer = new UIRLexer(ir)
     val tokens = new CommonTokenStream(lexer)
-    val parser = new uIRParser(tokens)
-    val ast = parser.ir();
+    val parser = new UIRParser(tokens)
+    val ast = parser.ir()
     read(ast, globalBundle)
   }
 
-  object IDFactory {
-    private var id: Int = 65536
-    def getID(): Int = {
-      val myID = id
-      id = id + 1
-      return myID
-    }
-  }
-
   implicit def terminalToString(tn: TerminalNode): String = tn.getText()
+  implicit def nameToString(name: NameContext): String = name.getText()
+  implicit def tokenToString(tok: Token): String = tok.getText()
+
+  val IntRe = """([+-]?)(0x|0|)([0-9a-fA-F]*)""".r
 
   implicit def IntLiteralToBigInt(il: IntLiteralContext): BigInt = {
     val txt = il.getText()
-    val (neg, beg) = txt(0) match {
-      case '+' => (false, 1)
-      case '-' => (true, 1)
-      case _ => (false, 0)
+
+    txt match {
+      case IntRe(sign, prefix, nums) => {
+        val neg = sign match {
+          case "+" => false
+          case "-" => true
+          case "" => true
+        }
+        val abs = prefix match {
+          case "0x" => BigInt(nums, 16)
+          case "0" => BigInt(nums, 8)
+          case "" => BigInt(nums, 10)
+        }
+        return if (neg) -abs else abs
+      }
     }
-    val abs = il match {
-      case dec: DecIntLiteralContext => BigInt(txt.substring(beg), 10)
-      case oct: OctIntLiteralContext => BigInt(txt.substring(beg), 8)
-      case hex: HexIntLiteralContext => BigInt(txt.substring(beg + 2), 16)
-    }
-    return if (neg) -abs else abs
   }
 
   implicit def floatLiteralToFloat(fl: FloatLiteralContext): Float = fl match {
@@ -80,62 +79,69 @@ object AntlrUvmIRReader {
     case bits: DoubleBitsContext => java.lang.Double.longBitsToDouble(bits.intLiteral().longValue())
   }
 
-  def read(ir: IrContext, globalBundle: Bundle): Bundle = {
+  def cascadeLookup[T](name:String, ns1: Namespace[T], ns2: Namespace[T]): T =
+    ns1.get(name).getOrElse(ns2(name))
 
+  def read(ir: IrContext, globalBundle: Bundle): Bundle = {
     val bundle = new Bundle()
 
     val phase1 = new Later()
 
-    def resTy(te: TypeContext): Type = te match {
-      case rt: ReferencedTypeContext => bundle.typeNs.get(rt.GLOBAL_ID()).getOrElse(globalBundle.typeNs(rt.GLOBAL_ID()))
-      case it: InLineTypeContext => mkType(it.typeConstructor())
-    }
+    def resTy(ctx: TypeContext): Type = resTy(ctx.getText)
+    def resTy(name: String): Type = cascadeLookup(name, bundle.typeNs, globalBundle.typeNs)
+
+    def resSig(ctx: FuncSigContext): FuncSig = resSig(ctx.getText)
+    def resSig(name: String): FuncSig = cascadeLookup(name, bundle.funcSigNs, globalBundle.funcSigNs)
+
+    def resConst(ctx: ConstantContext): Constant = resConst(ctx.getText)
+    def resConst(name: String): Constant = cascadeLookup(name, bundle.constantNs, globalBundle.constantNs)
+
+    def resVar(ctx: ValueContext): Type = resTy(ctx.getText)
+    def resVar(name: String): SSAVariable = cascadeLookup(name, bundle.varNs, globalBundle.varNs)
+
+    def resGlobalVar(name: String): GlobalVariable = cascadeLookup(name, bundle.globalVarNs, globalBundle.globalVarNs)
 
     def mkType(tc: TypeConstructorContext): Type = {
       val ty = tc match {
-        case it: IntTypeContext => TypeInt(it.intLiteral().intValue())
-        case ft: FloatTypeContext => TypeFloat()
-        case dt: DoubleTypeContext => TypeDouble()
-        case rt: RefTypeContext => TypeRef(null).later(phase1) { _.ty = resTy(rt.`type`()) }
-        case irt: IRefTypeContext => TypeIRef(null).later(phase1) { _.ty = resTy(irt.`type`()) }
-        case wrt: WeakRefTypeContext => TypeWeakRef(null).later(phase1) { _.ty = resTy(wrt.`type`()) }
-        case st: StructTypeContext => TypeStruct(null).later(phase1) { _.fieldTy = st.`type`().map(resTy) }
-        case at: ArrayTypeContext => TypeArray(null, at.intLiteral().longValue()).later(phase1) { _.elemTy = resTy(at.`type`()) }
-        case ht: HybridTypeContext => TypeHybrid(null, null).later(phase1) { t => t.fixedPart = resTy(ht.`type`(0)); t.varPart = resTy(ht.`type`(1)) }
-        case vt: VoidTypeContext => TypeVoid()
-        case ft: FuncTypeContext => TypeFunc(null).later(phase1) { _.sig = resSig(ft.funcSig()) }
-        case thr: ThreadTypeContext => TypeThread()
-        case sta: StackTypeContext => TypeStack()
-        case tr64: TagRef64TypeContext => TypeTagRef64()
+        case t: TypeIntContext => TypeInt(t.length.intValue())
+        case t: TypeFloatContext => TypeFloat()
+        case t: TypeDoubleContext => TypeDouble()
+        case t: TypeRefContext => TypeRef(null).later(phase1) { _.ty = resTy(t.`type`()) }
+        case t: TypeIRefContext => TypeIRef(null).later(phase1) { _.ty = resTy(t.`type`()) }
+        case t: TypeWeakRefContext => TypeWeakRef(null).later(phase1) { _.ty = resTy(t.`type`()) }
+        case t: TypeStructContext => TypeStruct(null).later(phase1) { _.fieldTy = t.`type`().map(resTy) }
+        case t: TypeArrayContext => TypeArray(null, t.length.longValue()).later(phase1) { _.elemTy = resTy(t.`type`()) }
+        case t: TypeHybridContext => TypeHybrid(null, null).later(phase1) { tt => tt.fixedTy = resTy(t.fixedTy); tt.varTy = resTy(t.varTy) }
+        case t: TypeVoidContext => TypeVoid()
+        case t: TypeFuncContext => TypeFunc(null).later(phase1) { _.sig = resSig(t.funcSig()) }
+        case t: TypeThreadContext => TypeThread()
+        case t: TypeStackContext => TypeStack()
+        case t: TypeTagRef64Context => TypeTagRef64()
+        case t: TypeVectorContext => TypeVector(null, t.length.longValue()).later(phase1) { _.elemTy = resTy(t.`type`()) }
         case _ => throw new TextIRParsingException("foo")
       }
-      ty.id = IDFactory.getID()
       return ty
-    }
-
-    def resSig(fs: FuncSigContext): FuncSig = fs match {
-      case rfs: ReferencedFuncSigContext => bundle.funcSigNs.get(rfs.GLOBAL_ID()).getOrElse(globalBundle.funcSigNs(rfs.GLOBAL_ID()))
-      case ilfs: InLineFuncSigContext => mkSig(ilfs.funcSigConstructor())
     }
 
     def mkSig(fsc: FuncSigConstructorContext): FuncSig = {
       val sig = FuncSig(null, null).later(phase1) { sig =>
-        sig.retTy = resTy(fsc.`type`().head)
-        sig.paramTy = fsc.`type`().tail.map(resTy)
+        sig.retTy = resTy(fsc.retTy)
+        sig.paramTy = for (t<-fsc.paramTy) yield resTy(t)
       }
-      sig.id = IDFactory.getID()
       return sig
     }
 
-    ir.metaData.map(_.getChild(0)).foreach {
+    ir.topLevelDef.map(_.getChild(0)).foreach {
       case td: TypeDefContext => {
         val ty = mkType(td.typeConstructor)
-        ty.name = Some(td.GLOBAL_ID)
+        ty.id = idFactory.getID()
+        ty.name = Some(td.nam)
         bundle.typeNs.add(ty)
       }
       case fsd: FuncSigDefContext => {
         val sig = mkSig(fsd.funcSigConstructor)
-        sig.name = Some(fsd.GLOBAL_ID)
+        sig.id = idFactory.getID()
+        sig.name = Some(fsd.nam)
         bundle.funcSigNs.add(sig)
       }
       case _ =>
@@ -145,45 +151,28 @@ object AntlrUvmIRReader {
 
     val phase2 = new Later()
 
-    def resGV(t: Type, ce: ConstantContext): GlobalValue = ce match {
-      case rcc: ReferencedConstContext => bundle.globalValueNs.get(rcc.GLOBAL_ID).getOrElse(globalBundle.globalValueNs(rcc.GLOBAL_ID))
-      case icc: InLineConstContext => mkConst(t, icc.constExpr)
-    }
-
-    def mkConst(t: Type, c: ConstExprContext): DeclaredConstant = {
+    def mkConst(t: Type, c: ConstConstructorContext): Constant = {
       val con = c match {
-        case icc: IntConstContext => ConstInt(t, icc.intLiteral)
-        case fcc: FloatConstContext => ConstFloat(t, fcc.floatLiteral)
-        case dcc: DoubleConstContext => ConstDouble(t, dcc.doubleLiteral)
-        case scc: StructConstContext => ConstStruct(t, null).later(phase2) {
-          _.fields = for ((ft, f) <- t.asInstanceOf[TypeStruct].fieldTy.zip(scc.constant)) yield resGV(ft, f)
+        case cc: ConstIntContext => ConstInt(t, cc.intLiteral)
+        case cc: ConstFloatContext => ConstFloat(t, cc.floatLiteral)
+        case cc: ConstDoubleContext => ConstDouble(t, cc.doubleLiteral)
+        case cc: ConstStructContext => ConstStruct(t, null).later(phase2) {
+          _.fields = for (gn <- cc.GLOBAL_NAME()) yield resGlobalVar(gn)
         }
-        case _: NullConstContext => ConstNull(t)
+        case _: ConstNullContext => ConstNull(t)
+        case cc: ConstVectorContext => ConstVector(t, null).later(phase2) {
+          _.elems = for (c <- cc.constant()) yield resConst(c)
+        }
       }
-      con.id = IDFactory.getID()
       return con
     }
 
-    def mkGlobalData(t: Type): GlobalData = {
-      val gd = GlobalData(t)
-      gd.id = IDFactory.getID()
-      return gd
-    }
-
-    def mkGlobalDataConst(gd: GlobalData): ConstGlobalData = {
-      val gdc = ConstGlobalData(gd)
-      return gdc
-    }
+    def mkGlobalCell(t: Type): GlobalCell = GlobalCell(t)
 
     def mkFunc(sig: FuncSig): Function = {
       val func = new Function()
       func.sig = sig
       return func
-    }
-
-    def mkFuncConst(func: Function): ConstFunc = {
-      val fc = ConstFunc(func)
-      return fc
     }
 
     def tryReuseFuncID(name: String): Option[Int] = {
@@ -194,43 +183,39 @@ object AntlrUvmIRReader {
       val sig = resSig(s)
       val func = mkFunc(sig)
       val maybeOldID = tryReuseFuncID(n)
-      func.id = maybeOldID.getOrElse(IDFactory.getID())
+      func.id = maybeOldID.getOrElse(idFactory.getID())
       func.name = Some(n)
       bundle.funcNs.add(func)
-
-      if (maybeOldID == None) {
-        val fc = mkFuncConst(func)
-        bundle.globalValueNs.add(fc)
-      }
 
       return func
     }
 
     var funcDefs: List[(Function, Seq[String], FuncBodyContext)] = Nil
 
-    ir.metaData.map(_.getChild(0)).foreach {
+    ir.topLevelDef().map(_.getChild(0)).foreach {
       case cdctx: ConstDefContext => {
         val ty = resTy(cdctx.`type`)
-        val con = mkConst(ty, cdctx.constExpr)
-        con.name = Some(cdctx.GLOBAL_ID)
-        bundle.declConstNs.add(con)
-        bundle.globalValueNs.add(con)
+        val con = mkConst(ty, cdctx.constConstructor)
+        con.id = idFactory.getID()
+        con.name = Some(cdctx.nam)
+        bundle.constantNs.add(con)
+        bundle.globalVarNs.add(con)
+        bundle.varNs.add(con)
       }
       case gdctx: GlobalDefContext => {
         val ty = resTy(gdctx.`type`)
-        val gd = mkGlobalData(ty)
-        gd.name = Some(gdctx.GLOBAL_ID)
-        bundle.globalDataNs.add(gd)
-
-        val gdc = mkGlobalDataConst(gd)
-        bundle.globalValueNs.add(gdc)
+        val gc = mkGlobalCell(ty)
+        gc.name = Some(gdctx.nam)
+        bundle.globalCellNs.add(gc)
+        bundle.globalVarNs.add(gc)
+        bundle.varNs.add(gc)
       }
       case fdecl: FuncDeclContext => {
-        declFunc(fdecl.GLOBAL_ID, fdecl.funcSig)
+        declFunc(fdecl.nam, fdecl.funcSig)
       }
       case fdef: FuncDefContext => {
-        val func = declFunc(fdef.GLOBAL_ID, fdef.funcSig)
-        funcDefs = (func, fdef.paramList.LOCAL_ID.map(_.getText), fdef.funcBody) :: funcDefs
+        val func = declFunc(fdef.nam, fdef.funcSig)
+        funcDefs = (func, fdef.paramList.name().map(_.getText), fdef.funcBody) :: funcDefs
       }
       case _ => {}
     }
@@ -238,16 +223,18 @@ object AntlrUvmIRReader {
     phase2.doAll()
 
     def defFunc(func: Function, ps: Seq[String], body: FuncBodyContext) {
-      val cfg = new CFG()
-      cfg.func = func
-      func.cfg = Some(cfg)
+      val ver = new FuncVer()
+      ver.func = func
+      func.versions = ver :: func.versions
 
-      cfg.params = ps.zipWithIndex.map {
+      def globalize(name: String): String = if(name(0)=="@") name else (ver.name.get + name.substring(1))
+
+      ver.params = ps.zipWithIndex.map {
         case (n, i) =>
-          val param = Parameter(func.sig, i)
-          param.id = IDFactory.getID()
-          param.name = Some(n)
-          cfg.lvNs.add(param)
+          val param = Parameter(ver, i)
+          param.id = idFactory.getID()
+          param.name = Some(globalize(n))
+          ver.localVarNs.add(param)
           param
       }
 
@@ -259,12 +246,12 @@ object AntlrUvmIRReader {
         val bb = new BasicBlock()
         bb.id = IDFactory.getID()
         bb.name = name
-        cfg.bbNs.add(bb)
+        ver.bbNs.add(bb)
 
         phase3 { () =>
           bb.insts = for (instDef <- insts) yield {
             val inst = mkInst(instDef)
-            cfg.lvNs.add(inst)
+            ver.lvNs.add(inst)
             inst
           }
         }
@@ -282,7 +269,7 @@ object AntlrUvmIRReader {
         makeBB(name, eb.inst)
       }
 
-      def resBB(n: String): BasicBlock = cfg.bbNs(n)
+      def resBB(n: String): BasicBlock = ver.bbNs(n)
 
       def resVal(ty: Option[Type], vc: ValueContext): Value = vc match {
         case rvc: ReferencedValueContext => {
@@ -290,7 +277,7 @@ object AntlrUvmIRReader {
           if (text.startsWith("@")) {
             bundle.globalValueNs.get(text).getOrElse(globalBundle.globalValueNs(text))
           } else {
-            cfg.lvNs(text)
+            ver.lvNs(text)
           }
         }
         case icvc: InlineConstValueContext => ty match {
@@ -311,7 +298,7 @@ object AntlrUvmIRReader {
         if (ka == null) {
           return Seq()
         } else {
-          ka.value().map(n => cfg.lvNs(n.getText))
+          ka.value().map(n => ver.lvNs(n.getText))
         }
       }
 
@@ -498,14 +485,14 @@ object AntlrUvmIRReader {
 
       val bbs = Seq(entry) ++ rest
 
-      cfg.bbs = bbs
-      cfg.entry = entry
+      ver.bbs = bbs
+      ver.entry = entry
 
       phase3.doAll()
 
       phase4.doAll()
 
-      for (bb <- cfg.bbs; i <- bb.insts) {
+      for (bb <- ver.bbs; i <- bb.insts) {
         i.resolve()
       }
     }

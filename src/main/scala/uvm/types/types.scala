@@ -20,7 +20,7 @@ case class TypeIRef(var ty: Type) extends AbstractRefType
 case class TypeWeakRef(var ty: Type) extends AbstractRefType
 case class TypeStruct(var fieldTy: Seq[Type]) extends Type
 case class TypeArray(var elemTy: Type, var len: Long) extends Type
-case class TypeHybrid(var fixedPart: Type, var varPart: Type) extends Type
+case class TypeHybrid(var fixedTy: Type, var varTy: Type) extends Type
 case class TypeVoid() extends Type
 case class TypeFunc(var sig: FuncSig) extends Type
 case class TypeThread() extends Type

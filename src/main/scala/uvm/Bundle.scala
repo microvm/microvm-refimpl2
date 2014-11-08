@@ -4,12 +4,22 @@ import uvm.types._
 import uvm.ssavariables._
 
 class Bundle {
+  /**
+   * Namespace of all SSA variables, global or local.
+   */
+  val varNs = new SimpleNamespace[SSAVariable]()
+
+  /**
+   * All global SSA varaibles.
+   */
+  val globalVarNs = new SimpleNamespace[GlobalVariable]()
+
   val typeNs = new SimpleNamespace[Type]()
   val funcSigNs = new SimpleNamespace[FuncSig]()
-  val declConstNs = new SimpleNamespace[DeclaredConstant]()
-  val globalDataNs = new SimpleNamespace[GlobalData]()
+  val constantNs = new SimpleNamespace[Constant]()
+  val globalCellNs = new SimpleNamespace[GlobalCell]()
   val funcNs = new SimpleNamespace[Function]()
-  val globalValueNs = new SimpleNamespace[GlobalValue]()
+
 
   private def simpleMerge[T <: Identified](oldNs: Namespace[T], newNs: Namespace[T]) {
     for (cand <- newNs.all) {

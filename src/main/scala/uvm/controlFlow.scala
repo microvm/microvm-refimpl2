@@ -12,19 +12,20 @@ object FuncSig {
 
 class Function extends GlobalVariable {
   var sig: FuncSig = null
-  var versions: Seq[FuncVersion] = Nil
+  var versions: List[FuncVer] = Nil
 }
 
 /**
  * A version of a function. Also known as a "control flow graph".
  */
-class FuncVersion extends IdentifiedSettable {
+class FuncVer extends IdentifiedSettable {
   var func: Function = null
   var bbs: Seq[BasicBlock] = null
   var entry: BasicBlock = null
   var params: Seq[Parameter] = null
 
-  val bbNs: Namespace[BasicBlock] = new SimpleNamespace[BasicBlock]
+  val bbNs: Namespace[BasicBlock] = new SimpleNamespace[BasicBlock]()
+  val localVarNs: Namespace[LocalVariable] = new SimpleNamespace[LocalVariable]()
 }
 
 class BasicBlock extends IdentifiedSettable {

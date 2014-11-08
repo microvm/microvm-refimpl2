@@ -56,14 +56,14 @@ typeConstructor
     ;
 
 funcSigConstructor
-    :   retTy=type '(' (paramTy=type*) ')'
+    :   retTy=type '(' (paramTy+=type*) ')'
     ;
 
 constConstructor
     :   intLiteral                  # ConstInt
     |   floatLiteral                # ConstFloat
     |   doubleLiteral               # ConstDouble
-    |   '{' constant* '}'           # ConstStruct
+    |   '{' GLOBAL_NAME* '}'        # ConstStruct
     |   'NULL'                      # ConstNull
     |   'VEC' '{' constant* '}'     # ConstVector
     ;
@@ -245,9 +245,9 @@ callconv
     ;
 
 intLiteral
-    :   INT_DEC     # DecIntLiteral
-    |   INT_OCT     # OctIntLiteral
-    |   INT_HEX     # HexIntLiteral
+    :   INT_DEC
+    |   INT_OCT
+    |   INT_HEX
     ;
 
 floatLiteral
@@ -276,7 +276,7 @@ INT_DEC
     ;
     
 INT_OCT
-    :   ('+'|'-')? '0' DIGIT*
+    :   ('+'|'-')? '0' OCT_DIGIT*
     ;
 
 INT_HEX
@@ -311,6 +311,11 @@ DIGIT
 fragment
 DIGIT_NON_ZERO
     :   [1-9]
+    ;
+
+fragment
+OCT_DIGIT
+    :   [0-7]
     ;
 
 fragment
