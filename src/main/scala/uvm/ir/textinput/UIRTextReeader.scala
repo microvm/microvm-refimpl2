@@ -3,6 +3,7 @@ package uvm.ir.textinput
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.tree.TerminalNode
 import uvm._
+import uvm.comminsts.CommInsts
 import uvm.ir.textinput.gen.UIRParser._
 import uvm.ir.textinput.gen._
 import uvm.ssavariables._
@@ -79,27 +80,82 @@ class UIRTextReader(val idFactory: IDFactory) {
     case bits: DoubleBitsContext => java.lang.Double.longBitsToDouble(bits.intLiteral().longValue())
   }
 
-  def cascadeLookup[T](name:String, ns1: Namespace[T], ns2: Namespace[T]): T =
+  def cascadeLookup[T <: Identified](name:String, ns1: Namespace[T], ns2: Namespace[T]): T =
     ns1.get(name).getOrElse(ns2(name))
+
+  // Printing context information (line, column, near some token)
+
+  def inCtx(ctx: ParserRuleContext, s: String): String = nearTok(ctx.getStart, s)
+  def inCtx(ctx: TerminalNode, s: String): String = nearTok(ctx.getSymbol, s)
+
+  def nearTok(tok: Token, s: String): String = {
+    val line = tok.getLine()
+    val column = tok.getCharPositionInLine()
+    val near = tok.getText()
+    return "At %d:%d near '%s': %s".format(line, column, near, s)
+  }
 
   def read(ir: IrContext, globalBundle: Bundle): Bundle = {
     val bundle = new Bundle()
 
-    val phase1 = new Later()
+    // Resolve global entities. (If any resXxxx is not present, that's because it is simply not currently used)
 
-    def resTy(ctx: TypeContext): Type = resTy(ctx.getText)
-    def resTy(name: String): Type = cascadeLookup(name, bundle.typeNs, globalBundle.typeNs)
+    implicit def resTy(ctx: TypeContext): Type = resTyByName(ctx.getText)
+    def resTyByName(name: String): Type = cascadeLookup(name, bundle.typeNs, globalBundle.typeNs)
 
-    def resSig(ctx: FuncSigContext): FuncSig = resSig(ctx.getText)
-    def resSig(name: String): FuncSig = cascadeLookup(name, bundle.funcSigNs, globalBundle.funcSigNs)
+    implicit def resSig(ctx: FuncSigContext): FuncSig = resSigByName(ctx.getText)
+    def resSigByName(name: String): FuncSig = cascadeLookup(name, bundle.funcSigNs, globalBundle.funcSigNs)
 
-    def resConst(ctx: ConstantContext): Constant = resConst(ctx.getText)
-    def resConst(name: String): Constant = cascadeLookup(name, bundle.constantNs, globalBundle.constantNs)
-
-    def resVar(ctx: ValueContext): Type = resTy(ctx.getText)
-    def resVar(name: String): SSAVariable = cascadeLookup(name, bundle.varNs, globalBundle.varNs)
+    implicit def resConst(ctx: ConstantContext): Constant = resConstByName(ctx.getText)
+    def resConstByName(name: String): Constant = cascadeLookup(name, bundle.constantNs, globalBundle.constantNs)
 
     def resGlobalVar(name: String): GlobalVariable = cascadeLookup(name, bundle.globalVarNs, globalBundle.globalVarNs)
+
+    // Add entities to namespaces.
+
+    def addTy(obj: Type): Unit = bundle.typeNs.add(obj)
+    def addSig(obj: FuncSig): Unit = bundle.funcSigNs.add(obj)
+    def addConst(obj: Constant): Unit = {
+      bundle.constantNs.add(obj)
+      bundle.globalVarNs.add(obj)
+      bundle.varNs.add(obj)
+    }
+    def addGlobalCell(obj: GlobalCell): Unit = {
+      bundle.globalCellNs.add(obj)
+      bundle.globalVarNs.add(obj)
+      bundle.varNs.add(obj)
+    }
+    def addFunc(obj: Function): Unit = {
+      bundle.funcNs.add(obj)
+      bundle.globalVarNs.add(obj)
+      bundle.varNs.add(obj)
+    }
+    def addLocalVar(obj: LocalVariable, localNs: Namespace[LocalVariable]) = {
+      localNs.add(obj)
+      bundle.varNs.add(obj)
+    }
+    def addFuncVer(obj: FuncVer): Unit = bundle.funcVerNs.add(obj)
+
+    // Resolve types, with parse-time checking.
+
+    def needType[E <: Type](tc: TypeContext, expectedType: Class[E], n: String): E = {
+      val t = resTy(tc)
+      if (!(expectedType.isAssignableFrom(t.getClass))) {
+        throw new UnexpectedTypeException(inCtx(tc, "Expected %s, actually %s.".format(n, t)))
+      }
+      t.asInstanceOf[E]
+    }
+
+    def needInt[T <: Type](tc: TypeContext) = needType(tc, classOf[TypeInt], "int")
+    def needStruct[T <: Type](tc: TypeContext) = needType(tc, classOf[TypeStruct], "struct")
+    def needArray[T <: Type](tc: TypeContext) = needType(tc, classOf[TypeArray], "array")
+    def needVector[T <: Type](tc: TypeContext) = needType(tc, classOf[TypeVector], "vector")
+    def needHybrid[T <: Type](tc: TypeContext) = needType(tc, classOf[TypeHybrid], "hybrid")
+    def needSeq[T <: Type](tc: TypeContext) = needType(tc, classOf[TypeVector], "array or vector")
+
+    // Make types and sigs
+
+    val phase1 = new Later()  // Resolve inter-references between types and sigs
 
     def mkType(tc: TypeConstructorContext): Type = {
       val ty = tc match {
@@ -136,20 +192,20 @@ class UIRTextReader(val idFactory: IDFactory) {
         val ty = mkType(td.typeConstructor)
         ty.id = idFactory.getID()
         ty.name = Some(td.nam)
-        bundle.typeNs.add(ty)
+        addTy(ty)
       }
       case fsd: FuncSigDefContext => {
         val sig = mkSig(fsd.funcSigConstructor)
         sig.id = idFactory.getID()
         sig.name = Some(fsd.nam)
-        bundle.funcSigNs.add(sig)
+        addSig(sig)
       }
       case _ =>
     }
 
     phase1.doAll()
 
-    val phase2 = new Later()
+    val phase2 = new Later()  // Resolve inter-references from constants to other global variables
 
     def mkConst(t: Type, c: ConstConstructorContext): Constant = {
       val con = c match {
@@ -185,12 +241,12 @@ class UIRTextReader(val idFactory: IDFactory) {
       val maybeOldID = tryReuseFuncID(n)
       func.id = maybeOldID.getOrElse(idFactory.getID())
       func.name = Some(n)
-      bundle.funcNs.add(func)
+      addFunc(func)
 
       return func
     }
 
-    var funcDefs: List[(Function, Seq[String], FuncBodyContext)] = Nil
+    var funcDefs: List[(Function, FuncDefContext)] = Nil
 
     ir.topLevelDef().map(_.getChild(0)).foreach {
       case cdctx: ConstDefContext => {
@@ -198,307 +254,296 @@ class UIRTextReader(val idFactory: IDFactory) {
         val con = mkConst(ty, cdctx.constConstructor)
         con.id = idFactory.getID()
         con.name = Some(cdctx.nam)
-        bundle.constantNs.add(con)
-        bundle.globalVarNs.add(con)
-        bundle.varNs.add(con)
+        addConst(con)
       }
       case gdctx: GlobalDefContext => {
         val ty = resTy(gdctx.`type`)
         val gc = mkGlobalCell(ty)
+        gc.id = idFactory.getID()
         gc.name = Some(gdctx.nam)
-        bundle.globalCellNs.add(gc)
-        bundle.globalVarNs.add(gc)
-        bundle.varNs.add(gc)
+        addGlobalCell(gc)
       }
       case fdecl: FuncDeclContext => {
         declFunc(fdecl.nam, fdecl.funcSig)
+
       }
       case fdef: FuncDefContext => {
         val func = declFunc(fdef.nam, fdef.funcSig)
-        funcDefs = (func, fdef.paramList.name().map(_.getText), fdef.funcBody) :: funcDefs
+        funcDefs = (func, fdef) :: funcDefs
       }
       case _ => {}
     }
 
     phase2.doAll()
 
-    def defFunc(func: Function, ps: Seq[String], body: FuncBodyContext) {
+    def defFunc(func: Function, fDefCtx: FuncDefContext) {
       val ver = new FuncVer()
+      ver.id = idFactory.getID()
+      ver.name = Some(fDefCtx.ver)
+      addFuncVer(ver)
+
       ver.func = func
       func.versions = ver :: func.versions
 
-      def globalize(name: String): String = if(name(0)=="@") name else (ver.name.get + name.substring(1))
+      def globalize(name: String): String = if(name(0)=='@') name else (ver.name.get + name.substring(1))
 
-      ver.params = ps.zipWithIndex.map {
+      ver.params = fDefCtx.params.name().zipWithIndex.map {
         case (n, i) =>
           val param = Parameter(ver, i)
           param.id = idFactory.getID()
           param.name = Some(globalize(n))
-          ver.localVarNs.add(param)
+          addLocalVar(param, ver.localVarNs)
           param
       }
 
-      val phase3 = new Later()
+      val phase4 = new Later()  // Resolve references from instructions to other variables (global or local) and basic blocks
 
-      val phase4 = new Later()
-
-      def makeBB(name: Option[String], insts: Seq[InstContext]): BasicBlock = {
+      def makeBB(bbCtx: BasicBlockContext): BasicBlock = {
         val bb = new BasicBlock()
-        bb.id = IDFactory.getID()
-        bb.name = name
+        bb.id = idFactory.getID()
+        bb.name = Some(globalize(bbCtx.label().name()))
         ver.bbNs.add(bb)
 
-        phase3 { () =>
-          bb.insts = for (instDef <- insts) yield {
-            val inst = mkInst(instDef)
-            ver.lvNs.add(inst)
-            inst
-          }
-        }
+        bb.insts = bbCtx.inst.map(mkInst)
 
         return bb
       }
 
-      def makeEntryBB(eb: EntryBlockContext): BasicBlock = {
-        val name: Option[String] = Option(eb.label).map(_.LOCAL_ID.getText)
-        makeBB(name, eb.inst)
-      }
+      // Resolve local entities
 
-      def makeRegularBB(eb: RegularBlockContext): BasicBlock = {
-        val name: Option[String] = Some(eb.label.LOCAL_ID.getText)
-        makeBB(name, eb.inst)
-      }
+      implicit def resBB(ctx: BbNameContext): BasicBlock = resBBByName(ctx.name.getText)
+      def resBBByName(name: String): BasicBlock = ver.bbNs(name)
 
-      def resBB(n: String): BasicBlock = ver.bbNs(n)
+      implicit def resVar(ctx: ValueContext): SSAVariable = resVarByName(ctx.name)
+      def resVarByName(name: String): SSAVariable = cascadeLookup(name, bundle.varNs, globalBundle.varNs)
 
-      def resVal(ty: Option[Type], vc: ValueContext): Value = vc match {
-        case rvc: ReferencedValueContext => {
-          val text = rvc.identifier().getText()
-          if (text.startsWith("@")) {
-            bundle.globalValueNs.get(text).getOrElse(globalBundle.globalValueNs(text))
-          } else {
-            ver.lvNs(text)
-          }
-        }
-        case icvc: InlineConstValueContext => ty match {
-          case None => throw new TextIRParsingException(
-            "Cannot use inline constant value when its type is not a user-defined type.")
-          case Some(t) => mkConst(t, icvc.constExpr)
-        }
-      }
+      def resLocalVar(name: String): LocalVariable = ver.localVarNs(name)
 
-      def vc(ty: Type, vc: ValueContext): Value = resVal(Some(ty), vc)
-      def vnc(vc: ValueContext): Value = resVal(None, vc)
+      // Resolve special structures
 
-      def resArgs(s: FuncSig, a: Seq[ValueContext]): Seq[Value] = s.paramTy.zip(a).map {
-        case (t, v) => vc(t, v)
-      }
+      implicit def resTypeList(a: TypeListContext): Seq[Type] = a.`type`.map(resTy)
 
-      def resKA(ka: KeepAliveContext): Seq[Value] = {
-        if (ka == null) {
-          return Seq()
-        } else {
-          ka.value().map(n => ver.lvNs(n.getText))
-        }
-      }
+      implicit def resArgList(a: ArgListContext): Seq[SSAVariable] = a.value.map(resVar)
 
-      implicit def resOrd(ord: AtomicordContext): MemoryOrdering.Value = {
+      implicit def resKA(ka: KeepAliveClauseContext): Seq[LocalVariable] = ka.value.map(n=>resLocalVar(n.name))
+
+      implicit def resOrd(ord: MemordContext): MemoryOrder.Value = {
         if (ord == null) {
-          MemoryOrdering.NOT_ATOMIC
+          MemoryOrder.NOT_ATOMIC
         } else {
-          MemoryOrdering.withName(ord.getText)
+          MemoryOrder.withName(ord.getText)
         }
       }
 
-      implicit class RichCallLike[T <: CallLike](inst: T) {
-        def cl(fcb: FuncCallBodyContext): T = {
-          inst.sig = resSig(fcb.funcSig)
-          inst.later(phase4) { i =>
-            i.callee = vnc(fcb.value); i.args = resArgs(i.sig, fcb.args.value())
-          }
-          inst
-        }
+      def resFuncCallBody(fcb: FuncCallBodyContext): (FuncSig, SSAVariable, Seq[SSAVariable]) =
+        (fcb.funcSig, fcb.callee, fcb.argList)
+
+      def asgnFuncCallBody(cl: CallLike, fcb: FuncCallBodyContext): Unit = {
+        val (sig, callee, argList) = resFuncCallBody(fcb)
+        cl.sig = sig; cl.callee = callee; cl.argList = argList
       }
 
-      implicit class RichHasExceptionalDest[T <: HasExceptionalDest](inst: T) {
-        def nc(norExc: Seq[TerminalNode]): T = {
-          inst.nor = resBB(norExc(0).getText())
-          inst.exc = resBB(norExc(1).getText())
-          inst
+      implicit def resExcClause(ec: ExcClauseContext): Option[ExcClause] =
+        if (ec.nor == null) {
+          None
+        } else {
+          val nor = resBB(ec.nor)
+          val exc = resBB(ec.exc)
+          Some(ExcClause(nor, exc))
         }
-      }
 
-      implicit class RichHasKeepAlives[T <: HasKeepAlives](inst: T) {
-        def kas(kas: KeepAliveContext): T = {
-          inst.later(phase4) { i =>
-            i.keepAlives = resKA(kas)
-          }
-          inst
-        }
-      }
+      // Make instruction
 
       def mkInst(instDef: InstContext): Instruction = {
 
         val inst: Instruction = instDef.instBody match {
           case ii: InstBinOpContext =>
-            InstBinOp(BinOptr.withName(ii.binops.getText), resTy(ii.`type`), null, null).later(phase4) { i =>
-              i.op1 = vc(i.opndTy, ii.value(0)); i.op2 = vc(i.opndTy, ii.value(1))
+            InstBinOp(BinOptr.withName(ii.binop.getText), ii.`type`, null, null, null).later(phase4) { i =>
+              i.op1 = ii.op1; i.op2 = ii.op2; i.excClause = ii.excClause
             }
           case ii: InstCmpContext =>
-            InstCmp(CmpOptr.withName(ii.cmpops.getText), resTy(ii.`type`), null, null).later(phase4) { i =>
-              i.op1 = vc(i.opndTy, ii.value(0)); i.op2 = vc(i.opndTy, ii.value(1))
+            InstCmp(CmpOptr.withName(ii.cmpop.getText), ii.`type`, null, null).later(phase4) { i =>
+              i.op1 = ii.op1; i.op2 = ii.op2
             }
           case ii: InstConversionContext =>
-            InstConv(ConvOptr.withName(ii.convops.getText), resTy(ii.`type`(0)), resTy(ii.`type`(1)), null).later(phase4) { i =>
-              i.opnd = vc(i.fromTy, ii.value)
+            InstConv(ConvOptr.withName(ii.convop.getText), ii.fromTy, ii.toTy, null).later(phase4) { i =>
+              i.opnd = ii.opnd
             }
           case ii: InstSelectContext =>
-            InstSelect(resTy(ii.`type`), null, null, null).later(phase4) { i =>
-              i.cond = vnc(ii.value(0)); i.ifTrue = vc(i.opndTy, ii.value(1)); i.ifFalse = vc(i.opndTy, ii.value(2))
+            InstSelect(ii.condTy, ii.resTy, null, null, null).later(phase4) { i =>
+              i.cond = ii.cond; i.ifTrue = ii.ifTrue; i.ifFalse = ii.ifFalse
             }
           case ii: InstBranchContext =>
-            InstBranch(resBB(ii.LOCAL_ID))
+            InstBranch(null).later(phase4) { i =>
+              i.dest = ii.bbName
+            }
           case ii: InstBranch2Context =>
-            InstBranch2(null, resBB(ii.LOCAL_ID(0)), resBB(ii.LOCAL_ID(1))).later(phase4) { i =>
-              i.cond = vnc(ii.value)
+            InstBranch2(null, null, null).later(phase4) { i =>
+              i.cond = ii.cond; i.ifTrue = ii.ifTrue; i.ifFalse = ii.ifFalse
             }
           case ii: InstSwitchContext =>
-            InstSwitch(resTy(ii.`type`), null, resBB(ii.LOCAL_ID(0)), null).later(phase4) { i =>
-              i.opnd = vc(i.opndTy, ii.value(0))
-              i.cases = ii.value().zip(ii.LOCAL_ID()).tail.map {
-                case (v, b) =>
-                  (vc(i.opndTy, v), resBB(b))
-              }
+            InstSwitch(ii.`type`, null, null, null).later(phase4) { i =>
+              i.opnd = ii.opnd; i.defDest = ii.defDest
+              i.cases = for ((v, b) <- ii.caseVal.zip(ii.caseDest)) yield (resVar(v),resBB(b))
             }
           case ii: InstPhiContext =>
-            InstPhi(resTy(ii.`type`), null).later(phase4) { i =>
-              i.cases = ii.LOCAL_ID().zip(ii.value()).map {
-                case (b, v) =>
-                  (resBB(b), vc(i.opndTy, v))
-              }
+            InstPhi(ii.`type`, null).later(phase4) { i =>
+              i.cases = for ((b, v) <- ii.caseSrc.zip(ii.caseVal)) yield (resBB(b), resVar(v))
             }
           case ii: InstCallContext =>
-            InstCall(null, null, null, null).cl(ii.funcCallBody).kas(ii.keepAlive)
-          case ii: InstInvokeContext =>
-            InstInvoke(null, null, null, null, null, null).cl(ii.funcCallBody).nc(ii.LOCAL_ID()).kas(ii.keepAlive)
+            InstCall(null, null, null, null, null).later(phase4) { i =>
+              asgnFuncCallBody(i, ii.funcCallBody)
+              i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
+            }
           case ii: InstTailCallContext =>
-            InstTailCall(resSig(ii.funcCallBody.funcSig), null, null).cl(ii.funcCallBody)
+            InstTailCall(null, null, null).later(phase4) { i =>
+              asgnFuncCallBody(i, ii.funcCallBody)
+            }
           case ii: InstRetContext =>
-            InstRet(resTy(ii.`type`), null).later(phase4) { i =>
-              i.retVal = vc(i.retTy, ii.value)
+            InstRet(ii.`type`, null).later(phase4) { i =>
+              i.retVal = ii.retVal
             }
           case ii: InstRetVoidContext =>
             InstRetVoid()
           case ii: InstThrowContext =>
             InstThrow(null).later(phase4) { i =>
-              i.excVal = vnc(ii.value)
+              i.excVal = ii.exc
             }
           case ii: InstLandingPadContext =>
-            InstLandingpad()
+            InstLandingPad()
           case ii: InstExtractValueContext =>
-            InstExtractValue(resTy(ii.`type`).asInstanceOf[TypeStruct], ii.intLiteral.intValue, null).later(phase4) { i =>
-              i.opnd = vc(i.strTy, ii.value)
+            InstExtractValue(needStruct(ii.`type`), ii.intLiteral.intValue, null).later(phase4) { i =>
+              i.opnd = ii.opnd
             }
           case ii: InstInsertValueContext =>
-            InstInsertValue(resTy(ii.`type`).asInstanceOf[TypeStruct], ii.intLiteral.intValue, null, null).later(phase4) { i =>
-              i.opnd = vc(i.strTy, ii.value(0)); i.newVal = vc(i.strTy.fieldTy(i.index), ii.value(1))
+            InstInsertValue(needStruct(ii.`type`), ii.intLiteral.intValue, null, null).later(phase4) { i =>
+              i.opnd = ii.opnd; i.newVal = ii.newVal
             }
-          case ii: InstNewContext => InstNew(resTy(ii.`type`))
+          case ii: InstExtractElementContext =>
+            InstExtractElement(needVector(ii.vecTy), needInt(ii.indTy), null, null).later(phase4) { i =>
+              i.opnd = ii.opnd; i.index = ii.index
+            }
+          case ii: InstInsertElementContext =>
+            InstInsertElement(needVector(ii.vecTy), needInt(ii.indTy), null, null, null).later(phase4) { i =>
+              i.opnd = ii.opnd; i.index = ii.index; i.newVal = ii.newVal
+            }
+          case ii: InstShuffleVectorContext =>
+            InstShuffleVector(needVector(ii.vecTy), needVector(ii.maskTy), null, null, null).later(phase4) { i =>
+              i.vec1 = ii.vec1; i.vec2 = ii.vec2; i.mask = ii.mask
+            }
+          case ii: InstNewContext =>
+            InstNew(ii.allocTy, null).later(phase4) { i =>
+              i.excClause = ii.excClause
+            }
           case ii: InstNewHybridContext =>
-            InstNewHybrid(resTy(ii.`type`).asInstanceOf[TypeHybrid], null).later(phase4) { i =>
-              i.length = vnc(ii.value)
+            InstNewHybrid(needHybrid(ii.allocTy), null, null).later(phase4) { i =>
+              i.length = ii.length; i.excClause = ii.excClause
             }
-          case ii: InstAllocaContext => InstAlloca(resTy(ii.`type`))
+          case ii: InstAllocaContext =>
+            InstAlloca(ii.allocTy, null).later(phase4) { i =>
+              i.excClause = ii.excClause
+            }
           case ii: InstAllocaHybridContext =>
-            InstAllocaHybrid(resTy(ii.`type`).asInstanceOf[TypeHybrid], null).later(phase4) { i =>
-              i.length = vnc(ii.value)
+            InstAllocaHybrid(needHybrid(ii.allocTy), null, null).later(phase4) { i =>
+              i.length = ii.length; i.excClause = ii.excClause
             }
           case ii: InstGetIRefContext =>
-            InstGetIRef(resTy(ii.`type`), null).later(phase4) { i =>
-              i.opnd = vc(i.referentTy, ii.value)
+            InstGetIRef(ii.refTy, null).later(phase4) { i =>
+              i.opnd = i.opnd
             }
           case ii: InstGetFieldIRefContext =>
-            InstGetFieldIRef(resTy(ii.`type`).asInstanceOf[TypeStruct], ii.intLiteral.intValue, null).later(phase4) { i =>
-              i.opnd = vc(i.referentTy, ii.value)
+            InstGetFieldIRef(needStruct(ii.refTy), ii.intLiteral.intValue, null).later(phase4) { i =>
+              i.opnd = i.opnd
             }
           case ii: InstGetElemIRefContext =>
-            InstGetElemIRef(resTy(ii.`type`).asInstanceOf[TypeArray], null, null).later(phase4) { i =>
-              i.opnd = vc(i.referentTy, ii.value(0)); i.index = vc(i.referentTy, ii.value(1))
+            InstGetElemIRef(needSeq(ii.refTy), needInt(ii.indTy), null, null).later(phase4) { i =>
+              i.opnd = i.opnd; i.index = ii.index
             }
           case ii: InstShiftIRefContext =>
-            InstShiftIRef(resTy(ii.`type`), null, null).later(phase4) { i =>
-              i.opnd = vc(i.referentTy, ii.value(0)); i.offset = vc(i.referentTy, ii.value(1))
+            InstShiftIRef(ii.refTy, needInt(ii.offTy), null, null).later(phase4) { i =>
+              i.opnd = i.opnd; i.offset = ii.offset
             }
           case ii: InstGetFixedPartIRefContext =>
-            InstGetFixedPartIRef(resTy(ii.`type`).asInstanceOf[TypeHybrid], null).later(phase4) { i =>
-              i.opnd = vc(i.referentTy, ii.value)
+            InstGetFixedPartIRef(needHybrid(ii.refTy), null).later(phase4) { i =>
+              i.opnd = i.opnd
             }
           case ii: InstGetVarPartIRefContext =>
-            InstGetVarPartIRef(resTy(ii.`type`).asInstanceOf[TypeHybrid], null).later(phase4) { i =>
-              i.opnd = vc(i.referentTy, ii.value)
+            InstGetVarPartIRef(needHybrid(ii.refTy), null).later(phase4) { i =>
+              i.opnd = i.opnd
             }
           case ii: InstLoadContext =>
-            InstLoad(ii.atomicord, resTy(ii.`type`), null).later(phase4) { i =>
-              i.loc = vnc(ii.value)
+            InstLoad(ii.memord, ii.`type`, null).later(phase4) { i =>
+              i.loc = ii.loc
             }
           case ii: InstStoreContext =>
-            InstStore(ii.atomicord, resTy(ii.`type`), null, null).later(phase4) { i =>
-              i.loc = vnc(ii.value(0)); i.newVal = vc(i.referentTy, ii.value(1))
+            InstStore(ii.memord, ii.`type`, null, null).later(phase4) { i =>
+              i.loc = ii.loc; i.newVal = ii.newVal
             }
           case ii: InstCmpXchgContext =>
-            InstCmpXchg(ii.atomicord(0), ii.atomicord(1),
-              resTy(ii.`type`), null, null, null).later(phase4) { i =>
-                i.loc = vnc(ii.value(0)); i.expected = vc(i.referentTy, ii.value(1)); i.desired = vc(i.referentTy, ii.value(2))
+            InstCmpXchg(ii.isWeak != null, ii.ordSucc, ii.ordFail, ii.`type`, null, null, null).later(phase4) { i =>
+                i.loc = ii.loc; i.expected = ii.expected; i.desired = ii.desired
               }
           case ii: InstAtomicRMWContext =>
-            InstAtomicRMW(ii.atomicord, AtomicRMWOptr.withName(ii.atomicrmwop.getText),
-              resTy(ii.`type`), null, null).later(phase4) { i =>
-                i.loc = vnc(ii.value(0)); i.opnd = vc(i.referentTy, ii.value(1))
+            InstAtomicRMW(ii.memord, AtomicRMWOptr.withName(ii.atomicrmwop.getText), ii.`type`, null, null).later(phase4) { i =>
+                i.loc = ii.loc; i.opnd = ii.opnd
               }
-          case ii: InstFenceContext => InstFence(resOrd(ii.atomicord))
+          case ii: InstFenceContext =>
+            InstFence(ii.memord)
           case ii: InstTrapContext =>
-            InstTrap(resTy(ii.`type`), null, null, null).nc(ii.LOCAL_ID()).kas(ii.keepAlive)
-          case ii: InstWatchPointContext =>
-            InstWatchpoint(ii.intLiteral.intValue(), resTy(ii.`type`), resBB(ii.LOCAL_ID(0)), null, null, null).nc(ii.LOCAL_ID().tail).kas(ii.keepAlive)
-          case ii: InstCCallContext =>
-            InstCCall(CallConv.withName(ii.callconv.getText), null, null, null).cl(ii.funcCallBody)
-          case ii: InstNewStackContext =>
-            InstNewStack(null, null, null).cl(ii.funcCallBody)
-          case ii: InstICallContext =>
-            InstICall(IFuncs(ii.GLOBAL_ID), null, null).kas(ii.keepAlive).later(phase4) { i =>
-              i.args = resArgs(i.iFunc.sig, ii.args.value())
+            InstTrap(ii.`type`, null, null).later(phase4) { i =>
+              i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
             }
-          case ii: InstIInvokeContext =>
-            InstIInvoke(IFuncs(ii.GLOBAL_ID), null, null, null, null).nc(ii.LOCAL_ID).kas(ii.keepAlive).later(phase4) { i =>
-              i.args = resArgs(i.iFunc.sig, ii.args.value())
+          case ii: InstWatchPointContext =>
+            InstWatchPoint(ii.intLiteral.intValue(), ii.`type`, null, null, null, null).later(phase4) { i =>
+              i.dis = ii.dis; i.ena = ii.ena; i.exc = Option(ii.wpExc); i.keepAlives = ii.keepAliveClause
+            }
+          case ii: InstCCallContext =>
+            InstCCall(CallConv.withName(ii.callconv.getText), ii.funcTy, null, null, null).later(phase4) { i =>
+              asgnFuncCallBody(i, ii.funcCallBody)
+            }
+          case ii: InstNewStackContext =>
+            InstNewStack(null, null, null, null).later(phase4) { i =>
+              asgnFuncCallBody(i, ii.funcCallBody)
+              i.excClause = ii.excClause
+            }
+          case ii: InstSwapStackContext =>
+            InstSwapStack(null, null, null, null, null).later(phase4) { i =>
+              i.swappee = ii.swappee;
+              i.curStackAction = ii.curStackClause match {
+                case a: CurStackRetWithContext => RetWith(a.`type`)
+                case a: CurStackKillOldContext => KillOld()
+              }
+              i.newStackAction = ii.newStackClause match {
+                case a: NewStackPassValueContext => PassValue(a.`type`, a.value)
+                case a: NewStackPassVoidContext => PassVoid()
+                case a: NewStackThrowExcContext => ThrowExc(a.exc)
+              }
+              i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
+            }
+          case ii: InstCommInstContext =>
+            InstCommInst(CommInsts(ii.nam), null, null, null, null).later(phase4) { i =>
+              i.typeList = Option(ii.typeList).map(resTypeList).getOrElse(Seq())
+              i.argList = Option(ii.argList).map(resArgList).getOrElse(Seq())
+              i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
             }
         }
 
-        inst.id = IDFactory.getID()
-        inst.name = Option(instDef.LOCAL_ID).map(_.getText)
+        inst.id = idFactory.getID()
+        inst.name = Option(instDef.name).map(_.getText)
 
         return inst
       }
 
-      val entry = makeEntryBB(body.basicBlocks.entryBlock)
-      val rest = body.basicBlocks.regularBlock.map(makeRegularBB)
-
-      val bbs = Seq(entry) ++ rest
+      val bbs = fDefCtx.funcBody.basicBlock().map(makeBB)
 
       ver.bbs = bbs
-      ver.entry = entry
-
-      phase3.doAll()
+      ver.entry = bbs.head
 
       phase4.doAll()
-
-      for (bb <- ver.bbs; i <- bb.insts) {
-        i.resolve()
-      }
     }
 
-    for ((func, ps, body) <- funcDefs) {
-      defFunc(func, ps, body)
+    for ((func, fDefCtx) <- funcDefs) {
+      defFunc(func, fDefCtx)
     }
 
     return bundle

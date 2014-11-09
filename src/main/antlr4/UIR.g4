@@ -117,9 +117,9 @@ instBody
     |   'BRANCH' bbName                                                 # InstBranch
     |   'BRANCH2' cond=value ifTrue=bbName ifFalse=bbName               # InstBranch2
     |   'SWITCH' '<' type '>' opnd=value defDest=bbName '{'
-            (caseVal=value ':' caseDest=bbName ';')* '}'                # InstSwitch
+            (caseVal+=value ':' caseDest+=bbName ';')* '}'              # InstSwitch
     |   'PHI' '<' type '>' '{'
-            (caseSrc=bbName ':' caseVal=value ';')* '}'                 # InstPhi
+            (caseSrc+=bbName ':' caseVal+=value ';')* '}'               # InstPhi
 
     // Inter-function Control Flow
     |   'CALL' funcCallBody excClause keepAliveClause                   # InstCall
@@ -172,7 +172,7 @@ instBody
     |   'SWAPSTACK' swappee=value curStackClause newStackClause excClause keepAliveClause   # InstSwapStack
 
     // Common Instructions
-    |   'COMMINST' typeList? argList? excClause keepAliveClause     # InstCommInst
+    |   'COMMINST' nam=GLOBAL_NAME typeList? argList? excClause keepAliveClause     # InstCommInst
     ;
 
 bbName
@@ -209,8 +209,8 @@ curStackClause
     ;
 
 newStackClause
-    :   'PASS_PARAM' '<' type '>' value     # NewStackPassParam
-    |   'NO_PARAM'                          # NewStackNoParam
+    :   'PASS_VALUE' '<' type '>' value     # NewStackPassValue
+    |   'PASS_VOID'                         # NewStackPassVoid
     |   'THROW_EXC' exc=value               # NewStackThrowExc
     ;
 

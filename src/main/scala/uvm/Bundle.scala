@@ -20,6 +20,7 @@ class Bundle {
   val globalCellNs = new SimpleNamespace[GlobalCell]()
   val funcNs = new SimpleNamespace[Function]()
 
+  val funcVerNs = new SimpleNamespace[FuncVer]()
 
   private def simpleMerge[T <: Identified](oldNs: Namespace[T], newNs: Namespace[T]) {
     for (cand <- newNs.all) {
@@ -28,8 +29,8 @@ class Bundle {
       } catch {
         case e: NameConflictException =>
           throw new IllegalRedefinitionException(
-            "Redefinition of type, function signature, declared constant," +
-              " global data or global value is not allowed", e);
+            "Redefinition of type, function signature, constant or" +
+              " global cell is not allowed", e);
       }
     }
   }
@@ -39,16 +40,18 @@ class Bundle {
       val id = cand.id
       oldNs.get(id) match {
         case None => oldNs.add(cand)
-        case Some(oldObj) => oldObj.cfg = cand.cfg
+        case Some(oldObj) => oldObj.versions = cand.versions.head :: oldObj.versions
       }
     }
   }
   def merge(newBundle: Bundle) {
+    simpleMerge(varNs, newBundle.varNs)
+    simpleMerge(globalVarNs, newBundle.globalVarNs)
     simpleMerge(typeNs, newBundle.typeNs)
     simpleMerge(funcSigNs, newBundle.funcSigNs)
-    simpleMerge(declConstNs, newBundle.declConstNs)
-    simpleMerge(globalDataNs, newBundle.globalDataNs)
-    simpleMerge(globalValueNs, newBundle.globalValueNs)
+    simpleMerge(constantNs, newBundle.constantNs)
+    simpleMerge(globalCellNs, newBundle.globalCellNs)
+    simpleMerge(funcVerNs, newBundle.funcVerNs)
     mergeFunc(funcNs, newBundle.funcNs)
   }
 }
