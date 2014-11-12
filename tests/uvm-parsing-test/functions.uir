@@ -17,7 +17,8 @@
 
 .typedef @sig_t = func<@sig_fs>
 
-.funcdecl @signal <@sig_t (@i32 @sig_t)>
+.funcsig @signal_sig = @sig_t (@i32 @sig_t)
+.funcdecl @signal <@signal_sig>
 
 .const @zero <@i32> = 0
 

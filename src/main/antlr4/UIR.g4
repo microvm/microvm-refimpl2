@@ -134,7 +134,7 @@ instBody
     |   'EXTRACTVALUE' '<' type intLiteral '>' opnd=value               # InstExtractValue
     |   'INSERTVALUE' '<' type intLiteral '>' opnd=value newVal=value   # InstInsertValue
     |   'EXTRACTELEMENT' '<' vecTy=type indTy=type '>' opnd=value index=value                           # InstExtractElement
-    |   'INSERTELEMENT' '<' vecTy=type indTy=type '>' opnd=value index=value opnd=value newVal=value    # InstInsertElement
+    |   'INSERTELEMENT' '<' vecTy=type indTy=type '>' opnd=value index=value newVal=value               # InstInsertElement
     |   'SHUFFLEVECTOR' '<' vecTy=type maskTy=type '>' vec1=value vec2=value mask=value                 # InstShuffleVector
 
     // Memory Operations
@@ -165,7 +165,7 @@ instBody
             dis=bbName ena=bbName ('WPEXC' '(' wpExc=bbName ')')? keepAliveClause   # InstWatchPoint
 
     // Foreign Function Interface
-    |   'CCALL' '<' funcTy=type funcSig '>' callconv funcCallBody      # InstCCall
+    |   'CCALL' callconv '<' funcTy=type funcSig '>' callee=value argList           # InstCCall
 
     // Thread and Stack Operations
     |   'NEWSTACK' funcCallBody excClause                                                   # InstNewStack

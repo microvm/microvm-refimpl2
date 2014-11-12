@@ -43,5 +43,5 @@
 .typedef @tr64 = tagref64
 
 .typedef @4xfloat  = vector <@float 4>
-.typedef @4xi32    = vector <@int 4>
+.typedef @4xi32    = vector <@i32 4>
 .typedef @2xdouble = vector <@double 2>

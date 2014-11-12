@@ -31,7 +31,7 @@ trait ExtraMatchers extends Assertions with Matchers {
         
     def shouldBeAConstFloatOf(something: Any) {
       thing shouldBeA[ConstFloat] { its =>
-        its.ty shouldBeA[TypeFloat] thatsIt
+        its.constTy shouldBeA[TypeFloat] thatsIt
         something match {
           case `nan` => assert(its.num.isNaN)
           case ExactFloat(num) => its.num shouldEqual num
@@ -43,7 +43,7 @@ trait ExtraMatchers extends Assertions with Matchers {
     
     def shouldBeAConstDoubleOf(something: Any) {
       thing shouldBeA[ConstDouble] { its =>
-        its.ty shouldBeA[TypeDouble] thatsIt
+        its.constTy shouldBeA[TypeDouble] thatsIt
         something match {
           case `nan` => assert(its.num.isNaN)
           case ExactDouble(num) => its.num shouldEqual num

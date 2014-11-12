@@ -5,8 +5,8 @@ import org.scalatest.Matchers
 
 import uvm.Bundle
 
-class AntlrUvmIRReaderSpec extends AbstractReaderSpec {
-  override def theSubject = "AntlrUvmIRReader"
+class UIRTextReaderSpec extends AbstractReaderSpec {
+  override def theSubject = "UIRTextReader"
 
   override def parseFile(fileName: String, globalBundle: Bundle): Bundle = {
     val idf = new IDFactory()

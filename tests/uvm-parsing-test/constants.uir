@@ -31,14 +31,16 @@
 .const @cdpinf  <@double>   = +infd
 .const @cdbits  <@double>   = bitsd(0xfedcba9876543210)
 
-.typedef @s1 = struct<@i64 @cdouble>
+.typedef @s1 = struct<@i64 @double>
 .const @cs1 <@s1> = {@ci64 @cd}
 
 .typedef @s2 = struct<@float @i64>
 .const @cs2 <@s2> = {@cf @ci64}
 
 .typedef @s3 = struct<@double @s2 @i32>
-.const @cs2 <@s3> = {@cd @cs2 @ci32}
+.const @cs3 <@s3> = {@cd @cs2 @ci32}
+
+.typedef @void = void
 
 .typedef @rv        = ref<@void>
 .typedef @irv       = iref<@void>
@@ -48,14 +50,14 @@
 .typedef @thread    = thread
 .typedef @stack     = stack
 
-.const @cr  <@rv>   = NULL
-.const @cir <@irv>  = NULL
-.const @cfu <@cf>   = NULL
-.const @cth <@cth>  = NULL
-.const @cst <@cst>  = NULL
+.const @cr  <@rv>       = NULL
+.const @cir <@irv>      = NULL
+.const @cfu <@func0>    = NULL
+.const @cth <@thread>   = NULL
+.const @cst <@stack>    = NULL
 
 .typedef @4xfloat   = vector <@float 4>
-.typedef @4xi32     = vector <@int 4>
+.typedef @4xi32     = vector <@i32 4>
 .typedef @2xdouble  = vector <@double 2>
 
 .const @F_1 <@float> = 1.0f
@@ -85,6 +87,6 @@
 .funcdecl @fdummy <@sig0>
 
 .typedef @ii64 = iref<@i64>
-.typedef @sgf_t = struct<@ii64 @sig0>
+.typedef @sgf_t = struct<@ii64 @func0>
 
 .const @sgf <@sgf_t> = {@gi64 @fdummy}

@@ -32,7 +32,7 @@
 .typedef @tagref64  = tagref64
 
 .typedef @4xfloat   = vector <@float 4>
-.typedef @4xi32     = vector <@int 4>
+.typedef @4xi32     = vector <@i32 4>
 .typedef @2xdouble  = vector <@double 2>
 
 .const @I8_0    <@i8>       = 0
@@ -154,7 +154,7 @@
         RETVOID
 }
 
-.funcsig @refCastTest_sig @void (@rv @irv @npnr_func)
+.funcsig @refCastTest_sig = @void (@rv @irv @npnr_func)
 .funcdef @refCastTest VERSION @refCastTest_v1 <@refCastTest_sig> (%p0 %p1 %p2) {
     %entry:
         %refcast  = REFCAST <@rv @ri32> %p0
@@ -193,13 +193,13 @@
 
 .funcdecl @callee1 <@npnr_sig>
 
-.funcdef @callee2 VERSION @callee2_v1 <@iiisig> (%p0 %p1) {
+.funcdef @callee2 VERSION @callee2_v1 <@iii_sig> (%p0 %p1) {
     %entry:
         %rv = ADD <@i64> %p0 %p1
         %ret = RET <@i64> %rv
 }
 
-.funcdef @callee3 VERSION @callee3_v1 <@iiisig> (%p0 %p1) {
+.funcdef @callee3 VERSION @callee3_v1 <@iii_sig> (%p0 %p1) {
     %entry:
         %exc = NEW <@double>
         %throw = THROW %exc
@@ -208,12 +208,12 @@
 .funcdef @caller1 VERSION @caller1_v1 <@npnr_sig> () {
     %entry:
         %v1 = CALL <@npnr_sig> @callee1 ()
-        %v2 = CALL <@iiisig> @callee2 (@I64_1 @I64_2)
-        %v3 = CALL <@iiisig> @callee3 (@I64_1 @I64_2) EXC(%cont %catch)
+        %v2 = CALL <@iii_sig> @callee2 (@I64_1 @I64_2)
+        %v3 = CALL <@iii_sig> @callee3 (@I64_1 @I64_2) EXC(%cont %catch)
 
     %cont:
         %v4 = CALL <@npnr_sig> @callee1 () KEEPALIVE(%v2 %v3)
-        %v5 = CALL <@iiisig> @callee3 (%v3 %v3) EXC(%cont2 %catch) KEEPALIVE(%v2)
+        %v5 = CALL <@iii_sig> @callee3 (%v3 %v3) EXC(%cont2 %catch) KEEPALIVE(%v2)
 
     %cont2:
         %retv = RETVOID
@@ -223,9 +223,9 @@
         RETVOID
 }
 
-.funcdef @caller2 VERSION @caller2_v1 <@iiisig> (%p0 %p1) {
+.funcdef @caller2 VERSION @caller2_v1 <@iii_sig> (%p0 %p1) {
     %entry:
-        %tc = TAILCALL <@iiisig> @callee2 (%p0 %p1)
+        %tc = TAILCALL <@iii_sig> @callee2 (%p0 %p1)
 }
 
 .typedef @sid = struct <@i64 @double>
@@ -254,21 +254,21 @@
 .typedef @al = array <@i64 10>
 .typedef @hic = hybrid <@i64 @i8>
 
-.funcsig @memops_sig = @void <@i64 @i64>
+.funcsig @memops_sig = @void (@i64 @i64)
 .funcdef @memops VERSION @memops_v1 <@memops_sig> (%p0 %p1) {
     %entry:
         %new            = NEW <@i64>
-        %newhybrid      = NEWHYBRID <@hic> %p0
+        %newhybrid      = NEWHYBRID <@hic @i64> %p0
         %alloca         = ALLOCA <@i64 >
-        %allocahybrid   = ALLOCAHYBRID <@hic> %p0
+        %allocahybrid   = ALLOCAHYBRID <@hic @i64> %p0
 
         %new_s          = NEW <@i64> EXC(%bb2 %handler)
     %bb2:
-        %newhybrid_s    = NEWHYBRID <@hic> %p0 EXC(%bb3 %handler)
+        %newhybrid_s    = NEWHYBRID <@hic @i64> %p0 EXC(%bb3 %handler)
     %bb3:
         %alloca_s       = ALLOCA <@i64 > EXC(%bb4 %handler)
     %bb4:
-        %allocahybrid_s = ALLOCAHYBRID <@hic> %p0 EXC(%bb5 %handler)
+        %allocahybrid_s = ALLOCAHYBRID <@hic @i64> %p0 EXC(%bb5 %handler)
 
     %bb5:
         %new2           = NEW <@sid>
@@ -291,14 +291,14 @@
         %atomicrmw  = ATOMICRMW SEQ_CST ADD <@i64> %alloca @I64_43
 
         %load_s     = LOAD  <@i64> %alloca EXC(%bb6 %handler)
-    %bb6
+    %bb6:
         %store_s    = STORE <@i64> %alloca @I64_42 EXC(%bb7 %handler)
-    %bb7
+    %bb7:
         %cmpxchg_s  = CMPXCHG SEQ_CST SEQ_CST <@i64> %alloca @I64_42 @I64_0 EXC(%bb8 %handler)
-    %bb8
+    %bb8:
         %atomicrmw_s= ATOMICRMW SEQ_CST ADD <@i64> %alloca @I64_43 EXC(%bb9 %handler)
 
-    %bb9
+    %bb9:
         %fence = FENCE SEQ_CST
         
         RETVOID
@@ -316,7 +316,7 @@
         %l2 = LOAD CONSUME      <@i64> %p0
         %l3 = LOAD ACQUIRE      <@i64> %p0
         %s4 = STORE RELEASE     <@i64> %p0 @I64_42
-        %c5 = CMPXCHG ACQ_REL   <@i64> %p0 @I64_42 @I64_43
+        %c5 = CMPXCHG ACQ_REL ACQUIRE   <@i64> %p0 @I64_42 @I64_43
         %l6 = LOAD SEQ_CST      <@i64> %p0
 
         RETVOID
@@ -378,7 +378,7 @@
 .funcsig @ccall_sig = @void (@i64)
 .funcdef @ccall VERSION @ccall_v1 <@ccall_sig> (%p0) {
     %entry:
-        %rv = CCALL DEFAULT <@ccall_callee_sig @i64> %p0 (@D_1)
+        %rv = CCALL DEFAULT <@i64 @ccall_callee_sig> %p0 (@D_1)
         
         RETVOID
 }
@@ -386,17 +386,17 @@
 .funcsig @gen_sig = @void (@stack)
 .funcdef @gen VERSION @gen_v1 <@npnr_sig> (%main) {
     %entry:
-        %ss1 = SWAPSTACK %main RET_WITH<@void> PASS_VALUE(@i64_0)
-        %ss2 = SWAPSTACK %main KILL_OLD THROW_EXC(@NULLREF)
+        %ss1 = SWAPSTACK %main RET_WITH <@void> PASS_VALUE <@i64> @I64_0
+        %ss2 = SWAPSTACK %main KILL_OLD THROW_EXC @NULLREF
         THROW @NULLREF // unreachable
 }
 
 .funcdef @swapstack VERSION @swapstack_v1 <@npnr_sig> () {
     %entry:
-        %curstack = COMMINST @uvm.cur_stack
-        %coro = NEWSTACK <@iiisig> @callee2 (%curstack)
-        %ss1 = SWAPSTACK %coro RET_WITH<@i64> PASS_VOID
-        %ss2 = SWAPSTACK %coro RET_WITH<@i64> PASS_VOID EXC(%nor %exc)
+        %curstack = COMMINST @uvm.current_stack
+        %coro = NEWSTACK <@iii_sig> @callee2 (%curstack)
+        %ss1 = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID
+        %ss2 = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID EXC(%nor %exc)
 
     %nor:
         RETVOID
@@ -406,9 +406,9 @@
 
 .funcdef @comminst VERSION @comminst_v1 <@npnr_sig> () {
     %entry:
-        %curstack = COMMINST @uvm.cur_stack
-        %sta = NEWSTACK <@iiisig> @callee2 (%curstack)
-        %thr = COMMINST @new_stack (%sta)
-        %th_ex = COMMINST @thread_exit
+        %curstack = COMMINST @uvm.current_stack
+        %sta = NEWSTACK <@iii_sig> @callee2 (%curstack)
+        %thr = COMMINST @uvm.new_thread (%sta)
+        %th_ex = COMMINST @uvm.thread_exit
         RETVOID
 }
