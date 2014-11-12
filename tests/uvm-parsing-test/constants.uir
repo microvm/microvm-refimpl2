@@ -1,43 +1,90 @@
-.const @ci8  <int<8>>  = 127
-.const @ci16 <int<16>> = 32767
-.const @ci32 <int<32>> = 2147483647
-.const @ci64 <int<64>> = 9223372036854775807
+.typedef @i1  = int<1>
+.typedef @i8  = int<8>
+.typedef @i16 = int<16>
+.typedef @i32 = int<32>
+.typedef @i64 = int<64>
 
-.const @ci64neg <int<64>> = -42
+.const @ci8     <@i8>  = 127
+.const @ci16    <@i16> = 32767
+.const @ci32    <@i32> = 2147483647
+.const @ci64    <@i64> = 9223372036854775807
 
-.const @cio64 <int<64>> = 0777
+.const @ci64neg <@i64> = -42
 
-.const @cix64 <int<64>> = 0x123456789abcdef0
-.const @cixovf <int<64>> = 0xffffffffffffffff
-.const @cixovf2 <int<64>> = 0x8000000000000000
+.const @cio64   <@i64> = 0777
 
-.const @cf  <float>     = 3.14f
-.const @cfnan <float>   = nanf
-.const @cfninf <float>  = -inff
-.const @cfpinf <float>  = +inff
-.const @cfbits <float>  = bitsf(0x12345678)
-.const @cd  <double>    = 6.28d
-.const @cdnan <double>  = nand
-.const @cdninf <double> = -infd
-.const @cdpinf <double> = +infd
-.const @cdbits <double> = bitsd(0xfedcba9876543210)
+.const @cix64   <@i64> = 0x123456789abcdef0
+.const @cixovf  <@i64> = 0xffffffffffffffff
+.const @cixovf2 <@i64> = 0x8000000000000000
 
-.const @cs1 <struct<int<64> double>> = {100 200.0d}
-.const @cs2 <struct<double struct<float int<64>> int<32>>> = {1.0d {2.0f 3} 4}
+.typedef @float  = float
+.typedef @double = double
 
-.const @cons <@Cons> = {42 NULL}
-.typedef @Cons = struct<int<64> ref<@Cons>>
+.const @cf      <@float>    = 3.14f
+.const @cfnan   <@float>    = nanf
+.const @cfninf  <@float>    = -inff
+.const @cfpinf  <@float>    = +inff
+.const @cfbits  <@float>    = bitsf(0x12345678)
+.const @cd      <@double>   = 6.28d
+.const @cdnan   <@double>   = nand
+.const @cdninf  <@double>   = -infd
+.const @cdpinf  <@double>   = +infd
+.const @cdbits  <@double>   = bitsd(0xfedcba9876543210)
 
-.const @cr  <ref<int<64>>>  = NULL
-.const @cir <iref<float>>   = NULL
-.const @cwr <weakref<@Cons>>= NULL
-.const @cfu <func<void ()>> = NULL
-.const @cth <thread>        = NULL
-.const @cst <stack>         = NULL
+.typedef @s1 = struct<@i64 @cdouble>
+.const @cs1 <@s1> = {@ci64 @cd}
 
+.typedef @s2 = struct<@float @i64>
+.const @cs2 <@s2> = {@cf @ci64}
 
-.const @sgf <struct<iref<int<64>> func<void ()>>> = {@gi64 @fdummy}
+.typedef @s3 = struct<@double @s2 @i32>
+.const @cs2 <@s3> = {@cd @cs2 @ci32}
 
-.global @gi64 <int<64>>
+.typedef @rv        = ref<@void>
+.typedef @irv       = iref<@void>
+.typedef @wrv       = weakref<@void>
+.funcsig @sig0      = @void ()
+.typedef @func0     = func <@sig0>
+.typedef @thread    = thread
+.typedef @stack     = stack
 
-.funcdecl @fdummy <void ()>
+.const @cr  <@rv>   = NULL
+.const @cir <@irv>  = NULL
+.const @cfu <@cf>   = NULL
+.const @cth <@cth>  = NULL
+.const @cst <@cst>  = NULL
+
+.typedef @4xfloat   = vector <@float 4>
+.typedef @4xi32     = vector <@int 4>
+.typedef @2xdouble  = vector <@double 2>
+
+.const @F_1 <@float> = 1.0f
+.const @F_2 <@float> = 2.0f
+.const @F_3 <@float> = 3.0f
+.const @F_4 <@float> = 4.0f
+.const @I32_1 <@float> = 1
+.const @I32_2 <@float> = 2
+.const @I32_3 <@float> = 3
+.const @I32_4 <@float> = 4
+.const @D_1 <@float> = 1.0d
+.const @D_2 <@float> = 2.0d
+.const @D_3 <@float> = 3.0d
+.const @D_4 <@float> = 4.0d
+
+.const @cv4f <@4xfloat>  = VEC {@F_1 @F_2 @F_3 @F_4}
+.const @cv4i <@4xi32>    = VEC {@I32_1 @I32_2 @I32_3 @I32_4}
+.const @cv4d <@2xdouble> = VEC {@D_1 @D_2 @D_3 @D_4}
+
+.typedef @Cons      = struct<@i32 @RefCons>
+.typedef @RefCons   = ref<@Cons>
+
+.const @cons0 <@Cons>   = {@ci32 @consNull}
+.const @consNull <@RefCons> = NULL
+
+.global @gi64 <@i64>
+.funcdecl @fdummy <@sig0>
+
+.typedef @ii64 = iref<@i64>
+.typedef @sgf_t = struct<@ii64 @sig0>
+
+.const @sgf <@sgf_t> = {@gi64 @fdummy}

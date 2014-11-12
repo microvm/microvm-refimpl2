@@ -9,7 +9,10 @@ class AntlrUvmIRReaderSpec extends AbstractReaderSpec {
   override def theSubject = "AntlrUvmIRReader"
 
   override def parseFile(fileName: String, globalBundle: Bundle): Bundle = {
-    AntlrUvmIRReader.read(new java.io.FileReader(fileName), globalBundle)
+    val idf = new IDFactory()
+    val r = new UIRTextReader(idf)
+    val ir = r.read(new java.io.FileReader(fileName), globalBundle)
+    ir
   }
 
 }

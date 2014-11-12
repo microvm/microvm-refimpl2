@@ -4,34 +4,44 @@
 .typedef @i32 = int<32>
 .typedef @i64 = int<64>
 
-.typedef @f = float
-.typedef @d = double
+.typedef @float  = float
+.typedef @double = double
 
-.typedef @rv  = ref<void>
-.typedef @irv = iref<void>
-.typedef @wrv = weakref<void>
+.typedef @rv  = ref<@void>
+.typedef @irv = iref<@void>
+.typedef @wrv = weakref<@void>
 
-.typedef @ri16   = ref<@i16>
-.typedef @ri16_2 = ref<int<16>>
+.typedef @ri16 = ref<@i16>
 
-.typedef @s0 = struct<>
-.typedef @s1 = struct<int<8> @i16 int<32> @i64
-    float double ref<void> @irv @wrv @ri16 ref<int<16>>>
+.typedef @s1 = struct<@i8 @i16 @i32 @i64 @float @double @rv @irv @wrv @ri16>
 
-.typedef @cons = struct<@i64 ref<@cons>>
+.typedef @Cons = struct<@i64 @RefCons>
+.typedef @RefCons = ref<@Cons>
 
-.typedef @a0 = array<int<8> 100>
-.typedef @a1 = array<struct<double int<64>> 10>
+.typedef @foo = struct<@double @i64>
+
+.typedef @a0 = array<@i8 100>
+.typedef @a1 = array<@foo 10>
 .typedef @a2 = array<@a1 10>
 
-.typedef @h0 = hybrid <void int<8>>
-.typedef @h1 = hybrid <struct<@i32 @i32 float> @i64>
+.typedef @h0 = hybrid <@void @i8>
+.typedef @h1 = hybrid <@foo @i64>
 
-.typedef @v = void
+.typedef @void = void
 
-.typedef @f0 = func <void ()>
-.typedef @f1 = func <int<32> (int<32> iref<iref<int<8>>>)>
+.funcsig @sig0 = @void ()
+
+.typedef @ii8 = iref<@i8>
+.typedef @iii8 = iref<@ii8>
+.funcsig @sig1 = @i32 (@i32 @iii8)
+
+.typedef @f0 = func <@sig0>
+.typedef @f1 = func <@sig1>
 
 .typedef @th = thread
 .typedef @st = stack
 .typedef @tr64 = tagref64
+
+.typedef @4xfloat  = vector <@float 4>
+.typedef @4xi32    = vector <@int 4>
+.typedef @2xdouble = vector <@double 2>

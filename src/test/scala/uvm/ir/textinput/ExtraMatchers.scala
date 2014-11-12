@@ -24,7 +24,7 @@ trait ExtraMatchers extends Assertions with Matchers {
     
     def shouldBeAConstIntOf(len: Int, num: BigInt) {
       thing shouldBeA[ConstInt] { its =>
-        its.ty shouldBeATypeIntOf(len)
+        its.constTy shouldBeATypeIntOf(len)
         its.num shouldEqual num
       }
     }
