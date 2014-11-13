@@ -121,6 +121,7 @@ abstract class AbstractAlloc extends HasExcClause {
 trait FixedAlloc extends AbstractAlloc
 
 trait HybridAlloc extends AbstractAlloc {
+  def lenTy: TypeInt
   def length: SSAVariable
 }
 
@@ -191,11 +192,11 @@ case class InstShuffleVector(var vecTy: TypeVector, var maskTy: TypeVector,
 
 case class InstNew(var allocTy: Type, var excClause: Option[ExcClause]) extends HeapAlloc with FixedAlloc
 
-case class InstNewHybrid(var allocTy: TypeHybrid, var length: SSAVariable, var excClause: Option[ExcClause]) extends HeapAlloc with HybridAlloc
+case class InstNewHybrid(var allocTy: TypeHybrid, var lenTy: TypeInt, var length: SSAVariable, var excClause: Option[ExcClause]) extends HeapAlloc with HybridAlloc
 
 case class InstAlloca(var allocTy: Type, var excClause: Option[ExcClause]) extends StackAlloc with FixedAlloc
 
-case class InstAllocaHybrid(var allocTy: TypeHybrid, var length: SSAVariable, var excClause: Option[ExcClause]) extends StackAlloc with HybridAlloc
+case class InstAllocaHybrid(var allocTy: TypeHybrid, var lenTy: TypeInt, var length: SSAVariable, var excClause: Option[ExcClause]) extends StackAlloc with HybridAlloc
 
 case class InstGetIRef(var referentTy: Type, var opnd: SSAVariable) extends Instruction
 
@@ -211,17 +212,17 @@ case class InstGetFixedPartIRef(var referentTy: TypeHybrid, var opnd: SSAVariabl
 
 case class InstGetVarPartIRef(var referentTy: TypeHybrid, var opnd: SSAVariable) extends Instruction
 
-case class InstLoad(var ord: MemoryOrder, var referentTy: Type, var loc: SSAVariable) extends Instruction
+case class InstLoad(var ord: MemoryOrder, var referentTy: Type, var loc: SSAVariable, var excClause: Option[ExcClause]) extends HasExcClause
 
-case class InstStore(var ord: MemoryOrder, var referentTy: Type, var loc: SSAVariable, var newVal: SSAVariable) extends Instruction
+case class InstStore(var ord: MemoryOrder, var referentTy: Type, var loc: SSAVariable, var newVal: SSAVariable, var excClause: Option[ExcClause]) extends HasExcClause
 
 case class InstCmpXchg(var weak: Boolean, var ordSucc: MemoryOrder, var ordFail: MemoryOrder, var referentTy: Type,
-                       var loc: SSAVariable, var expected: SSAVariable, var desired: SSAVariable)  extends Instruction
-
-case class InstFence(var ord: MemoryOrder) extends Instruction
+                       var loc: SSAVariable, var expected: SSAVariable, var desired: SSAVariable, var excClause: Option[ExcClause])  extends HasExcClause
 
 case class InstAtomicRMW(var ord: MemoryOrder, var op: AtomicRMWOptr,
-                         var referentTy: Type, var loc: SSAVariable, var opnd: SSAVariable) extends Instruction
+                         var referentTy: Type, var loc: SSAVariable, var opnd: SSAVariable, var excClause: Option[ExcClause]) extends HasExcClause
+
+case class InstFence(var ord: MemoryOrder) extends Instruction
 
 case class InstTrap(var retTy: Type, var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable]) extends AbstractTrap
 

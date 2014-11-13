@@ -246,7 +246,7 @@
         %i1 = INSERTVALUE  <@sid 1> @sid1 @D_0
         %ee0 = EXTRACTELEMENT <@4xfloat @i32> @v1 @I32_0
         %ie0 = INSERTELEMENT  <@4xfloat @i32> @v1 @I32_1 @F_1
-        %fv0 = SHUFFLEVECTOR  <@4xfloat @4xi32> @v1 @v2 @vshf
+        %sv0 = SHUFFLEVECTOR  <@4xfloat @4xi32> @v1 @v2 @vshf
     
         RETVOID
 }

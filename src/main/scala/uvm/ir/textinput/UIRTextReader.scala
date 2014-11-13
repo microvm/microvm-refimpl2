@@ -65,7 +65,7 @@ class UIRTextReader(val idFactory: IDFactory) {
         val neg = sign match {
           case "+" => false
           case "-" => true
-          case "" => true
+          case "" => false
         }
         val abs = prefix match {
           case "0x" => BigInt(nums, 16)
@@ -310,7 +310,7 @@ class UIRTextReader(val idFactory: IDFactory) {
       ver.func = func
       func.versions = ver :: func.versions
 
-      def globalize(name: String): String = if (name(0) == '@') name else (ver.name.get + "." + name.substring(1))
+      def globalize(name: String): String = UIRTextReader.globalize(name, ver.name.get)
 
       ver.params = fDefCtx.params.name().zipWithIndex.map {
         case (n, i) =>
@@ -477,7 +477,7 @@ class UIRTextReader(val idFactory: IDFactory) {
               i.excClause = ii.excClause
             }
           case ii: InstNewHybridContext =>
-            InstNewHybrid(needHybrid(ii.allocTy), null, null).later(phase4) { i =>
+            InstNewHybrid(needHybrid(ii.allocTy), needInt(ii.lenTy), null, null).later(phase4) { i =>
               i.length = ii.length; i.excClause = ii.excClause
             }
           case ii: InstAllocaContext =>
@@ -485,48 +485,52 @@ class UIRTextReader(val idFactory: IDFactory) {
               i.excClause = ii.excClause
             }
           case ii: InstAllocaHybridContext =>
-            InstAllocaHybrid(needHybrid(ii.allocTy), null, null).later(phase4) { i =>
+            InstAllocaHybrid(needHybrid(ii.allocTy), needInt(ii.lenTy), null, null).later(phase4) { i =>
               i.length = ii.length; i.excClause = ii.excClause
             }
           case ii: InstGetIRefContext =>
             InstGetIRef(ii.refTy, null).later(phase4) { i =>
-              i.opnd = i.opnd
+              i.opnd = ii.opnd
             }
           case ii: InstGetFieldIRefContext =>
             InstGetFieldIRef(needStruct(ii.refTy), ii.intLiteral.intValue, null).later(phase4) { i =>
-              i.opnd = i.opnd
+              i.opnd = ii.opnd
             }
           case ii: InstGetElemIRefContext =>
             InstGetElemIRef(needSeq(ii.refTy), needInt(ii.indTy), null, null).later(phase4) { i =>
-              i.opnd = i.opnd; i.index = ii.index
+              i.opnd = ii.opnd; i.index = ii.index
             }
           case ii: InstShiftIRefContext =>
             InstShiftIRef(ii.refTy, needInt(ii.offTy), null, null).later(phase4) { i =>
-              i.opnd = i.opnd; i.offset = ii.offset
+              i.opnd = ii.opnd; i.offset = ii.offset
             }
           case ii: InstGetFixedPartIRefContext =>
             InstGetFixedPartIRef(needHybrid(ii.refTy), null).later(phase4) { i =>
-              i.opnd = i.opnd
+              i.opnd = ii.opnd
             }
           case ii: InstGetVarPartIRefContext =>
             InstGetVarPartIRef(needHybrid(ii.refTy), null).later(phase4) { i =>
-              i.opnd = i.opnd
+              i.opnd = ii.opnd
             }
           case ii: InstLoadContext =>
-            InstLoad(ii.memord, ii.`type`, null).later(phase4) { i =>
+            InstLoad(ii.memord, ii.`type`, null, null).later(phase4) { i =>
               i.loc = ii.loc
+              i.excClause = ii.excClause
             }
           case ii: InstStoreContext =>
-            InstStore(ii.memord, ii.`type`, null, null).later(phase4) { i =>
+            InstStore(ii.memord, ii.`type`, null, null, null).later(phase4) { i =>
               i.loc = ii.loc; i.newVal = ii.newVal
+              i.excClause = ii.excClause
             }
           case ii: InstCmpXchgContext =>
-            InstCmpXchg(ii.isWeak != null, ii.ordSucc, ii.ordFail, ii.`type`, null, null, null).later(phase4) { i =>
+            InstCmpXchg(ii.isWeak != null, ii.ordSucc, ii.ordFail, ii.`type`, null, null, null, null).later(phase4) { i =>
               i.loc = ii.loc; i.expected = ii.expected; i.desired = ii.desired
+              i.excClause = ii.excClause
             }
           case ii: InstAtomicRMWContext =>
-            InstAtomicRMW(ii.memord, AtomicRMWOptr.withName(ii.atomicrmwop.getText), ii.`type`, null, null).later(phase4) { i =>
+            InstAtomicRMW(ii.memord, AtomicRMWOptr.withName(ii.atomicrmwop.getText), ii.`type`, null, null, null).later(phase4) { i =>
               i.loc = ii.loc; i.opnd = ii.opnd
+              i.excClause = ii.excClause
             }
           case ii: InstFenceContext =>
             InstFence(ii.memord)
@@ -590,5 +594,16 @@ class UIRTextReader(val idFactory: IDFactory) {
     }
 
     return bundle
+  }
+}
+
+object UIRTextReader {
+  def globalize(name: String, fvName: String): String = {
+    val sigil = name.charAt(0)
+    sigil match {
+    case '@' => name
+    case '%' => fvName + "." + name.substring(1)
+    case _ => throw new UvmException("Illegal name '%s'. Name must begin with either '@' or '%%'".format(name))
+    }
   }
 }

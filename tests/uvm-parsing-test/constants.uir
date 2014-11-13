@@ -70,18 +70,10 @@
 .const @I32_4 <@float> = 4
 .const @D_1 <@float> = 1.0d
 .const @D_2 <@float> = 2.0d
-.const @D_3 <@float> = 3.0d
-.const @D_4 <@float> = 4.0d
 
 .const @cv4f <@4xfloat>  = VEC {@F_1 @F_2 @F_3 @F_4}
 .const @cv4i <@4xi32>    = VEC {@I32_1 @I32_2 @I32_3 @I32_4}
-.const @cv4d <@2xdouble> = VEC {@D_1 @D_2 @D_3 @D_4}
-
-.typedef @Cons      = struct<@i32 @RefCons>
-.typedef @RefCons   = ref<@Cons>
-
-.const @cons0 <@Cons>   = {@ci32 @consNull}
-.const @consNull <@RefCons> = NULL
+.const @cv4d <@2xdouble> = VEC {@D_1 @D_2}
 
 .global @gi64 <@i64>
 .funcdecl @fdummy <@sig0>

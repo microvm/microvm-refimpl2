@@ -26,6 +26,8 @@ class FuncVer extends IdentifiedSettable {
 
   val bbNs: Namespace[BasicBlock] = new SimpleNamespace[BasicBlock]()
   val localVarNs: Namespace[LocalVariable] = new SimpleNamespace[LocalVariable]()
+  
+  def sig: FuncSig = func.sig
 }
 
 class BasicBlock extends IdentifiedSettable {
