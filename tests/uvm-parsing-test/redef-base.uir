@@ -1,9 +1,11 @@
 .typedef @i64 = int<64>
+.const @I64_42 <@i64> = 42
 
 .funcsig @IntReturner = @i64 ()
 
-.funcdef @meaning_of_life <@IntReturner> () {
-    %ret = RET <@i64> 42
+.funcdef @meaning_of_life VERSION @meaning_of_life_v1 <@IntReturner> () {
+    %entry:
+        %ret = RET <@i64> @I64_42
 }
 
 .funcdecl @foxsay <@IntReturner>

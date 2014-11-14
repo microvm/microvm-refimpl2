@@ -543,7 +543,7 @@ class UIRTextReader(val idFactory: IDFactory) {
               i.dis = ii.dis; i.ena = ii.ena; i.exc = Option(ii.wpExc).map(resBB); i.keepAlives = ii.keepAliveClause
             }
           case ii: InstCCallContext =>
-            InstCCall(CallConv.withName(ii.callconv.getText), ii.funcTy, null, null, null).later(phase4) { i =>
+            InstCCall(CallConv.withName(ii.callconv.getText), ii.funcTy, ii.funcSig, null, null).later(phase4) { i =>
               i.callee = ii.callee; i.argList = ii.argList
             }
           case ii: InstNewStackContext =>

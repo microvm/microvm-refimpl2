@@ -840,222 +840,128 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       my inst "%old9" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.UMAX }
       my inst "%olda" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.UMIN }
     }
-    /*              
+
     in (our func "@traps") { (func, ver) =>
       val my = ver
       
       my inst "%tp" shouldBeA[InstTrap] { its =>
         its.retTy shouldBe (our ty "@i32")
-        its.nor shouldBe (my bb "%trapcont")
-        its.exc shouldBe (my bb "%trapexc")
-        its.keepAlives shouldBe Seq(my inst "%b", my inst "%wp")
-      }
-      
-      my inst "%wp" shouldBeA[InstWatchpoint] { its =>
-        its.wpID shouldBe 1
-        its.retTy shouldBe (our ty "@i64")
-        its.dis shouldBe (my bb "%body")
-        its.nor shouldBe (my bb "%wpcont")
-        its.exc shouldBe (my bb "%wpexc")
+        its.excClause shouldBe None
         its.keepAlives shouldBe Seq(my inst "%a")
       }
+       
+      my inst "%tp_s" shouldBeA[InstTrap] { its =>
+        its.retTy shouldBe (our ty "@i64")
+        its.excClause shouldBe Some(ExcClause(my bb "%tp_s_cont", my bb "%tp_s_exc"))
+        its.keepAlives shouldBe Seq(my inst "%b")
+      }
+      
+      my inst "%wp" shouldBeA[InstWatchPoint] { its =>
+        its.wpID shouldBe 1
+        its.retTy shouldBe (our ty "@float")
+        its.dis shouldBe (my bb "%wp_dis_cont")
+        its.ena shouldBe (my bb "%wp_ena_cont")
+        its.exc shouldBe None
+        its.keepAlives shouldBe Seq(my inst "%a")
+      }
+      
+      my inst "%wp_s" shouldBeA[InstWatchPoint] { its =>
+        its.wpID shouldBe 2
+        its.retTy shouldBe (our ty "@double")
+        its.dis shouldBe (my bb "%wp_s_dis_cont")
+        its.ena shouldBe (my bb "%wp_s_ena_cont")
+        its.exc shouldBe Some(my bb "%wp_s_exc")
+        its.keepAlives shouldBe Seq(my inst "%b")
+      }
     }
-    
+
     in (our func "@ccall") { (func, ver) =>
       val my = ver
       
       my inst "%rv" shouldBeA[InstCCall] { its =>
         its.callConv shouldBe CallConv.DEFAULT
-        its.sig.retTy shouldBe (our ty "@void")
-        its.sig.paramTy(0) shouldBe (our ty "@double")
-        its.sig.paramTy.size shouldBe 1
+        its.funcTy shouldBe (our ty "@i64")
+        its.sig shouldBe (our sig "@ccall_callee_sig")
         its.callee shouldBe (my param "%p0")
-        its.args.size shouldBe 1
-        its.args(0) shouldBeAConstDoubleOf(3.14d)
+        its.argList shouldBe Seq(our value "@D_1")
       }
     }
     
-    in (our func "@stack_and_intrinsic") { (func, ver) =>
+    in (our func "@gen") { (func, ver) =>
       val my = ver
       
-      my inst "%ns" shouldBeA[InstNewStack] { its =>
-        its.sig shouldBe (our sig "@iiisig")
-        its.callee shouldBe (our const "@callee2")
-        its.args.size shouldBe 2
-        its.args(0) shouldBeAConstIntOf(64, 5)
-        its.args(1) shouldBeAConstIntOf(64, 6)
+      my inst "%ss1" shouldBeA[InstSwapStack] { its =>
+        its.swappee shouldBe (my value "%main")
+        its.curStackAction shouldBe RetWith(our ty "@void")
+        its.newStackAction shouldBe PassValue(our ty "@i64", our value "@I64_0")
+        its.excClause shouldBe None
+        its.keepAlives shouldBe empty
       }
-      
-      my inst "%i" shouldBeA[InstICall] { its =>
-        its.iFunc shouldBe IFuncs.UVM_SWAP_STACK
-        its.args.size shouldBe 1
-        its.args(0) shouldBe (my inst "%ns")
-        its.keepAlives.size shouldBe 1
-        its.keepAlives(0) shouldBe (my inst "%b")
-      }
-
-      my inst "%j" shouldBeA[InstIInvoke] { its =>
-        its.iFunc shouldBe IFuncs.UVM_KILL_STACK
-        its.args.size shouldBe 1
-        its.args(0) shouldBe (my inst "%ns")
-        its.nor shouldBe (my bb "%nor")
-        its.exc shouldBe (my bb "%exc")
-        its.keepAlives.size shouldBe 2
-        its.keepAlives(0) shouldBe (my inst "%b")
-        its.keepAlives(1) shouldBe (my inst "%c")
+      my inst "%ss2" shouldBeA[InstSwapStack] { its =>
+        its.swappee shouldBe (my value "%main")
+        its.curStackAction shouldBe KillOld()
+        its.newStackAction shouldBe ThrowExc(our value "@NULLREF")
+        its.excClause shouldBe None
+        its.keepAlives shouldBe empty
       }
     }
-    in (our func "@inference") { (func, ver) =>
+   
+    in (our func "@swapstack") { (func, ver) =>
       val my = ver
-
-      my inst "%add" shouldBeA[InstBinOp] { its =>
-        its.op1 shouldBeAConstIntOf(8, 41)
-        its.op2 shouldBeAConstIntOf(8, 42)
-      }
-      my inst "%sub" shouldBeA[InstBinOp] { its =>
-        its.op1 shouldBeAConstIntOf(16, 43)
-        its.op2 shouldBeAConstIntOf(16, 44)
-      }
-      my inst "%mul" shouldBeA[InstBinOp] { its =>
-        its.op1 shouldBeAConstIntOf(32, 45)
-        its.op2 shouldBeAConstIntOf(32, 46)
-      }
-      my inst "%udiv" shouldBeA[InstBinOp] { its =>
-        its.op1 shouldBeAConstIntOf(64, 47)
-        its.op2 shouldBeAConstIntOf(64, 48)
-      }
-      my inst "%fadd" shouldBeA[InstBinOp] { its =>
-        its.op1 shouldBeAConstFloatOf(49.0f)
-        its.op2 shouldBeAConstFloatOf(50.0f)
-      }
-      my inst "%fsub" shouldBeA[InstBinOp] { its =>
-        its.op1 shouldBeAConstDoubleOf(51.0d)
-        its.op2 shouldBeAConstDoubleOf(52.0d)
+      
+      my inst "%curstack" shouldBeA[InstCommInst] { its =>
+        its.inst shouldBe (CommInsts("@uvm.current_stack"))
+        its.typeList shouldBe empty
+        its.argList shouldBe empty
+        its.excClause shouldBe None
+        its.keepAlives shouldBe empty
       }
       
-      my inst "%eq" shouldBeA[InstCmp] { its =>
-        its.op1 shouldBeAConstIntOf(64, 53)
-        its.op2 shouldBeAConstIntOf(64, 54)
-      }
-      my inst "%fueq" shouldBeA[InstCmp] { its =>
-        its.op1 shouldBeAConstDoubleOf(55.0d)
-        its.op2 shouldBeAConstDoubleOf(56.0d)
+      my inst "%coro" shouldBeA[InstNewStack] { its =>
+        its.sig shouldBe (our sig "@iii_sig")
+        its.callee shouldBe (our value "@callee2")
+        its.argList shouldBe Seq(my value "%curstack")
+        its.excClause shouldBe Some(ExcClause(my bb "%cont", my bb "%exc"))
       }
       
-      my inst "%trunc" shouldBeA[InstConv] { its =>
-        its.opnd shouldBeAConstIntOf(64, 57)
+      my inst "%ss1" shouldBeA[InstSwapStack] { its =>
+        its.swappee shouldBe (my value "%coro")
+        its.curStackAction shouldBe RetWith(our ty "@i64")
+        its.newStackAction shouldBe PassVoid()
+        its.excClause shouldBe None
+        its.keepAlives shouldBe Seq(my value "%curstack")
       }
-      my inst "%fptrunc" shouldBeA[InstConv] { its =>
-        its.opnd shouldBeAConstDoubleOf(58.0d)
-      }
-      
-      my inst "%refcast" shouldBeA[InstConv] { its =>
-        its.opnd shouldBeA[ConstNull] { _.constTy shouldBeA[TypeRef] {
-          _.ty shouldBe (our ty "@void")
-        }}
-      }
-      my inst "%irefcast" shouldBeA[InstConv] { its =>
-        its.opnd shouldBeA[ConstNull] { _.constTy shouldBeA[TypeIRef] {
-          _.ty shouldBe (our ty "@void")
-        }}
-      }
-      
-      my inst "%select" shouldBeA[InstSelect] { its =>
-        its.ifTrue shouldBeAConstDoubleOf(59.0d)
-        its.ifFalse shouldBeAConstDoubleOf(60.0d)
-      }
-      
-      my inst "%switch" shouldBeA[InstSwitch] { its =>
-        its.opnd shouldBeAConstIntOf(32, 61)
-        its.cases(0)._1 shouldBeAConstIntOf(32, 62)
-      }
-      
-      my inst "%phi" shouldBeA[InstPhi] { its =>
-        its.cases(0)._2 shouldBeAConstIntOf(32, 63)
-      }
-      
-      my inst "%call" shouldBeA[InstCall] { its =>
-        its.args(0) shouldBeAConstIntOf(8, 64)
-        its.args(1) shouldBeAConstIntOf(16, 65)
-        its.args(2) shouldBeAConstIntOf(32, 66)
-        its.args(3) shouldBeAConstIntOf(64, 67)
-        its.args(4) shouldBeAConstFloatOf(68.0f)
-        its.args(5) shouldBeAConstDoubleOf(69.0d)
-      }
-      
-      my inst "%invoke" shouldBeA[InstInvoke] { its =>
-        its.args(0) shouldBeAConstIntOf(8, 70)
-        its.args(1) shouldBeAConstIntOf(16, 71)
-        its.args(2) shouldBeAConstIntOf(32, 72)
-        its.args(3) shouldBeAConstIntOf(64, 73)
-        its.args(4) shouldBeAConstFloatOf(74.0f)
-        its.args(5) shouldBeAConstDoubleOf(75.0d)
-      }
-      
-      my inst "%tailcall" shouldBeA[InstTailCall] { its =>
-        its.args(0) shouldBeAConstIntOf(8, 76)
-        its.args(1) shouldBeAConstIntOf(16, 77)
-        its.args(2) shouldBeAConstIntOf(32, 78)
-        its.args(3) shouldBeAConstIntOf(64, 79)
-        its.args(4) shouldBeAConstFloatOf(80.0f)
-        its.args(5) shouldBeAConstDoubleOf(81.0d)
-      }
-      
-      my inst "%extractvalue" shouldBeA[InstExtractValue] { its =>
-        its.opnd shouldBeA[ConstStruct] { s =>
-          s.fields(0) shouldBeAConstIntOf(8, 82)
-          s.fields(1) shouldBeAConstIntOf(16, 83)
-          s.fields(2) shouldBeAConstIntOf(32, 84)
-          s.fields(3) shouldBeAConstIntOf(64, 85)
-          s.fields(4) shouldBeAConstFloatOf(86.0f)
-          s.fields(5) shouldBeAConstDoubleOf(87.0d)
-        }
-      }
-      
-      my inst "%insertvalue" shouldBeA[InstInsertValue] { its =>
-        its.opnd shouldBeA[ConstStruct] { s =>
-          s.fields(0) shouldBeAConstIntOf(8, 88)
-          s.fields(1) shouldBeAConstIntOf(16, 89)
-          s.fields(2) shouldBeAConstIntOf(32, 90)
-          s.fields(3) shouldBeAConstIntOf(64, 91)
-          s.fields(4) shouldBeAConstFloatOf(92.0f)
-          s.fields(5) shouldBeAConstDoubleOf(93.0d)
-        }
-        its.newVal shouldBeAConstIntOf(8, 94)
-      }
-      
-      my inst "%store" shouldBeA[InstStore] { its =>
-        its.newVal shouldBeAConstIntOf(32, 99)
-      }
-      my inst "%cmpxchg" shouldBeA[InstCmpXchg] { its =>
-        its.expected shouldBeAConstIntOf(32, 100)
-        its.desired shouldBeAConstIntOf(32, 101)
-      }
-      my inst "%atomicrmw" shouldBeA[InstAtomicRMW] { its =>
-        its.opnd shouldBeAConstIntOf(32, 102)
-      }
-      
-      my inst "%ccall" shouldBeA[InstCCall] { its =>
-        its.args(0) shouldBeAConstIntOf(8, 103)
-        its.args(1) shouldBeAConstIntOf(16, 104)
-        its.args(2) shouldBeAConstIntOf(32, 105)
-        its.args(3) shouldBeAConstIntOf(64, 106)
-        its.args(4) shouldBeAConstFloatOf(107.0f)
-        its.args(5) shouldBeAConstDoubleOf(108.0d)
-      }
-      
-      my inst "%newstack" shouldBeA[InstNewStack] { its =>
-        its.args(0) shouldBeAConstIntOf(8, 109)
-        its.args(1) shouldBeAConstIntOf(16, 110)
-        its.args(2) shouldBeAConstIntOf(32, 111)
-        its.args(3) shouldBeAConstIntOf(64, 112)
-        its.args(4) shouldBeAConstFloatOf(113.0f)
-        its.args(5) shouldBeAConstDoubleOf(114.0d)
+      my inst "%ss2" shouldBeA[InstSwapStack] { its =>
+        its.swappee shouldBe (my value "%coro")
+        its.curStackAction shouldBe RetWith(our ty "@i64")
+        its.newStackAction shouldBe PassVoid()
+        its.excClause shouldBe Some(ExcClause(my bb "%nor", my bb "%exc"))
+        its.keepAlives shouldBe empty
       }
     }
-    */
+    
+    in (our func "@comminst") { (func, ver) =>
+      val my = ver
+      
+      my inst "%thr" shouldBeA[InstCommInst] { its =>
+        its.inst shouldBe CommInsts("@uvm.new_thread")
+        its.typeList shouldBe empty
+        its.argList shouldBe Seq(my value "%sta")
+        its.excClause shouldBe None
+        its.keepAlives shouldBe empty
+      }
+      
+      my inst "%th_ex" shouldBeA[InstCommInst] { its =>
+        its.inst shouldBe CommInsts("@uvm.thread_exit")
+        its.typeList shouldBe empty
+        its.argList shouldBe empty
+        its.excClause shouldBe None
+        its.keepAlives shouldBe empty
+      }
+
+    }
   }
-  /*
+
   def validateRedef(globalBundle: Bundle, bundle: Bundle) {
     val ourOld = globalBundle
     val ourNew = bundle
@@ -1063,10 +969,14 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     in (ourOld func "@meaning_of_life") { (func, ver) =>
       val my = ver
       
-      my inst "%ret" shouldBeA[InstRet] { _.retVal shouldBeAConstIntOf(64, 42) }
+      my inst "%ret" shouldBeA[InstRet] { its =>
+        its.retTy shouldBe (ourOld ty "@i64")
+        its.retVal shouldBe (ourOld const "@I64_42")
+      }
     }
     
-    (ourOld func "@foxsay").ver shouldBe None
+    (ourOld func "@foxsay").versions shouldBe Nil
+    (ourOld func "@meaning_of_life").versions shouldBe Seq(ourOld funcVer "@meaning_of_life_v1")
     
     (ourNew func "@meaning_of_life").id shouldEqual (ourOld func "@meaning_of_life").id
     (ourNew func "@foxsay").id shouldEqual (ourOld func "@foxsay").id
@@ -1076,25 +986,29 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       
       my inst "%ret" shouldBeA[InstRet] { its =>
         its.retTy shouldBe (ourOld ty "@i64")
-        its.retVal shouldBeAConstIntOf(64, 43)
+        its.retVal shouldBe (ourNew const "@I64_43")
       }
     }
     
-    (ourNew func "@foxsay").ver shouldNot be(None)
+    (ourNew func "@foxsay").versions shouldBe Seq(ourNew funcVer "@foxsay_v1")
+    (ourNew func "@meaning_of_life").versions shouldBe Seq(ourNew funcVer "@meaning_of_life_v2")
     
     in (ourNew func "@foxsay") { (func, ver) =>
       val my = ver
       
-      my inst "%ret" shouldBeA[InstRet] { _.retVal shouldBeAConstIntOf(64, 99) }
+      my inst "%ret" shouldBeA[InstRet] { its =>
+        its.retTy shouldBe (ourOld ty "@i64")
+        its.retVal shouldBe (ourNew const "@I64_99")
+      }
     }
   }
-
+  
   def validateRedefAfterMerge(globalBundle: Bundle, bundle: Bundle) {
     val ourGlobal = globalBundle
     val ourNew = bundle
     
-    (ourGlobal func "@foxsay").ver shouldBe (ourNew func "@foxsay").ver
-    (ourGlobal func "@meaning_of_life").ver shouldBe (ourNew func "@meaning_of_life").ver
+    (ourGlobal func "@foxsay").versions.head shouldBe (ourNew funcVer "@foxsay_v1")
+    (ourGlobal func "@meaning_of_life").versions.head shouldBe (ourNew funcVer "@meaning_of_life_v2")
   }
-  */
+
 }

@@ -394,8 +394,10 @@
 .funcdef @swapstack VERSION @swapstack_v1 <@npnr_sig> () {
     %entry:
         %curstack = COMMINST @uvm.current_stack
-        %coro = NEWSTACK <@iii_sig> @callee2 (%curstack)
-        %ss1 = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID
+        %coro = NEWSTACK <@iii_sig> @callee2 (%curstack) EXC(%cont %exc)
+        
+    %cont:
+        %ss1 = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID KEEPALIVE(%curstack)
         %ss2 = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID EXC(%nor %exc)
 
     %nor:

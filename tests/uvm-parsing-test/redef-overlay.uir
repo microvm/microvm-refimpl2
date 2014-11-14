@@ -1,6 +1,11 @@
-.funcdef @foxsay <@IntReturner> () {
-    %ret = RET <@i64> 99
+.const @I64_99 <@i64> = 99
+.const @I64_43 <@i64> = 43
+
+.funcdef @foxsay VERSION @foxsay_v1 <@IntReturner> () {
+    %entry:
+        %ret = RET <@i64> @I64_99
 }
-.funcdef @meaning_of_life <@IntReturner> () {
-    %ret = RET <@i64> 43
+.funcdef @meaning_of_life VERSION @meaning_of_life_v2 <@IntReturner> () {
+    %entry:
+        %ret = RET <@i64> @I64_43
 }
