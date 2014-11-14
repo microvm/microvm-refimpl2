@@ -215,6 +215,15 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       its fields 0 shouldBe (our globalValue "@gi64")
       its fields 1 shouldBe (our globalValue "@fdummy")
     }
+    
+    // Testing namespaces
+    var ci8 = our const "@ci8"
+    our globalValue "@ci8" shouldBe ci8
+    our value "@ci8" shouldBe ci8
+    
+    var gi64 = our globalCell "@gi64"
+    our globalValue "@gi64" shouldBe gi64
+    our value "@gi64" shouldBe gi64
   }
   
   def validateFunctions(bundle: Bundle) {
@@ -279,6 +288,21 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         whose.index shouldEqual 1
       }
     }
+    
+    // Testing namespaces
+    val main = our func "@main"
+    our globalValue "@main" shouldBe main
+    our value "@main" shouldBe main
+    
+    val mainV1 = our funcVer "@main_v1"
+    
+    val argcGN = "@main_v1.argc"
+    val argc = mainV1.localVarNs(argcGN)
+    our value argcGN shouldBe argc
+    
+    val addGN = "@main_v1.add"
+    val add = mainV1.localVarNs(addGN)
+    our value addGN shouldBe add 
   }
 
   def in(func: Function)(f: (Function, FuncVer) => Unit) {
@@ -1009,6 +1033,10 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     
     (ourGlobal func "@foxsay").versions.head shouldBe (ourNew funcVer "@foxsay_v1")
     (ourGlobal func "@meaning_of_life").versions.head shouldBe (ourNew funcVer "@meaning_of_life_v2")
+    
+    val foxSay = ourGlobal func "@foxsay"
+    ourGlobal value "@foxsay" shouldBe foxSay
+    ourGlobal globalValue "@foxsay" shouldBe foxSay
   }
 
 }

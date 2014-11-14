@@ -41,8 +41,8 @@ class UIRTextReaderSpec extends  FlatSpec with Matchers
     val b = parseFile("tests/uvm-parsing-test/redef-overlay.uir", gb, Some(idf))
     validateRedef(gb, b)
 
-    //gb.merge(b)
-    //validateRedefAfterMerge(gb, b)
+    gb.merge(b)
+    validateRedefAfterMerge(gb, b)
   }
 
 }

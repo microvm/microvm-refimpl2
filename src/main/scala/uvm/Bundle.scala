@@ -4,37 +4,50 @@ import uvm.types._
 import uvm.ssavariables._
 
 class Bundle {
-  /**
-   * Namespace of all SSA variables, global or local.
+  /*
+   * There is a hierarchy of namespaces. A subnode is a subset of the parent.
+   * 
+   * + typeNs               // All types
+   * + funcSigNs            // All function signatures
+   * + funcVerNs            // All function versions
+   * + varNs                // All variables, global or local
+   *   + globalVarNs        // Global variables
+   *     + constantNs       // Constants
+   *     + globalCellNs     // Global cells
+   *     + funcNs           // Functions
+   *   + localVarNs         // Local variables (per function version)
+   * + bbNs                 // Basic blocks (per function version)
+   * 
+   * TODO: Should there be a global "basic block ns for all function versions"?
    */
-  val varNs = new SimpleNamespace[SSAVariable]()
-
-  /**
-   * All global SSA varaibles.
-   */
-  val globalVarNs = new SimpleNamespace[GlobalVariable]()
-
+  
   val typeNs = new SimpleNamespace[Type]()
   val funcSigNs = new SimpleNamespace[FuncSig]()
+  val funcVerNs = new SimpleNamespace[FuncVer]()
+
+  val varNs = new SimpleNamespace[SSAVariable]()
+  val globalVarNs = new SimpleNamespace[GlobalVariable]()
   val constantNs = new SimpleNamespace[Constant]()
   val globalCellNs = new SimpleNamespace[GlobalCell]()
   val funcNs = new SimpleNamespace[Function]()
 
-  val funcVerNs = new SimpleNamespace[FuncVer]()
 
   private def simpleMerge[T <: Identified](oldNs: Namespace[T], newNs: Namespace[T]) {
     for (cand <- newNs.all) {
-      try {
-        oldNs.add(cand)
-      } catch {
-        case e: NameConflictException =>
-          throw new IllegalRedefinitionException(
-            "Redefinition of type, function signature, constant or" +
-              " global cell is not allowed", e);
+      if (!cand.isInstanceOf[Function] || oldNs.get(cand.id) == None) {
+        // Function merging happens separately. Only add a function if it does not redefine an old one.
+        try {
+          oldNs.add(cand)
+        } catch {
+          case e: NameConflictException =>
+            throw new IllegalRedefinitionException(
+              "Redefinition of type, function signature, constant or" +
+                " global cell is not allowed", e);
+        }
       }
     }
   }
-  
+
   private def mergeFunc(oldNs: Namespace[Function], newNs: Namespace[Function]) {
     for (cand <- newNs.all) {
       val id = cand.id

@@ -24,6 +24,7 @@
 
 .funcdef @main VERSION @main_v1 <@baz> (%argc %argv) {
     %entry:
+        %add = ADD <@i32> %argc @zero
         RET <@i32> @zero
 }
 
