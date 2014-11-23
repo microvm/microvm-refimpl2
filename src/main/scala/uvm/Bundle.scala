@@ -7,19 +7,22 @@ class Bundle {
   /*
    * There is a hierarchy of namespaces. A subnode is a subset of the parent.
    * 
-   * + typeNs               // All types
-   * + funcSigNs            // All function signatures
-   * + funcVerNs            // All function versions
-   * + varNs                // All variables, global or local
-   *   + globalVarNs        // Global variables
-   *     + constantNs       // Constants
-   *     + globalCellNs     // Global cells
-   *     + funcNs           // Functions
-   *   + localVarNs         // Local variables (per function version)
-   * + bbNs                 // Basic blocks (per function version)
+   * + allNs                // All Identified entities
+   *   + typeNs             // All types
+   *   + funcSigNs          // All function signatures
+   *   + funcVerNs          // All function versions
+   *   + varNs              // All variables, global or local
+   *     + globalVarNs      // Global variables
+   *       + constantNs     // Constants
+   *       + globalCellNs   // Global cells
+   *       + funcNs         // Functions
+   *     + localVarNs       // Local variables (per function version)
+   *   + bbNs               // Basic blocks (per function version)
    * 
    * TODO: Should there be a global "basic block ns for all function versions"?
    */
+  
+  val allNs = new SimpleNamespace[Identified]()
   
   val typeNs = new SimpleNamespace[Type]()
   val funcSigNs = new SimpleNamespace[FuncSig]()
@@ -30,7 +33,6 @@ class Bundle {
   val constantNs = new SimpleNamespace[Constant]()
   val globalCellNs = new SimpleNamespace[GlobalCell]()
   val funcNs = new SimpleNamespace[Function]()
-
 
   private def simpleMerge[T <: Identified](oldNs: Namespace[T], newNs: Namespace[T]) {
     for (cand <- newNs.all) {
@@ -57,14 +59,16 @@ class Bundle {
       }
     }
   }
+  
   def merge(newBundle: Bundle) {
-    simpleMerge(varNs, newBundle.varNs)
-    simpleMerge(globalVarNs, newBundle.globalVarNs)
+    simpleMerge(allNs, newBundle.allNs)
     simpleMerge(typeNs, newBundle.typeNs)
     simpleMerge(funcSigNs, newBundle.funcSigNs)
+    simpleMerge(funcVerNs, newBundle.funcVerNs)
+    simpleMerge(varNs, newBundle.varNs)
+    simpleMerge(globalVarNs, newBundle.globalVarNs)
     simpleMerge(constantNs, newBundle.constantNs)
     simpleMerge(globalCellNs, newBundle.globalCellNs)
-    simpleMerge(funcVerNs, newBundle.funcVerNs)
     mergeFunc(funcNs, newBundle.funcNs)
   }
 }

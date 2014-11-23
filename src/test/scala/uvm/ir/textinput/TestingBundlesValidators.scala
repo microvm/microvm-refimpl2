@@ -11,6 +11,7 @@ import UIRTextReader.globalize
 trait TestingBundlesValidators extends Matchers with ExtraMatchers {
   
   implicit class MagicalOur(b: Bundle) {
+    def anything(s: String) = b.allNs(s)
     def ty(s: String) = b.typeNs(s)
     def const(s: String) = b.constantNs (s)
     def value(s: String) = b.varNs(s)
@@ -129,6 +130,13 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       its.elemTy shouldBe (our ty "@double")
       its.len shouldEqual 2
     }
+    
+    // Testing namespaces
+    val i8 = our ty "@i8"
+    our anything "@i8" shouldBe i8
+    
+    val sig0 = our sig "@sig0"
+    our anything "@sig0" shouldBe sig0
   }
   
   def validateConstants(bundle: Bundle) {
@@ -217,13 +225,15 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     }
     
     // Testing namespaces
-    var ci8 = our const "@ci8"
+    val ci8 = our const "@ci8"
     our globalValue "@ci8" shouldBe ci8
     our value "@ci8" shouldBe ci8
+    our anything "@ci8" shouldBe ci8
     
-    var gi64 = our globalCell "@gi64"
+    val gi64 = our globalCell "@gi64"
     our globalValue "@gi64" shouldBe gi64
     our value "@gi64" shouldBe gi64
+    our anything "@gi64" shouldBe gi64
   }
   
   def validateFunctions(bundle: Bundle) {
@@ -293,16 +303,20 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     val main = our func "@main"
     our globalValue "@main" shouldBe main
     our value "@main" shouldBe main
+    our anything "@main" shouldBe main
     
     val mainV1 = our funcVer "@main_v1"
-    
+    our anything "@main_v1" shouldBe mainV1
+
     val argcGN = "@main_v1.argc"
     val argc = mainV1.localVarNs(argcGN)
     our value argcGN shouldBe argc
+    our anything argcGN shouldBe argc
     
     val addGN = "@main_v1.add"
     val add = mainV1.localVarNs(addGN)
     our value addGN shouldBe add 
+    our anything addGN shouldBe add 
   }
 
   def in(func: Function)(f: (Function, FuncVer) => Unit) {

@@ -138,19 +138,28 @@ class UIRTextReader(val idFactory: IDFactory) {
 
     // Add entities to namespaces.
 
-    def addTy(obj: Type): Unit = bundle.typeNs.add(obj)
-    def addSig(obj: FuncSig): Unit = bundle.funcSigNs.add(obj)
+    def addTy(obj: Type): Unit = {
+      bundle.allNs.add(obj)
+      bundle.typeNs.add(obj)
+    }
+    def addSig(obj: FuncSig): Unit = {
+      bundle.allNs.add(obj)
+      bundle.funcSigNs.add(obj)
+    }
     def addConst(obj: Constant): Unit = {
+      bundle.allNs.add(obj)
       bundle.constantNs.add(obj)
       bundle.globalVarNs.add(obj)
       bundle.varNs.add(obj)
     }
     def addGlobalCell(obj: GlobalCell): Unit = {
+      bundle.allNs.add(obj)
       bundle.globalCellNs.add(obj)
       bundle.globalVarNs.add(obj)
       bundle.varNs.add(obj)
     }
     def addFunc(obj: Function): Unit = {
+      bundle.allNs.add(obj)
       bundle.funcNs.add(obj)
       bundle.globalVarNs.add(obj)
       bundle.varNs.add(obj)
@@ -158,8 +167,12 @@ class UIRTextReader(val idFactory: IDFactory) {
     def addLocalVar(obj: LocalVariable, localNs: Namespace[LocalVariable]) = {
       localNs.add(obj)
       bundle.varNs.add(obj)
+      bundle.allNs.add(obj)
     }
-    def addFuncVer(obj: FuncVer): Unit = bundle.funcVerNs.add(obj)
+    def addFuncVer(obj: FuncVer): Unit = {
+      bundle.allNs.add(obj)
+      bundle.funcVerNs.add(obj)
+    }
 
     // Resolve types, with parse-time checking.
 
@@ -328,6 +341,7 @@ class UIRTextReader(val idFactory: IDFactory) {
         bb.id = idFactory.getID()
         bb.name = Some(globalize(bbCtx.label().name()))
         ver.bbNs.add(bb)
+        bundle.allNs.add(bb)
 
         bb.insts = bbCtx.inst.map(mkInst)
 
