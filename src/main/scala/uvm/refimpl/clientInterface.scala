@@ -4,6 +4,9 @@ import uvm.types._
 import uvm.refimpl.itpr._
 import java.io.Reader
 import scala.collection.mutable.HashSet
+import uvm.refimpl.mem.TypeSizes
+import uvm.ssavariables.MemoryOrder._
+import uvm.ssavariables.AtomicRMWOptr._
 
 case class Handle(ty: Type, vb: ValueBox)
 
@@ -144,5 +147,105 @@ class ClientAgent(microVM: MicroVM) {
     val sb = str.vb.asInstanceOf[BoxStruct]
     val nsb = BoxStruct(for ((b, i) <- sb.values.zipWithIndex) yield if (i == index) newVal.vb else b)
     newHandle(st, nsb)
+  }
+
+  def newFixed(tid: Int): Handle = {
+    throw new UvmRefImplException("Not implemented")
+  }
+
+  def newHybrid(tid: Int, length: Handle): Handle = {
+    throw new UvmRefImplException("Not implemented")
+  }
+
+  def refCast(handle: Handle, newType: Int): Handle = {
+    val t = microVM.globalBundle.typeNs(newType)
+    newHandle(t, handle.vb)
+  }
+
+  def getIRef(handle: Handle): Handle = {
+    val t = handle.ty.asInstanceOf[TypeRef]
+    val nt = InternalTypePool.irefOf(t.ty)
+    val ob = handle.vb.asInstanceOf[BoxRef]
+    val nb = BoxIRef(ob.objRef, 0L)
+    newHandle(nt, nb)
+  }
+
+  def getFieldIRef(handle: Handle, index: Int): Handle = {
+    val t = handle.ty.asInstanceOf[TypeIRef]
+    val st = t.ty.asInstanceOf[TypeStruct]
+    val ft = st.fieldTy(index)
+    val nt = InternalTypePool.irefOf(ft)
+    val ob = handle.vb.asInstanceOf[BoxIRef]
+    val nb = BoxIRef(ob.objRef, ob.offset + TypeSizes.fieldOffsetOf(st, index))
+    newHandle(nt, nb)
+  }
+
+  def getElemIRef(handle: Handle, index: Handle): Handle = {
+    val t = handle.ty.asInstanceOf[TypeIRef]
+    val st = t.ty.asInstanceOf[AbstractSeqType]
+    val et = st.elemTy
+    val nt = InternalTypePool.irefOf(et)
+    val ob = handle.vb.asInstanceOf[BoxIRef]
+    val i = toInt(index, signExt = true).longValue
+    val nb = BoxIRef(ob.objRef, ob.offset + TypeSizes.elemOffsetOf(st, i))
+    newHandle(nt, nb)
+  }
+
+  def shiftIRef(handle: Handle, index: Handle): Handle = {
+    val t = handle.ty.asInstanceOf[TypeIRef]
+    val rt = t.ty
+    val nt = InternalTypePool.irefOf(rt)
+    val ob = handle.vb.asInstanceOf[BoxIRef]
+    val i = toInt(index, signExt = true).longValue
+    val nb = BoxIRef(ob.objRef, ob.offset + TypeSizes.shiftOffsetOf(rt, i))
+    newHandle(nt, nb)
+  }
+
+  def getFixedPartIRef(handle: Handle): Handle = {
+    val t = handle.ty.asInstanceOf[TypeIRef]
+    val ht = t.ty.asInstanceOf[TypeHybrid]
+    val ft = ht.fixedTy
+    val nt = InternalTypePool.irefOf(ft)
+    val ob = handle.vb.asInstanceOf[BoxIRef]
+    val nb = ob
+    newHandle(nt, nb)
+  }
+
+  def getVarPartIRef(handle: Handle): Handle = {
+    val t = handle.ty.asInstanceOf[TypeIRef]
+    val ht = t.ty.asInstanceOf[TypeHybrid]
+    val ft = ht.fixedTy
+    val vt = ht.varTy
+    val nt = InternalTypePool.irefOf(vt)
+    val ob = handle.vb.asInstanceOf[BoxIRef]
+    val nb = BoxIRef(ob.objRef, ob.offset + TypeSizes.varPartOffsetOf(ht))
+    newHandle(nt, nb)
+  }
+  
+  def load(ord: MemoryOrder, loc: Handle): Handle = {
+    throw new UvmRefImplException("Not Implemented")
+  }
+
+  def store(ord: MemoryOrder, loc: Handle, newVal: Handle): Unit = {
+    throw new UvmRefImplException("Not Implemented")
+  }
+
+  def cmpXchg(ordSucc: MemoryOrder, ordFail: MemoryOrder, weak: Boolean, loc: Handle, expected: Handle, desired: Handle): (Boolean, Handle) = {
+    throw new UvmRefImplException("Not Implemented")
+  }
+
+  def atomicRMW(ord: MemoryOrder, op: AtomicRMWOptr, loc: Handle, opnd: Handle): Handle = {
+    throw new UvmRefImplException("Not Implemented")
+  }
+  
+  def fence(ord: MemoryOrder): Unit = {
+  }
+
+  def newStack(func: Handle, args: Seq[Handle]): Handle = {
+    throw new UvmRefImplException("Not Implemented")
+  }
+
+  def newThread(stack: Handle): Handle = {
+    throw new UvmRefImplException("Not Implemented")
   }
 }

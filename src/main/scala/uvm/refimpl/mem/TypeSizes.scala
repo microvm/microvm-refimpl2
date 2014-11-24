@@ -105,6 +105,20 @@ object TypeSizes {
     val offset = alignUp(prefixSize, fieldAlign)
     return offset
   }
+  
+  def elemOffsetOf(ty: AbstractSeqType, length: Word): Word = {
+    return seqPrefixSizeOf(ty, length)
+  }
+
+  def shiftOffsetOf(ty: Type, index: Word): Word = {
+    return alignUp(sizeOf(ty), alignOf(ty)) * index
+  }
+  
+  def fixedPartOffsetOf(ty: TypeHybrid): Word = 0L
+  
+  def varPartOffsetOf(ty: TypeHybrid): Word = {
+    return alignUp(sizeOf(ty.fixedTy), alignOf(ty.varTy))
+  }
 
   def structPrefixSizeOf(ty: TypeStruct, prefixLen: Int): Word = {
     val sz = ty.fieldTy.foldLeft(0L) { (oldSz, nextTy) =>
@@ -115,10 +129,6 @@ object TypeSizes {
 
   def seqPrefixSizeOf(ty: AbstractSeqType, length: Word): Word = {
     return shiftOffsetOf(ty.elemTy, length)
-  }
-
-  def shiftOffsetOf(elemType: Type, index: Word): Word = {
-    return alignUp(sizeOf(elemType), alignOf(elemType)) * index
   }
 
   def nextPowOfTwo(n: Word): Word = {
