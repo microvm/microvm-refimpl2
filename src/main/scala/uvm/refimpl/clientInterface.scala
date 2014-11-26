@@ -10,6 +10,20 @@ import uvm.ssavariables.AtomicRMWOptr._
 
 case class Handle(ty: Type, vb: ValueBox)
 
+abstract class TrapHandlerResult
+case class TrapExit() extends TrapHandlerResult
+case class TrapRebindPassValue(newStack: Handle, value: Handle) extends TrapHandlerResult
+case class TrapRebindPassVoid(newStack: Handle) extends TrapHandlerResult
+case class TrapRebindThrowExc(newStack: Handle, exc: Handle) extends TrapHandlerResult
+
+trait TrapHandler {
+  def handleTrap(ca: ClientAgent, thread: Handle, stack: Handle, watchPointID: Int): TrapHandlerResult
+}
+
+trait UndefinedFunctionHandler {
+  def handleUndefinedFunction(functionID: Int): Unit
+}
+
 class ClientAgent(microVM: MicroVM) {
   val handles = new HashSet[Handle]()
 
@@ -221,7 +235,7 @@ class ClientAgent(microVM: MicroVM) {
     val nb = BoxIRef(ob.objRef, ob.offset + TypeSizes.varPartOffsetOf(ht))
     newHandle(nt, nb)
   }
-  
+
   def load(ord: MemoryOrder, loc: Handle): Handle = {
     throw new UvmRefImplException("Not Implemented")
   }
@@ -237,7 +251,7 @@ class ClientAgent(microVM: MicroVM) {
   def atomicRMW(ord: MemoryOrder, op: AtomicRMWOptr, loc: Handle, opnd: Handle): Handle = {
     throw new UvmRefImplException("Not Implemented")
   }
-  
+
   def fence(ord: MemoryOrder): Unit = {
   }
 
@@ -248,4 +262,83 @@ class ClientAgent(microVM: MicroVM) {
   def newThread(stack: Handle): Handle = {
     throw new UvmRefImplException("Not Implemented")
   }
+
+  def killStack(stack: Handle): Unit = {
+    throw new UvmRefImplException("Not Implemented")
+  }
+
+  def currentFuncVer(stack: Handle, frame: Int): Int = {
+    throw new UvmRefImplException("Not Implemented")
+  }
+
+  def currentInstruction(stack: Handle, frame: Int): Int = {
+    throw new UvmRefImplException("Not Implemented")
+  }
+
+  def dumpKeepalives(stack: Handle, frame: Int): Seq[Handle] = {
+    throw new UvmRefImplException("Not Implemented")
+  }
+
+  def popFrame(stack: Handle): Unit = {
+    throw new UvmRefImplException("Not Implemented")
+  }
+
+  def pushFrame = throw new UvmRefImplException("Not Implemented")
+
+  def tr64IsFp(handle: Handle): Boolean = {
+    OpHelper.tr64IsFp(handle.vb.asInstanceOf[BoxTagRef64].raw)
+  }
+
+  def tr64IsInt(handle: Handle): Boolean = {
+    OpHelper.tr64IsInt(handle.vb.asInstanceOf[BoxTagRef64].raw)
+  }
+
+  def tr64IsRef(handle: Handle): Boolean = {
+    OpHelper.tr64IsRef(handle.vb.asInstanceOf[BoxTagRef64].raw)
+  }
+
+  def tr64ToFp(handle: Handle): Handle = {
+    val raw = handle.vb.asInstanceOf[BoxTagRef64].raw
+    val box = new BoxDouble(OpHelper.tr64ToFp(raw))
+    newHandle(InternalTypes.DOUBLE, box)
+  }
+
+  def tr64ToInt(handle: Handle): Handle = {
+    val raw = handle.vb.asInstanceOf[BoxTagRef64].raw
+    val box = new BoxInt(OpHelper.tr64ToInt(raw))
+    newHandle(InternalTypes.I52, box)
+  }
+
+  def tr64ToRef(handle: Handle): Handle = {
+    val raw = handle.vb.asInstanceOf[BoxTagRef64].raw
+    val box = new BoxRef(OpHelper.tr64ToRef(raw))
+    newHandle(InternalTypes.REF_VOID, box)
+  }
+
+  def tr64ToTag(handle: Handle): Handle = {
+    val raw = handle.vb.asInstanceOf[BoxTagRef64].raw
+    val box = new BoxInt(OpHelper.tr64ToTag(raw))
+    newHandle(InternalTypes.I6, box)
+  }
+  
+  def tr64FromFp(handle: Handle): Handle = {
+    val fp = handle.vb.asInstanceOf[BoxDouble].value
+    val box = new BoxTagRef64(OpHelper.fpToTr64(fp))
+    newHandle(InternalTypes.TAGREF64, box)
+  }
+  
+  def tr64FromInt(handle: Handle): Handle = {
+    val i = handle.vb.asInstanceOf[BoxInt].value
+    val box = new BoxTagRef64(OpHelper.intToTr64(i.longValue))
+    newHandle(InternalTypes.TAGREF64, box)
+  }
+
+  def tr64FromRef(ref: Handle, tag: Handle): Handle = {
+    val refv = ref.vb.asInstanceOf[BoxRef].objRef
+    val tagv = tag.vb.asInstanceOf[BoxInt].value
+    val box = new BoxTagRef64(OpHelper.refToTr64(refv, tagv.longValue))
+    newHandle(InternalTypes.TAGREF64, box)
+  }
+
+
 }
