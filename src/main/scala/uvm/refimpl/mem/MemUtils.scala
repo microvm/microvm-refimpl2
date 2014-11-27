@@ -15,7 +15,7 @@ object MemUtils extends StrictLogging {
     }
   }
 
-  def memcpy(src: Long, dst: Word, length: Word) {
+  def memcpy(src: Word, dst: Word, length: Word) {
     logger.debug("Copying [${src} -> ${dst}] ${length} bytes")
     var a: Word = 0
     while (a < length) {

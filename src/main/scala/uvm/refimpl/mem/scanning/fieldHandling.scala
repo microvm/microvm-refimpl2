@@ -6,8 +6,10 @@ import uvm.refimpl.mem.MemorySupport
 import uvm.refimpl.itpr.OpHelper
 
 trait RefFieldHandler {
-  def fromBox(box: HasObjRef): Unit
-  def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Unit
+  /** Scan a box. Return true if the GC should follow this reference. */
+  def fromBox(box: HasObjRef): Boolean
+  /** Scan a memory location. Return true if the GC should follow this reference. */
+  def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Boolean
 }
 
 object RefFieldUpdater {

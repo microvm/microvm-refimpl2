@@ -13,6 +13,10 @@ object MemoryDataScanner extends StrictLogging {
 
   val paranoiaLogger = Logger(LoggerFactory.getLogger(getClass.getName() + ".paranoia"))
 
+  /**
+   * Scan an allocation unit. In this implementation, heap objects, alloca cells and global
+   * cells all have the same layout.
+   */
   def scanAllocUnit(objRef: Word, iRef: Word, microVM: MicroVM, handler: RefFieldHandler) {
     val tag = HeaderUtils.getTag(objRef)
     val ty = HeaderUtils.getType(microVM, tag)

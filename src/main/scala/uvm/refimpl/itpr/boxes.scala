@@ -1,6 +1,8 @@
 package uvm.refimpl.itpr
 
 import uvm._
+import uvm.types._
+import uvm.refimpl._
 import uvm.refimpl.mem.TypeSizes.Word
 
 abstract class ValueBox
@@ -41,3 +43,24 @@ case class BoxTagRef64(var raw: Long) extends HasObjRef {
   }
 }
 
+object ValueBox {
+
+  def makeBoxForType(ty: Type): ValueBox = ty match {
+    case _: TypeInt => BoxInt(0)
+    case _: TypeFloat => BoxFloat(0.0f)
+    case _: TypeDouble => BoxDouble(0.0d)
+    case TypeVector(elemTy, len) => BoxVector(Seq.fill(4)(makeBoxForType(elemTy)))
+    case _: TypeRef => BoxRef(0L)
+    case _: TypeIRef => BoxIRef(0L, 0L)
+    case _: TypeWeakRef => throw new UvmRefImplException("weakref cannot be an SSA variable type")
+    case TypeStruct(fieldTys) => BoxStruct(fieldTys.map(makeBoxForType))
+    case _: TypeArray => throw new UvmRefImplException("array cannot be an SSA variable type")
+    case _: TypeHybrid => throw new UvmRefImplException("hybrid cannot be an SSA variable type")
+    case _: TypeVoid => BoxVoid()
+    case _: TypeFunc => BoxFunc(None)
+    case _: TypeStack => BoxStack(None)
+    case _: TypeThread => BoxThread(None)
+    case _: TypeTagRef64 => BoxTagRef64(0L)
+  }
+
+}
