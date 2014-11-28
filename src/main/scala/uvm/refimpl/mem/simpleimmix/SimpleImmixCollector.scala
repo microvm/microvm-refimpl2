@@ -240,6 +240,7 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
       } else {
         val tag = HeaderUtils.getTag(oldObjRef)
         val ty = HeaderUtils.getType(microVM, tag)
+        
         val (newObjRef, oldSize): (Long, Long) = ty match {
           case htype: TypeHybrid => {
             val len = HeaderUtils.getVarLength(oldObjRef)
@@ -253,6 +254,7 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
             (nor, os)
           }
         }
+        
         if (newObjRef == 0) {
           canDefrag = false
           logger.debug("No more reserved blocks and thus no more moving.")
