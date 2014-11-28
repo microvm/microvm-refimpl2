@@ -12,6 +12,9 @@ object AllScanner {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
+/**
+ * Traverse through all references in the µVM.
+ */
 class AllScanner(val microVM: MicroVM, val handler: RefFieldHandler) extends RefFieldHandler {
   import AllScanner._
 
@@ -57,7 +60,7 @@ class AllScanner(val microVM: MicroVM, val handler: RefFieldHandler) extends Ref
       logger.debug(s"Tracing stack ${sta.id} memory chunk in LOS...")
       val stackMemory = sta.stackMemory
       val stackMemObjAddr = stackMemory.stackObjRef
-      fromMem(0L, 0L, stackMemObjAddr, false, false) // This is a hack: A reference from nowhere.
+      fromInternal(stackMemObjAddr) // This is a hack: A reference from nowhere.
 
       logger.debug(s"Tracing stack ${sta.id} for allocas...")
       stackMemory.traverseFields(this)
