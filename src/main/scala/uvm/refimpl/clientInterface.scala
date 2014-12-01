@@ -289,6 +289,9 @@ class ClientAgent(microVM: MicroVM) {
         val sid = MemorySupport.loadLong(iRef).toInt
         val sta = microVM.threadStackManager.getStackByID(sid)
         BoxStack(sta)
+      case _: TypeTagRef64 =>
+        val raw = MemorySupport.loadLong(iRef)
+        BoxTagRef64(raw)
       case _ => throw new UvmRefImplException("Loading of type %s is not supporing".format(uty.getClass.getName))
     }
     newHandle(uty, nb)
@@ -333,6 +336,9 @@ class ClientAgent(microVM: MicroVM) {
       case _: TypeStack =>
         val sid = nvb.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0)
         MemorySupport.storeLong(iRef, sid.toLong & 0xFFFFFFFFL)
+      case _: TypeTagRef64 =>
+        val raw = nvb.asInstanceOf[BoxTagRef64].raw
+        MemorySupport.storeLong(iRef, raw)
       case _ => throw new UvmRefImplException("Storing of type %s is not supporing".format(uty.getClass.getName))
     }
   }
@@ -447,6 +453,10 @@ class ClientAgent(microVM: MicroVM) {
               val rl = MemorySupport.atomicRMWLong(op, iRef, ol)
               val rs = microVM.threadStackManager.getStackByID(rl.toInt)
               newHandle(uty, BoxStack(rs))
+            case _: TypeTagRef64 =>
+              val ol = ob.asInstanceOf[BoxTagRef64].raw
+              val rl = MemorySupport.atomicRMWLong(op, iRef, ol)
+              newHandle(uty, BoxTagRef64(rl))
             case _ =>
               throw new UvmRefImplException("AtomicRMW XCHG of type %s is not supporing".format(uty.getClass.getName))
           }
