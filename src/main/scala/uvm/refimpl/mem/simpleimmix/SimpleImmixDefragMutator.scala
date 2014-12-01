@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory
 import com.typesafe.scalalogging.Logger
 import TypeSizes.Word
 import uvm.refimpl.UvmRefImplException
+import uvm.utils.RetryUtils._
 
 object SimpleImmixDefragMutator {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
@@ -62,14 +63,6 @@ class SimpleImmixDefragMutator(val heap: SimpleImmixHeap, val space: SimpleImmix
         cursor = userEnd
         Some(userStart)
       }
-    }
-  }
-
-  private def tryTwice[T](body: => Option[T]): T = {
-    val maybeResult = body
-    maybeResult match {
-      case None => body.get
-      case Some(v) => v
     }
   }
 

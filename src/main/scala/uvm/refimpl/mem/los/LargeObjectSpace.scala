@@ -1,21 +1,16 @@
 package uvm.refimpl.mem.los
 
-import uvm.platformsupport.Config._
-import uvm.refimpl.mem.MemUtils
-import uvm.refimpl.mem.Space
-import uvm.refimpl.mem.TypeSizes
-import uvm.refimpl.mem.simpleimmix.SimpleImmixHeap
-import uvm.refimpl.mem.simpleimmix.SimpleImmixSpace
-import uvm.util.ErrorUtils
-import uvm.util.LogUtil
-import uvm.util.Logger
+import uvm.refimpl.mem._
+import TypeSizes.Word
+import uvm.refimpl.mem.simpleimmix._
 import LargeObjectSpace._
-//remove if not needed
-import scala.collection.JavaConversions._
+import org.slf4j.LoggerFactory
+import com.typesafe.scalalogging.Logger
+import uvm.refimpl.UvmRefImplException
 
 object LargeObjectSpace {
 
-  private val logger = LogUtil.getLogger("LOS")
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 
   val BLOCK_SIZE = SimpleImmixSpace.BLOCK_SIZE / 4
 
@@ -28,40 +23,62 @@ object LargeObjectSpace {
   private val MARK_BIT = 0x1
 }
 
-class LargeObjectSpace(private var heap: SimpleImmixHeap, 
-    name: String, 
-    begin: Long, 
-    extend: Long) extends Space(name, begin, extend) {
+/**
+ * A mark-sweep freelist-based space to allocate large objects. An object always
+ * occupies contiguous blocks and a block is used by at most one object at any
+ * moment.
+ * <p>
+ * It has an extra header of three words before the GC header. The two words
+ * form a doubly linked list of all live objects in the LOS. When sweeping, the
+ * linked list is traversed to unlink all un-marked objects.
+ * <p>
+ * The third header is a mark bit for the block. It is used when traversing the
+ * doubly linked list because the offset of the GC header relative to the block
+ * start is not known (hybrids have one extra word of offset).
+ * <p>
+ * Objects in this space are never moved.
+ */
+class LargeObjectSpace(val heap: SimpleImmixHeap,
+  name: String,
+  begin: Long,
+  extend: Word) extends Space(name, begin, extend) {
 
-  private var freeList: FreeList = new FreeList((extend / BLOCK_SIZE).toInt)
+  if (extend % BLOCK_SIZE != 0)
+    throw new UvmRefImplException("extend %d should be a multiple of BLOCK_SIZE %d".format(
+      extend, BLOCK_SIZE))
 
-  private var head: Long = 0
+  private val freeList: FreeList = new FreeList((extend / BLOCK_SIZE).toInt)
 
-  ErrorUtils.uvmAssert(extend % BLOCK_SIZE == 0, String.format("extend %d should be a multiple of BLOCK_SIZE %d", 
-    extend, BLOCK_SIZE))
+  /**
+   * Head of the linked list of all live objects. 0 if there is no live object.
+   */
+  private var head: Word = 0
 
-  def alloc(size: Long, align: Long, headerSize: Long): Long = {
+  def alloc(size: Word, align: Word, headerSize: Word): Word = {
     val userStart = TypeSizes.alignUp(16 + headerSize, align)
     val totalSize = userStart + size
     val nBlocks = (totalSize - 1) / BLOCK_SIZE + 1
     if (nBlocks > 0xffffffffL) {
-      ErrorUtils.uvmError("Object too large: " + totalSize)
-      return 0
+      throw new UvmRefImplException("Object too large: " + totalSize)
     }
     val iBlocks = nBlocks.toInt
-    var blockIndex = -1
-    for (tries <- 0.until(2)) {
-      blockIndex = freeList.allocate(iBlocks)
-      if (blockIndex == -1 && tries == 0) {
-        heap.mutatorTriggerAndWaitForGCEnd(true)
-      } else {
-        //break
+
+    def getBlockIndex: Int = {
+      for (tries <- (0 until 2)) {
+        val bi = freeList.allocate(iBlocks)
+        if (bi == -1 && tries < 1) {
+          heap.mutatorTriggerAndWaitForGCEnd(true)
+        } else {
+          return bi
+        }
       }
+      return -1
     }
+
+    val blockIndex = getBlockIndex
     if (blockIndex == -1) {
-      ErrorUtils.uvmError("Out of memory when allocating large object of size: " + 
+      throw new UvmRefImplException("Out of memory when allocating large object of size: " +
         totalSize)
-      return 0
     }
     val blockAddr = blockIndexToBlockAddr(blockIndex)
     val regionSize = nBlocks * BLOCK_SIZE
@@ -71,36 +88,37 @@ class LargeObjectSpace(private var heap: SimpleImmixHeap,
     objRef
   }
 
-  def markBlockByObjRef(objRef: Long) {
+  def markBlockByObjRef(objRef: Word) {
     val blockAddr = objRefToBlockAddr(objRef)
-    logger.format("marking block addr %d for obj %d...", blockAddr, objRef)
+    logger.debug("marking block addr %d for obj %d...".format(blockAddr, objRef))
     markBlock(blockAddr)
   }
 
   def collect(): Boolean = {
-    logger.format("Start collecting...")
+    logger.debug("Start collecting...")
     if (head == 0) {
-      logger.format("not iterating because head == 0")
+      logger.debug("not iterating because head == 0")
       return false
     }
     var anyDeallocated = false
     var curBlock = head
     val lastBlock = getPrev(curBlock)
     var nextBlock = getNext(curBlock)
-    logger.format("Begin iteration from %d to %d", curBlock, lastBlock)
-    while (true) {
-      logger.format("Visiting block %d..", curBlock)
+    logger.debug("Begin iteration from %d to %d".format(curBlock, lastBlock))
+    var finished = false
+    while (!finished) {
+      logger.debug("Visiting block %d..".format(curBlock))
       val mark = getBlockMark(curBlock)
       if (mark != MARK_BIT) {
-        logger.format("Deallocating block addr %d...", curBlock)
+        logger.debug("Deallocating block addr %d...".format(curBlock))
         dealloc(curBlock)
         anyDeallocated = true
       } else {
-        logger.format("Block addr %d contains live object.", curBlock)
+        logger.debug("Block addr %d contains live object.".format(curBlock))
         unmarkBlock(curBlock)
       }
       if (curBlock == lastBlock) {
-        //break
+        finished = true
       } else {
         curBlock = nextBlock
         nextBlock = getNext(curBlock)
@@ -109,39 +127,39 @@ class LargeObjectSpace(private var heap: SimpleImmixHeap,
     anyDeallocated
   }
 
-  private def dealloc(blockAddr: Long) {
+  private def dealloc(blockAddr: Word) {
     val blockIndex = blockAddrToBlockIndex(blockAddr)
     freeList.deallocate(blockIndex)
     unlink(blockAddr)
   }
 
-  def objRefToBlockIndex(objRef: Long): Int = {
+  def objRefToBlockIndex(objRef: Word): Int = {
     val blockAddr = objRefToBlockAddr(objRef)
     val blockIndex = blockAddrToBlockIndex(blockAddr)
     blockIndex
   }
 
-  def objRefToBlockAddr(objRef: Long): Long = objRef & ~(BLOCK_SIZE - 1)
+  def objRefToBlockAddr(objRef: Word): Word = objRef & ~(BLOCK_SIZE - 1)
 
-  def blockIndexToBlockAddr(blockIndex: Int): Long = begin + BLOCK_SIZE * blockIndex.toLong
+  def blockIndexToBlockAddr(blockIndex: Int): Word = begin + BLOCK_SIZE * blockIndex.toLong
 
-  def blockAddrToBlockIndex(blockAddr: Long): Int = {
+  def blockAddrToBlockIndex(blockAddr: Word): Int = {
     ((blockAddr - begin) / BLOCK_SIZE).toInt
   }
 
-  private def markBlock(blockAddr: Long) {
-    MEMORY_SUPPORT.storeLong(blockAddr + OFFSET_MARK, MARK_BIT)
+  private def markBlock(blockAddr: Word) {
+    MemorySupport.storeLong(blockAddr + OFFSET_MARK, MARK_BIT)
   }
 
-  private def unmarkBlock(blockAddr: Long) {
-    MEMORY_SUPPORT.storeLong(blockAddr + OFFSET_MARK, 0)
+  private def unmarkBlock(blockAddr: Word) {
+    MemorySupport.storeLong(blockAddr + OFFSET_MARK, 0)
   }
 
-  private def getBlockMark(blockAddr: Long): Long = {
-    MEMORY_SUPPORT.loadLong(blockAddr + OFFSET_MARK)
+  private def getBlockMark(blockAddr: Word): Word = {
+    MemorySupport.loadLong(blockAddr + OFFSET_MARK)
   }
 
-  private def link(blockAddr: Long) {
+  private def link(blockAddr: Word) {
     if (head == 0) {
       head = blockAddr
       setPrev(blockAddr, blockAddr)
@@ -155,7 +173,7 @@ class LargeObjectSpace(private var heap: SimpleImmixHeap,
     }
   }
 
-  private def unlink(blockAddr: Long) {
+  private def unlink(blockAddr: Word) {
     val next = getNext(blockAddr)
     if (next == blockAddr) {
       head = 0
@@ -167,19 +185,19 @@ class LargeObjectSpace(private var heap: SimpleImmixHeap,
     }
   }
 
-  private def getPrev(blockAddr: Long): Long = {
-    MEMORY_SUPPORT.loadLong(blockAddr + OFFSET_PREV)
+  private def getPrev(blockAddr: Word): Word = {
+    MemorySupport.loadLong(blockAddr + OFFSET_PREV)
   }
 
-  private def getNext(blockAddr: Long): Long = {
-    MEMORY_SUPPORT.loadLong(blockAddr + OFFSET_NEXT)
+  private def getNext(blockAddr: Word): Word = {
+    MemorySupport.loadLong(blockAddr + OFFSET_NEXT)
   }
 
-  private def setPrev(blockAddr: Long, toBlock: Long) {
-    MEMORY_SUPPORT.storeLong(blockAddr + OFFSET_PREV, toBlock)
+  private def setPrev(blockAddr: Word, toBlock: Word) {
+    MemorySupport.storeLong(blockAddr + OFFSET_PREV, toBlock)
   }
 
-  private def setNext(blockAddr: Long, toBlock: Long) {
-    MEMORY_SUPPORT.storeLong(blockAddr + OFFSET_NEXT, toBlock)
+  private def setNext(blockAddr: Word, toBlock: Word) {
+    MemorySupport.storeLong(blockAddr + OFFSET_NEXT, toBlock)
   }
 }

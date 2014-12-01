@@ -19,7 +19,7 @@ object SimpleImmixSpace {
   private val N_BUCKETS = 256
 }
 
-class SimpleImmixSpace(val heap: SimpleImmixHeap, val name: String, val begin: Word, val extend: Word)
+class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, extend: Word)
   extends Space(name, begin, extend) {
 
   import SimpleImmixSpace._

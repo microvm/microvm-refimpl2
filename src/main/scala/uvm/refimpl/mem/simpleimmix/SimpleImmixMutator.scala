@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory
 import com.typesafe.scalalogging.Logger
 import TypeSizes.Word
 import scala.annotation.tailrec
+import uvm.utils.RetryUtils._
 
 object SimpleImmixMutator {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
@@ -57,16 +58,6 @@ class SimpleImmixMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace,
         cursor = userEnd
         Some(userStart)
       }
-    }
-  }
-
-  /** Try a computation repeatedly until success. */
-  @tailrec
-  private def tryRepeatedly[T](body: => Option[T]): T = {
-    val maybeResult = body
-    maybeResult match {
-      case None => tryRepeatedly(body)
-      case Some(v) => v
     }
   }
 

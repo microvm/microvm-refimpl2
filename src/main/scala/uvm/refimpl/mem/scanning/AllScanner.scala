@@ -89,5 +89,13 @@ class AllScanner(val microVM: MicroVM, val handler: RefFieldHandler) extends Ref
     }
     toEnqueue
   }
+  
+  override def fromInternal(toObj: Word): Boolean = {
+    val toEnqueue = handler.fromInternal(toObj)
+    if (toEnqueue) {
+      queue.add(toObj)
+    }
+    toEnqueue
+  }
 
 }

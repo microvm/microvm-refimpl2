@@ -18,10 +18,10 @@ abstract class Collector extends Runnable() {
   }
 
   private def park() {
-    getHeap.collectorWaitForGCStart()
+    heap.collectorWaitForGCStart()
   }
 
-  protected def getHeap(): Heap
+  protected def heap: Heap
 
   protected def collect(): Unit
 }
