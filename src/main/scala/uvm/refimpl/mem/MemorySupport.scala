@@ -14,6 +14,7 @@ object MemorySupport {
   def loadShort(loc: Word): Short = bb.getShort(loc.toInt)
   def loadInt(loc: Word): Int = bb.getInt(loc.toInt)
   def loadLong(loc: Word): Long = bb.getLong(loc.toInt)
+  def loadI128(loc: Word): (Long, Long) = (bb.getLong(loc.toInt), bb.getLong(loc.toInt + 8))
   def loadFloat(loc: Word): Float = bb.getFloat(loc.toInt)
   def loadDouble(loc: Word): Double = bb.getDouble(loc.toInt)
 
@@ -21,6 +22,7 @@ object MemorySupport {
   def storeShort(loc: Word, v: Short): Unit = bb.putShort(loc.toInt, v)
   def storeInt(loc: Word, v: Int): Unit = bb.putInt(loc.toInt, v)
   def storeLong(loc: Word, v: Long): Unit = bb.putLong(loc.toInt, v)
+  def storeI128(loc: Word, v: (Long, Long)): Unit = { val (low, high) = v; bb.putLong(loc.toInt, low); bb.putLong(loc.toInt + 8, high) }
   def storeFloat(loc: Word, v: Float): Unit = bb.putFloat(loc.toInt, v)
   def storeDouble(loc: Word, v: Double): Unit = bb.putDouble(loc.toInt, v)
 
@@ -38,6 +40,16 @@ object MemorySupport {
     val oldVal = loadLong(loc)
     if (oldVal == expected) {
       storeLong(loc, desired)
+      return (true, oldVal)
+    } else {
+      return (false, oldVal)
+    }
+  }
+
+  def cmpXchgI128(loc: Word, expected: (Long, Long), desired: (Long, Long)): (Boolean, (Long, Long)) = {
+    val oldVal = loadI128(loc)
+    if (oldVal == expected) {
+      storeI128(loc, desired)
       return (true, oldVal)
     } else {
       return (false, oldVal)
@@ -62,7 +74,7 @@ object MemorySupport {
     storeInt(loc, newVal)
     return oldVal
   }
-  
+
   def atomicRMWLong(optr: AtomicRMWOptr, loc: Word, opnd: Long): Long = {
     val oldVal = loadLong(loc)
     val newVal = optr match {
@@ -79,6 +91,12 @@ object MemorySupport {
       case UMIN => Math.min(oldVal - Int.MinValue, opnd - Int.MinValue) + Int.MinValue
     }
     storeLong(loc, newVal)
+    return oldVal
+  }
+
+  def xchgI128(loc: Word, desired: (Long, Long)): (Long, Long) = {
+    val oldVal = loadI128(loc)
+    storeI128(loc, desired)
     return oldVal
   }
 }

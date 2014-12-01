@@ -4,9 +4,10 @@ import uvm.types._
 import uvm.refimpl.itpr._
 import java.io.Reader
 import scala.collection.mutable.HashSet
-import uvm.refimpl.mem.TypeSizes
+import uvm.refimpl.mem.TypeSizes._
 import uvm.ssavariables.MemoryOrder._
 import uvm.ssavariables.AtomicRMWOptr._
+import uvm.refimpl.mem._
 
 case class Handle(ty: Type, vb: ValueBox)
 
@@ -29,6 +30,8 @@ class ClientAgent(microVM: MicroVM) {
 
   microVM.addClientAgent(this)
 
+  val mutator = microVM.memoryManager.heap.makeMutator()
+
   /** Help the Client look up the ID of a name */
   def idOf(name: String): Int = {
     microVM.globalBundle.allNs(name).id
@@ -41,6 +44,7 @@ class ClientAgent(microVM: MicroVM) {
 
   def close(): Unit = {
     handles.clear()
+    mutator.close()
     microVM.removeClientAgent(this)
   }
 
@@ -57,7 +61,7 @@ class ClientAgent(microVM: MicroVM) {
 
   def putInt(typeID: Int, v: BigInt): Handle = {
     val t = microVM.globalBundle.typeNs(typeID).asInstanceOf[TypeInt]
-    val preparedV = OpHelper.trunc(v, t.length)
+    val preparedV = OpHelper.unprepare(v, t.length)
     newHandle(t, BoxInt(preparedV))
   }
 
@@ -164,11 +168,20 @@ class ClientAgent(microVM: MicroVM) {
   }
 
   def newFixed(tid: Int): Handle = {
-    throw new UvmRefImplException("Not implemented")
+    val t = microVM.globalBundle.typeNs(tid)
+    val objRef = mutator.newScalar(t)
+    val b = BoxRef(objRef)
+    val rt = InternalTypePool.refOf(t)
+    newHandle(rt, b)
   }
 
   def newHybrid(tid: Int, length: Handle): Handle = {
-    throw new UvmRefImplException("Not implemented")
+    val t = microVM.globalBundle.typeNs(tid).asInstanceOf[TypeHybrid]
+    val len = toInt(length).longValue
+    val objRef = mutator.newHybrid(t, len)
+    val b = BoxRef(objRef)
+    val rt = InternalTypePool.refOf(t)
+    newHandle(rt, b)
   }
 
   def refCast(handle: Handle, newType: Int): Handle = {
@@ -237,19 +250,208 @@ class ClientAgent(microVM: MicroVM) {
   }
 
   def load(ord: MemoryOrder, loc: Handle): Handle = {
-    throw new UvmRefImplException("Not Implemented")
+    val ty = loc.ty
+    val uty = InternalTypePool.unmarkedOf(ty)
+    val b = loc.vb.asInstanceOf[BoxIRef]
+    val iRef = b.objRef + b.offset
+    val nb = uty match {
+      case TypeInt(l) =>
+        val bi: BigInt = l match {
+          case 8 => MemorySupport.loadByte(iRef)
+          case 16 => MemorySupport.loadShort(iRef)
+          case 32 => MemorySupport.loadInt(iRef)
+          case 64 => MemorySupport.loadLong(iRef)
+          case _ => throw new UvmRefImplException("Loading int of length %d is not supported".format(l))
+        }
+        BoxInt(OpHelper.unprepare(bi, l))
+      case _: TypeFloat =>
+        val fv = MemorySupport.loadFloat(iRef)
+        BoxFloat(fv)
+      case _: TypeDouble =>
+        val dv = MemorySupport.loadDouble(iRef)
+        BoxDouble(dv)
+      case _: TypeRef =>
+        val addr = MemorySupport.loadLong(iRef)
+        BoxRef(addr)
+      case _: TypeIRef =>
+        val base = MemorySupport.loadLong(iRef)
+        val offset = MemorySupport.loadLong(iRef + WORD_SIZE_BYTES)
+        BoxIRef(base, offset)
+      case _: TypeFunc =>
+        val fid = MemorySupport.loadLong(iRef).toInt
+        val func = microVM.globalBundle.funcNs.get(fid)
+        BoxFunc(func)
+      case _: TypeThread =>
+        val tid = MemorySupport.loadLong(iRef).toInt
+        val thr = microVM.threadStackManager.getThreadByID(tid)
+        BoxThread(thr)
+      case _: TypeStack =>
+        val sid = MemorySupport.loadLong(iRef).toInt
+        val sta = microVM.threadStackManager.getStackByID(sid)
+        BoxStack(sta)
+      case _ => throw new UvmRefImplException("Loading of type %s is not supporing".format(uty.getClass.getName))
+    }
+    newHandle(uty, nb)
   }
 
   def store(ord: MemoryOrder, loc: Handle, newVal: Handle): Unit = {
-    throw new UvmRefImplException("Not Implemented")
+    val ty = loc.ty
+    val uty = InternalTypePool.unmarkedOf(ty)
+    val lb = loc.vb.asInstanceOf[BoxIRef]
+    val iRef = lb.objRef + lb.offset
+    val nvb = newVal.vb
+    uty match {
+      case TypeInt(l) =>
+        val bi = nvb.asInstanceOf[BoxInt].value
+        l match {
+          case 8 => MemorySupport.storeByte(iRef, bi.byteValue)
+          case 16 => MemorySupport.storeShort(iRef, bi.shortValue)
+          case 32 => MemorySupport.storeInt(iRef, bi.intValue)
+          case 64 => MemorySupport.storeLong(iRef, bi.longValue)
+          case _ => throw new UvmRefImplException("Storing int of length %d is not supported".format(l))
+        }
+        BoxInt(OpHelper.unprepare(bi, l))
+      case _: TypeFloat =>
+        val fv = nvb.asInstanceOf[BoxFloat].value
+        MemorySupport.storeFloat(iRef, fv)
+      case _: TypeDouble =>
+        val dv = nvb.asInstanceOf[BoxDouble].value
+        MemorySupport.storeDouble(iRef, dv)
+      case _: TypeRef =>
+        val addr = nvb.asInstanceOf[BoxRef].objRef
+        MemorySupport.storeLong(iRef, addr)
+      case _: TypeIRef =>
+        val BoxIRef(base, offset) = nvb.asInstanceOf[BoxIRef]
+        MemorySupport.storeLong(iRef, base)
+        MemorySupport.storeLong(iRef + WORD_SIZE_BYTES, offset)
+      case _: TypeFunc =>
+        val fid = nvb.asInstanceOf[BoxFunc].func.map(_.id).getOrElse(0)
+        MemorySupport.storeLong(iRef, fid.toLong & 0xFFFFFFFFL)
+      case _: TypeThread =>
+        val tid = nvb.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0)
+        MemorySupport.storeLong(iRef, tid.toLong & 0xFFFFFFFFL)
+      case _: TypeStack =>
+        val sid = nvb.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0)
+        MemorySupport.storeLong(iRef, sid.toLong & 0xFFFFFFFFL)
+      case _ => throw new UvmRefImplException("Storing of type %s is not supporing".format(uty.getClass.getName))
+    }
   }
 
   def cmpXchg(ordSucc: MemoryOrder, ordFail: MemoryOrder, weak: Boolean, loc: Handle, expected: Handle, desired: Handle): (Boolean, Handle) = {
-    throw new UvmRefImplException("Not Implemented")
+    val ty = loc.ty
+    val uty = InternalTypePool.unmarkedOf(ty)
+    val lb = loc.vb.asInstanceOf[BoxIRef]
+    val iRef = lb.objRef + lb.offset
+    val eb = expected.vb
+    val db = desired.vb
+    uty match {
+      case TypeInt(l) =>
+        val ebi = eb.asInstanceOf[BoxInt].value
+        val dbi = db.asInstanceOf[BoxInt].value
+        val (succ, rbi) = l match {
+          case 32 => {
+            val (succ2, rv) = MemorySupport.cmpXchgInt(iRef, ebi.intValue, dbi.intValue)
+            (succ2, BigInt(rv))
+          }
+          case 64 => {
+            val (succ2, rv) = MemorySupport.cmpXchgLong(iRef, ebi.longValue, dbi.longValue)
+            (succ2, BigInt(rv))
+          }
+          case _ => throw new UvmRefImplException("CmpXchg on int of length %d is not supported".format(l))
+        }
+        val rb = BoxInt(OpHelper.unprepare(rbi, l))
+        val rh = newHandle(uty, rb)
+        (succ, rh)
+      case _: TypeRef =>
+        val el = eb.asInstanceOf[BoxRef].objRef
+        val dl = db.asInstanceOf[BoxRef].objRef
+        val (succ, rl) = MemorySupport.cmpXchgLong(iRef, el, dl)
+        val rh = newHandle(uty, BoxRef(rl))
+        (succ, rh)
+      case _: TypeIRef =>
+        val BoxIRef(el, eh) = eb.asInstanceOf[BoxIRef]
+        val BoxIRef(dl, dh) = db.asInstanceOf[BoxIRef]
+        val (succ, (rl, rh)) = MemorySupport.cmpXchgI128(iRef, (el, eh), (dl, dh))
+        val rhdl = newHandle(uty, BoxIRef(rl, rh))
+        (succ, rhdl)
+      case _: TypeFunc =>
+        val el = eb.asInstanceOf[BoxFunc].func.map(_.id).getOrElse(0).toLong
+        val dl = db.asInstanceOf[BoxFunc].func.map(_.id).getOrElse(0).toLong
+        val (succ, rl) = MemorySupport.cmpXchgLong(iRef, el, dl)
+        val rf = microVM.globalBundle.funcNs.get(rl.toInt)
+        val rh = newHandle(uty, BoxFunc(rf))
+        (succ, rh)
+      case _: TypeThread =>
+        val el = eb.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0).toLong
+        val dl = db.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0).toLong
+        val (succ, rl) = MemorySupport.cmpXchgLong(iRef, el, dl)
+        val rt = microVM.threadStackManager.getThreadByID(rl.toInt)
+        val rh = newHandle(uty, BoxThread(rt))
+        (succ, rh)
+      case _: TypeStack =>
+        val el = eb.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0).toLong
+        val dl = db.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0).toLong
+        val (succ, rl) = MemorySupport.cmpXchgLong(iRef, el, dl)
+        val rs = microVM.threadStackManager.getStackByID(rl.toInt)
+        val rh = newHandle(uty, BoxStack(rs))
+        (succ, rh)
+      case _ => throw new UvmRefImplException("CmpXchg of type %s is not supporing".format(uty.getClass.getName))
+    }
   }
 
   def atomicRMW(ord: MemoryOrder, op: AtomicRMWOptr, loc: Handle, opnd: Handle): Handle = {
-    throw new UvmRefImplException("Not Implemented")
+    val ty = loc.ty
+    val uty = InternalTypePool.unmarkedOf(ty)
+    val lb = loc.vb.asInstanceOf[BoxIRef]
+    val iRef = lb.objRef + lb.offset
+    val ob = opnd.vb
+    uty match {
+      case TypeInt(l) =>
+        val obi = ob.asInstanceOf[BoxInt].value
+        val rbi: BigInt = l match {
+          case 32 => {
+            MemorySupport.atomicRMWInt(op, iRef, obi.intValue)
+          }
+          case 64 => {
+            MemorySupport.atomicRMWLong(op, iRef, obi.longValue)
+          }
+          case _ => throw new UvmRefImplException("AtomicRMW on int of length %d is not supported".format(l))
+        }
+        val rb = BoxInt(OpHelper.unprepare(rbi, l))
+        newHandle(uty, rb)
+      case _ =>
+        if (op != XCHG) {
+          throw new UvmRefImplException("AtomicRMW operation other than XCHG only supports int. %s found.".format(uty.getClass.getName))
+        } else {
+          uty match {
+            case _: TypeRef =>
+              val ol = ob.asInstanceOf[BoxRef].objRef
+              val rl = MemorySupport.atomicRMWLong(op, iRef, ol)
+              newHandle(uty, BoxRef(rl))
+            case _: TypeIRef =>
+              val BoxIRef(ol, oh) = ob.asInstanceOf[BoxIRef]
+              val (rl, rh) = MemorySupport.xchgI128(iRef, (ol, oh))
+              newHandle(uty, BoxIRef(rl, rh))
+            case _: TypeFunc =>
+              val ol = ob.asInstanceOf[BoxFunc].func.map(_.id).getOrElse(0).toLong
+              val rl = MemorySupport.atomicRMWLong(op, iRef, ol)
+              val rf = microVM.globalBundle.funcNs.get(rl.toInt)
+              newHandle(uty, BoxFunc(rf))
+            case _: TypeThread =>
+              val ol = ob.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0).toLong
+              val rl = MemorySupport.atomicRMWLong(op, iRef, ol)
+              val rt = microVM.threadStackManager.getThreadByID(rl.toInt)
+              newHandle(uty, BoxThread(rt))
+            case _: TypeStack =>
+              val ol = ob.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0).toLong
+              val rl = MemorySupport.atomicRMWLong(op, iRef, ol)
+              val rs = microVM.threadStackManager.getStackByID(rl.toInt)
+              newHandle(uty, BoxStack(rs))
+            case _ =>
+              throw new UvmRefImplException("AtomicRMW XCHG of type %s is not supporing".format(uty.getClass.getName))
+          }
+        }
+    }
   }
 
   def fence(ord: MemoryOrder): Unit = {
@@ -320,13 +522,13 @@ class ClientAgent(microVM: MicroVM) {
     val box = new BoxInt(OpHelper.tr64ToTag(raw))
     newHandle(InternalTypes.I6, box)
   }
-  
+
   def tr64FromFp(handle: Handle): Handle = {
     val fp = handle.vb.asInstanceOf[BoxDouble].value
     val box = new BoxTagRef64(OpHelper.fpToTr64(fp))
     newHandle(InternalTypes.TAGREF64, box)
   }
-  
+
   def tr64FromInt(handle: Handle): Handle = {
     val i = handle.vb.asInstanceOf[BoxInt].value
     val box = new BoxTagRef64(OpHelper.intToTr64(i.longValue))
@@ -339,6 +541,5 @@ class ClientAgent(microVM: MicroVM) {
     val box = new BoxTagRef64(OpHelper.refToTr64(refv, tagv.longValue))
     newHandle(InternalTypes.TAGREF64, box)
   }
-
 
 }
