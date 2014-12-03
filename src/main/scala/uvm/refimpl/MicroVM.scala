@@ -43,11 +43,4 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
   
   def newClientAgent(): ClientAgent = new ClientAgent(this)
 
-  def addClientAgent(ca: ClientAgent): Unit = {
-    clientAgents.add(ca)
-  }
-  
-  def removeClientAgent(ca: ClientAgent): Unit = {
-    clientAgents.remove(ca)
-  }
 }

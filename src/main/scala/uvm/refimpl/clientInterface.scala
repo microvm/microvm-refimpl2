@@ -28,7 +28,7 @@ trait UndefinedFunctionHandler {
 class ClientAgent(microVM: MicroVM) {
   val handles = new HashSet[Handle]()
 
-  microVM.addClientAgent(this)
+  microVM.clientAgents.add(this)
 
   val mutator = microVM.memoryManager.heap.makeMutator()
 
@@ -45,7 +45,7 @@ class ClientAgent(microVM: MicroVM) {
   def close(): Unit = {
     handles.clear()
     mutator.close()
-    microVM.removeClientAgent(this)
+    microVM.clientAgents.remove(this)
   }
 
   def loadBundle(r: Reader): Unit = {

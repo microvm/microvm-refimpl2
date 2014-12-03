@@ -24,8 +24,8 @@ class ThreadStackManager(microVM: MicroVM) {
 
   private def makeThreadID(): Int = {val id = nextThreadID; nextThreadID += 1; id}
 
-  def newStack(function: Function, args: Seq[ValueBox]): InterpreterStack = {
-    val stackMemory = microVM.memoryManager.makeStackMemory()
+  def newStack(function: Function, args: Seq[ValueBox], mutator: Mutator): InterpreterStack = {
+    val stackMemory = microVM.memoryManager.makeStackMemory(mutator)
     val id = makeStackID()
     val sta = new InterpreterStack(id, stackMemory, function.versions.head, args)
     stackRegistry.put(id, sta)

@@ -44,15 +44,15 @@ class RewindableBumpPointerAllocator(val begin: Word, val extend: Word, val micr
     var curTopLoc = top
     var reachBottom = false
     while (!reachBottom) {
-      logger.debug(s"curTopLoc is ${curTopLoc}")
+      logger.debug("curTopLoc is 0x%x".format(curTopLoc))
       val iRef = MemorySupport.loadLong(curTopLoc)
-      logger.debug(s"iRef is ${iRef}")
+      logger.debug("iRef is 0x%x".format(iRef))
       if (iRef != 0) {
         val hdr = HeaderUtils.getTag(iRef)
         val typeID = (hdr & 0xffffffffL).toInt
-        logger.debug(s"hdr=${hdr}, typeID=${typeID}")
+        logger.debug("hdr=0x%x, typeID=0x%x".format(hdr, typeID))
         val ty = microVM.globalBundle.typeNs(typeID)
-        logger.debug(s"type=${ty.repr}: ${ty.toString}")
+        logger.debug("type=%s: %s".format(ty.repr, ty.toString))
         MemoryDataScanner.scanField(ty, 0, iRef, handler)
         var prevTopLoc: Word = 0L
         prevTopLoc = if (ty.isInstanceOf[TypeHybrid]) {

@@ -90,7 +90,7 @@ class LargeObjectSpace(val heap: SimpleImmixHeap,
 
   def markBlockByObjRef(objRef: Word) {
     val blockAddr = objRefToBlockAddr(objRef)
-    logger.debug("marking block addr %d for obj %d...".format(blockAddr, objRef))
+    logger.debug("marking block addr 0x%x for obj 0x%x...".format(blockAddr, objRef))
     markBlock(blockAddr)
   }
 
@@ -104,17 +104,17 @@ class LargeObjectSpace(val heap: SimpleImmixHeap,
     var curBlock = head
     val lastBlock = getPrev(curBlock)
     var nextBlock = getNext(curBlock)
-    logger.debug("Begin iteration from %d to %d".format(curBlock, lastBlock))
+    logger.debug("Begin iteration from 0x%x to 0x%x".format(curBlock, lastBlock))
     var finished = false
     while (!finished) {
-      logger.debug("Visiting block %d..".format(curBlock))
+      logger.debug("Visiting block 0x%x..".format(curBlock))
       val mark = getBlockMark(curBlock)
       if (mark != MARK_BIT) {
-        logger.debug("Deallocating block addr %d...".format(curBlock))
+        logger.debug("Deallocating block addr 0x%x...".format(curBlock))
         dealloc(curBlock)
         anyDeallocated = true
       } else {
-        logger.debug("Block addr %d contains live object.".format(curBlock))
+        logger.debug("Block addr 0x%x contains live object.".format(curBlock))
         unmarkBlock(curBlock)
       }
       if (curBlock == lastBlock) {

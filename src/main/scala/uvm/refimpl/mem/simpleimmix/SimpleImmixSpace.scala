@@ -24,7 +24,18 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
 
   import SimpleImmixSpace._
 
+  if (begin % BLOCK_SIZE != 0) {
+    throw new UvmRefImplException("space should be aligned to BLOCK_SIZE " + BLOCK_SIZE)
+  }
+
+  if (extend % BLOCK_SIZE != 0) {
+    throw new UvmRefImplException("space size should be a multiple of BLOCK_SIZE " + BLOCK_SIZE)
+  }
+  
   val nBlocks: Int = (extend / BLOCK_SIZE).toInt
+
+  /** The number of reserved blocks (for defrag). */
+  private val nReserved: Int = Math.max(nBlocks / 20, 1) // reserve at least one block
 
   /** Flag for each block */
   private val blockFlags: Array[Int] = new Array[Int](nBlocks)
@@ -41,28 +52,17 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
   /** For each block, count how many bytes are occupied. */
   private val blockUsedStats: Array[Word] = new Array[Word](nBlocks)
 
-  /** The number of reserved blocks (for defrag). */
-  private val nReserved: Int = nBlocks / 20
-
   /** A list of free blocks reserved for defrag. */
   private val defragResv: Array[Int] = new Array[Int](nReserved)
 
   /** The number of free blocks (valid entries) in defragResv. */
-  private var defragResvFree: Int = _
+  private var defragResvFree: Int = nReserved
 
   /** The index of the next free reserved block to allocate in defragResv. */
   private var nextResv: Int = 0
 
   /** A list of buckets, for statistics. Used by defrag. */
   private val buckets: Array[Word] = new Array[Word](N_BUCKETS)
-
-  if (begin % BLOCK_SIZE != 0) {
-    throw new UvmRefImplException("space should be aligned to BLOCK_SIZE " + BLOCK_SIZE)
-  }
-
-  if (extend % BLOCK_SIZE != 0) {
-    throw new UvmRefImplException("space size should be a multiple of BLOCK_SIZE " + BLOCK_SIZE)
-  }
 
   for (i <- 0 until nReserved) { // Block 0 to nReserved-1 are reserved
     defragResv(i) = i
@@ -163,19 +163,7 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
     defragResvFree = newDefragResvFree
     freeListValidCount = newNFree
     if (logger.underlying.isDebugEnabled()) {
-      val sb1 = new StringBuilder("New reserved freelist:")
-      for (i <- 0 until defragResvFree) {
-        sb1.append(" ").append(defragResv(i))
-      }
-      logger.debug(sb1.toString)
-      val sb2 = new StringBuilder("New freelist:")
-      for (i <- 0 until freeListValidCount) {
-        sb2.append(" ").append(freeList(i))
-      }
-      logger.debug(sb2.toString)
-      for (i <- 0 until nBlocks) {
-        logger.debug(s"blockFlags[${i}] = ${blockFlags(i)}")
-      }
+      debugLogBlockStates()
     }
     nextResv = 0
     nextFree = 0
@@ -185,6 +173,7 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
   def returnBlock(blockAddr: Word) {
     val blockNum = blockAddrToBlockIndex(blockAddr)
     unreserve(blockNum)
+    logger.debug("Block %d returned to space.".format(blockNum))
   }
 
   // Statistics
@@ -253,14 +242,31 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
     if (myCursor >= defragResvFree) {
       return None
     }
-    
+
     nextResv += 1
-    
+
     val blockNum = defragResv(myCursor)
-    
+
     val blockAddr = blockIndexToBlockAddr(blockNum)
     MemUtils.zeroRegion(blockAddr, BLOCK_SIZE)
-    
+
     return Some(blockAddr)
+  }
+
+  // Debugging
+  def debugLogBlockStates() {
+      val sb1 = new StringBuilder("Reserved freelist:")
+      for (i <- 0 until defragResvFree) {
+        sb1.append(" ").append(defragResv(i))
+      }
+      logger.debug(sb1.toString)
+      val sb2 = new StringBuilder("Freelist:")
+      for (i <- 0 until freeListValidCount) {
+        sb2.append(" ").append(freeList(i))
+      }
+      logger.debug(sb2.toString)
+      for (i <- 0 until nBlocks) {
+        logger.debug(s"blockFlags[${i}] = ${blockFlags(i)}")
+      }
   }
 }

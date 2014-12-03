@@ -1,0 +1,47 @@
+.typedef @i1  = int<1>
+.typedef @i8  = int<8>
+.typedef @i16 = int<16>
+.typedef @i32 = int<32>
+.typedef @i64 = int<64>
+
+.typedef @float  = float
+.typedef @double = double
+
+.typedef @rv  = ref<@void>
+.typedef @irv = iref<@void>
+.typedef @wrv = weakref<@void>
+
+.typedef @ri16 = ref<@i16>
+
+.typedef @s1 = struct<@i8 @i16 @i32 @i64 @float @double @rv @irv @wrv @ri16>
+
+.typedef @Cons = struct<@i64 @RefCons>
+.typedef @RefCons = ref<@Cons>
+
+.typedef @foo = struct<@double @i64>
+
+.typedef @a0 = array<@i8 100>
+.typedef @a1 = array<@foo 10>
+.typedef @a2 = array<@a1 10>
+
+.typedef @h0 = hybrid <@void @i8>
+.typedef @h1 = hybrid <@foo @i64>
+
+.typedef @void = void
+
+.funcsig @sig0 = @void ()
+
+.typedef @ii8 = iref<@i8>
+.typedef @iii8 = iref<@ii8>
+.funcsig @sig1 = @i32 (@i32 @iii8)
+
+.typedef @f0 = func <@sig0>
+.typedef @f1 = func <@sig1>
+
+.typedef @th = thread
+.typedef @st = stack
+.typedef @tr64 = tagref64
+
+.typedef @4xfloat  = vector <@float 4>
+.typedef @4xi32    = vector <@i32 4>
+.typedef @2xdouble = vector <@double 2>

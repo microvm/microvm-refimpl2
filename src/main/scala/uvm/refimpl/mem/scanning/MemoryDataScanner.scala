@@ -94,6 +94,7 @@ object MemoryDataScanner extends StrictLogging {
           curAddr = TypeSizes.alignUp(curAddr + varSize, varAlign)
         }
       }
+      case _ => // Ignore non-reference fields.
     }
   }
 }

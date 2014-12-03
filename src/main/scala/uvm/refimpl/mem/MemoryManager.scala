@@ -15,12 +15,10 @@ class MemoryManager(val heapSize: Word, val globalSize: Word, val stackSize: Wor
 
   val globalMemory = new GlobalMemory(MEMORY_BEGIN + heapSize, globalSize, microVM)
 
-  private val internalMutator = heap.makeMutator()
-
   def makeMutator(): Mutator = heap.makeMutator()
 
-  def makeStackMemory(): StackMemory = {
-    val objRef = internalMutator.newHybrid(InternalTypes.BYTE_ARRAY, stackSize)
+  def makeStackMemory(mutator: Mutator): StackMemory = {
+    val objRef = mutator.newHybrid(InternalTypes.BYTE_ARRAY, stackSize)
     val stackMemory = new StackMemory(objRef, stackSize, microVM)
     stackMemory
   }

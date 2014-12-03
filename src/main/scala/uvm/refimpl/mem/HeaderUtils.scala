@@ -26,7 +26,7 @@ object HeaderUtils extends StrictLogging {
   }
 
   def setTag(objRef: Word, tag: Word) {
-    logger.debug(s"Storing tag ${tag} at addr ${TypeSizes.GC_HEADER_OFFSET_TAG}")
+    logger.debug("Storing tag 0x%x at addr 0x%x".format(tag, objRef + TypeSizes.GC_HEADER_OFFSET_TAG))
     MemorySupport.storeLong(objRef + TypeSizes.GC_HEADER_OFFSET_TAG, tag)
   }
 

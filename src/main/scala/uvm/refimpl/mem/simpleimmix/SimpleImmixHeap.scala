@@ -7,15 +7,15 @@ import TypeSizes._
 
 class SimpleImmixHeap(val begin: Word, val size: Word, val microVM: MicroVM) extends Heap {
 
+  val mid = begin + size / 2
+
   val space: SimpleImmixSpace = new SimpleImmixSpace(this, "SimpleImmixSpace", begin, size / 2)
+
+  val los: LargeObjectSpace = new LargeObjectSpace(this, "Large object space", mid, size / 2)
 
   val collector: SimpleImmixCollector = new SimpleImmixCollector(this, space, los, microVM)
 
   val collectorThread: Thread = new Thread(collector)
-
-  val los: LargeObjectSpace = new LargeObjectSpace(this, "Large object space", mid, size / 2)
-
-  val mid = begin + size / 2
 
   collectorThread.setDaemon(true)
 

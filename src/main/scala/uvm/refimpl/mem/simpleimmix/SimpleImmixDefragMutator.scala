@@ -26,8 +26,8 @@ class SimpleImmixDefragMutator(val heap: SimpleImmixHeap, val space: SimpleImmix
   getNewBlock()
 
   private def getNewBlock() {
-    val newAddr = space.getDefragBlock(curBlockAddr)
-    newAddr match {
+    curBlockAddr = space.getDefragBlock(curBlockAddr)
+    curBlockAddr match {
       case Some(addr) =>
         cursor = addr
         limit = addr + SimpleImmixSpace.BLOCK_SIZE
@@ -37,9 +37,9 @@ class SimpleImmixDefragMutator(val heap: SimpleImmixHeap, val space: SimpleImmix
 
   override def alloc(size: Word, align: Word, headerSize: Word): Word = {
     logger.debug(s"alloc(${size}, ${align}, ${headerSize})")
-    if (curBlockAddr == 0) {
+    if (curBlockAddr == None) {
       logger.debug("No more reserved blocks. Cannot defragment.")
-      return 0
+      throw new NoMoreDefragBlockException("No more blocks for defrag.")
     }
     val actualAlign = if (align < TypeSizes.WORD_SIZE_BYTES) TypeSizes.WORD_SIZE_BYTES else align
     tryTwice {
@@ -67,6 +67,7 @@ class SimpleImmixDefragMutator(val heap: SimpleImmixHeap, val space: SimpleImmix
   }
 
   def close() {
+    logger.debug("Closing defrag mutator...")
     curBlockAddr.foreach(space.returnBlock)
   }
 }

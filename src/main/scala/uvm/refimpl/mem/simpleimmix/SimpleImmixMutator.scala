@@ -62,6 +62,7 @@ class SimpleImmixMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace,
   }
 
   def close() {
+    logger.debug("Closing mutator...")
     curBlockAddr.foreach(space.returnBlock)
   }
 }

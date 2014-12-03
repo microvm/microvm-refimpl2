@@ -122,14 +122,14 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
   private def maybeMarkAndStat(addr: Word): Boolean = {
     assert(addr != 0L, "addr should be non-zero before calling this function")
     val oldHeader = HeaderUtils.getTag(addr)
-    logger.debug("GC header of %d is %x".format(addr, oldHeader))
+    logger.debug("GC header of 0x%x is 0x%x".format(addr, oldHeader))
     val wasMarked = (oldHeader & MARK_MASK) != 0
     if (!wasMarked) {
       val newHeader = oldHeader | MARK_MASK
       HeaderUtils.setTag(addr, newHeader)
-      logger.debug("Newly marked %d".format(addr))
+      logger.debug("Newly marked 0x%x".format(addr))
       if (space.isInSpace(addr)) {
-        space.markBlockByObjRef(addr)
+        //space.markBlockByObjRef(addr)
         val tag = HeaderUtils.getTag(addr)
         val ty = HeaderUtils.getType(microVM, tag)
         val used = ty match {
@@ -144,7 +144,7 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
         val blockNum = space.objRefToBlockIndex(addr)
         space.incStat(blockNum, used)
       } else if (los.isInSpace(addr)) {
-        los.markBlockByObjRef(addr)
+        //los.markBlockByObjRef(addr)
       } else {
         throw new UvmRefImplException("Object ref %d not in any space".format(addr))
       }
@@ -179,7 +179,7 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
 
     private def maybeMove(toObj: Word, updateFunc: Word => Unit): Boolean = {
       val oldHeader = HeaderUtils.getTag(toObj)
-      logger.debug("GC header of %d is %x".format(toObj, oldHeader))
+      logger.debug("GC header of 0x%x is 0x%x".format(toObj, oldHeader))
       val markBit = oldHeader & MARK_MASK
       val moveBit = oldHeader & MOVE_MASK
       val wasMarked = markBit != 0
@@ -214,14 +214,14 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
 
           val newHeader = oldHeader | MARK_MASK
           HeaderUtils.setTag(actualObj, newHeader)
-          logger.debug(s"Newly marked ${actualObj}")
+          logger.debug("Newly marked 0x%x".format(actualObj))
 
           if (space.isInSpace(actualObj)) {
             space.markBlockByObjRef(actualObj)
           } else if (los.isInSpace(actualObj)) {
             los.markBlockByObjRef(actualObj)
           } else {
-            throw new UvmRefImplException("Object ref %d not in any space".format(actualObj))
+            throw new UvmRefImplException("Object ref %x not in any space".format(actualObj))
           }
           true
         }
@@ -233,40 +233,42 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
      * old location when not moved.
      */
     private def evacuate(oldObjRef: Word): Word = {
-      logger.debug("Evacuating object %d".format(oldObjRef))
+      logger.debug("Evacuating object 0x%x".format(oldObjRef))
       if (!canDefrag) {
         logger.debug("No more reserved blocks.")
         oldObjRef
       } else {
         val tag = HeaderUtils.getTag(oldObjRef)
         val ty = HeaderUtils.getType(microVM, tag)
-        
-        val (newObjRef, oldSize): (Long, Long) = ty match {
-          case htype: TypeHybrid => {
-            val len = HeaderUtils.getVarLength(oldObjRef)
-            val nor = defragMutator.newHybrid(htype, len)
-            val os = TypeSizes.hybridSizeOf(htype, len)
-            (nor, os)
+
+        try {
+          val (newObjRef, oldSize): (Long, Long) = ty match {
+            case htype: TypeHybrid => {
+              val len = HeaderUtils.getVarLength(oldObjRef)
+              val nor = defragMutator.newHybrid(htype, len)
+              val os = TypeSizes.hybridSizeOf(htype, len)
+              (nor, os)
+            }
+            case _ => {
+              val nor = defragMutator.newScalar(ty)
+              val os = TypeSizes.sizeOf(ty)
+              (nor, os)
+            }
           }
-          case _ => {
-            val nor = defragMutator.newScalar(ty)
-            val os = TypeSizes.sizeOf(ty)
-            (nor, os)
-          }
-        }
-        
-        if (newObjRef == 0) {
-          canDefrag = false
-          logger.debug("No more reserved blocks and thus no more moving.")
-          oldObjRef
-        } else {
+
           val alignedOldSize = TypeSizes.alignUp(oldSize, TypeSizes.WORD_SIZE_BYTES)
-          logger.debug("Copying old object %d to %d, %d bytes (aligned up to %d bytes).".format(
+          logger.debug("Copying old object 0x%x to 0x%x, %d bytes (aligned up to %d bytes).".format(
             oldObjRef, newObjRef, oldSize, alignedOldSize))
           MemUtils.memcpy(oldObjRef, newObjRef, alignedOldSize)
           val newTag = newObjRef | MOVE_MASK
           HeaderUtils.setTag(oldObjRef, newTag)
           newObjRef
+
+        } catch {
+          case e: NoMoreDefragBlockException =>
+            canDefrag = false
+            logger.debug("No more reserved blocks and thus no more moving.")
+            oldObjRef
         }
       }
     }
@@ -293,7 +295,7 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
 
   private def clearMark(objRef: Long): Boolean = {
     val oldHeader = HeaderUtils.getTag(objRef)
-    logger.debug("GC header of %d is %x".format(objRef, oldHeader))
+    logger.debug("GC header of 0x%x is 0x%x".format(objRef, oldHeader))
     val markBit = oldHeader & MARK_MASK
     if (markBit != 0) {
       val newHeader = oldHeader & ~(MARK_MASK | MOVE_MASK)
