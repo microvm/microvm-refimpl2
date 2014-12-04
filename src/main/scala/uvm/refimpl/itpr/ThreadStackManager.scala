@@ -40,6 +40,9 @@ class ThreadStackManager(microVM: MicroVM) {
     sta
   }
 
+  /**
+   * Create a new thread, bind to a given stack.
+   */
   def newThread(stack: InterpreterStack): InterpreterThread = {
     val mutator = microVM.memoryManager.makeMutator()
     val id = makeThreadID()

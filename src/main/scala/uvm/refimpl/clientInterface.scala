@@ -251,7 +251,7 @@ class ClientAgent(microVM: MicroVM) {
           case 16 => MemorySupport.loadShort(iRef)
           case 32 => MemorySupport.loadInt(iRef)
           case 64 => MemorySupport.loadLong(iRef)
-          case _ => throw new UvmRefImplException("Loading int of length %d is not supported".format(l))
+          case _ => throw new UnimplementedOprationException("Loading int of length %d is not supported".format(l))
         }
         BoxInt(OpHelper.unprepare(bi, l))
       case _: TypeFloat =>
@@ -293,9 +293,9 @@ class ClientAgent(microVM: MicroVM) {
           case _: TypeDouble =>
             val vs = for (i <- (0L until len)) yield MemorySupport.loadDouble(iRef + i * 8L)
             BoxVector(vs.map(v => BoxDouble(v)))
-          case _ => throw new UvmRefImplException("Loading of vector type with element type %s is not supporing".format(ety.getClass.getName))
+          case _ => throw new UnimplementedOprationException("Loading of vector type with element type %s is not supporing".format(ety.getClass.getName))
         }
-      case _ => throw new UvmRefImplException("Loading of type %s is not supporing".format(uty.getClass.getName))
+      case _ => throw new UnimplementedOprationException("Loading of type %s is not supporing".format(uty.getClass.getName))
     }
     newHandle(uty, nb)
   }
@@ -314,7 +314,7 @@ class ClientAgent(microVM: MicroVM) {
           case 16 => MemorySupport.storeShort(iRef, bi.shortValue)
           case 32 => MemorySupport.storeInt(iRef, bi.intValue)
           case 64 => MemorySupport.storeLong(iRef, bi.longValue)
-          case _ => throw new UvmRefImplException("Storing int of length %d is not supported".format(l))
+          case _ => throw new UnimplementedOprationException("Storing int of length %d is not supported".format(l))
         }
         BoxInt(OpHelper.unprepare(bi, l))
       case _: TypeFloat =>
@@ -351,9 +351,9 @@ class ClientAgent(microVM: MicroVM) {
             for (i <- (0L until len)) MemorySupport.storeFloat(iRef + i * 4L, vbs(i.toInt).asInstanceOf[BoxFloat].value)
           case _: TypeDouble =>
             for (i <- (0L until len)) MemorySupport.storeDouble(iRef + i * 8L, vbs(i.toInt).asInstanceOf[BoxDouble].value)
-          case _ => throw new UvmRefImplException("Storing of vector type with element type %s is not supporing".format(ety.getClass.getName))
+          case _ => throw new UnimplementedOprationException("Storing of vector type with element type %s is not supporing".format(ety.getClass.getName))
         }
-      case _ => throw new UvmRefImplException("Storing of type %s is not supporing".format(uty.getClass.getName))
+      case _ => throw new UnimplementedOprationException("Storing of type %s is not supporing".format(uty.getClass.getName))
     }
   }
 
@@ -377,7 +377,7 @@ class ClientAgent(microVM: MicroVM) {
             val (succ2, rv) = MemorySupport.cmpXchgLong(iRef, ebi.longValue, dbi.longValue)
             (succ2, BigInt(rv))
           }
-          case _ => throw new UvmRefImplException("CmpXchg on int of length %d is not supported".format(l))
+          case _ => throw new UnimplementedOprationException("CmpXchg on int of length %d is not supported".format(l))
         }
         val rb = BoxInt(OpHelper.unprepare(rbi, l))
         val rh = newHandle(uty, rb)
@@ -415,7 +415,7 @@ class ClientAgent(microVM: MicroVM) {
         val rs = microVM.threadStackManager.getStackByID(rl.toInt)
         val rh = newHandle(uty, BoxStack(rs))
         (succ, rh)
-      case _ => throw new UvmRefImplException("CmpXchg of type %s is not supporing".format(uty.getClass.getName))
+      case _ => throw new UnimplementedOprationException("CmpXchg of type %s is not supporing".format(uty.getClass.getName))
     }
   }
 
@@ -435,13 +435,13 @@ class ClientAgent(microVM: MicroVM) {
           case 64 => {
             MemorySupport.atomicRMWLong(op, iRef, obi.longValue)
           }
-          case _ => throw new UvmRefImplException("AtomicRMW on int of length %d is not supported".format(l))
+          case _ => throw new UnimplementedOprationException("AtomicRMW on int of length %d is not supported".format(l))
         }
         val rb = BoxInt(OpHelper.unprepare(rbi, l))
         newHandle(uty, rb)
       case _ =>
         if (op != XCHG) {
-          throw new UvmRefImplException("AtomicRMW operation other than XCHG only supports int. %s found.".format(uty.getClass.getName))
+          throw new UnimplementedOprationException("AtomicRMW operation other than XCHG only supports int. %s found.".format(uty.getClass.getName))
         } else {
           uty match {
             case _: TypeRef =>
@@ -472,7 +472,7 @@ class ClientAgent(microVM: MicroVM) {
               val rl = MemorySupport.atomicRMWLong(op, iRef, ol)
               newHandle(uty, BoxTagRef64(rl))
             case _ =>
-              throw new UvmRefImplException("AtomicRMW XCHG of type %s is not supporing".format(uty.getClass.getName))
+              throw new UnimplementedOprationException("AtomicRMW XCHG of type %s is not supporing".format(uty.getClass.getName))
           }
         }
     }
