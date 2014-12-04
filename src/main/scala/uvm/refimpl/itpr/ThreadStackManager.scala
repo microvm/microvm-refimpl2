@@ -18,12 +18,20 @@ class ThreadStackManager(microVM: MicroVM) {
 
   private var nextStackID: Int = 1
 
-  private def makeStackID(): Int = {val id = nextStackID; nextStackID += 1; id}
+  private def makeStackID(): Int = { val id = nextStackID; nextStackID += 1; id }
 
   private var nextThreadID: Int = 1
 
-  private def makeThreadID(): Int = {val id = nextThreadID; nextThreadID += 1; id}
+  private def makeThreadID(): Int = { val id = nextThreadID; nextThreadID += 1; id }
 
+  /**
+   * Create a new stack with function and args as the stack-bottom function and its arguments.
+   * <p>
+   * About mutator: "Bring your own mutator!" A mutator object is needed to allocate the stack memory. This means all 
+   * callers of the newStack function must have a mutator. Currently they are either ClientAgents which can create stack
+   * via the "new_stack" message or µVM threads (the InterpreterThread class) which can execute the NEWSTACK
+   * instruction.
+   */
   def newStack(function: Function, args: Seq[ValueBox], mutator: Mutator): InterpreterStack = {
     val stackMemory = microVM.memoryManager.makeStackMemory(mutator)
     val id = makeStackID()

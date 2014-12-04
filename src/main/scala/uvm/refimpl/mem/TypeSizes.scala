@@ -121,7 +121,7 @@ object TypeSizes {
   }
 
   def structPrefixSizeOf(ty: TypeStruct, prefixLen: Int): Word = {
-    val sz = ty.fieldTy.foldLeft(0L) { (oldSz, nextTy) =>
+    val sz = ty.fieldTy.take(prefixLen).foldLeft(0L) { (oldSz, nextTy) =>
       alignUp(oldSz, alignOf(nextTy)) + sizeOf(nextTy)
     }
     return sz

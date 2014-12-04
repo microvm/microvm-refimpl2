@@ -32,16 +32,6 @@ class ClientAgent(microVM: MicroVM) {
 
   val mutator = microVM.memoryManager.heap.makeMutator()
 
-  /** Help the Client look up the ID of a name */
-  def idOf(name: String): Int = {
-    microVM.globalBundle.allNs(name).id
-  }
-
-  /** Help the Client look up the optional name of an ID */
-  def nameOf(id: Int): Option[String] = {
-    microVM.globalBundle.allNs(id).name
-  }
-
   def close(): Unit = {
     handles.clear()
     mutator.close()
@@ -250,7 +240,7 @@ class ClientAgent(microVM: MicroVM) {
   }
 
   def load(ord: MemoryOrder, loc: Handle): Handle = {
-    val ty = loc.ty
+    val ty = loc.ty.asInstanceOf[TypeIRef].ty
     val uty = InternalTypePool.unmarkedOf(ty)
     val b = loc.vb.asInstanceOf[BoxIRef]
     val iRef = b.objRef + b.offset
@@ -292,13 +282,26 @@ class ClientAgent(microVM: MicroVM) {
       case _: TypeTagRef64 =>
         val raw = MemorySupport.loadLong(iRef)
         BoxTagRef64(raw)
+      case TypeVector(ety, len) =>
+        ety match {
+          case TypeInt(32) =>
+            val vs = for (i <- (0L until len)) yield MemorySupport.loadInt(iRef + i * 4L)
+            BoxVector(vs.map(v => BoxInt(OpHelper.unprepare(v, 32))))
+          case _: TypeFloat =>
+            val vs = for (i <- (0L until len)) yield MemorySupport.loadFloat(iRef + i * 4L)
+            BoxVector(vs.map(v => BoxFloat(v)))
+          case _: TypeDouble =>
+            val vs = for (i <- (0L until len)) yield MemorySupport.loadDouble(iRef + i * 8L)
+            BoxVector(vs.map(v => BoxDouble(v)))
+          case _ => throw new UvmRefImplException("Loading of vector type with element type %s is not supporing".format(ety.getClass.getName))
+        }
       case _ => throw new UvmRefImplException("Loading of type %s is not supporing".format(uty.getClass.getName))
     }
     newHandle(uty, nb)
   }
 
   def store(ord: MemoryOrder, loc: Handle, newVal: Handle): Unit = {
-    val ty = loc.ty
+    val ty = loc.ty.asInstanceOf[TypeIRef].ty
     val uty = InternalTypePool.unmarkedOf(ty)
     val lb = loc.vb.asInstanceOf[BoxIRef]
     val iRef = lb.objRef + lb.offset
@@ -339,12 +342,23 @@ class ClientAgent(microVM: MicroVM) {
       case _: TypeTagRef64 =>
         val raw = nvb.asInstanceOf[BoxTagRef64].raw
         MemorySupport.storeLong(iRef, raw)
+      case TypeVector(ety, len) =>
+        val vbs = nvb.asInstanceOf[BoxVector].values
+        ety match {
+          case TypeInt(32) =>
+            for (i <- (0L until len)) MemorySupport.storeInt(iRef + i * 4L, vbs(i.toInt).asInstanceOf[BoxInt].value.intValue)
+          case _: TypeFloat =>
+            for (i <- (0L until len)) MemorySupport.storeFloat(iRef + i * 4L, vbs(i.toInt).asInstanceOf[BoxFloat].value)
+          case _: TypeDouble =>
+            for (i <- (0L until len)) MemorySupport.storeDouble(iRef + i * 8L, vbs(i.toInt).asInstanceOf[BoxDouble].value)
+          case _ => throw new UvmRefImplException("Storing of vector type with element type %s is not supporing".format(ety.getClass.getName))
+        }
       case _ => throw new UvmRefImplException("Storing of type %s is not supporing".format(uty.getClass.getName))
     }
   }
 
   def cmpXchg(ordSucc: MemoryOrder, ordFail: MemoryOrder, weak: Boolean, loc: Handle, expected: Handle, desired: Handle): (Boolean, Handle) = {
-    val ty = loc.ty
+    val ty = loc.ty.asInstanceOf[TypeIRef].ty
     val uty = InternalTypePool.unmarkedOf(ty)
     val lb = loc.vb.asInstanceOf[BoxIRef]
     val iRef = lb.objRef + lb.offset
@@ -406,7 +420,7 @@ class ClientAgent(microVM: MicroVM) {
   }
 
   def atomicRMW(ord: MemoryOrder, op: AtomicRMWOptr, loc: Handle, opnd: Handle): Handle = {
-    val ty = loc.ty
+    val ty = loc.ty.asInstanceOf[TypeIRef].ty
     val uty = InternalTypePool.unmarkedOf(ty)
     val lb = loc.vb.asInstanceOf[BoxIRef]
     val iRef = lb.objRef + lb.offset

@@ -11,6 +11,9 @@
 .typedef @irv = iref<@void>
 .typedef @wrv = weakref<@void>
 
+.const @NULLRV <@rv> = NULL
+.const @NULLIRV <@irv> = NULL
+
 .typedef @ri16 = ref<@i16>
 
 .typedef @s1 = struct<@i8 @i16 @i32 @i64 @float @double @rv @irv @wrv @ri16>
@@ -42,6 +45,15 @@
 .typedef @st = stack
 .typedef @tr64 = tagref64
 
+.typedef @i6 = int<6>
+.typedef @i52 = int<52>
+
+.typedef @s2 = struct<@f0 @th @st @tr64>
+
 .typedef @4xfloat  = vector <@float 4>
 .typedef @4xi32    = vector <@i32 4>
 .typedef @2xdouble = vector <@double 2>
+
+.funcdecl @fun <@sig0>
+.funcdecl @fun2 <@sig0>
+.const @NULLF0 <@f0> = NULL
