@@ -10,7 +10,7 @@ import uvm.refimpl.itpr._
 import MemoryOrder._
 import AtomicRMWOptr._
 
-class UvmMemSpec extends FlatSpec with Matchers with BeforeAndAfter {
+class UvmMemOperationsSpec extends FlatSpec with Matchers with BeforeAndAfter {
 
   // The heap size is intentionally reduced to make GC more often
   // The heap is divided in two halves. There is a 256KiB small object space (with 8 32KiB blocks) and a 256KiB large
@@ -264,6 +264,30 @@ class UvmMemSpec extends FlatSpec with Matchers with BeforeAndAfter {
       val v = ca.toDouble(hv)
       v shouldEqual vd(i)
     }
+
+    val hSz = ca.putInt("@i32", 10)
+    val hh = ca.newHybrid("@h1", hSz)
+
+    val hhi = ca.getIRef(hh)
+    val hf = ca.getFixedPartIRef(hhi)
+    val hv0 = ca.getVarPartIRef(hhi)
+
+    val hfix0 = ca.getFieldIRef(hf, 0)
+    val hfix1 = ca.getFieldIRef(hf, 1)
+
+    val hOff = ca.putInt("@i16", 5)
+    val hv5 = ca.shiftIRef(hv0, hOff)
+
+    for (i <- 0 until 10) {
+      val hI = ca.putInt("@i64", i)
+      val hHybElem = ca.shiftIRef(hv0, hI)
+
+      ca.store(NOT_ATOMIC, hHybElem, hI)
+      val hIOut = ca.load(NOT_ATOMIC, hHybElem)
+      val hIOutVal = ca.toInt(hIOut, true)
+      hIOutVal.intValue shouldEqual i
+    }
+    
     ca.close()
   }
 
@@ -414,7 +438,7 @@ class UvmMemSpec extends FlatSpec with Matchers with BeforeAndAfter {
     testIntAtomicRMW("@i32", hf2, ADD, 1, 2, 3)
     testIntAtomicRMW("@i32", hf2, SUB, 3, 2, 1)
     testIntAtomicRMW("@i32", hf2, AND, 0x55aa, 0x5a5a, 0x500a)
-    testIntAtomicRMW("@i32", hf2, NAND, 0x55aa, 0x5a5a, ~0x500a, signed=true)
+    testIntAtomicRMW("@i32", hf2, NAND, 0x55aa, 0x5a5a, ~0x500a, signed = true)
     testIntAtomicRMW("@i32", hf2, OR, 0x55aa, 0x5a5a, 0x5ffa)
     testIntAtomicRMW("@i32", hf2, XOR, 0x55aa, 0x5a5a, 0x0ff0)
     testIntAtomicRMW("@i32", hf2, MIN, -3, -2, -3, signed = true)
@@ -426,7 +450,7 @@ class UvmMemSpec extends FlatSpec with Matchers with BeforeAndAfter {
     testIntAtomicRMW("@i64", hf3, ADD, 1, 2, 3)
     testIntAtomicRMW("@i64", hf3, SUB, 3, 2, 1)
     testIntAtomicRMW("@i64", hf3, AND, 0x55aa, 0x5a5a, 0x500a)
-    testIntAtomicRMW("@i64", hf3, NAND, 0x55aa, 0x5a5a, ~0x500a, signed=true)
+    testIntAtomicRMW("@i64", hf3, NAND, 0x55aa, 0x5a5a, ~0x500a, signed = true)
     testIntAtomicRMW("@i64", hf3, OR, 0x55aa, 0x5a5a, 0x5ffa)
     testIntAtomicRMW("@i64", hf3, XOR, 0x55aa, 0x5a5a, 0x0ff0)
     testIntAtomicRMW("@i64", hf3, MIN, -3, -2, -3, signed = true)
