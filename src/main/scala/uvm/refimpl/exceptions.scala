@@ -10,3 +10,13 @@ class UvmOutOfMemoryException(message: String = null, cause: Throwable = null) e
 
 /** Thrown when an action not required by the specification and not implemented by this refimpl is performed. */
 class UnimplementedOprationException(message: String = null, cause: Throwable = null) extends UvmRefImplException(message, cause)
+
+/**
+ * Thrown when a dynamic error (errors that cannot be found at compile time) happens. This refimpl may sometimes throw
+ * exceptions on static errors rather than checking before running because the µVM has undefined behaviour on static
+ * errors. (It has undefined behaviour on dynamic errors, too.)
+ */
+class UvmRuntimeException(message: String = null, cause: Throwable = null) extends UvmRefImplException(message, cause)
+
+/** Thrown when a division by zero is executed and the exception claues is not present. */
+class UvmDivisionByZeroException(message: String = null, cause: Throwable = null) extends UvmRuntimeException(message, cause)

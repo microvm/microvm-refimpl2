@@ -21,7 +21,7 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
 
   var state: StackState = StackState.Ready(InternalTypes.VOID) // Initial state is READY<void>
 
-  var top: InterpreterFrame = new InterpreterFrame(stackBottomFunc, None) // Bottom frame
+  var top: InterpreterFrame = InterpreterFrame.frameForCall(stackBottomFunc, args, None)
 
   def frames: Iterator[InterpreterFrame] = new AbstractIterator[InterpreterFrame] {
     var curFrame: Option[InterpreterFrame] = Some(top)
@@ -78,5 +78,17 @@ class InterpreterFrame(val funcVer: FuncVer, val prev: Option[InterpreterFrame])
         kaBoxes
       case i => throw new UvmRefImplException("Instruction does not have keepalives: " + i.repr)
     }
+  }
+}
+
+object InterpreterFrame {
+  def frameForCall(funcVer: FuncVer, args: Seq[ValueBox], prev: Option[InterpreterFrame]): InterpreterFrame = {
+    val frm = new InterpreterFrame(funcVer, prev) // Bottom frame
+
+    for ((p, a) <- (funcVer.params zip args)) {
+      frm.boxes(p).copyFrom(a)
+    }
+
+    frm
   }
 }

@@ -1,3 +1,4 @@
+.typedef @i1 = int<1>
 .typedef @i8 = int<8>
 .typedef @i16 = int<16>
 .typedef @i32 = int<32>
@@ -18,6 +19,11 @@
 .const @TRUE <@i64> = 1
 .const @FALSE <@i64> = 0
 
+.const @I64_0 <@i64> = 0
+.const @I64_1 <@i64> = 1
+.const @I64_2 <@i64> = 2
+.const @I64_3 <@i64> = 3
+
 .funcsig @i_ii = @i64 (@i64 @i64)
 
 .typedef @refvoid = ref<@void>
@@ -25,221 +31,234 @@
 .typedef @weakrefvoid = weakref<@void>
 .const @NULLREF <@refvoid> = NULL
 
-.funcdef @binops32 <@void (@i32 @i32)> (%p0 %p1) {
-    %add  = ADD  <@i32> %p0 %p1
-    %sub  = SUB  <@i32> %p0 %p1
-    %mul  = MUL  <@i32> %p0 %p1
-    %udiv = UDIV <@i32> %p0 %p1
-    %sdiv = SDIV <@i32> %p0 %p1
-    %urem = UREM <@i32> %p0 %p1
-    %srem = SREM <@i32> %p0 %p1
-    %shl  = SHL  <@i32> %p0 %p1
-    %lshr = LSHR <@i32> %p0 %p1
-    %ashr = ASHR <@i32> %p0 %p1
-    %and  = AND  <@i32> %p0 %p1
-    %or   = OR   <@i32> %p0 %p1
-    %xor  = XOR  <@i32> %p0 %p1
-    
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (
-        %add %sub %mul %udiv %sdiv %urem %srem
-        %shl %lshr %ashr %and %or %xor
-        )
-    
-%exit:
-    ICALL @uvm.thread_exit ()
-    RETVOID // unreachable
-}
-
-.funcdef @binops64 <@void (@i64 @i64)> (%p0 %p1) {
-    %add  = ADD  <@i64> %p0 %p1
-    %sub  = SUB  <@i64> %p0 %p1
-    %mul  = MUL  <@i64> %p0 %p1
-    %udiv = UDIV <@i64> %p0 %p1
-    %sdiv = SDIV <@i64> %p0 %p1
-    %urem = UREM <@i64> %p0 %p1
-    %srem = SREM <@i64> %p0 %p1
-    %shl  = SHL  <@i64> %p0 %p1
-    %lshr = LSHR <@i64> %p0 %p1
-    %ashr = ASHR <@i64> %p0 %p1
-    %and  = AND  <@i64> %p0 %p1
-    %or   = OR   <@i64> %p0 %p1
-    %xor  = XOR  <@i64> %p0 %p1
-    
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (
-        %add %sub %mul %udiv %sdiv %urem %srem
-        %shl %lshr %ashr %and %or %xor
-        )
-    
-%exit:
-    ICALL @uvm.thread_exit ()
-    RETVOID // unreachable
-}
-
-.funcdef @binops_ovf <@noparamsnoret> () {
-    %add  = ADD  <@i64> 0x7fffffffffffffff 1
-    %add2 = ADD  <@i64> 0xffffffffffffffff 0x2
-    %mul  = MUL  <@i64> 1000000000000 1000000000000
-    %udiv = UDIV  <@i64> 0x8000000000000000 2
-    %urem = UREM  <@i64> 0x8000000000000000 3
- 
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (
-        %add %add2 %mul %udiv %urem
+.funcsig @binops32_sig = @void (@i32 @i32)
+.funcdef @binops32 VERSION @binops32_v1 <@binops32_sig> (%p0 %p1) {
+    %entry:
+        %add  = ADD  <@i32> %p0 %p1
+        %sub  = SUB  <@i32> %p0 %p1
+        %mul  = MUL  <@i32> %p0 %p1
+        %udiv = UDIV <@i32> %p0 %p1
+        %sdiv = SDIV <@i32> %p0 %p1
+        %urem = UREM <@i32> %p0 %p1
+        %srem = SREM <@i32> %p0 %p1
+        %shl  = SHL  <@i32> %p0 %p1
+        %lshr = LSHR <@i32> %p0 %p1
+        %ashr = ASHR <@i32> %p0 %p1
+        %and  = AND  <@i32> %p0 %p1
+        %or   = OR   <@i32> %p0 %p1
+        %xor  = XOR  <@i32> %p0 %p1
         
-        )
-    
-%exit:
-    ICALL @uvm.thread_exit ()
-    RETVOID // unreachable
+        %trap = TRAP <@void> KEEPALIVE (
+            %add %sub %mul %udiv %sdiv %urem %srem
+            %shl %lshr %ashr %and %or %xor
+            )
+            
+        COMMINST @uvm.thread_exit
 }
 
-.funcdef @binops_f <@void (@float @float)> (%p0 %p1) {
-    %fadd = FADD <@float> %p0 %p1
-    %fsub = FSUB <@float> %p0 %p1
-    %fmul = FMUL <@float> %p0 %p1
-    %fdiv = FDIV <@float> %p0 %p1
-    %frem = FREM <@float> %p0 %p1
-    
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (
-        %fadd %fsub %fmul %fdiv %frem
-        )
-    
-%exit:
-    ICALL @uvm.thread_exit ()
-    RETVOID // unreachable
+.funcsig @binops64_sig = @void (@i64 @i64)
+.funcdef @binops64 VERSION @binops64_v1 <@binops64_sig> (%p0 %p1) {
+    %entry:
+        %add  = ADD  <@i64> %p0 %p1
+        %sub  = SUB  <@i64> %p0 %p1
+        %mul  = MUL  <@i64> %p0 %p1
+        %udiv = UDIV <@i64> %p0 %p1
+        %sdiv = SDIV <@i64> %p0 %p1
+        %urem = UREM <@i64> %p0 %p1
+        %srem = SREM <@i64> %p0 %p1
+        %shl  = SHL  <@i64> %p0 %p1
+        %lshr = LSHR <@i64> %p0 %p1
+        %ashr = ASHR <@i64> %p0 %p1
+        %and  = AND  <@i64> %p0 %p1
+        %or   = OR   <@i64> %p0 %p1
+        %xor  = XOR  <@i64> %p0 %p1
+        
+        %trap = TRAP <@void> KEEPALIVE (
+            %add %sub %mul %udiv %sdiv %urem %srem
+            %shl %lshr %ashr %and %or %xor
+            )
+             
+        COMMINST @uvm.thread_exit
 }
 
-.funcdef @binops_d <@void (@double @double)> (%p0 %p1) {
-    %fadd = FADD <@double> %p0 %p1
-    %fsub = FSUB <@double> %p0 %p1
-    %fmul = FMUL <@double> %p0 %p1
-    %fdiv = FDIV <@double> %p0 %p1
-    %frem = FREM <@double> %p0 %p1
-    
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (
-        %fadd %fsub %fmul %fdiv %frem
-        )
-    
-%exit:
-    ICALL @uvm.thread_exit ()
-    RETVOID // unreachable
+.const @I64_MAX_S <@I64> = 0x7fffffffffffffff
+.const @I64_MAX_U <@I64> = 0xffffffffffffffff
+.const @I64_BIG   <@I64> = 1000000000000
+.const @I64_MIN_S <@I64> = -0x8000000000000000
+.const @I64_N1 <  <@I64> = -1
+
+.funcsig @binops_ovf_sig = @noparamsnoret
+.funcdef @binops_ovf VERSION @binops_ovf_v1 <@binops_ovf_sig> () {
+    %entry:
+        %add  = ADD  <@i64> @I64_MAX_S @I64_1
+        %add2 = ADD  <@i64> @I64_MAX_U @I64_2
+        %mul  = MUL  <@i64> @I64_BIG @I64_BIG
+        %udiv = UDIV <@i64> @I64_MIN_S @I64_N2  // MIN_S is treated as positive
+        %sdiv = SDIV <@i64> @I64_MIN_S @I64_N1  // This raises an exception in x86 assembly, but not microvm
+     
+        %trap = TRAP <@void> KEEPALIVE (
+            %add %add2 %mul %udiv %sdiv
+            )
+            
+        COMMINST @uvm.thread_exit
 }
 
-.funcdef @cmp64 <@void (@i64 @i64)> (%p0 %p1) {
-    %eq  = EQ  <@i64> %p0 %p1
-    %ne  = NE  <@i64> %p0 %p1
-    %ult = ULT <@i64> %p0 %p1
-    %ule = ULE <@i64> %p0 %p1
-    %ugt = UGT <@i64> %p0 %p1
-    %uge = UGE <@i64> %p0 %p1
-    %slt = SLT <@i64> %p0 %p1
-    %sle = SLE <@i64> %p0 %p1
-    %sgt = SGT <@i64> %p0 %p1
-    %sge = SGE <@i64> %p0 %p1
-    
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (
-        %eq %ne %ult %ule %ugt %uge %slt %sle %sgt %sge
-        )
-    
-%exit:
-    ICALL @uvm.thread_exit ()
-    RETVOID // unreachable
+.funcsig @binops_f_sig = @void (@float @float)
+.funcdef @binops_f VERSION @binops_f_v1 <@binops_f_sig> (%p0 %p1) {
+    %entry:
+        %fadd = FADD <@float> %p0 %p1
+        %fsub = FSUB <@float> %p0 %p1
+        %fmul = FMUL <@float> %p0 %p1
+        %fdiv = FDIV <@float> %p0 %p1
+        %frem = FREM <@float> %p0 %p1
+        
+        %trap = TRAP <@void> KEEPALIVE (
+            %fadd %fsub %fmul %fdiv %frem
+            )
+        
+    %exit:
+        COMMINST @uvm.thread_exit
 }
 
-.funcdef @cmp_f <@void (@float @float)> (%p0 %p1) {
-    %ftrue  = FTRUE  <@float> %p0 %p1
-    %ffalse = FFALSE <@float> %p0 %p1
-    %ford   = FORD   <@float> %p0 %p1
-    %foeq   = FOEQ   <@float> %p0 %p1
-    %fone   = FONE   <@float> %p0 %p1
-    %folt   = FOLT   <@float> %p0 %p1
-    %fole   = FOLE   <@float> %p0 %p1
-    %fogt   = FOGT   <@float> %p0 %p1
-    %foge   = FOGE   <@float> %p0 %p1
-    %funo   = FUNO   <@float> %p0 %p1
-    %fueq   = FUEQ   <@float> %p0 %p1
-    %fune   = FUNE   <@float> %p0 %p1
-    %fult   = FULT   <@float> %p0 %p1
-    %fule   = FULE   <@float> %p0 %p1
-    %fugt   = FUGT   <@float> %p0 %p1
-    %fuge   = FUGE   <@float> %p0 %p1
-
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (
-        %ftrue %ffalse %ford %foeq %fone %folt %fole %fogt %foge
-        %funo %fueq %fune %fult %fule %fugt %fuge
-        )
-    
-%exit:
-    ICALL @uvm.thread_exit ()
-    RETVOID // unreachable
+.funcsig @binops_d_sig = @void (@double @double)
+.funcdef @binops_d VERSION @binops_d_v1 <@binops_d_sig> (%p0 %p1) {
+    %entry:
+        %fadd = FADD <@double> %p0 %p1
+        %fsub = FSUB <@double> %p0 %p1
+        %fmul = FMUL <@double> %p0 %p1
+        %fdiv = FDIV <@double> %p0 %p1
+        %frem = FREM <@double> %p0 %p1
+        
+        %trap = TRAP <@void> KEEPALIVE (
+            %fadd %fsub %fmul %fdiv %frem
+            )
+        
+    %exit:
+        COMMINST @uvm.thread_exit
 }
 
-.funcdef @cmp_d <@void (@double @double)> (%p0 %p1) {
-    %ftrue  = FTRUE  <@double> %p0 %p1
-    %ffalse = FFALSE <@double> %p0 %p1
-    %ford   = FORD   <@double> %p0 %p1
-    %foeq   = FOEQ   <@double> %p0 %p1
-    %fone   = FONE   <@double> %p0 %p1
-    %folt   = FOLT   <@double> %p0 %p1
-    %fole   = FOLE   <@double> %p0 %p1
-    %fogt   = FOGT   <@double> %p0 %p1
-    %foge   = FOGE   <@double> %p0 %p1
-    %funo   = FUNO   <@double> %p0 %p1
-    %fueq   = FUEQ   <@double> %p0 %p1
-    %fune   = FUNE   <@double> %p0 %p1
-    %fult   = FULT   <@double> %p0 %p1
-    %fule   = FULE   <@double> %p0 %p1
-    %fugt   = FUGT   <@double> %p0 %p1
-    %fuge   = FUGE   <@double> %p0 %p1
-
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (
-        %ftrue %ffalse %ford %foeq %fone %folt %fole %fogt %foge
-        %funo %fueq %fune %fult %fule %fugt %fuge
-        )
-    
-%exit:
-    ICALL @uvm.thread_exit ()
-    RETVOID // unreachable
+.funcsig @cmp64_sig = @void (@i64 @i64)
+.funcdef @cmp64 VERSION @cmp64_v1 <@cmp64_sig> (%p0 %p1) {
+    %entry:
+        %eq  = EQ  <@i64> %p0 %p1
+        %ne  = NE  <@i64> %p0 %p1
+        %ult = ULT <@i64> %p0 %p1
+        %ule = ULE <@i64> %p0 %p1
+        %ugt = UGT <@i64> %p0 %p1
+        %uge = UGE <@i64> %p0 %p1
+        %slt = SLT <@i64> %p0 %p1
+        %sle = SLE <@i64> %p0 %p1
+        %sgt = SGT <@i64> %p0 %p1
+        %sge = SGE <@i64> %p0 %p1
+        
+        %trap = TRAP <@void> KEEPALIVE (
+            %eq %ne %ult %ule %ugt %uge %slt %sle %sgt %sge
+            )
+        
+    %exit:
+        COMMINST @uvm.thread_exit
 }
 
-.funcdef @select <@noparamsnoret> () {
-    %sel1 = SELECT <@i64> @TRUE  2 3
-    %sel2 = SELECT <@i64> @FALSE 2 3
-
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (
-        %sel1 %sel2
-        )
+.funcsig @cmp_f_sig = @void (@float @float)
+.funcdef @cmp_f VERSION @cmp_f_v1 <@cmp_f_sig> (%p0 %p1) {
+    %entry:
+        %ftrue  = FTRUE  <@float> %p0 %p1
+        %ffalse = FFALSE <@float> %p0 %p1
+        %ford   = FORD   <@float> %p0 %p1
+        %foeq   = FOEQ   <@float> %p0 %p1
+        %fone   = FONE   <@float> %p0 %p1
+        %folt   = FOLT   <@float> %p0 %p1
+        %fole   = FOLE   <@float> %p0 %p1
+        %fogt   = FOGT   <@float> %p0 %p1
+        %foge   = FOGE   <@float> %p0 %p1
+        %funo   = FUNO   <@float> %p0 %p1
+        %fueq   = FUEQ   <@float> %p0 %p1
+        %fune   = FUNE   <@float> %p0 %p1
+        %fult   = FULT   <@float> %p0 %p1
+        %fule   = FULE   <@float> %p0 %p1
+        %fugt   = FUGT   <@float> %p0 %p1
+        %fuge   = FUGE   <@float> %p0 %p1
     
-%exit:
-    ICALL @uvm.thread_exit ()
-    RETVOID // unreachable
-
+        %trap = TRAP <@void> KEEPALIVE (
+            %ftrue %ffalse %ford %foeq %fone %folt %fole %fogt %foge
+            %funo %fueq %fune %fult %fule %fugt %fuge
+            )
+        
+    %exit:
+        COMMINST @uvm.thread_exit
 }
 
-.funcdef @conv <@void (@i32 @i64 @float @double)> (%p0 %p1 %p2 %p3) {
-    %trunc = TRUNC <@i64 @i32> %p1
-    %zext  = ZEXT  <@i32 @i64> %p0
-    %sext  = SEXT  <@i32 @i64> %p0
+.funcsig @cmp_d_sig = @void (@double @double)
+.funcdef @cmp_d VERSION @cmp_d_v1 <@cmp_d_sig> (%p0 %p1) {
+    %entry:
+        %ftrue  = FTRUE  <@double> %p0 %p1
+        %ffalse = FFALSE <@double> %p0 %p1
+        %ford   = FORD   <@double> %p0 %p1
+        %foeq   = FOEQ   <@double> %p0 %p1
+        %fone   = FONE   <@double> %p0 %p1
+        %folt   = FOLT   <@double> %p0 %p1
+        %fole   = FOLE   <@double> %p0 %p1
+        %fogt   = FOGT   <@double> %p0 %p1
+        %foge   = FOGE   <@double> %p0 %p1
+        %funo   = FUNO   <@double> %p0 %p1
+        %fueq   = FUEQ   <@double> %p0 %p1
+        %fune   = FUNE   <@double> %p0 %p1
+        %fult   = FULT   <@double> %p0 %p1
+        %fule   = FULE   <@double> %p0 %p1
+        %fugt   = FUGT   <@double> %p0 %p1
+        %fuge   = FUGE   <@double> %p0 %p1
     
-    %fptrunc = FPTRUNC <@double @float> %p3
-    %fpext   = FPEXT   <@float @double> %p2
-    
-    %fptoui  = FPTOUI  <@double @i64> %p3
-    %fptosi  = FPTOSI  <@double @i64> %p3
-    %uitofp  = UITOFP  <@i64 @double> %p1
-    %sitofp  = SITOFP  <@i64 @double> %p1
-    
-    %bitcast = BITCAST <@double @i64> %p3
-    
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (
-        %trunc %zext %sext %fptrunc %fpext %fptoui %fptosi %uitofp %sitofp
-        %bitcast
-        )
-%exit:
-    ICALL @uvm.thread_exit ()
-    RETVOID // unreachable
+        %trap = TRAP <@void> KEEPALIVE (
+            %ftrue %ffalse %ford %foeq %fone %folt %fole %fogt %foge
+            %funo %fueq %fune %fult %fule %fugt %fuge
+            )
+        
+    %exit:
+        COMMINST @uvm.thread_exit
 }
 
-.funcdef @branch <@void (@i64)> (%p0) {
+.funcsig @select_sig = @noparamsnoret
+.funcdef @select VERSION @select_v1 <@select_sig> () {
+    %entry:
+        %sel1 = SELECT <@i64> @TRUE  2 3
+        %sel2 = SELECT <@i64> @FALSE 2 3
+    
+        %trap = TRAP <@void> KEEPALIVE (
+            %sel1 %sel2
+            )
+        
+    %exit:
+        COMMINST @uvm.thread_exit
+}
+
+.funcsig @conv_sig = @void (@i32 @i64 @float @double)
+.funcdef @conv VERSION @conv_v1 <@conv_sig> (%p0 %p1 %p2 %p3) {
+    %entry:
+        %trunc = TRUNC <@i64 @i32> %p1
+        %zext  = ZEXT  <@i32 @i64> %p0
+        %sext  = SEXT  <@i32 @i64> %p0
+        
+        %fptrunc = FPTRUNC <@double @float> %p3
+        %fpext   = FPEXT   <@float @double> %p2
+        
+        %fptoui  = FPTOUI  <@double @i64> %p3
+        %fptosi  = FPTOSI  <@double @i64> %p3
+        %uitofp  = UITOFP  <@i64 @double> %p1
+        %sitofp  = SITOFP  <@i64 @double> %p1
+        
+        %bitcast = BITCAST <@double @i64> %p3
+        
+        %trap = TRAP <@void> KEEPALIVE (
+            %trunc %zext %sext %fptrunc %fpext %fptoui %fptosi %uitofp %sitofp
+            %bitcast
+            )
+    %exit:
+        COMMINST @uvm.thread_exit
+}
+
+.funcsig @branch_sig = @void (@i64)
+.funcdef @branch VERSION @branch_v1 <@branch_sig> (%p0) {
+%entry:
     %cmpz = EQ <@i64> %p0 0
     BRANCH2 %cmpz %iftrue %iffalse
     
@@ -250,11 +269,13 @@
     %trapfalse = TRAP <@void> %exit %exit KEEPALIVE ()
     
 %exit:
-    ICALL @uvm.thread_exit ()
+    COMMINST @uvm.thread_exit
     RETVOID // unreachable
 }
 
-.funcdef @switch_phi <@void (@i64)> (%p0) {
+.funcsig @switch_phi_sig = @void (@i64)
+.funcdef @switch_phi VERSION @switch_phi_v1 <@switch_phi_sig> (%p0) {
+%entry:
     SWITCH <@i64> %p0 %def {
         1: %one;
         2: %two;
@@ -282,30 +303,37 @@
     }
     %trapend = TRAP <@void> %exit2 %exit2 KEEPALIVE (%phi)
 %exit2:
-    ICALL @uvm.thread_exit ()
+    COMMINST @uvm.thread_exit
     RETVOID // unreachable
 }
 
-.funcdef @square_sum <@i_ii> (%a %b) {
+.funcsig @square_sum_sig = @i_ii
+.funcdef @square_sum VERSION @square_sum_v1 <@square_sum_sig> (%a %b) {
+%entry:
     %a2 = MUL <@i64> %a %a
     %b2 = MUL <@i64> %b %b
     %s  = ADD <@i64> %a2 %b2
     RET <@i64> %s
 }
 
-.funcdef @call_ret <@i_ii> (%a %b) {
+.funcsig @call_ret_sig = @i_ii
+.funcdef @call_ret VERSION @call_ret_v1 <@call_ret_sig> (%a %b) {
+%entry:
     %ss = CALL <@i_ii> @square_sum (%a %b)
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (%ss)
+    %trap = TRAP <@void> KEEPALIVE (%ss)
 %exit:
-    ICALL @uvm.thread_exit ()
+    COMMINST @uvm.thread_exit
+}
+
+.funcsig @thrower_sig = @noparamsnoret
+.funcdef @thrower VERSION @thrower_v1 <@thrower_sig> () {
+%entry:
     THROW @NULLREF
 }
 
-.funcdef @thrower <@noparamsnoret> () {
-    THROW @NULLREF
-}
-
-.funcdef @invoke_landingpad <@noparamsnoret> () {
+.funcsig @invoke_landingpad_sig = @noparamsnoret
+.funcdef @invoke_landingpad VERSION @invoke_landingpad_v1 <@invoke_landingpad_sig> () {
+%entry:
     %ss = INVOKE <@noparamsnoret> @thrower () %nor %exc
 %nor:
     %trapnor = TRAP <@void> %exit %exit KEEPALIVE ()
@@ -313,8 +341,7 @@
     %lp = LANDINGPAD
     %trapexc = TRAP <@void> %exit %exit KEEPALIVE (%lp)
 %exit:
-    ICALL @uvm.thread_exit ()
-    THROW @NULLREF
+    COMMINST @uvm.thread_exit
 }
 
 // Some simple struct constants
@@ -323,14 +350,15 @@
 
 .const @STRUCT_FOO <@StructFoo> = {1 2 3.0f 4.0d}
 
-.funcdef @aggregate <@noparamsnoret> () {
+.funcsig @aggregate_sig = @noparamsnoret
+.funcdef @aggregate VERSION @aggregate_v1 <@aggregate_sig> () {
+%entry:
     %f1 = EXTRACTVALUE <@StructFoo 1> @STRUCT_FOO
     %s2 = INSERTVALUE <@StructFoo 1> @STRUCT_FOO 222
     %f12 = EXTRACTVALUE <@StructFoo 1> %s2
-    %trapnor = TRAP <@void> %exit %exit KEEPALIVE (%f1 %f12)
+    %trapnor = TRAP <@void> KEEPALIVE (%f1 %f12)
 %exit:
-    ICALL @uvm.thread_exit ()
-    THROW @NULLREF
+    COMMINST @uvm.thread_exit
 }
 
 .typedef @refi64 = ref<@i64>
@@ -347,16 +375,17 @@
 
 .typedef @hCharArray = hybrid<@i64 @i8>
 
-.funcdef @allocs <@void (@i64)> (%sz) {
+.funcsig @allocs_sig = @void (@i64)
+.funcdef @allocs VERSION @allocs_v1 <@allocs_sig> (%sz) {
+%entry:
     %new = NEW <@StructBar>
     %newhybrid = NEWHYBRID <@hCharArray> %sz
     %alloca = ALLOCA <@StructBar>
     %allocahybrid = ALLOCAHYBRID <@hCharArray> %sz
 
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (%new %newhybrid %alloca %allocahybrid)
+    %trap = TRAP <@void> KEEPALIVE (%new %newhybrid %alloca %allocahybrid)
 %exit:
-    ICALL @uvm.thread_exit ()
-    THROW @NULLREF
+    COMMINST @uvm.thread_exit
 }
 
 .typedef @ArrayBaz = array <@i16 1024>
@@ -366,7 +395,9 @@
 
 .const @I64_1024 <@i64> = 1024
 
-.funcdef @memAddressing <@noparamsnoret> () {
+.funcsig @memAddressing_sig = @noparamsnoret
+.funcdef @memAddressing VERSION @memAddressing_v1 <@memAddressing_sig> () {
+%entry:
     %bar_ref  = NEW <@StructBar>
     %bar_iref = GETIREF <@StructBar> %bar_ref
     %bar_3    = GETFIELDIREF <@StructBar 3> %bar_iref
@@ -380,11 +411,10 @@
     %ja_fix   = GETFIXEDPARTIREF <@JavaLikeByteArray> %ja_iref
     %ja_var   = GETVARPARTIREF <@JavaLikeByteArray> %ja_iref
 
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (%bar_ref %bar_iref %bar_3
+    %trap = TRAP <@void> KEEPALIVE (%bar_ref %bar_iref %bar_3
                 %baz_iref %baz_3 %baz_6 %ja_ref %ja_iref %ja_fix %ja_var)
 %exit:
-    ICALL @uvm.thread_exit ()
-    THROW @NULLREF
+    COMMINST @uvm.thread_exit
     
 }
 
@@ -404,7 +434,9 @@
 .global @g_sta  <@stack>
 .global @g_tr64 <@tagref64>
 
-.funcdef @memAccessing <@noparamsnoret> () {
+.funcsig @memAccessing_sig = @noparamsnoret
+.funcdef @memAccessing VERSION @memAccessing_v1 <@memAccessing_sig> () {
+%entry:
     STORE <@i8>  @g_i8  41
     STORE <@i16> @g_i16 42
     STORE <@i32> @g_i32 43
@@ -434,14 +466,15 @@
 
     %lfunc = LOAD <@funcdumb> @g_func
 
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (%void_r %void_ir %li8 %li16
+    %trap = TRAP <@void> KEEPALIVE (%void_r %void_ir %li8 %li16
                 %li32 %li64 %lf %ld %lr %lir %lwr %lfunc)
 %exit:
-    ICALL @uvm.thread_exit ()
-    THROW @NULLREF
+    COMMINST @uvm.thread_exit
 }
 
-.funcdef @memAccessingAtomic <@noparamsnoret> () {
+.funcsig @memAccessingAtomic_sig = @noparamsnoret
+.funcdef @memAccessingAtomic VERSION @memAccessingAtomic_v1 <@memAccessingAtomic_sig> () {
+%entry:
     STORE SEQ_CST <@i32> @g_i32 43
     STORE SEQ_CST <@i64> @g_i64 44
 
@@ -480,15 +513,16 @@
     
     %l64_2 = LOAD SEQ_CST <@i64> @g_i64
 
-    %trap = TRAP <@void> %exit %exit KEEPALIVE (%void_r %void_r2 %void_r3
+    %trap = TRAP <@void> KEEPALIVE (%void_r %void_r2 %void_r3
                 %cx32_1 %cx32_2 %cx64_1 %cx64_2 %l32 %l64 %cxr_1 %cxr_2 %lr
                 %rmw0 %rmw1 %rmw2 %rmw3 %rmw4 %rmw5 %rmw6 %rmw7 %rmw8 %rmw9 %rmwA %l64_2)
 %exit:
-    ICALL @uvm.thread_exit ()
-    THROW @NULLREF
+    COMMINST @uvm.thread_exit
 }
 
-.funcdef @watchpointtest <@noparamsnoret> () {
+.funcsig @watchpointtest_sig = @noparamsnoret
+.funcdef @watchpointtest VERSION @watchpointtest_v1 <@watchpointtest_sig> () {
+%entry:
     BRANCH %head
     
 %head:
@@ -505,17 +539,18 @@
     %trapena = TRAP <@void> %exit %exit KEEPALIVE (%exc)
 
 %exit:
-    ICALL @uvm.thread_exit ()
-    THROW @NULLREF
+    COMMINST @uvm.thread_exit
 }
 
-.funcdef @testswapstack <@noparamsnoret> () {
+.funcsig @testswapstack_sig = @noparamsnoret
+.funcdef @testswapstack VERSION @testswapstack_v1 <@testswapstack_sig> () {
+%entry:
     %valueret = ALLOCA <@i64>
     %shouldstop = ALLOCA <@i64> // initially zeroed
-    %thisstack = ICALL @uvm.current_stack ()
+    %thisstack = COMMINST @uvm.current_stack ()
     
     %iter = NEWSTACK <@itersig> @rangeiter (3 %thisstack %valueret %shouldstop)
-    ICALL @uvm.swap_stack (%iter)
+    COMMINST @uvm.swap_stack (%iter)
     BRANCH %head
     
 %head:
@@ -528,12 +563,11 @@
     BRANCH2 %eq %body %exit
 
 %body:
-    ICALL @uvm.swap_stack (%iter)
+    COMMINST @uvm.swap_stack (%iter)
     BRANCH %head
 
 %exit:
-    ICALL @uvm.thread_exit ()
-    THROW @NULLREF
+    COMMINST @uvm.thread_exit
 }
 
 .typedef @irefi64 = iref<@i64>
@@ -542,7 +576,8 @@
 
 .funcsig @itersig = @void (@i64 @stack @irefi64 @irefi64)
 
-.funcdef @rangeiter <@itersig> (%n %src %valueret %shouldstop) {
+.funcsig @rangeiter_sig = @itersig
+.funcdef @rangeiter VERSION @rangeiter_v1 <@rangeiter_sig> (%n %src %valueret %shouldstop) {
 %entry:
     BRANCH %head
 
@@ -556,14 +591,13 @@
     
 %body:
     STORE <@i64> %valueret %i
-    ICALL @uvm.swap_stack (%src)
+    COMMINST @uvm.swap_stack (%src)
     %i2 = ADD <@i64> %i 1
     BRANCH %head
 
 %exit:
     STORE <@i64> %shouldstop 1
-    ICALL @uvm.swap_and_kill (%src)
-    THROW @NULLREF // unreachable
+    COMMINST @uvm.swap_and_kill (%src)
 }
 
 .const @I64_100 <@i64> = 100
@@ -571,7 +605,8 @@
 .const @I64_0 <@i64> = 0
 .typedef @LongAry = hybrid <@void @i64>
 
-.funcdef @testmultithreading <@noparamsnoret> () {
+.funcsig @testmultithreading_sig = @noparamsnoret
+.funcdef @testmultithreading VERSION @testmultithreading_v1 <@testmultithreading_sig> () {
 %entry:
     %ary_r = NEWHYBRID <@LongAry> @I64_100
     %ary_ir = GETIREF <@LongAry> %ary_r
@@ -596,8 +631,8 @@
     %ary50_ir = SHIFTIREF <@i64> %ary0_ir @I64_50
     %sta1 = NEWSTACK <@summingslavesig> @summingslave (%ary50_ir @I64_50 %result1)
     
-    %thr0 = ICALL @uvm.new_thread (%sta0)
-    %thr1 = ICALL @uvm.new_thread (%sta1)
+    %thr0 = COMMINST @uvm.new_thread (%sta0)
+    %thr1 = COMMINST @uvm.new_thread (%sta1)
     
     BRANCH %wait0
 
@@ -613,16 +648,16 @@
     
 %getresult:
     %sum = ADD <@i64> %res0val %res1val
-    TRAP <@void> %exit %exit KEEPALIVE (%sum)
+    TRAP <@void> KEEPALIVE (%sum)
     
 %exit:
-    ICALL @uvm.thread_exit ()
-    THROW @NULLREF
+    COMMINST @uvm.thread_exit
 }
 
 .funcsig @summingslavesig = @void (@irefi64 @i64 @irefi64)
 
-.funcdef @summingslave <@summingslavesig> (%ary %sz %result) {
+.funcsig @summingslave_sig = @summingslavesig
+.funcdef @summingslave VERSION @summingslave_v1 <@summingslave_sig> (%ary %sz %result) {
 %entry:
     BRANCH %head
     
@@ -641,8 +676,7 @@
 
 %exit:
     STORE SEQ_CST <@i64> %result %sum
-    ICALL @uvm.thread_exit ()
-    THROW @NULLREF
+    COMMINST @uvm.thread_exit
 }
 
 .typedef @i6 = int<6>
@@ -652,40 +686,41 @@
 .const @I52_SAMPLE <@i52> = 0xfedcba9876543
 .const @D_42 <@double> = 42.0d
 
-.funcdef @testtr64 <@noparamsnoret> () {
+.funcsig @testtr64_sig = @noparamsnoret
+.funcdef @testtr64 VERSION @testtr64_v1 <@testtr64_sig> () {
     %someobj = NEW <@i64>
     %rv = REFCAST <@refi64 @refvoid> %someobj
 
-    %f = ICALL @uvm.tr64.from_fp  (@D_42)
-    %i = ICALL @uvm.tr64.from_int (@I52_SAMPLE)
-    %r = ICALL @uvm.tr64.from_ref (%rv @I6_31)
+    %f = COMMINST @uvm.tr64.from_fp  (@D_42)
+    %i = COMMINST @uvm.tr64.from_int (@I52_SAMPLE)
+    %r = COMMINST @uvm.tr64.from_ref (%rv @I6_31)
     
-    %f_is_f = ICALL @uvm.tr64.is_fp  (%f)
-    %f_is_i = ICALL @uvm.tr64.is_int (%f)
-    %f_is_r = ICALL @uvm.tr64.is_ref (%f)
-    %i_is_f = ICALL @uvm.tr64.is_fp  (%i)
-    %i_is_i = ICALL @uvm.tr64.is_int (%i)
-    %i_is_r = ICALL @uvm.tr64.is_ref (%i)
-    %r_is_f = ICALL @uvm.tr64.is_fp  (%r)
-    %r_is_i = ICALL @uvm.tr64.is_int (%r)
-    %r_is_r = ICALL @uvm.tr64.is_ref (%r)
+    %f_is_f = COMMINST @uvm.tr64.is_fp  (%f)
+    %f_is_i = COMMINST @uvm.tr64.is_int (%f)
+    %f_is_r = COMMINST @uvm.tr64.is_ref (%f)
+    %i_is_f = COMMINST @uvm.tr64.is_fp  (%i)
+    %i_is_i = COMMINST @uvm.tr64.is_int (%i)
+    %i_is_r = COMMINST @uvm.tr64.is_ref (%i)
+    %r_is_f = COMMINST @uvm.tr64.is_fp  (%r)
+    %r_is_i = COMMINST @uvm.tr64.is_int (%r)
+    %r_is_r = COMMINST @uvm.tr64.is_ref (%r)
     
-    %fb = ICALL @uvm.tr64.to_fp  (%f)
-    %ib = ICALL @uvm.tr64.to_int (%i)
-    %rb = ICALL @uvm.tr64.to_ref (%r)
-    %rt = ICALL @uvm.tr64.to_tag (%r)
+    %fb = COMMINST @uvm.tr64.to_fp  (%f)
+    %ib = COMMINST @uvm.tr64.to_int (%i)
+    %rb = COMMINST @uvm.tr64.to_ref (%r)
+    %rt = COMMINST @uvm.tr64.to_tag (%r)
     
-    TRAP <@void> %exit %exit KEEPALIVE (%rv %f %i %r %f_is_f %f_is_i %f_is_r
+    TRAP <@void> KEEPALIVE (%rv %f %i %r %f_is_f %f_is_i %f_is_r
             %i_is_f %i_is_i %i_is_r %r_is_f %r_is_i %r_is_r %fb %ib %rb %rt)
             
 %exit:
-    ICALL @uvm.thread_exit ()
-    THROW @NULLREF
+    COMMINST @uvm.thread_exit
 }
 
 ///////////////////////// Simple sum
 
-.funcdef @simplesum <@void (@i64 @i64)> (%from %to) {
+.funcsig @simplesum_sig = @void (@i64 @i64)
+.funcdef @simplesum VERSION @simplesum_v1 <@simplesum_sig> (%from %to) {
 %entry:
     //BRANCH %head
     %starttrap = TRAP <@void> %head %head KEEPALIVE ()
@@ -703,6 +738,6 @@
     //%montrap = TRAP <@void> %head %head KEEPALIVE (%from %to %sum %i %le %sum2 %i2)
 
 %exit:
-    %exittrap = TRAP <@void> %exit %exit KEEPALIVE (%sum) // should stop thread
-    RETVOID // unreachable
+    %exittrap = TRAP <@void> KEEPALIVE (%sum) // should stop thread
+    COMMINST @uvm.thread_exit
 }

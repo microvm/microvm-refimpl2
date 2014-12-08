@@ -482,7 +482,17 @@ class ClientAgent(microVM: MicroVM) {
   }
 
   def newStack(func: Handle, args: Seq[Handle]): Handle = {
-    throw new UvmRefImplException("Not Implemented")
+    val fv = func.vb.asInstanceOf[BoxFunc].func match {
+      case None => throw new UvmRuntimeException("Stack-bottom function must not be NULL")
+      case Some(v) => v
+    }
+
+    val argBoxes = args.map(_.vb)
+
+    val sta = microVM.threadStackManager.newStack(fv, argBoxes, mutator)
+
+    val nb = BoxStack(Some(sta))
+    newHandle(InternalTypes.STACK, nb)
   }
 
   def newThread(stack: Handle): Handle = {

@@ -48,7 +48,6 @@ class ThreadStackManager(microVM: MicroVM) {
     val id = makeThreadID()
     val thr = new InterpreterThread(id, microVM, stack, mutator)
     threadRegistry.put(id, thr)
-    thr.start()
     thr
   }
 
