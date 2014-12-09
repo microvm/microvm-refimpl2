@@ -247,11 +247,11 @@ class ClientAgent(microVM: MicroVM) {
     val nb = uty match {
       case TypeInt(l) =>
         val bi: BigInt = l match {
-          case 8 => MemorySupport.loadByte(iRef)
+          case 8  => MemorySupport.loadByte(iRef)
           case 16 => MemorySupport.loadShort(iRef)
           case 32 => MemorySupport.loadInt(iRef)
           case 64 => MemorySupport.loadLong(iRef)
-          case _ => throw new UnimplementedOprationException("Loading int of length %d is not supported".format(l))
+          case _  => throw new UnimplementedOprationException("Loading int of length %d is not supported".format(l))
         }
         BoxInt(OpHelper.unprepare(bi, l))
       case _: TypeFloat =>
@@ -310,11 +310,11 @@ class ClientAgent(microVM: MicroVM) {
       case TypeInt(l) =>
         val bi = nvb.asInstanceOf[BoxInt].value
         l match {
-          case 8 => MemorySupport.storeByte(iRef, bi.byteValue)
+          case 8  => MemorySupport.storeByte(iRef, bi.byteValue)
           case 16 => MemorySupport.storeShort(iRef, bi.shortValue)
           case 32 => MemorySupport.storeInt(iRef, bi.intValue)
           case 64 => MemorySupport.storeLong(iRef, bi.longValue)
-          case _ => throw new UnimplementedOprationException("Storing int of length %d is not supported".format(l))
+          case _  => throw new UnimplementedOprationException("Storing int of length %d is not supported".format(l))
         }
         BoxInt(OpHelper.unprepare(bi, l))
       case _: TypeFloat =>
@@ -483,7 +483,7 @@ class ClientAgent(microVM: MicroVM) {
 
   def newStack(func: Handle, args: Seq[Handle]): Handle = {
     val fv = func.vb.asInstanceOf[BoxFunc].func match {
-      case None => throw new UvmRuntimeException("Stack-bottom function must not be NULL")
+      case None    => throw new UvmRuntimeException("Stack-bottom function must not be NULL")
       case Some(v) => v
     }
 
@@ -574,6 +574,20 @@ class ClientAgent(microVM: MicroVM) {
     val tagv = tag.vb.asInstanceOf[BoxInt].value
     val box = new BoxTagRef64(OpHelper.refToTr64(refv, tagv.longValue))
     newHandle(InternalTypes.TAGREF64, box)
+  }
+
+  // Internal methods for µVM
+
+  def putThread(thr: Option[InterpreterThread]): Handle = {
+    val t = InternalTypes.THREAD
+    val box = BoxThread(thr)
+    newHandle(t, box)
+  }
+  
+  def putStack(sta: Option[InterpreterStack]): Handle = {
+    val t = InternalTypes.STACK
+    val box = BoxStack(sta)
+    newHandle(t, box)
   }
 
 }

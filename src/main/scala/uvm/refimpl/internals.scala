@@ -71,7 +71,7 @@ object TypeInferer {
     case i: InstSelect => i.opndTy
     case i: InstBranch => VOID
     case i: InstBranch2 => VOID
-    case i: InstSelect => i.opndTy
+    case i: InstSwitch => VOID
     case i: InstPhi => i.opndTy
     case i: InstCall => i.sig.retTy
     case i: InstTailCall => VOID

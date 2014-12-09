@@ -22,7 +22,7 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
   val constantPool = new ConstantPool(this)
   val memoryManager = new MemoryManager(heapSize, globalSize, stackSize, this)
   val threadStackManager = new ThreadStackManager(this)
-  //val trapManager = new TrapManager(this)
+  val trapManager = new TrapManager(this)
   val clientAgents = new HashSet[ClientAgent]()
   
   val irReader = new UIRTextReader(new IDFactory())

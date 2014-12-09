@@ -16,10 +16,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     interpretCurrentInstruction()
   }
 
-  def sta = stack.get
-  def top = sta.top
+  def curStack = stack.get
+  def top = curStack.top
   def curBB = top.curBB
-  def inst = top.curInst
+  def curInst = top.curInst
 
   def incPC(): Unit = top.incPC()
   def jump(bb: BasicBlock, ix: Int): Unit = top.jump(bb, ix)
@@ -50,12 +50,15 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     jump(dest, i)
   }
 
-  def continueNormally(excClause: Option[ExcClause]): Unit = {
-    excClause match {
-      case None => incPC()
-      case Some(ec) => {
-        branchAndMovePC(ec.nor)
+  def continueNormally(): Unit = {
+    curInst match {
+      case h: HasExcClause => h.excClause match {
+        case None => incPC()
+        case Some(ec) => {
+          branchAndMovePC(ec.nor)
+        }
       }
+      case _ => incPC()
     }
   }
 
@@ -64,10 +67,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     case l: LocalVariable  => top.boxes(l)
   }
 
-  def ctx = "FuncVer %s, BasicBlock %s, Instruction %s (%s): ".format(top.funcVer, curBB, inst)
+  def ctx = "FuncVer %s, BasicBlock %s, Instruction %s (%s): ".format(top.funcVer, curBB, curInst)
 
   private def interpretCurrentInstruction(): Unit = {
-    inst match {
+    curInst match {
       case i @ InstBinOp(op, opndTy, op1, op2, excClause) => {
         def doInt(l: Int, b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
           val op1v = b1.asInstanceOf[BoxInt].value
@@ -121,7 +124,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             }
             case scalarTy => doScalar(scalarTy, boxOf(op1), boxOf(op2), boxOf(i))
           }
-          continueNormally(excClause)
+          continueNormally()
         } catch {
           case e: UvmDivisionByZeroException => excClause match {
             case None => throw e
@@ -183,12 +186,12 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           case scalarTy => doScalar(scalarTy, boxOf(op1), boxOf(op2), boxOf(i))
         }
 
-        incPC()
+        continueNormally()
       }
 
       case i @ InstConv(op, fromTy, toTy, opnd) => {
-        def doScalar(bOpnd: ValueBox, br: ValueBox): Unit = {
-          def iToI(): Unit = (fromTy, toTy) match {
+        def doScalar(scalarFromTy: Type, scalarToTy: Type, bOpnd: ValueBox, br: ValueBox): Unit = {
+          def iToI(): Unit = (scalarFromTy, scalarToTy) match {
             case (TypeInt(fl), TypeInt(tl)) => {
               val od = bOpnd.asInstanceOf[BoxInt].value
               val result = op match {
@@ -198,30 +201,30 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
               }
               br.asInstanceOf[BoxInt].value = result
             }
-            case _ => throw new UvmRuntimeException(ctx + "Expect integer source and dest type. Found %s and %s".format(fromTy, toTy))
+            case _ => throw new UvmRuntimeException(ctx + "Expect integer source and dest type. Found %s and %s".format(scalarFromTy, scalarToTy))
           }
 
           def fpToI(signed: Boolean): Unit = {
-            val tl = toTy match {
+            val tl = scalarToTy match {
               case TypeInt(l) => l
-              case _          => throw new UvmRuntimeException(ctx + "Expect integer dest type. Found %s".format(toTy))
+              case _          => throw new UvmRuntimeException(ctx + "Expect integer dest type. Found %s".format(scalarToTy))
             }
-            val result = fromTy match {
+            val result = scalarFromTy match {
               case TypeFloat()  => OpHelper.floatToI(bOpnd.asInstanceOf[BoxFloat].value, tl, signed)
               case TypeDouble() => OpHelper.doubleToI(bOpnd.asInstanceOf[BoxDouble].value, tl, signed)
-              case _            => throw new UvmRuntimeException(ctx + "Expect FP source type. Found %s.".format(fromTy))
+              case _            => throw new UvmRuntimeException(ctx + "Expect FP source type. Found %s.".format(scalarFromTy))
             }
             br.asInstanceOf[BoxInt].value = result
           }
 
           def iToFP(signed: Boolean): Unit = {
-            val fl = fromTy match {
+            val fl = scalarFromTy match {
               case TypeInt(l) => l
-              case _          => throw new UvmRuntimeException(ctx + "Expect integer source type. Found %s".format(fromTy))
+              case _          => throw new UvmRuntimeException(ctx + "Expect integer source type. Found %s".format(scalarFromTy))
             }
             val od = bOpnd.asInstanceOf[BoxInt].value
             val extended = if (signed) OpHelper.prepareSigned(od, fl) else OpHelper.prepareUnsigned(od, fl)
-            toTy match {
+            scalarToTy match {
               case TypeFloat() => {
                 val result = extended.toFloat
                 br.asInstanceOf[BoxFloat].value = result
@@ -230,11 +233,11 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
                 val result = extended.toDouble
                 br.asInstanceOf[BoxDouble].value = result
               }
-              case _ => throw new UvmRuntimeException(ctx + "Expect FP dest type. Found %s.".format(toTy))
+              case _ => throw new UvmRuntimeException(ctx + "Expect FP dest type. Found %s.".format(scalarToTy))
             }
           }
 
-          def bitcast(): Unit = (fromTy, toTy) match {
+          def bitcast(): Unit = (scalarFromTy, scalarToTy) match {
             case (TypeInt(32), TypeFloat()) => {
               val result = java.lang.Float.intBitsToFloat(bOpnd.asInstanceOf[BoxInt].value.intValue)
               br.asInstanceOf[BoxFloat].value = result
@@ -252,15 +255,15 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
               br.asInstanceOf[BoxInt].value = result
             }
             case _ => throw new UvmRuntimeException(ctx +
-              "BITCAST can only convert between int and FP types of the same size. Found %s and %s.".format(fromTy, toTy))
+              "BITCAST can only convert between int and FP types of the same size. Found %s and %s.".format(scalarFromTy, scalarToTy))
           }
 
-          def refcast(): Unit = (fromTy, toTy) match {
+          def refcast(): Unit = (scalarFromTy, scalarToTy) match {
             case (TypeFunc(_), TypeFunc(_))   => br.copyFrom(bOpnd)
             case (TypeThread(), TypeThread()) => br.copyFrom(bOpnd)
             case (TypeStack(), TypeStack())   => br.copyFrom(bOpnd)
             case _ => throw new UvmRuntimeException(ctx +
-              "REFCAST can only convert between two types both of which are func, thread or stack. Found %s and %s.".format(fromTy, toTy))
+              "REFCAST can only convert between two types both of which are func, thread or stack. Found %s and %s.".format(scalarFromTy, scalarToTy))
           }
 
           op match {
@@ -285,9 +288,134 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             case ConvOptr.REFCAST => refcast()
           }
         }
+
+        (fromTy, toTy) match {
+          case (TypeVector(scalarFromTy, sz), TypeVector(scalarToTy, sz2)) => {
+            if (sz != sz2) throw new UvmRefImplException(ctx + "The source and dest vector types must have the same length")
+
+            val bOpnds = boxOf(opnd).asInstanceOf[BoxVector].values
+            val rBs = boxOf(i).asInstanceOf[BoxVector].values
+
+            for ((bOpnd, br) <- (bOpnds zip rBs)) {
+              doScalar(scalarFromTy, scalarToTy, bOpnd, br)
+            }
+          }
+          case _ => doScalar(fromTy, toTy, boxOf(opnd), boxOf(i))
+        }
+
+        incPC()
+      }
+
+      case i @ InstSelect(opndTy, condTy, cond, ifTrue, ifFalse) => {
+        def doScalar(bCond: ValueBox, bTrue: ValueBox, bFalse: ValueBox, br: ValueBox): Unit = {
+          val c = bCond.asInstanceOf[BoxInt].value
+          if (c == 1) {
+            br.copyFrom(bTrue)
+          } else {
+            br.copyFrom(bFalse)
+          }
+        }
+
+        condTy match {
+          case TypeVector(TypeInt(1), sz) => {
+            val bConds = boxOf(cond).asInstanceOf[BoxVector].values
+            val bTrues = boxOf(ifTrue).asInstanceOf[BoxVector].values
+            val bFalses = boxOf(ifFalse).asInstanceOf[BoxVector].values
+            val bResults = boxOf(i).asInstanceOf[BoxVector].values
+
+            for ((((bCond, bTrue), bFalse), br) <- bConds.zip(bTrues).zip(bFalses).zip(bResults)) {
+              doScalar(bCond, bTrue, bFalse, br)
+            }
+          }
+          case TypeInt(1) => {
+            doScalar(boxOf(cond), boxOf(ifTrue), boxOf(ifFalse), boxOf(i))
+          }
+          case _ => throw new UvmRefImplException(ctx + "Condition must be either int<1> or a vector of int<1>")
+        }
+
+        continueNormally()
+      }
+      // Indentation guide: Insert more instructions here.
+
+      case i @ InstTrap(retTy, excClause, keepAlives) => {
+        val ca = microVM.newClientAgent()
+
+        val hThread = ca.putThread(Some(this))
+        val hStack = ca.putStack(Some(curStack))
+
+        unbind(retTy)
+
+        val res = microVM.trapManager.trapHandler.handleTrap(ca, hThread, hStack, 0)
+
+        res match {
+          case TrapExit() => {
+            isRunning = false
+          }
+          case TrapRebindPassValue(newStack, value) => {
+            rebindPassValue(newStack.vb.asInstanceOf[BoxStack].stack, value.vb)
+          }
+          case TrapRebindPassVoid(newStack) => {
+            rebindPassVoid(newStack.vb.asInstanceOf[BoxStack].stack)
+          }
+          case TrapRebindThrowExc(newStack, exc) => {
+            rebindThrowExc(newStack.vb.asInstanceOf[BoxStack].stack, exc.vb)
+          }
+        }
+
+
+        ca.close()
       }
 
       // Indentation guide: Insert more instructions here.
+
     }
+  }
+
+  def unbind(readyType: Type): Unit = {
+    curStack.state = StackState.Ready(readyType)
+    stack = None
+  }
+
+  def rebindPassValue(newStack: Option[InterpreterStack], value: ValueBox): Unit = {
+    if (newStack == None) throw new UvmRuntimeException(ctx + "Rebinding to NULL stack. This does not make sense.")
+
+    stack = newStack
+    try {
+      boxOf(curInst).copyFrom(value)
+    } catch {
+      case e: Exception => {
+        throw new UvmRuntimeException(ctx + "Error during rebinding while assigning the value passed to a stack " +
+          "to the instruction waiting for rebinding. This is usually caused by the mismatching between the type of " +
+          "READY<T> and the actual value type. The passed value box is a %s.".format(value.getClass.getName), e)
+      }
+    }
+
+    continueNormally()
+  }
+
+  def rebindPassVoid(newStack: Option[InterpreterStack]): Unit = {
+    if (newStack == None) throw new UvmRuntimeException(ctx + "Rebinding to NULL stack. This does not make sense.")
+
+    stack = newStack
+
+    continueNormally()
+  }
+  
+  
+  def rebindThrowExc(newStack: Option[InterpreterStack], exc: ValueBox): Unit = {
+    if (newStack == None) throw new UvmRuntimeException(ctx + "Rebinding to NULL stack. This does not make sense.")
+    val excObjRef = exc.asInstanceOf[BoxRef].objRef
+
+    stack = newStack
+    
+    catchException(excObjRef)
+  }
+  
+  /**
+   * Attempt to catch exception in the current frame. Will repeatedly unwind the stack until the exception can be
+   * handled. Stack underflow is an undefined behaviour. 
+   */
+  def catchException(exc: Word): Unit = {
+    throw new UvmRefImplException("Not implemented.")
   }
 }
