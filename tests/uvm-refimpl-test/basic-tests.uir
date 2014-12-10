@@ -19,10 +19,54 @@
 .const @TRUE <@i64> = 1
 .const @FALSE <@i64> = 0
 
+.const @I32_0 <@i32> = 0
+.const @I32_1 <@i32> = 1
+.const @I32_2 <@i32> = 2
+.const @I32_3 <@i32> = 3
+.const @I32_4 <@i32> = 4
+.const @I32_5 <@i32> = 5
+.const @I32_6 <@i32> = 6
+.const @I32_7 <@i32> = 7
+
 .const @I64_0 <@i64> = 0
 .const @I64_1 <@i64> = 1
 .const @I64_2 <@i64> = 2
 .const @I64_3 <@i64> = 3
+.const @I64_4 <@i64> = 4
+.const @I64_5 <@i64> = 5
+.const @I64_6 <@i64> = 6
+.const @I64_7 <@i64> = 7
+
+.const @F_0 <@float> = 0.0f
+.const @F_1 <@float> = 1.0f
+.const @F_2 <@float> = 2.0f
+.const @F_3 <@float> = 3.0f
+.const @F_4 <@float> = 4.0f
+.const @F_5 <@float> = 5.0f
+.const @F_6 <@float> = 6.0f
+.const @F_7 <@float> = 7.0f
+
+.const @D_0 <@double> = 0.0d
+.const @D_1 <@double> = 1.0d
+.const @D_2 <@double> = 2.0d
+.const @D_3 <@double> = 3.0d
+.const @D_4 <@double> = 4.0d
+.const @D_5 <@double> = 5.0d
+.const @D_6 <@double> = 6.0d
+.const @D_7 <@double> = 7.0d
+
+.typedef @4xfloat  = vector <@float 4>
+.typedef @4xi32    = vector <@i32 4>
+.typedef @2xdouble = vector <@double 2>
+
+.const @4xI32_V1 <@4xi32> = {@I32_0 @I32_1 @I32_2 @I32_3}
+.const @4xI32_V2 <@4xi32> = {@I32_4 @I32_5 @I32_6 @I32_7}
+
+.const @4xF_V1 <@4xfloat> = {@F_0 @F_1 @F_2 @F_3}
+.const @4xF_V2 <@4xfloat> = {@F_4 @F_5 @F_6 @F_7}
+
+.const @2xD_V1 <@2xdouble> = {@D_0 @D_1}
+.const @2xD_V2 <@2xdouble> = {@D_2 @D_3}
 
 .funcsig @i_ii = @i64 (@i64 @i64)
 
@@ -81,25 +125,23 @@
         COMMINST @uvm.thread_exit
 }
 
-.const @I64_MAX_S <@I64> = 0x7fffffffffffffff
-.const @I64_MAX_U <@I64> = 0xffffffffffffffff
-.const @I64_BIG   <@I64> = 1000000000000
-.const @I64_MIN_S <@I64> = -0x8000000000000000
-.const @I64_N1 <  <@I64> = -1
-
-.funcsig @binops_ovf_sig = @noparamsnoret
-.funcdef @binops_ovf VERSION @binops_ovf_v1 <@binops_ovf_sig> () {
+.funcsig @binops64_div0_sig = @void (@i64 @i64 @i64 @i64 @i64)
+.funcdef @binops64_div0 VERSION @binops64_div0_v1 <@binops64_div0_sig> (%p0 %p1 %p2 %p3 %p4) {
     %entry:
-        %add  = ADD  <@i64> @I64_MAX_S @I64_1
-        %add2 = ADD  <@i64> @I64_MAX_U @I64_2
-        %mul  = MUL  <@i64> @I64_BIG @I64_BIG
-        %udiv = UDIV <@i64> @I64_MIN_S @I64_N2  // MIN_S is treated as positive
-        %sdiv = SDIV <@i64> @I64_MIN_S @I64_N1  // This raises an exception in x86 assembly, but not microvm
-     
-        %trap = TRAP <@void> KEEPALIVE (
-            %add %add2 %mul %udiv %sdiv
-            )
-            
+        %udiv = UDIV <@i64> %p0 %p1 EXC(%bb2 %exc)
+    %bb2:
+        %sdiv = SDIV <@i64> %p0 %p2 EXC(%bb3 %exc)
+    %bb3:
+        %urem = UREM <@i64> %p0 %p3 EXC(%bb4 %exc)
+    %bb4:
+        %srem = SREM <@i64> %p0 %p4 EXC(%nor %exc)
+
+    %nor:
+        %trapnor = TRAP <@void>
+        COMMINST @uvm.thread_exit
+
+    %exc:
+        %trapexc = TRAP <@void>
         COMMINST @uvm.thread_exit
 }
 
@@ -115,8 +157,6 @@
         %trap = TRAP <@void> KEEPALIVE (
             %fadd %fsub %fmul %fdiv %frem
             )
-        
-    %exit:
         COMMINST @uvm.thread_exit
 }
 
@@ -132,8 +172,6 @@
         %trap = TRAP <@void> KEEPALIVE (
             %fadd %fsub %fmul %fdiv %frem
             )
-        
-    %exit:
         COMMINST @uvm.thread_exit
 }
 
@@ -242,14 +280,22 @@
         COMMINST @uvm.thread_exit
 }
 
-.funcsig @select_sig = @noparamsnoret
-.funcdef @select VERSION @select_v1 <@select_sig> () {
+.typedef @4xi1 = vector <@i1 4>
+
+.const @4xI1_COND <@4xi1> = {@TRUE @FALSE @FALSE @TRUE}
+
+.funcdef @select VERSION @select_v1 <@noparamsnoret> () {
     %entry:
-        %sel1 = SELECT <@i64> @TRUE  2 3
-        %sel2 = SELECT <@i64> @FALSE 2 3
+        %sel1 = SELECT <@i1 @i64> @TRUE  @I64_2 @I64_3
+        %sel2 = SELECT <@i1 @i64> @FALSE @I64_2 @I64_3
+
+        %sel3 = SELECT <@4xi1 @4xi32> @4xI1_COND @4xI32_V1 @4xI32_V2
+
+        %sel4 = SELECT <@i1 @4xi32> @TRUE  @4xI32_V1 @4xI32_V2
+        %sel5 = SELECT <@i1 @4xi32> @FALSE @4xI32_V1 @4xI32_V2
     
         %trap = TRAP <@void> KEEPALIVE (
-            %sel1 %sel2
+            %sel1 %sel2 %sel3 %sel4 %sel5
             )
         
     %exit:

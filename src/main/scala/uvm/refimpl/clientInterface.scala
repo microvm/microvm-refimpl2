@@ -8,6 +8,7 @@ import uvm.refimpl.mem.TypeSizes._
 import uvm.ssavariables.MemoryOrder._
 import uvm.ssavariables.AtomicRMWOptr._
 import uvm.refimpl.mem._
+import uvm.ssavariables.HasKeepAliveClause
 
 case class Handle(ty: Type, vb: ValueBox)
 
@@ -495,31 +496,85 @@ class ClientAgent(microVM: MicroVM) {
     newHandle(InternalTypes.STACK, nb)
   }
 
+  private def getStackNotNull(stack: Handle): InterpreterStack = {
+    stack.vb.asInstanceOf[BoxStack].stack match {
+      case None    => throw new UvmRuntimeException("Stack argument cannot be a NULL MicroVM stack value.")
+      case Some(v) => v
+    }
+  }
+
   def newThread(stack: Handle): Handle = {
-    throw new UvmRefImplException("Not Implemented")
+    val sv = getStackNotNull(stack)
+    val thr = microVM.threadStackManager.newThread(sv)
+
+    val nb = BoxThread(Some(thr))
+    newHandle(InternalTypes.THREAD, nb)
   }
 
   def killStack(stack: Handle): Unit = {
-    throw new UvmRefImplException("Not Implemented")
+    val sv = getStackNotNull(stack)
+
+    sv.state = StackState.Dead
+  }
+
+  private def nthFrame(stack: InterpreterStack, n: Int): InterpreterFrame = {
+    val it = stack.frames
+    for (i <- (0 until n)) {
+      if (it.hasNext) {
+        it.next()
+      } else {
+        throw new UvmRuntimeException("The stack only has %d frames, but the %d-th frame is requested.".format(i, n))
+      }
+    }
+    if (it.hasNext) {
+      it.next()
+    } else {
+      throw new UvmRuntimeException("The stack only has %d frames, but the %d-th frame is requested.".format(n, n))
+    }
+
   }
 
   def currentFuncVer(stack: Handle, frame: Int): Int = {
-    throw new UvmRefImplException("Not Implemented")
+    val sv = getStackNotNull(stack)
+    val fr = nthFrame(sv, frame)
+    fr.funcVer.id
   }
 
   def currentInstruction(stack: Handle, frame: Int): Int = {
-    throw new UvmRefImplException("Not Implemented")
+    val sv = getStackNotNull(stack)
+    val fr = nthFrame(sv, frame)
+    fr.curInst.id
   }
 
   def dumpKeepalives(stack: Handle, frame: Int): Seq[Handle] = {
-    throw new UvmRefImplException("Not Implemented")
+    val sv = getStackNotNull(stack)
+    val fr = nthFrame(sv, frame)
+    val i = fr.curInst
+    i match {
+      case hkac: HasKeepAliveClause => {
+        val kas = hkac.keepAlives
+        for (ka <- kas) yield {
+          val box = fr.boxes(ka)
+          val ty = TypeInferer.inferType(ka)
+          newHandle(ty, box)
+        }
+      }
+      case _ => {
+        throw new UvmRuntimeException("The current instruction %s does not have keep-alive clause.".format(i.repr))
+      }
+    }
   }
 
   def popFrame(stack: Handle): Unit = {
-    throw new UvmRefImplException("Not Implemented")
+    val st = getStackNotNull(stack)
+    val top = st.top
+    top.prev match {
+      case None => throw new UvmRuntimeException("Attempting to pop the last frame of a stack.")
+      case Some(prev) => st.top = prev
+    }
   }
 
-  def pushFrame = throw new UvmRefImplException("Not Implemented")
+  def pushFrame = throw new UvmRefImplException("Not defined in spec")
 
   def tr64IsFp(handle: Handle): Boolean = {
     OpHelper.tr64IsFp(handle.vb.asInstanceOf[BoxTagRef64].raw)
@@ -583,7 +638,7 @@ class ClientAgent(microVM: MicroVM) {
     val box = BoxThread(thr)
     newHandle(t, box)
   }
-  
+
   def putStack(sta: Option[InterpreterStack]): Handle = {
     val t = InternalTypes.STACK
     val box = BoxStack(sta)

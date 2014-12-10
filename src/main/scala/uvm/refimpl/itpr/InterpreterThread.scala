@@ -3,17 +3,32 @@ package uvm.refimpl.itpr
 import uvm._
 import uvm.types._
 import uvm.ssavariables._
+import uvm.comminsts._
 import uvm.refimpl._
 import uvm.refimpl.mem._
 import TypeSizes.Word
+import scala.annotation.tailrec
+import org.slf4j.LoggerFactory
+import com.typesafe.scalalogging.Logger
+
+object InterpreterThread {
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+}
 
 class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: InterpreterStack, val mutator: Mutator) {
+  import InterpreterThread._
+
   var stack: Option[InterpreterStack] = Some(initialStack)
 
   var isRunning: Boolean = true
 
   def step(): Unit = {
     interpretCurrentInstruction()
+  }
+
+  def threadExit(): Unit = {
+    curStack.state = StackState.Dead
+    isRunning = false
   }
 
   def curStack = stack.get
@@ -24,52 +39,18 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
   def incPC(): Unit = top.incPC()
   def jump(bb: BasicBlock, ix: Int): Unit = top.jump(bb, ix)
 
-  def branchAndMovePC(dest: BasicBlock, excAddr: Word = 0L): Unit = {
-    val curBB = this.curBB
-    var cont = true
-    var i = 0
-    while (cont) {
-      dest.insts(i) match {
-        case phi @ InstPhi(opndTy, cases) => {
-          val caseVal = cases.find({ case (bb, _) => bb == dest }).map(_._2).getOrElse {
-            throw new UvmRuntimeException(s"Phi node ${phi.repr} does not include the case for source basic block ${curBB.repr}")
-          }
-          val vb = boxOf(caseVal)
-          val db = boxOf(phi)
-          db.copyFrom(vb)
-          i += 1
-        }
-        case lp: InstLandingPad => {
-          val db = boxOf(lp).asInstanceOf[BoxRef]
-          db.objRef = excAddr
-          i += 1
-        }
-        case _ => cont = false
-      }
-    }
-    jump(dest, i)
-  }
-
-  def continueNormally(): Unit = {
-    curInst match {
-      case h: HasExcClause => h.excClause match {
-        case None => incPC()
-        case Some(ec) => {
-          branchAndMovePC(ec.nor)
-        }
-      }
-      case _ => incPC()
-    }
-  }
-
   def boxOf(v: SSAVariable): ValueBox = v match {
     case g: GlobalVariable => microVM.constantPool.getGlobalVarBox(g)
     case l: LocalVariable  => top.boxes(l)
   }
 
-  def ctx = "FuncVer %s, BasicBlock %s, Instruction %s (%s): ".format(top.funcVer, curBB, curInst)
+  def ctx = "FuncVer %s, BasicBlock %s, Instruction %s (%s): ".format(top.funcVer.repr, curBB.repr, curInst.repr, curInst.getClass.getName)
 
   private def interpretCurrentInstruction(): Unit = {
+    val curInst = this.curInst
+
+    logger.debug(ctx + "Executing instruction...")
+
     curInst match {
       case i @ InstBinOp(op, opndTy, op1, op2, excClause) => {
         def doInt(l: Int, b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
@@ -335,6 +316,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
         continueNormally()
       }
+
       // Indentation guide: Insert more instructions here.
 
       case i @ InstTrap(retTy, excClause, keepAlives) => {
@@ -362,12 +344,65 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           }
         }
 
-
         ca.close()
       }
 
-      // Indentation guide: Insert more instructions here.
+      // Indentation guide: Insert more instructions (after TRAP) here.
 
+      case i @ InstCommInst(ci, typeList, argList, excClause, keepAlives) => {
+        def theCI(name: String): CommInst = CommInsts(name)
+        ci.name.get match {
+          case "@uvm.thread_exit" => {
+            threadExit()
+          }
+          case ciName => {
+            throw new UvmRefImplException("Unimplemented common instruction %s".format(ciName))
+          }
+
+        }
+      }
+      
+      case i => {
+        throw new UvmRefImplException("Unimplemented instruction %s".format(i.getClass.getName))
+      }
+    }
+  }
+
+  def branchAndMovePC(dest: BasicBlock, excAddr: Word = 0L): Unit = {
+    val curBB = this.curBB
+    var cont = true
+    var i = 0
+    while (cont) {
+      dest.insts(i) match {
+        case phi @ InstPhi(opndTy, cases) => {
+          val caseVal = cases.find({ case (bb, _) => bb == dest }).map(_._2).getOrElse {
+            throw new UvmRuntimeException(s"Phi node ${phi.repr} does not include the case for source basic block ${curBB.repr}")
+          }
+          val vb = boxOf(caseVal)
+          val db = boxOf(phi)
+          db.copyFrom(vb)
+          i += 1
+        }
+        case lp: InstLandingPad => {
+          val db = boxOf(lp).asInstanceOf[BoxRef]
+          db.objRef = excAddr
+          i += 1
+        }
+        case _ => cont = false
+      }
+    }
+    jump(dest, i)
+  }
+
+  def continueNormally(): Unit = {
+    curInst match {
+      case h: HasExcClause => h.excClause match {
+        case None => incPC()
+        case Some(ec) => {
+          branchAndMovePC(ec.nor)
+        }
+      }
+      case _ => incPC()
     }
   }
 
@@ -376,10 +411,13 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     stack = None
   }
 
-  def rebindPassValue(newStack: Option[InterpreterStack], value: ValueBox): Unit = {
+  def rebind(newStack: Option[InterpreterStack]): Unit = {
     if (newStack == None) throw new UvmRuntimeException(ctx + "Rebinding to NULL stack. This does not make sense.")
-
     stack = newStack
+  }
+
+  def rebindPassValue(newStack: Option[InterpreterStack], value: ValueBox): Unit = {
+    rebind(newStack)
     try {
       boxOf(curInst).copyFrom(value)
     } catch {
@@ -394,28 +432,61 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
   }
 
   def rebindPassVoid(newStack: Option[InterpreterStack]): Unit = {
-    if (newStack == None) throw new UvmRuntimeException(ctx + "Rebinding to NULL stack. This does not make sense.")
-
-    stack = newStack
+    rebind(newStack)
 
     continueNormally()
   }
-  
-  
+
   def rebindThrowExc(newStack: Option[InterpreterStack], exc: ValueBox): Unit = {
-    if (newStack == None) throw new UvmRuntimeException(ctx + "Rebinding to NULL stack. This does not make sense.")
+    rebind(newStack)
+
     val excObjRef = exc.asInstanceOf[BoxRef].objRef
 
-    stack = newStack
-    
     catchException(excObjRef)
   }
-  
+
   /**
    * Attempt to catch exception in the current frame. Will repeatedly unwind the stack until the exception can be
-   * handled. Stack underflow is an undefined behaviour. 
+   * handled. Stack underflow is an undefined behaviour.
    */
   def catchException(exc: Word): Unit = {
-    throw new UvmRefImplException("Not implemented.")
+    @tailrec
+    def unwindUntilCatchable(f: InterpreterFrame): (InterpreterFrame, BasicBlock) = {
+      maybeFindExceptionHandler(f.curInst) match {
+        case Some(bb) => (f, bb)
+        case None => f.prev match {
+          case None       => throw new UvmRuntimeException(ctx + "Exception is thrown out of the bottom frame.")
+          case Some(prev) => unwindUntilCatchable(prev)
+        }
+      }
+    }
+
+    val s = curStack
+    val f = s.top
+    val (newFrame, newBB) = unwindUntilCatchable(f)
+    s.top = newFrame
+
+    branchAndMovePC(newBB, exc)
+  }
+
+  /**
+   * Test if the current frame with i as the current instruction can catch an exception that unwinds the stack.
+   *
+   * @return Return Some(h) if i can catch the exception and h is the basic block for the exception. Return None if i
+   * cannot catch exceptions.
+   *
+   * @throw Throw UvmRefimplException if a frame stops at an unexpected instruction. Normally the top frame can be
+   * executing TRAP, WATCHPOINT, SWAPSTACK or CALL and all other frames must be executing CALL.
+   */
+  def maybeFindExceptionHandler(inst: Instruction): Option[BasicBlock] = {
+    inst match {
+      case i: InstCall       => i.excClause.map(_.exc)
+      case i: InstTrap       => i.excClause.map(_.exc)
+      case i: InstWatchPoint => i.exc
+      case i: InstSwapStack  => i.excClause.map(_.exc)
+      case _ => {
+        throw new UvmRefImplException("Instruction %s (%s) is in a stack frame when an exception is thrown.".format(inst.repr, inst.getClass.getName))
+      }
+    }
   }
 }
