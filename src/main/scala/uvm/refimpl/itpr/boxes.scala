@@ -83,7 +83,7 @@ object ValueBox {
     case _: TypeInt => BoxInt(0)
     case _: TypeFloat => BoxFloat(0.0f)
     case _: TypeDouble => BoxDouble(0.0d)
-    case TypeVector(elemTy, len) => BoxVector(Seq.fill(4)(makeBoxForType(elemTy)))
+    case TypeVector(elemTy, len) => BoxVector(Seq.fill(len.toInt)(makeBoxForType(elemTy)))
     case _: TypeRef => BoxRef(0L)
     case _: TypeIRef => BoxIRef(0L, 0L)
     case _: TypeWeakRef => throw new UvmRefImplException("weakref cannot be an SSA variable type")

@@ -175,6 +175,23 @@
         COMMINST @uvm.thread_exit
 }
 
+.funcsig @binops_vec_sig = @void (@4xi32 @4xi32 @4xfloat @4xfloat @2xdouble @2xdouble)
+.funcdef @binops_vec VERSION @binops_vec_v1 <@binops_vec_sig> (%p0 %p1 %p2 %p3 %p4 %p5) {
+    %entry:
+        %addi = ADD  <@4xi32>    %p0 %p1
+        %subi = SUB  <@4xi32>    %p0 %p1
+        %addf = FADD <@4xfloat>  %p2 %p3
+        %subf = FSUB <@4xfloat>  %p2 %p3
+        %addd = FADD <@2xdouble> %p4 %p5
+        %subd = FSUB <@2xdouble> %p4 %p5
+
+        %trap = TRAP <@void> KEEPALIVE (
+            %addi %subi %addf %subf %addd %subd
+            )
+        COMMINST @uvm.thread_exit
+
+}
+
 .funcsig @cmp64_sig = @void (@i64 @i64)
 .funcdef @cmp64 VERSION @cmp64_v1 <@cmp64_sig> (%p0 %p1) {
     %entry:

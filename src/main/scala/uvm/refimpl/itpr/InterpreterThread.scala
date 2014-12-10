@@ -44,9 +44,12 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     case l: LocalVariable  => top.boxes(l)
   }
 
-  def ctx = "FuncVer %s, BasicBlock %s, Instruction %s (%s): ".format(top.funcVer.repr, curBB.repr, curInst.repr, curInst.getClass.getName)
+  def ctx = stack match {
+    case None    => "(Thred not bound to stack): "
+    case Some(_) => "FuncVer %s, BasicBlock %s, Instruction %s (%s): ".format(top.funcVer.repr, curBB.repr, curInst.repr, curInst.getClass.getName)
+  }
 
-  private def interpretCurrentInstruction(): Unit = {
+  private def interpretCurrentInstruction(): Unit = try {
     val curInst = this.curInst
 
     logger.debug(ctx + "Executing instruction...")
@@ -59,7 +62,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
           val result = PrimOpHelpers.intBinOp(op, l, op1v, op2v, ctx)
 
-          val iBox = boxOf(i).asInstanceOf[BoxInt]
+          val iBox = br.asInstanceOf[BoxInt]
           iBox.value = result
         }
 
@@ -69,7 +72,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
           val result = PrimOpHelpers.floatBinOp(op, op1v, op2v, ctx)
 
-          val iBox = boxOf(i).asInstanceOf[BoxFloat]
+          val iBox = br.asInstanceOf[BoxFloat]
           iBox.value = result
         }
 
@@ -79,7 +82,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
           val result = PrimOpHelpers.doubleBinOp(op, op1v, op2v, ctx)
 
-          val iBox = boxOf(i).asInstanceOf[BoxDouble]
+          val iBox = br.asInstanceOf[BoxDouble]
           iBox.value = result
         }
 
@@ -96,7 +99,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           opndTy match {
             case TypeVector(scalarTy, sz) => {
               val op1Bs = boxOf(op1).asInstanceOf[BoxVector].values
-              val op2Bs = boxOf(op1).asInstanceOf[BoxVector].values
+              val op2Bs = boxOf(op2).asInstanceOf[BoxVector].values
               val rBs = boxOf(i).asInstanceOf[BoxVector].values
 
               for (((b1, b2), br) <- ((op1Bs zip op2Bs) zip rBs)) {
@@ -157,7 +160,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         opndTy match {
           case TypeVector(scalarTy, sz) => {
             val op1Bs = boxOf(op1).asInstanceOf[BoxVector].values
-            val op2Bs = boxOf(op1).asInstanceOf[BoxVector].values
+            val op2Bs = boxOf(op2).asInstanceOf[BoxVector].values
             val rBs = boxOf(i).asInstanceOf[BoxVector].values
 
             for (((b1, b2), br) <- ((op1Bs zip op2Bs) zip rBs)) {
@@ -361,10 +364,15 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
         }
       }
-      
+
       case i => {
         throw new UvmRefImplException("Unimplemented instruction %s".format(i.getClass.getName))
       }
+    }
+  } catch {
+    case e: Exception => {
+      logger.debug(ctx + "Exception thrown while interpreting instruction.")
+      throw e
     }
   }
 
