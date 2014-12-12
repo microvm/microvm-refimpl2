@@ -150,7 +150,7 @@ case class InstCmp(var op: CmpOptr, var opndTy: Type, var op1: SSAVariable, var 
 
 case class InstConv(var op: ConvOptr, var fromTy: Type, var toTy: Type, var opnd: SSAVariable) extends Instruction
 
-case class InstSelect(var opndTy: Type, var condTy: Type,
+case class InstSelect(var condTy: Type, var opndTy: Type,
                       var cond: SSAVariable, var ifTrue: SSAVariable, var ifFalse: SSAVariable) extends Instruction
 
 case class InstBranch(var dest: BasicBlock) extends Instruction

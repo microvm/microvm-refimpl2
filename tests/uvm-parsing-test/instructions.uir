@@ -164,6 +164,14 @@
         RETVOID
 }
 
+.funcsig @select_sig = @void ()
+.funcdef @select VERSION @select_v1 <@select_sig> () {
+    %entry:
+        %select  = SELECT <@i1 @i32> @TRUE @I32_0 @I32_1
+
+        RETVOID
+}
+
 .funcsig @ctrlFlow_sig = @void (@i32)
 .funcdef @ctrlFlow VERSION @ctrlFlow_v1 <@ctrlFlow_sig> (%p0) {
     %entry:

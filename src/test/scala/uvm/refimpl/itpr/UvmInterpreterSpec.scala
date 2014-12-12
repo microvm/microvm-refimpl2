@@ -74,6 +74,19 @@ class UvmInterpreterSpec extends FlatSpec with Matchers {
     def asTR64Raw: Long = vb.asInstanceOf[BoxTagRef64].raw
     def asVec: Seq[ValueBox] = vb.asInstanceOf[BoxVector].values
   }
+  
+  "The constant pool" should "contain appropriate constant values" in {
+    def gvb(name: String) = microVM.constantPool.getGlobalVarBox(microVM.globalBundle.globalVarNs(name))
+    
+    gvb("@TRUE").asUInt(1) shouldBe 1
+    gvb("@FALSE").asUInt(1) shouldBe 0
+    
+    gvb("@I32_1").asUInt(32) shouldBe 1
+    gvb("@I32_2").asUInt(32) shouldBe 2
+    gvb("@I32_7").asUInt(32) shouldBe 7
+    
+    gvb("@I64_5").asUInt(64) shouldBe 5
+  }
 
   "Binary operations" should "work on int<32>" in {
     val ca = microVM.newClientAgent()
@@ -333,4 +346,364 @@ class UvmInterpreterSpec extends FlatSpec with Matchers {
 
     ca.close()
   }
+
+  "Comparing operations" should "work on int<64>" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@cmp64")
+
+    val a0 = ca.putInt("@i64", 1)
+    val a1 = ca.putInt("@i64", 2)
+
+    testFunc(ca, func, Seq(a0, a1)) { (ca, th, st, wp) =>
+      val Seq(eq, ne, ult, ule, ugt, uge, slt, sle, sgt, sge) = ca.dumpKeepalives(st, 0)
+
+      eq.vb.asUInt(1) shouldEqual 0
+      ne.vb.asUInt(1) shouldEqual 1
+      ult.vb.asUInt(1) shouldEqual 1
+      ule.vb.asUInt(1) shouldEqual 1
+      ugt.vb.asUInt(1) shouldEqual 0
+      uge.vb.asUInt(1) shouldEqual 0
+      slt.vb.asUInt(1) shouldEqual 1
+      sle.vb.asUInt(1) shouldEqual 1
+      sgt.vb.asUInt(1) shouldEqual 0
+      sge.vb.asUInt(1) shouldEqual 0
+
+      TrapRebindPassVoid(st)
+    }
+
+    testFunc(ca, func, Seq(a0, a0)) { (ca, th, st, wp) =>
+      val Seq(eq, ne, ult, ule, ugt, uge, slt, sle, sgt, sge) = ca.dumpKeepalives(st, 0)
+
+      eq.vb.asUInt(1) shouldEqual 1
+      ne.vb.asUInt(1) shouldEqual 0
+      ult.vb.asUInt(1) shouldEqual 0
+      ule.vb.asUInt(1) shouldEqual 1
+      ugt.vb.asUInt(1) shouldEqual 0
+      uge.vb.asUInt(1) shouldEqual 1
+      slt.vb.asUInt(1) shouldEqual 0
+      sle.vb.asUInt(1) shouldEqual 1
+      sgt.vb.asUInt(1) shouldEqual 0
+      sge.vb.asUInt(1) shouldEqual 1
+
+      TrapRebindPassVoid(st)
+    }
+
+    val a2 = ca.putInt("@i64", -3)
+
+    testFunc(ca, func, Seq(a0, a2)) { (ca, th, st, wp) =>
+      val Seq(eq, ne, ult, ule, ugt, uge, slt, sle, sgt, sge) = ca.dumpKeepalives(st, 0)
+
+      eq.vb.asUInt(1) shouldEqual 0
+      ne.vb.asUInt(1) shouldEqual 1
+      slt.vb.asUInt(1) shouldEqual 0
+      sle.vb.asUInt(1) shouldEqual 0
+      sgt.vb.asUInt(1) shouldEqual 1
+      sge.vb.asUInt(1) shouldEqual 1
+
+      TrapRebindPassVoid(st)
+    }
+
+    ca.close()
+  }
+
+  "Comparing operations" should "work on float" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@cmp_f")
+
+    val a0 = ca.putFloat("@float", 1.0f)
+    val a1 = ca.putFloat("@float", 2.0f)
+
+    testFunc(ca, func, Seq(a0, a1)) { (ca, th, st, wp) =>
+      val Seq(ftrue, ffalse, ford, foeq, fone, folt, fole, fogt, foge, funo, fueq, fune, fult, fule, fugt, fuge) = ca.dumpKeepalives(st, 0)
+
+      ftrue.vb.asUInt(1) shouldEqual 1
+      ffalse.vb.asUInt(1) shouldEqual 0
+      ford.vb.asUInt(1) shouldEqual 1
+      foeq.vb.asUInt(1) shouldEqual 0
+      fone.vb.asUInt(1) shouldEqual 1
+      folt.vb.asUInt(1) shouldEqual 1
+      fole.vb.asUInt(1) shouldEqual 1
+      fogt.vb.asUInt(1) shouldEqual 0
+      foge.vb.asUInt(1) shouldEqual 0
+      funo.vb.asUInt(1) shouldEqual 0
+      fueq.vb.asUInt(1) shouldEqual 0
+      fune.vb.asUInt(1) shouldEqual 1
+      fult.vb.asUInt(1) shouldEqual 1
+      fule.vb.asUInt(1) shouldEqual 1
+      fugt.vb.asUInt(1) shouldEqual 0
+      fuge.vb.asUInt(1) shouldEqual 0
+
+      TrapRebindPassVoid(st)
+    }
+
+    testFunc(ca, func, Seq(a0, a0)) { (ca, th, st, wp) =>
+      val Seq(ftrue, ffalse, ford, foeq, fone, folt, fole, fogt, foge, funo, fueq, fune, fult, fule, fugt, fuge) = ca.dumpKeepalives(st, 0)
+
+      ftrue.vb.asUInt(1) shouldEqual 1
+      ffalse.vb.asUInt(1) shouldEqual 0
+      ford.vb.asUInt(1) shouldEqual 1
+      foeq.vb.asUInt(1) shouldEqual 1
+      fone.vb.asUInt(1) shouldEqual 0
+      folt.vb.asUInt(1) shouldEqual 0
+      fole.vb.asUInt(1) shouldEqual 1
+      fogt.vb.asUInt(1) shouldEqual 0
+      foge.vb.asUInt(1) shouldEqual 1
+      funo.vb.asUInt(1) shouldEqual 0
+      fueq.vb.asUInt(1) shouldEqual 1
+      fune.vb.asUInt(1) shouldEqual 0
+      fult.vb.asUInt(1) shouldEqual 0
+      fule.vb.asUInt(1) shouldEqual 1
+      fugt.vb.asUInt(1) shouldEqual 0
+      fuge.vb.asUInt(1) shouldEqual 1
+
+      TrapRebindPassVoid(st)
+    }
+
+    val a2 = ca.putFloat("@float", Float.NaN)
+
+    testFunc(ca, func, Seq(a0, a2)) { (ca, th, st, wp) =>
+      val Seq(ftrue, ffalse, ford, foeq, fone, folt, fole, fogt, foge, funo, fueq, fune, fult, fule, fugt, fuge) = ca.dumpKeepalives(st, 0)
+
+      ftrue.vb.asUInt(1) shouldEqual 1
+      ffalse.vb.asUInt(1) shouldEqual 0
+      ford.vb.asUInt(1) shouldEqual 0
+      foeq.vb.asUInt(1) shouldEqual 0
+      fone.vb.asUInt(1) shouldEqual 0
+      folt.vb.asUInt(1) shouldEqual 0
+      fole.vb.asUInt(1) shouldEqual 0
+      fogt.vb.asUInt(1) shouldEqual 0
+      foge.vb.asUInt(1) shouldEqual 0
+      funo.vb.asUInt(1) shouldEqual 1
+      fueq.vb.asUInt(1) shouldEqual 1
+      fune.vb.asUInt(1) shouldEqual 1
+      fult.vb.asUInt(1) shouldEqual 1
+      fule.vb.asUInt(1) shouldEqual 1
+      fugt.vb.asUInt(1) shouldEqual 1
+      fuge.vb.asUInt(1) shouldEqual 1
+
+      TrapRebindPassVoid(st)
+    }
+    ca.close()
+  }
+
+  "Comparing operations" should "work on double" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@cmp_d")
+
+    val a0 = ca.putDouble("@double", 1.0d)
+    val a1 = ca.putDouble("@double", 2.0d)
+
+    testFunc(ca, func, Seq(a0, a1)) { (ca, th, st, wp) =>
+      val Seq(ftrue, ffalse, ford, foeq, fone, folt, fole, fogt, foge, funo, fueq, fune, fult, fule, fugt, fuge) = ca.dumpKeepalives(st, 0)
+
+      ftrue.vb.asUInt(1) shouldEqual 1
+      ffalse.vb.asUInt(1) shouldEqual 0
+      ford.vb.asUInt(1) shouldEqual 1
+      foeq.vb.asUInt(1) shouldEqual 0
+      fone.vb.asUInt(1) shouldEqual 1
+      folt.vb.asUInt(1) shouldEqual 1
+      fole.vb.asUInt(1) shouldEqual 1
+      fogt.vb.asUInt(1) shouldEqual 0
+      foge.vb.asUInt(1) shouldEqual 0
+      funo.vb.asUInt(1) shouldEqual 0
+      fueq.vb.asUInt(1) shouldEqual 0
+      fune.vb.asUInt(1) shouldEqual 1
+      fult.vb.asUInt(1) shouldEqual 1
+      fule.vb.asUInt(1) shouldEqual 1
+      fugt.vb.asUInt(1) shouldEqual 0
+      fuge.vb.asUInt(1) shouldEqual 0
+
+      TrapRebindPassVoid(st)
+    }
+
+    testFunc(ca, func, Seq(a0, a0)) { (ca, th, st, wp) =>
+      val Seq(ftrue, ffalse, ford, foeq, fone, folt, fole, fogt, foge, funo, fueq, fune, fult, fule, fugt, fuge) = ca.dumpKeepalives(st, 0)
+
+      ftrue.vb.asUInt(1) shouldEqual 1
+      ffalse.vb.asUInt(1) shouldEqual 0
+      ford.vb.asUInt(1) shouldEqual 1
+      foeq.vb.asUInt(1) shouldEqual 1
+      fone.vb.asUInt(1) shouldEqual 0
+      folt.vb.asUInt(1) shouldEqual 0
+      fole.vb.asUInt(1) shouldEqual 1
+      fogt.vb.asUInt(1) shouldEqual 0
+      foge.vb.asUInt(1) shouldEqual 1
+      funo.vb.asUInt(1) shouldEqual 0
+      fueq.vb.asUInt(1) shouldEqual 1
+      fune.vb.asUInt(1) shouldEqual 0
+      fult.vb.asUInt(1) shouldEqual 0
+      fule.vb.asUInt(1) shouldEqual 1
+      fugt.vb.asUInt(1) shouldEqual 0
+      fuge.vb.asUInt(1) shouldEqual 1
+
+      TrapRebindPassVoid(st)
+    }
+
+    val a2 = ca.putDouble("@double", Double.NaN)
+
+    testFunc(ca, func, Seq(a0, a2)) { (ca, th, st, wp) =>
+      val Seq(ftrue, ffalse, ford, foeq, fone, folt, fole, fogt, foge, funo, fueq, fune, fult, fule, fugt, fuge) = ca.dumpKeepalives(st, 0)
+
+      ftrue.vb.asUInt(1) shouldEqual 1
+      ffalse.vb.asUInt(1) shouldEqual 0
+      ford.vb.asUInt(1) shouldEqual 0
+      foeq.vb.asUInt(1) shouldEqual 0
+      fone.vb.asUInt(1) shouldEqual 0
+      folt.vb.asUInt(1) shouldEqual 0
+      fole.vb.asUInt(1) shouldEqual 0
+      fogt.vb.asUInt(1) shouldEqual 0
+      foge.vb.asUInt(1) shouldEqual 0
+      funo.vb.asUInt(1) shouldEqual 1
+      fueq.vb.asUInt(1) shouldEqual 1
+      fune.vb.asUInt(1) shouldEqual 1
+      fult.vb.asUInt(1) shouldEqual 1
+      fule.vb.asUInt(1) shouldEqual 1
+      fugt.vb.asUInt(1) shouldEqual 1
+      fuge.vb.asUInt(1) shouldEqual 1
+
+      TrapRebindPassVoid(st)
+    }
+    ca.close()
+  }
+
+  "Comparing operations" should "work on vectors" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@cmp_vec")
+
+    val a0 = ca.putIntVec("@4xi32", Seq(1, 1, 2, 2))
+    val a1 = ca.putIntVec("@4xi32", Seq(1, 2, 1, 2))
+    val a2 = ca.putFloatVec("@4xfloat", Seq(1.0f, 1.0f, 2.0f, 2.0f))
+    val a3 = ca.putFloatVec("@4xfloat", Seq(1.0f, 2.0f, 1.0f, 2.0f))
+    val a4 = ca.putDoubleVec("@2xdouble", Seq(1.0d, 2.0d))
+    val a5 = ca.putDoubleVec("@2xdouble", Seq(2.0d, 2.0d))
+
+    testFunc(ca, func, Seq(a0, a1, a2, a3, a4, a5)) { (ca, th, st, wp) =>
+      val Seq(eq, slt, foeqf, fultf, foeqd, fultd) = ca.dumpKeepalives(st, 0)
+
+      eq.vb.asVec.map(_.asUInt(1)) shouldEqual Seq(1, 0, 0, 1)
+      slt.vb.asVec.map(_.asUInt(1)) shouldEqual Seq(0, 1, 0, 0)
+      foeqf.vb.asVec.map(_.asUInt(1)) shouldEqual Seq(1, 0, 0, 1)
+      fultf.vb.asVec.map(_.asUInt(1)) shouldEqual Seq(0, 1, 0, 0)
+      foeqd.vb.asVec.map(_.asUInt(1)) shouldEqual Seq(0, 1)
+      fultd.vb.asVec.map(_.asUInt(1)) shouldEqual Seq(1, 0)
+
+      TrapRebindPassVoid(st)
+    }
+
+    val a6 = ca.putFloatVec("@4xfloat", Seq(Float.NaN, Float.NaN, Float.NaN, Float.NaN))
+    val a7 = ca.putDoubleVec("@2xdouble", Seq(Double.NaN, Double.NaN))
+
+    testFunc(ca, func, Seq(a0, a1, a2, a6, a4, a7)) { (ca, th, st, wp) =>
+      val Seq(eq, slt, foeqf, fultf, foeqd, fultd) = ca.dumpKeepalives(st, 0)
+
+      foeqf.vb.asVec.map(_.asUInt(1)) shouldEqual Seq(0, 0, 0, 0)
+      fultf.vb.asVec.map(_.asUInt(1)) shouldEqual Seq(1, 1, 1, 1)
+      foeqd.vb.asVec.map(_.asUInt(1)) shouldEqual Seq(0, 0)
+      fultd.vb.asVec.map(_.asUInt(1)) shouldEqual Seq(1, 1)
+
+      TrapRebindPassVoid(st)
+    }
+    ca.close()
+  }
+
+  "Conversions" should "work on scalar types" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@conv")
+
+    val a0 = ca.putInt("@i32", 0xfedcba98L)
+    val a1 = ca.putInt("@i64", 0x123456789abcdef0L)
+    val a2 = ca.putFloat("@float", 1.5f)
+    val a3 = ca.putDouble("@double", 6.25d)
+
+    testFunc(ca, func, Seq(a0, a1, a2, a3)) { (ca, th, st, wp) =>
+      val Seq(trunc, zext, sext, fptrunc, fpext, fptoui1, fptosi1, fptoui2, fptosi2, uitofp, sitofp,
+        bitcast1, bitcast2, bitcast3, bitcast4) = ca.dumpKeepalives(st, 0)
+
+      trunc.vb.asUInt(32) shouldBe 0x9abcdef0L
+      zext.vb.asUInt(64) shouldBe 0xfedcba98L
+      sext.vb.asUInt(64) shouldBe BigInt("fffffffffedcba98", 16)
+
+      fptrunc.vb.asFloat shouldBe 6.25f
+      fpext.vb.asDouble shouldBe 1.5d
+
+      fptoui1.vb.asSInt(64) shouldBe 6
+      fptosi1.vb.asSInt(64) shouldBe 6
+      fptoui2.vb.asSInt(32) shouldBe 1
+      fptosi2.vb.asSInt(32) shouldBe 1
+      uitofp.vb.asDouble shouldBe 0x123456789abcdef0L.doubleValue()
+      sitofp.vb.asDouble shouldBe 0x123456789abcdef0L.doubleValue()
+
+      bitcast1.vb.asSInt(32) shouldBe java.lang.Float.floatToRawIntBits(1.5f)
+      bitcast2.vb.asSInt(64) shouldBe java.lang.Double.doubleToRawLongBits(6.25d)
+      bitcast3.vb.asFloat shouldBe 1.5f
+      bitcast4.vb.asDouble shouldBe 6.25d
+
+      TrapRebindPassVoid(st)
+    }
+    val a5 = ca.putInt("@i64", -0x123456789abcdef0L)
+
+    testFunc(ca, func, Seq(a0, a5, a2, a3)) { (ca, th, st, wp) =>
+      val Seq(trunc, zext, sext, fptrunc, fpext, fptoui1, fptosi1, fptoui2, fptosi2, uitofp, sitofp,
+        bitcast1, bitcast2, bitcast3, bitcast4) = ca.dumpKeepalives(st, 0)
+
+      sitofp.vb.asDouble shouldBe (-0x123456789abcdef0L).doubleValue()
+
+      TrapRebindPassVoid(st)
+    }
+
+    ca.close()
+  }
+
+  "Conversions" should "work on vector types" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@conv_vec")
+
+    val a0 = ca.putIntVec("@4xi32", Seq(0x12345678L, 0x9abcdef0L, 0xfedcba98L, 0x76543210L))
+    val a1 = ca.putFloatVec("@4xfloat", Seq(1.0f, 1.5f, 2.0f, 2.5f))
+    val a2 = ca.putDoubleVec("@2xdouble", Seq(1.0d, 1.5d))
+
+    testFunc(ca, func, Seq(a0, a1, a2)) { (ca, th, st, wp) =>
+      val Seq(trunc, zext, sext, fptrunc, fpext) = ca.dumpKeepalives(st, 0)
+
+      trunc.vb.asVec.map(_.asUInt(16)) shouldBe Seq(0x5678L, 0xdef0L, 0xba98L, 0x3210L)
+      zext.vb.asVec.map(_.asUInt(64)) shouldBe Seq(0x12345678L, 0x9abcdef0L, 0xfedcba98L, 0x76543210L)
+      sext.vb.asVec.map(_.asUInt(64)) shouldBe Seq(0x12345678L, BigInt("ffffffff9abcdef0", 16), BigInt("fffffffffedcba98", 16), 0x76543210L)
+
+      fptrunc.vb.asVec.map(_.asFloat) shouldBe Seq(1.0f, 1.5f)
+      fpext.vb.asVec.map(_.asDouble) shouldBe Seq(1.0d, 1.5d, 2.0d, 2.5d)
+
+      TrapRebindPassVoid(st)
+    }
+
+    ca.close()
+  }
+
+  "The SELECT instruction" should "work on both scalars and vectors and allow per-element select" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@select")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val Seq(sel1, sel2, sel3, sel4, sel5) = ca.dumpKeepalives(st, 0)
+
+      sel1.vb.asSInt(64) shouldBe 2
+      sel2.vb.asSInt(64) shouldBe 3
+
+      sel3.vb.asVec.map(_.asSInt(32)) shouldBe Seq(0, 5, 6, 3)
+
+      sel4.vb.asVec.map(_.asSInt(32)) shouldBe Seq(0, 1, 2, 3)
+      sel5.vb.asVec.map(_.asSInt(32)) shouldBe Seq(4, 5, 6, 7)
+
+      TrapRebindPassVoid(st)
+    }
+
+    ca.close()
+  }
+
 }

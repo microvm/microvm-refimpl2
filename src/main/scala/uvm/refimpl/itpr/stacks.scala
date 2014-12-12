@@ -57,7 +57,13 @@ class InterpreterFrame(val funcVer: FuncVer, val prev: Option[InterpreterFrame])
     boxes.put(lv, ValueBox.makeBoxForType(ty))
   }
 
-  def curInst: Instruction = curBB.insts(curInstIndex)
+  def curInst: Instruction = try {
+    curBB.insts(curInstIndex)
+  } catch {
+    case e: IndexOutOfBoundsException =>
+      throw new UvmRefImplException(("Current instruction beyond the last instruction of a basic block. " +
+        "FuncVer: %s, BasicBlock: %s").format(funcVer.repr, curBB.repr))
+  }
 
   def incPC() {
     curInstIndex += 1

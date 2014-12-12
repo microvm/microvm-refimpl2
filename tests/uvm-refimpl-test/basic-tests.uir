@@ -59,14 +59,14 @@
 .typedef @4xi32    = vector <@i32 4>
 .typedef @2xdouble = vector <@double 2>
 
-.const @4xI32_V1 <@4xi32> = {@I32_0 @I32_1 @I32_2 @I32_3}
-.const @4xI32_V2 <@4xi32> = {@I32_4 @I32_5 @I32_6 @I32_7}
+.const @4xI32_V1 <@4xi32> = VEC {@I32_0 @I32_1 @I32_2 @I32_3}
+.const @4xI32_V2 <@4xi32> = VEC {@I32_4 @I32_5 @I32_6 @I32_7}
 
-.const @4xF_V1 <@4xfloat> = {@F_0 @F_1 @F_2 @F_3}
-.const @4xF_V2 <@4xfloat> = {@F_4 @F_5 @F_6 @F_7}
+.const @4xF_V1 <@4xfloat> = VEC {@F_0 @F_1 @F_2 @F_3}
+.const @4xF_V2 <@4xfloat> = VEC {@F_4 @F_5 @F_6 @F_7}
 
-.const @2xD_V1 <@2xdouble> = {@D_0 @D_1}
-.const @2xD_V2 <@2xdouble> = {@D_2 @D_3}
+.const @2xD_V1 <@2xdouble> = VEC {@D_0 @D_1}
+.const @2xD_V2 <@2xdouble> = VEC {@D_2 @D_3}
 
 .funcsig @i_ii = @i64 (@i64 @i64)
 
@@ -209,8 +209,6 @@
         %trap = TRAP <@void> KEEPALIVE (
             %eq %ne %ult %ule %ugt %uge %slt %sle %sgt %sge
             )
-        
-    %exit:
         COMMINST @uvm.thread_exit
 }
 
@@ -238,8 +236,6 @@
             %ftrue %ffalse %ford %foeq %fone %folt %fole %fogt %foge
             %funo %fueq %fune %fult %fule %fugt %fuge
             )
-        
-    %exit:
         COMMINST @uvm.thread_exit
 }
 
@@ -267,8 +263,22 @@
             %ftrue %ffalse %ford %foeq %fone %folt %fole %fogt %foge
             %funo %fueq %fune %fult %fule %fugt %fuge
             )
-        
-    %exit:
+        COMMINST @uvm.thread_exit
+}
+
+.funcsig @cmp_vec_sig = @void (@4xi32 @4xi32 @4xfloat @4xfloat @2xdouble @2xdouble)
+.funcdef @cmp_vec VERSION @cmp_vec_v1 <@cmp_vec_sig> (%p0 %p1 %p2 %p3 %p4 %p5) {
+    %entry:
+        %eq      = EQ   <@4xi32>    %p0 %p1
+        %slt     = SLT  <@4xi32>    %p0 %p1
+        %foeqf   = FOEQ <@4xfloat>  %p2 %p3
+        %fultf   = FULT <@4xfloat>  %p2 %p3
+        %foeqd   = FOEQ <@2xdouble> %p4 %p5
+        %fultd   = FULT <@2xdouble> %p4 %p5
+
+        %trap = TRAP <@void> KEEPALIVE (
+            %eq %slt %foeqf %fultf %foeqd %fultd
+            )
         COMMINST @uvm.thread_exit
 }
 
@@ -282,24 +292,51 @@
         %fptrunc = FPTRUNC <@double @float> %p3
         %fpext   = FPEXT   <@float @double> %p2
         
-        %fptoui  = FPTOUI  <@double @i64> %p3
-        %fptosi  = FPTOSI  <@double @i64> %p3
+        %fptoui1 = FPTOUI  <@double @i64> %p3
+        %fptosi1 = FPTOSI  <@double @i64> %p3
+        %fptoui2 = FPTOUI  <@float @i32> %p2
+        %fptosi2 = FPTOSI  <@float @i32> %p2
         %uitofp  = UITOFP  <@i64 @double> %p1
         %sitofp  = SITOFP  <@i64 @double> %p1
         
-        %bitcast = BITCAST <@double @i64> %p3
+        %bitcast1 = BITCAST <@float  @i32> %p2
+        %bitcast2 = BITCAST <@double @i64> %p3
+        %bitcast3 = BITCAST <@i32 @float > %bitcast1
+        %bitcast4 = BITCAST <@i64 @double> %bitcast2
         
         %trap = TRAP <@void> KEEPALIVE (
-            %trunc %zext %sext %fptrunc %fpext %fptoui %fptosi %uitofp %sitofp
-            %bitcast
+            %trunc %zext %sext %fptrunc %fpext
+            %fptoui1 %fptosi1 %fptoui2 %fptosi2 %uitofp %sitofp
+            %bitcast1 %bitcast2 %bitcast3 %bitcast4
             )
-    %exit:
         COMMINST @uvm.thread_exit
 }
 
+.typedef @4xi16    = vector <@i16 4>
+.typedef @4xi64    = vector <@i64 4>
+.typedef @4xdouble = vector <@double 4>
+.typedef @2xfloat  = vector <@float 2>
+
+.funcsig @conv_vec_sig = @void (@4xi32 @4xfloat @2xdouble)
+.funcdef @conv_vec VERSION @conv_vec_v1 <@conv_vec_sig> (%p0 %p1 %p2) {
+    %entry:
+        %trunc = TRUNC <@4xi32 @4xi16> %p0
+        %zext  = ZEXT  <@4xi32 @4xi64> %p0
+        %sext  = SEXT  <@4xi32 @4xi64> %p0
+        
+        %fptrunc = FPTRUNC <@2xdouble @2xfloat> %p2
+        %fpext   = FPEXT   <@4xfloat @4xdouble> %p1
+
+        %trap = TRAP <@void> KEEPALIVE (
+            %trunc %zext %sext %fptrunc %fpext
+            )
+        COMMINST @uvm.thread_exit
+}
+
+
 .typedef @4xi1 = vector <@i1 4>
 
-.const @4xI1_COND <@4xi1> = {@TRUE @FALSE @FALSE @TRUE}
+.const @4xI1_COND <@4xi1> = VEC {@TRUE @FALSE @FALSE @TRUE}
 
 .funcdef @select VERSION @select_v1 <@noparamsnoret> () {
     %entry:
@@ -314,8 +351,6 @@
         %trap = TRAP <@void> KEEPALIVE (
             %sel1 %sel2 %sel3 %sel4 %sel5
             )
-        
-    %exit:
         COMMINST @uvm.thread_exit
 }
 

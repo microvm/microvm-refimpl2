@@ -255,14 +255,14 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             case ConvOptr.ZEXT  => iToI()
             case ConvOptr.SEXT  => iToI()
             case ConvOptr.FPTRUNC => {
-              val od = opnd.asInstanceOf[BoxDouble].value
+              val od = bOpnd.asInstanceOf[BoxDouble].value
               val result = od.toFloat
-              boxOf(i).asInstanceOf[BoxFloat].value = result
+              br.asInstanceOf[BoxFloat].value = result
             }
             case ConvOptr.FPEXT => {
-              val od = opnd.asInstanceOf[BoxFloat].value
+              val od = bOpnd.asInstanceOf[BoxFloat].value
               val result = od.toDouble
-              boxOf(i).asInstanceOf[BoxDouble].value = result
+              br.asInstanceOf[BoxDouble].value = result
             }
             case ConvOptr.FPTOUI  => fpToI(signed = false)
             case ConvOptr.FPTOSI  => fpToI(signed = true)
@@ -290,9 +290,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         incPC()
       }
 
-      case i @ InstSelect(opndTy, condTy, cond, ifTrue, ifFalse) => {
+      case i @ InstSelect(condTy, opndTy, cond, ifTrue, ifFalse) => {
         def doScalar(bCond: ValueBox, bTrue: ValueBox, bFalse: ValueBox, br: ValueBox): Unit = {
           val c = bCond.asInstanceOf[BoxInt].value
+
           if (c == 1) {
             br.copyFrom(bTrue)
           } else {
@@ -314,7 +315,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           case TypeInt(1) => {
             doScalar(boxOf(cond), boxOf(ifTrue), boxOf(ifFalse), boxOf(i))
           }
-          case _ => throw new UvmRefImplException(ctx + "Condition must be either int<1> or a vector of int<1>")
+          case _ => throw new UvmRefImplException(ctx + "Condition must be either int<1> or a vector of int<1>. Found %s".format(condTy))
         }
 
         continueNormally()

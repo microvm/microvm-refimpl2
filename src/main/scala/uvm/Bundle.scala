@@ -33,7 +33,7 @@ class Bundle {
   val constantNs = new SimpleNamespace[Constant]()
   val globalCellNs = new SimpleNamespace[GlobalCell]()
   val funcNs = new SimpleNamespace[Function]()
-
+  
   private def simpleMerge[T <: Identified](oldNs: Namespace[T], newNs: Namespace[T]) {
     for (cand <- newNs.all) {
       if (!cand.isInstanceOf[Function] || oldNs.get(cand.id) == None) {

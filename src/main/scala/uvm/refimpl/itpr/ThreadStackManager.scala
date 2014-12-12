@@ -56,7 +56,7 @@ class ThreadStackManager(microVM: MicroVM) {
     do {
       someRunning = false
       val curThreads = threadRegistry.values.toList
-      for (thr2 <- curThreads) {
+      for (thr2 <- curThreads if thr2.isRunning) {
         thr2.step()
         someRunning = thr2.isRunning || someRunning
       }

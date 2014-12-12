@@ -66,7 +66,10 @@ object TypeInferer {
     case f: Function => funcOf(f.sig)
     case p: Parameter => p.funcVer.sig.paramTy(p.index)
     case i: InstBinOp => i.opndTy
-    case i: InstCmp => I1
+    case i: InstCmp => i.opndTy match {
+      case TypeVector(_, l) => vecOf(I1, l)
+      case _ => I1
+    }
     case i: InstConv => i.toTy
     case i: InstSelect => i.opndTy
     case i: InstBranch => VOID

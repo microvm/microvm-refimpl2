@@ -26,6 +26,17 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
   val clientAgents = new HashSet[ClientAgent]()
   
   val irReader = new UIRTextReader(new IDFactory())
+  
+  {
+    // The µVM allocates stacks on the heap in the large object space. It is represented as a bug chunk of byte array.
+    // So the GC must know about this type because the GC looks up the globalBundle for types.
+    globalBundle.allNs.add(InternalTypes.VOID)
+    globalBundle.typeNs.add(InternalTypes.VOID)
+    globalBundle.allNs.add(InternalTypes.BYTE)
+    globalBundle.typeNs.add(InternalTypes.BYTE)
+    globalBundle.allNs.add(InternalTypes.BYTE_ARRAY)
+    globalBundle.typeNs.add(InternalTypes.BYTE_ARRAY)
+  }
 
   /**
    * Add things from a bundle to the Micro VM.

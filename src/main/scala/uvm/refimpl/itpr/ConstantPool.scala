@@ -20,7 +20,7 @@ class ConstantPool(microVM: MicroVM) {
   }
 
   def makeBox(g: GlobalVariable): ValueBox = g match {
-    case ConstInt(ty, num) => BoxInt(num & (1 << ty.asInstanceOf[TypeInt].length))
+    case ConstInt(ty, num) => BoxInt(OpHelper.unprepare(num, ty.asInstanceOf[TypeInt].length))
     case ConstFloat(ty, num) => BoxFloat(num)
     case ConstDouble(ty, num) => BoxDouble(num)
     case ConstStruct(ty, flds) => BoxStruct(flds.map(maybeMakeBox))
@@ -31,6 +31,7 @@ class ConstantPool(microVM: MicroVM) {
       case _:TypeThread => BoxThread(None)
       case _:TypeStack => BoxStack(None)
     }
+    case ConstVector(ty, elems) => BoxVector(elems.map(maybeMakeBox))
     case gc:GlobalCell => BoxIRef(0L, microVM.memoryManager.globalMemory.addrForGlobalCell(gc))
     case f:Function => BoxFunc(Some(f))
   }
