@@ -45,8 +45,15 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
   }
 
   def ctx = stack match {
-    case None    => "(Thred not bound to stack): "
-    case Some(_) => "FuncVer %s, BasicBlock %s, Instruction %s (%s): ".format(top.funcVer.repr, curBB.repr, curInst.repr, curInst.getClass.getName)
+    case None => "(Thred not bound to stack): "
+    case Some(_) => {
+      val ix = top.curInstIndex
+      if (ix >= curBB.insts.size) {
+        "FuncVer %s, BasicBlock %s, Instruction exceeds the basic block (error)".format(top.funcVer.repr, curBB.repr)
+      } else {
+        "FuncVer %s, BasicBlock %s, Instruction %s (%s): ".format(top.funcVer.repr, curBB.repr, curInst.repr, curInst.getClass.getName)
+      }
+    }
   }
 
   private def interpretCurrentInstruction(): Unit = try {
@@ -321,6 +328,30 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         continueNormally()
       }
 
+      case i @ InstBranch(dest) => {
+        branchAndMovePC(dest)
+      }
+
+      case i @ InstBranch2(cond, ifTrue, ifFalse) => {
+        val cv = boxOf(cond).asInstanceOf[BoxInt].value
+        val dest = if (cv == 1) ifTrue else ifFalse
+        branchAndMovePC(dest)
+      }
+
+      case i @ InstSwitch(opndTy, opnd, defDest, cases) => {
+        opndTy match {
+          case TypeInt(l) => {
+            val ov = boxOf(opnd).asInstanceOf[BoxInt].value
+            val dest = cases.find(pair => boxOf(pair._1).asInstanceOf[BoxInt].value == ov).map(_._2).getOrElse(defDest)
+            branchAndMovePC(dest)
+          }
+          case _ => throw new UvmRefImplException("Operand type must be integer. %s found.".format(opndTy))
+        }
+      }
+
+      case i @ InstPhi(_, _) => throw new UvmRefImplException("PHI instructions reached in normal execution, " +
+        "but PHI must only appear in the beginning of basic blocks and not in the entry block.")
+
       // Indentation guide: Insert more instructions here.
 
       case i @ InstTrap(retTy, excClause, keepAlives) => {
@@ -359,6 +390,9 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           case "@uvm.thread_exit" => {
             threadExit()
           }
+
+          // Insert more CommInsts here.
+
           case ciName => {
             throw new UvmRefImplException("Unimplemented common instruction %s".format(ciName))
           }
@@ -384,7 +418,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     while (cont) {
       dest.insts(i) match {
         case phi @ InstPhi(opndTy, cases) => {
-          val caseVal = cases.find({ case (bb, _) => bb == dest }).map(_._2).getOrElse {
+          val caseVal = cases.find(_._1 == curBB).map(_._2).getOrElse {
             throw new UvmRuntimeException(s"Phi node ${phi.repr} does not include the case for source basic block ${curBB.repr}")
           }
           val vb = boxOf(caseVal)
@@ -405,6 +439,9 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
   def continueNormally(): Unit = {
     curInst match {
+      case wp: InstWatchPoint => {
+        throw new UvmRefImplException("Not Implemented")
+      }
       case h: HasExcClause => h.excClause match {
         case None => incPC()
         case Some(ec) => {

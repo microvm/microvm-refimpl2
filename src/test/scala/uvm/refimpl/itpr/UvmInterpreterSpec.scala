@@ -74,17 +74,17 @@ class UvmInterpreterSpec extends FlatSpec with Matchers {
     def asTR64Raw: Long = vb.asInstanceOf[BoxTagRef64].raw
     def asVec: Seq[ValueBox] = vb.asInstanceOf[BoxVector].values
   }
-  
+
   "The constant pool" should "contain appropriate constant values" in {
     def gvb(name: String) = microVM.constantPool.getGlobalVarBox(microVM.globalBundle.globalVarNs(name))
-    
+
     gvb("@TRUE").asUInt(1) shouldBe 1
     gvb("@FALSE").asUInt(1) shouldBe 0
-    
+
     gvb("@I32_1").asUInt(32) shouldBe 1
     gvb("@I32_2").asUInt(32) shouldBe 2
     gvb("@I32_7").asUInt(32) shouldBe 7
-    
+
     gvb("@I64_5").asUInt(64) shouldBe 5
   }
 
@@ -706,4 +706,55 @@ class UvmInterpreterSpec extends FlatSpec with Matchers {
     ca.close()
   }
 
+  "Branching" should "work" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@branch")
+
+    val a0 = ca.putInt("@i64", 0)
+    val a1 = ca.putInt("@i64", 1)
+
+    testFunc(ca, func, Seq(a0)) { (ca, th, st, wp) =>
+      nameOf(ca.currentInstruction(st, 0)) shouldBe "@branch_v1.traptrue"
+      TrapRebindPassVoid(st)
+    }
+
+    testFunc(ca, func, Seq(a1)) { (ca, th, st, wp) =>
+      nameOf(ca.currentInstruction(st, 0)) shouldBe "@branch_v1.trapfalse"
+      TrapRebindPassVoid(st)
+    }
+
+    ca.close()
+  }
+
+  "SWTICH and PHI" should "work" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@switch_phi")
+
+    val a0 = ca.putInt("@i64", 0)
+    val a1 = ca.putInt("@i64", 1)
+    val a2 = ca.putInt("@i64", 2)
+    val a3 = ca.putInt("@i64", 3)
+
+    def expectFlow(midTrapName: String, phiValue: BigInt): TrapHandlerFunction = { (ca, th, st, wp) =>
+      val M = midTrapName
+      nameOf(ca.currentInstruction(st, 0)) match {
+        case M => {}
+        case "@switch_phi_v1.trapend" => {
+          val Seq(phi) = ca.dumpKeepalives(st, 0)
+          phi.vb.asSInt(64) shouldBe phiValue
+        }
+        case trapName => fail("Trap %s should not be reached. Should reach %s.".format(trapName))
+      }
+      TrapRebindPassVoid(st)
+    }
+
+    testFunc(ca, func, Seq(a0))(expectFlow("@switch_phi_v1.trapdef", 4))
+    testFunc(ca, func, Seq(a1))(expectFlow("@switch_phi_v1.trapone", 5))
+    testFunc(ca, func, Seq(a2))(expectFlow("@switch_phi_v1.traptwo", 6))
+    testFunc(ca, func, Seq(a3))(expectFlow("@switch_phi_v1.trapthree", 7))
+
+    ca.close()
+  }
 }

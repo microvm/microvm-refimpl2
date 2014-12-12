@@ -354,57 +354,57 @@
         COMMINST @uvm.thread_exit
 }
 
-// .funcsig @branch_sig = @void (@i64)
-// .funcdef @branch VERSION @branch_v1 <@branch_sig> (%p0) {
-// %entry:
-//     %cmpz = EQ <@i64> %p0 0
-//     BRANCH2 %cmpz %iftrue %iffalse
-//     
-// %iftrue:
-//     %traptrue = TRAP <@void> %exit %exit KEEPALIVE ()
-//     
-// %iffalse:
-//     %trapfalse = TRAP <@void> %exit %exit KEEPALIVE ()
-//     
-// %exit:
-//     COMMINST @uvm.thread_exit
-//     RETVOID // unreachable
-// }
-// 
-// .funcsig @switch_phi_sig = @void (@i64)
-// .funcdef @switch_phi VERSION @switch_phi_v1 <@switch_phi_sig> (%p0) {
-// %entry:
-//     SWITCH <@i64> %p0 %def {
-//         1: %one;
-//         2: %two;
-//         3: %three;
-//     }
-//     
-// %def:
-//     %trapdef = TRAP <@void> %exit %exit KEEPALIVE ()
-//     
-// %one:
-//     %trapone = TRAP <@void> %exit %exit KEEPALIVE ()
-//     
-// %two:
-//     %traptwo = TRAP <@void> %exit %exit KEEPALIVE ()
-//     
-// %three:
-//     %trapthree = TRAP <@void> %exit %exit KEEPALIVE ()
-//     
-// %exit:
-//     %phi = PHI <@i64> {
-//         %def: 10;
-//         %one: 11;
-//         %two: 12;
-//         %three: 13;
-//     }
-//     %trapend = TRAP <@void> %exit2 %exit2 KEEPALIVE (%phi)
-// %exit2:
-//     COMMINST @uvm.thread_exit
-//     RETVOID // unreachable
-// }
-// 
+.funcsig @branch_sig = @void (@i64)
+.funcdef @branch VERSION @branch_v1 <@branch_sig> (%p0) {
+    %entry:
+        BRANCH %head
+
+    %head:
+        %cmpz = EQ <@i64> %p0 @I64_0
+        BRANCH2 %cmpz %iftrue %iffalse
+        
+    %iftrue:
+        %traptrue = TRAP <@void>
+        COMMINST @uvm.thread_exit
+        
+    %iffalse:
+        %trapfalse = TRAP <@void>
+        COMMINST @uvm.thread_exit
+}
+
+
+.funcsig @switch_phi_sig = @void (@i64)
+.funcdef @switch_phi VERSION @switch_phi_v1 <@switch_phi_sig> (%p0) {
+    %entry:
+        SWITCH <@i64> %p0 %def {
+            @I64_1: %one;
+            @I64_2: %two;
+            @I64_3: %three;
+        }
+        
+    %def:
+        %trapdef   = TRAP <@void> EXC(%exit %exit)
+        
+    %one:
+        %trapone   = TRAP <@void> EXC(%exit %exit)
+        
+    %two:
+        %traptwo   = TRAP <@void> EXC(%exit %exit)
+        
+    %three:
+        %trapthree = TRAP <@void> EXC(%exit %exit)
+        
+    %exit:
+        %phi = PHI <@i64> {
+            %def:   @I64_4;
+            %one:   @I64_5;
+            %two:   @I64_6;
+            %three: @I64_7;
+        }
+        %trapend = TRAP <@void> KEEPALIVE (%phi)
+        COMMINST @uvm.thread_exit
+}
+
 // .funcsig @square_sum_sig = @i_ii
 // .funcdef @square_sum VERSION @square_sum_v1 <@square_sum_sig> (%a %b) {
 // %entry:

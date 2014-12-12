@@ -224,7 +224,7 @@ case class InstAtomicRMW(var ord: MemoryOrder, var op: AtomicRMWOptr,
 
 case class InstFence(var ord: MemoryOrder) extends Instruction
 
-case class InstTrap(var retTy: Type, var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable]) extends AbstractTrap
+case class InstTrap(var retTy: Type, var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable]) extends AbstractTrap with HasExcClause
 
 case class InstWatchPoint(var wpID: Int, var retTy: Type,
                           var dis: BasicBlock, var ena: BasicBlock, var exc: Option[BasicBlock],
