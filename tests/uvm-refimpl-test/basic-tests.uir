@@ -68,6 +68,7 @@
 .const @2xD_V1 <@2xdouble> = VEC {@D_0 @D_1}
 .const @2xD_V2 <@2xdouble> = VEC {@D_2 @D_3}
 
+.funcsig @i_i = @i64 (@i64)
 .funcsig @i_ii = @i64 (@i64 @i64)
 
 .typedef @refvoid = ref<@void>
@@ -420,25 +421,28 @@
         COMMINST @uvm.thread_exit
 }
 
-// .funcsig @thrower_sig = @noparamsnoret
-// .funcdef @thrower VERSION @thrower_v1 <@thrower_sig> () {
-// %entry:
-//     THROW @NULLREF
-// }
-// 
-// .funcsig @invoke_landingpad_sig = @noparamsnoret
-// .funcdef @invoke_landingpad VERSION @invoke_landingpad_v1 <@invoke_landingpad_sig> () {
-// %entry:
-//     %ss = INVOKE <@noparamsnoret> @thrower () %nor %exc
-// %nor:
-//     %trapnor = TRAP <@void> %exit %exit KEEPALIVE ()
-// %exc:
-//     %lp = LANDINGPAD
-//     %trapexc = TRAP <@void> %exit %exit KEEPALIVE (%lp)
-// %exit:
-//     COMMINST @uvm.thread_exit
-// }
-// 
+.funcdef @thrower VERSION @thrower_v1 <@i_i> (%p0) {
+    %entry:
+        %n0 = NE <@i64> %p0 @I64_0
+        BRANCH2 %n0 %nz %z
+    %nz:
+        RET <@i64> %p0
+    %z:
+        THROW @NULLREF
+}
+
+.funcdef @call_throw VERSION @call_throw_v1 <@i_i> (%p0) {
+    %entry:
+        %rv = CALL <@i_i> @thrower (%p0) EXC(%nor %exc)
+    %nor:
+        %trapnor = TRAP <@void> EXC(%exit %exit) KEEPALIVE (%rv)
+    %exc:
+        %lp = LANDINGPAD
+        %trapexc = TRAP <@void> EXC(%exit %exit) KEEPALIVE (%lp)
+    %exit:
+        COMMINST @uvm.thread_exit
+}
+
 // // Some simple struct constants
 // 
 // .typedef @StructFoo = struct <@i32 @i64 @float @double>

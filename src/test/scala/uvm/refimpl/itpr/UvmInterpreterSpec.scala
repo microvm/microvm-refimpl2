@@ -765,12 +765,51 @@ class UvmInterpreterSpec extends FlatSpec with Matchers {
 
     val a0 = ca.putInt("@i64", 3)
     val a1 = ca.putInt("@i64", 4)
-    
+
     testFunc(ca, func, Seq(a0, a1)) { (ca, th, st, wp) =>
       val Seq(ss) = ca.dumpKeepalives(st, 0)
-      
+
       ss.vb.asInt shouldEqual 25
-      
+
+      TrapRebindPassVoid(st)
+    }
+    ca.close()
+  }
+
+  "CALL, THROW and LANDINGPAD" should "handle exceptions" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@call_throw")
+
+    val a0 = ca.putInt("@i64", 3)
+
+    testFunc(ca, func, Seq(a0)) { (ca, th, st, wp) =>
+      nameOf(ca.currentInstruction(st, 0)) match {
+        case "@call_throw_v1.trapnor" => {
+          val Seq(rv) = ca.dumpKeepalives(st, 0)
+          rv.vb.asInt shouldEqual 3
+        }
+        case "@call_throw_v1.trapexc" => {
+          fail("Should not receive exception")
+        }
+      }
+
+      TrapRebindPassVoid(st)
+    }
+
+    val a1 = ca.putInt("@i64", 0)
+
+    testFunc(ca, func, Seq(a1)) { (ca, th, st, wp) =>
+      nameOf(ca.currentInstruction(st, 0)) match {
+        case "@call_throw_v1.trapnor" => {
+          fail("Should not return normally")
+        }
+        case "@call_throw_v1.trapexc" => {
+          val Seq(lp) = ca.dumpKeepalives(st, 0)
+          lp.vb.asRef shouldEqual 0L
+        }
+      }
+
       TrapRebindPassVoid(st)
     }
     ca.close()

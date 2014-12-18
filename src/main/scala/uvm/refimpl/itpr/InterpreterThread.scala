@@ -387,6 +387,15 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         continueNormally()
       }
       
+      case i @ InstThrow(excVal) => {
+        val exc = boxOf(excVal).asInstanceOf[BoxRef].objRef
+        curStack.popFrame()
+        catchException(exc)
+      }
+      
+      case i @ InstLandingPad() => throw new UvmRefImplException(ctx + "LANDINGPAD instructions reached in normal execution, " +
+        "but LANDINGPAD must only appear in the beginning of basic blocks and not in the entry block.")
+      
       // Indentation guide: Insert more instructions here.
 
       case i @ InstTrap(retTy, excClause, keepAlives) => {
