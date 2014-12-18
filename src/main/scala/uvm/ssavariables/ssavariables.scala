@@ -4,7 +4,9 @@ import uvm._
 import uvm.comminsts._
 import uvm.types._
 
-abstract class SSAVariable extends IdentifiedSettable
+abstract class SSAVariable extends IdentifiedSettable {
+  override def hashCode(): Int = id
+}
 
 // Global variables: Constants, Global Cells and Functions (Function is defined in controlFlow.scala)
 

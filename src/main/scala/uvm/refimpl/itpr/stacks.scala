@@ -30,6 +30,22 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
       res
     }
   }
+
+  def pushFrame(funcVer: FuncVer, args: Seq[ValueBox]): Unit = {
+    val newFrame = InterpreterFrame.frameForCall(funcVer, args, Some(top))
+    top = newFrame
+  }
+
+  def replaceTop(funcVer: FuncVer, args: Seq[ValueBox]): Unit = {
+    val newFrame = InterpreterFrame.frameForCall(funcVer, args, top.prev)
+    top = newFrame
+  }
+
+  def popFrame(): Unit = {
+    top = top.prev.getOrElse {
+      throw new UvmRuntimeException("Attemting to pop the last frame of a stack. Stack ID: %d.".format(id))
+    }
+  }
 }
 
 class InterpreterFrame(val funcVer: FuncVer, val prev: Option[InterpreterFrame]) {

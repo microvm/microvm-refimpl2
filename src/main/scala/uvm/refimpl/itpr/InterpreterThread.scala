@@ -57,8 +57,6 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
   }
 
   private def interpretCurrentInstruction(): Unit = try {
-    val curInst = this.curInst
-
     logger.debug(ctx + "Executing instruction...")
 
     curInst match {
@@ -345,13 +343,50 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             val dest = cases.find(pair => boxOf(pair._1).asInstanceOf[BoxInt].value == ov).map(_._2).getOrElse(defDest)
             branchAndMovePC(dest)
           }
-          case _ => throw new UvmRefImplException("Operand type must be integer. %s found.".format(opndTy))
+          case _ => throw new UvmRefImplException(ctx + "Operand type must be integer. %s found.".format(opndTy))
         }
       }
 
-      case i @ InstPhi(_, _) => throw new UvmRefImplException("PHI instructions reached in normal execution, " +
+      case i @ InstPhi(_, _) => throw new UvmRefImplException(ctx + "PHI instructions reached in normal execution, " +
         "but PHI must only appear in the beginning of basic blocks and not in the entry block.")
 
+      case i @ InstCall(sig, callee, argList, excClause, keepAlives) => {
+        val calleeFunc = boxOf(callee).asInstanceOf[BoxFunc].func.getOrElse {
+          throw new UvmRuntimeException(ctx + "Callee must not be NULL")
+        }
+
+        val funcVer = getFuncDefOrTriggerCallback(calleeFunc)
+
+        val argBoxes = argList.map(boxOf)
+
+        curStack.pushFrame(funcVer, argBoxes)
+      }
+      
+      case i @ InstTailCall(sig, callee, argList) => {
+        val calleeFunc = boxOf(callee).asInstanceOf[BoxFunc].func.getOrElse {
+          throw new UvmRuntimeException(ctx + "Callee must not be NULL")
+        }
+
+        val funcVer = getFuncDefOrTriggerCallback(calleeFunc)
+
+        val argBoxes = argList.map(boxOf)
+
+        curStack.replaceTop(funcVer, argBoxes)
+      }
+      
+      case i @ InstRet(retTy, retVal) => {
+        val rvb = boxOf(retVal)
+        curStack.popFrame()
+        val newCurInst = curInst // in the parent frame of the RET
+        boxOf(newCurInst).copyFrom(rvb)
+        continueNormally()
+      }
+      
+      case i @ InstRetVoid() => {
+        curStack.popFrame()
+        continueNormally()
+      }
+      
       // Indentation guide: Insert more instructions here.
 
       case i @ InstTrap(retTy, excClause, keepAlives) => {
@@ -406,7 +441,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     }
   } catch {
     case e: Exception => {
-      logger.debug(ctx + "Exception thrown while interpreting instruction.")
+      logger.error(ctx + "Exception thrown while interpreting instruction.")
       throw e
     }
   }
@@ -531,8 +566,20 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
       case i: InstWatchPoint => i.exc
       case i: InstSwapStack  => i.excClause.map(_.exc)
       case _ => {
-        throw new UvmRefImplException("Instruction %s (%s) is in a stack frame when an exception is thrown.".format(inst.repr, inst.getClass.getName))
+        throw new UvmRefImplException(ctx + "Instruction %s (%s) is in a stack frame when an exception is thrown.".format(inst.repr, inst.getClass.getName))
       }
     }
   }
+
+  @tailrec
+  private def getFuncDefOrTriggerCallback(f: Function): FuncVer = {
+    f.versions.headOption match {
+      case Some(v) => v
+      case None =>
+        logger.debug(ctx + "Function %s is undefined. Trigger undefined function event.".format(f.repr))
+        microVM.trapManager.undefinedFunctionHandler.handleUndefinedFunction(f.id)
+        getFuncDefOrTriggerCallback(f)
+    }
+  }
+
 }

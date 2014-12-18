@@ -757,4 +757,22 @@ class UvmInterpreterSpec extends FlatSpec with Matchers {
 
     ca.close()
   }
+
+  "CALL and RET" should "work for normal returns" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@call_ret")
+
+    val a0 = ca.putInt("@i64", 3)
+    val a1 = ca.putInt("@i64", 4)
+    
+    testFunc(ca, func, Seq(a0, a1)) { (ca, th, st, wp) =>
+      val Seq(ss) = ca.dumpKeepalives(st, 0)
+      
+      ss.vb.asInt shouldEqual 25
+      
+      TrapRebindPassVoid(st)
+    }
+    ca.close()
+  }
 }

@@ -405,24 +405,21 @@
         COMMINST @uvm.thread_exit
 }
 
-// .funcsig @square_sum_sig = @i_ii
-// .funcdef @square_sum VERSION @square_sum_v1 <@square_sum_sig> (%a %b) {
-// %entry:
-//     %a2 = MUL <@i64> %a %a
-//     %b2 = MUL <@i64> %b %b
-//     %s  = ADD <@i64> %a2 %b2
-//     RET <@i64> %s
-// }
-// 
-// .funcsig @call_ret_sig = @i_ii
-// .funcdef @call_ret VERSION @call_ret_v1 <@call_ret_sig> (%a %b) {
-// %entry:
-//     %ss = CALL <@i_ii> @square_sum (%a %b)
-//     %trap = TRAP <@void> KEEPALIVE (%ss)
-// %exit:
-//     COMMINST @uvm.thread_exit
-// }
-// 
+.funcdef @square_sum VERSION @square_sum_v1 <@i_ii> (%a %b) {
+    %entry:
+        %a2 = MUL <@i64> %a %a
+        %b2 = MUL <@i64> %b %b
+        %s  = ADD <@i64> %a2 %b2
+        RET <@i64> %s
+}
+
+.funcdef @call_ret VERSION @call_ret_v1 <@i_ii> (%a %b) {
+    %entry:
+        %ss = CALL <@i_ii> @square_sum (%a %b)
+        %trap = TRAP <@void> KEEPALIVE (%ss)
+        COMMINST @uvm.thread_exit
+}
+
 // .funcsig @thrower_sig = @noparamsnoret
 // .funcdef @thrower VERSION @thrower_v1 <@thrower_sig> () {
 // %entry:
