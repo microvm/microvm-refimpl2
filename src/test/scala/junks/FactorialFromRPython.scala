@@ -11,14 +11,12 @@ object FactorialFromRPython extends App {
   ca.loadBundle(r)
   r.close()
 
-  // Magical trick. Theoretically the client would publish bundles as binary and knows all the IDs. But in this version
-  // only the text form is supported and IDs are automatically generated. So we look into the globalBundle itself.
-  val m = ca.putFunction(microVM.globalBundle.funcNs("@main").id)
+  val m = ca.putFunction(microVM.idOf("@main"))
 
   microVM.trapManager.trapHandler = new TrapHandler {
     override def handleTrap(ca: ClientAgent, thread: Handle, stack: Handle, watchPointID: Int): TrapHandlerResult = {
       val curInst = ca.currentInstruction(stack, 0)
-      val trapName = microVM.globalBundle.varNs(curInst).name.get
+      val trapName = microVM.nameOf(curInst)
 
       if (trapName == "@main_v1.main_trap") {
         val kas = ca.dumpKeepalives(stack, 0)
