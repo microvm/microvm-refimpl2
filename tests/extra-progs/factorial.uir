@@ -1,0 +1,55 @@
+.typedef @i32 = int<32>
+.typedef @bool = int<1>
+
+.const @I32_1 <@i32> = 1
+
+.funcsig @fac_sig = @i32 (@i32)
+.funcdef @fac VERSION @fac_v1 <@fac_sig> (%n_3)
+{
+  %fac_block_0:
+    // %v46 = EQ <@i32> %n_3 %1
+    %v46 = EQ <@i32> %n_3 @I32_1
+    // %v47 = BITCAST <@bool @bool> %v46
+    // BRANCH2 %v47 %fac_block_2 %fac_block_1
+    BRANCH2 %v46 %fac_block_2 %fac_block_1
+
+  %fac_block_1:
+    // n_4 = PHI <@i32>
+    %n_4 = PHI <@i32>
+    {
+      // %fac_block_0: %n_3
+      %fac_block_0: %n_3 ;
+    // {
+    }
+    // %v48 = SUB <@i32> %n_4 %1
+    %v48 = SUB <@i32> %n_4 @I32_1
+    // %v49 = CALL <@fac_sig> @fac %v48
+    %v49 = CALL <@fac_sig> @fac (%v48)
+    %v50 = MUL <@i32> %n_4 %v49
+    BRANCH %fac_block_2
+
+  %fac_block_2:
+    // v51 = PHI <@i32>
+    %v51 = PHI <@i32>
+    {
+      //%fac_block_1: %v50
+      %fac_block_1: %v50 ;
+      // %fac_block_0: %1
+      %fac_block_0: @I32_1 ;
+    // {
+    }
+    // RET <@i32> v51
+    RET <@i32> %v51
+}
+
+.typedef @void = void
+
+.const @I32_10 <@i32> = 10
+
+.funcsig @main_sig = @void ()
+.funcdef @main VERSION @main_v1 <@main_sig> () {
+    %entry:
+        %rv = CALL <@fac_sig> @fac (@I32_10)
+        %main_trap = TRAP <@void> KEEPALIVE (%rv)
+        COMMINST @uvm.thread_exit
+}
