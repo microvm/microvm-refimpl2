@@ -21,9 +21,9 @@ class Bundle {
    * 
    * TODO: Should there be a global "basic block ns for all function versions"?
    */
-  
+
   val allNs = new SimpleNamespace[Identified]()
-  
+
   val typeNs = new SimpleNamespace[Type]()
   val funcSigNs = new SimpleNamespace[FuncSig]()
   val funcVerNs = new SimpleNamespace[FuncVer]()
@@ -33,7 +33,22 @@ class Bundle {
   val constantNs = new SimpleNamespace[Constant]()
   val globalCellNs = new SimpleNamespace[GlobalCell]()
   val funcNs = new SimpleNamespace[Function]()
-  
+
+  /**
+   * Add an identified entity to its appropriate global namespaces.
+   */
+  def add(obj: Identified): Unit = {
+    allNs.add(obj)
+    if (obj.isInstanceOf[Type]) typeNs.add(obj.asInstanceOf[Type])
+    if (obj.isInstanceOf[FuncSig]) funcSigNs.add(obj.asInstanceOf[FuncSig])
+    if (obj.isInstanceOf[FuncVer]) funcVerNs.add(obj.asInstanceOf[FuncVer])
+    if (obj.isInstanceOf[SSAVariable]) varNs.add(obj.asInstanceOf[SSAVariable])
+    if (obj.isInstanceOf[GlobalVariable]) globalVarNs.add(obj.asInstanceOf[GlobalVariable])
+    if (obj.isInstanceOf[Constant]) constantNs.add(obj.asInstanceOf[Constant])
+    if (obj.isInstanceOf[GlobalCell]) globalCellNs.add(obj.asInstanceOf[GlobalCell])
+    if (obj.isInstanceOf[Function]) funcNs.add(obj.asInstanceOf[Function])
+  }
+
   private def simpleMerge[T <: Identified](oldNs: Namespace[T], newNs: Namespace[T]) {
     for (cand <- newNs.all) {
       if (!cand.isInstanceOf[Function] || oldNs.get(cand.id) == None) {
@@ -54,12 +69,12 @@ class Bundle {
     for (cand <- newNs.all) {
       val id = cand.id
       oldNs.get(id) match {
-        case None => oldNs.add(cand)
+        case None         => oldNs.add(cand)
         case Some(oldObj) => oldObj.versions = cand.versions.head :: oldObj.versions
       }
     }
   }
-  
+
   def merge(newBundle: Bundle) {
     simpleMerge(allNs, newBundle.allNs)
     simpleMerge(typeNs, newBundle.typeNs)

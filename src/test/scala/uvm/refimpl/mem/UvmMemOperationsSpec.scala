@@ -10,28 +10,18 @@ import uvm.refimpl.itpr._
 import MemoryOrder._
 import AtomicRMWOptr._
 
-class UvmMemOperationsSpec extends FlatSpec with Matchers with BeforeAndAfter {
+class UvmMemOperationsSpec extends UvmBundleTesterBase {
 
   // The heap size is intentionally reduced to make GC more often
   // The heap is divided in two halves. There is a 256KiB small object space (with 8 32KiB blocks) and a 256KiB large
   // object space.
-  val microVM = new MicroVM(heapSize = 512L * 1024L);
+  override def makeMicroVM() = new MicroVM(heapSize = 512L * 1024L)
 
-  implicit def idOf(name: String): Int = microVM.globalBundle.allNs(name).id
+  microVM.memoryManager.heap.space.debugLogBlockStates()
 
-  {
-    microVM.memoryManager.heap.space.debugLogBlockStates()
+  preloadBundles("tests/uvm-refimpl-test/uvm-mem-test-bundle.uir")
 
-    val ca = microVM.newClientAgent()
-
-    val r = new FileReader("tests/uvm-refimpl-test/uvm-mem-test-bundle.uir")
-    ca.loadBundle(r)
-
-    r.close()
-    ca.close()
-
-    microVM.memoryManager.heap.space.debugLogBlockStates()
-  }
+  microVM.memoryManager.heap.space.debugLogBlockStates()
 
   behavior of "UVM memory manager"
 
@@ -287,7 +277,7 @@ class UvmMemOperationsSpec extends FlatSpec with Matchers with BeforeAndAfter {
       val hIOutVal = ca.toInt(hIOut, true)
       hIOutVal.intValue shouldEqual i
     }
-    
+
     ca.close()
   }
 

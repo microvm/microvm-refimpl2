@@ -5,10 +5,11 @@ import uvm.refimpl._
 object FactorialFromRPython extends App {
   val microVM = new MicroVM()
 
-  val r = new java.io.FileReader("tests/extra-progs/factorial.uir")
-
   val ca = microVM.newClientAgent()
+
+  val r = new java.io.FileReader("tests/extra-progs/factorial.uir")
   ca.loadBundle(r)
+  r.close()
 
   // Magical trick. Theoretically the client would publish bundles as binary and knows all the IDs. But in this version
   // only the text form is supported and IDs are automatically generated. So we look into the globalBundle itself.

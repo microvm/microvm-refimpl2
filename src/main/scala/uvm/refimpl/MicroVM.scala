@@ -52,6 +52,18 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
     }
   }
   
+  /**
+   * Create a new ClientAgent.
+   */
   def newClientAgent(): ClientAgent = new ClientAgent(this)
 
+  /**
+   * Given a name, get the ID of an identified entity.
+   */
+  def idOf(name: String): Int = globalBundle.allNs(name).id
+  
+  /**
+   * Given an ID, get the name of an identified entity.
+   */
+  def nameOf(id: Int): String = globalBundle.allNs(id).name.get
 }

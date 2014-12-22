@@ -11,69 +11,15 @@ import MemoryOrder._
 import AtomicRMWOptr._
 import uvm.refimpl.mem.TypeSizes.Word
 
-class UvmInterpreterSpec extends FlatSpec with Matchers {
+import ch.qos.logback.classic.Level._
 
-  { // Configure logger
-    import org.slf4j.LoggerFactory
-    import org.slf4j.{ Logger => SLogger }
-    import ch.qos.logback.classic.{ Logger => LLogger, Level }
-    import ch.qos.logback.classic.Level._
+class UvmInterpreterSpec extends UvmBundleTesterBase {
 
-    def setLevel(name: String, level: Level): Unit = {
-      LoggerFactory.getLogger(name).asInstanceOf[LLogger].setLevel(level)
-    }
-
-    setLevel(SLogger.ROOT_LOGGER_NAME, INFO)
-    setLevel("uvm.refimpl.itpr", DEBUG)
-  }
-
-  val microVM = new MicroVM();
-
-  implicit def idOf(name: String): Int = microVM.globalBundle.allNs(name).id
-  implicit def nameOf(id: Int): String = microVM.globalBundle.allNs(id).name.get
-
-  {
-    val ca = microVM.newClientAgent()
-
-    val r = new FileReader("tests/uvm-refimpl-test/basic-tests.uir")
-    ca.loadBundle(r)
-
-    r.close()
-    ca.close()
-  }
-
-  type TrapHandlerFunction = (ClientAgent, Handle, Handle, Int) => TrapHandlerResult
-
-  class MockTrapHandler(thf: TrapHandlerFunction) extends TrapHandler {
-    def handleTrap(ca: ClientAgent, thread: Handle, stack: Handle, watchPointID: Int): TrapHandlerResult = {
-      thf(ca, thread, stack, watchPointID)
-    }
-  }
-
-  def testFunc(ca: ClientAgent, func: Handle, args: Seq[Handle])(handler: TrapHandlerFunction): Unit = {
-    microVM.trapManager.trapHandler = new MockTrapHandler(handler)
-    val hStack = ca.newStack(func, args)
-    val hThread = ca.newThread(hStack)
-    microVM.threadStackManager.joinAll()
-  }
-
-  implicit class MagicalBox(vb: ValueBox) {
-    def asInt: BigInt = vb.asInstanceOf[BoxInt].value
-    def asSInt(l: Int): BigInt = OpHelper.prepareSigned(vb.asInstanceOf[BoxInt].value, l)
-    def asUInt(l: Int): BigInt = OpHelper.prepareUnsigned(vb.asInstanceOf[BoxInt].value, l)
-    def asFloat: Float = vb.asInstanceOf[BoxFloat].value
-    def asDouble: Double = vb.asInstanceOf[BoxDouble].value
-    def asRef: Word = vb.asInstanceOf[BoxRef].objRef
-    def asIRef: (Word, Word) = { val b = vb.asInstanceOf[BoxIRef]; (b.objRef, b.offset) }
-    def asIRefAddr: Word = { val b = vb.asInstanceOf[BoxIRef]; b.objRef + b.offset }
-    def asStruct: Seq[ValueBox] = vb.asInstanceOf[BoxStruct].values
-    def asFunc: Option[Function] = vb.asInstanceOf[BoxFunc].func
-    def asThread: Option[InterpreterThread] = vb.asInstanceOf[BoxThread].thread
-    def asStack: Option[InterpreterStack] = vb.asInstanceOf[BoxStack].stack
-    def asTR64Box: BoxTagRef64 = vb.asInstanceOf[BoxTagRef64]
-    def asTR64Raw: Long = vb.asInstanceOf[BoxTagRef64].raw
-    def asVec: Seq[ValueBox] = vb.asInstanceOf[BoxVector].values
-  }
+  setLogLevels(
+    ROOT_LOGGER_NAME -> INFO,
+    "uvm.refimpl.itpr" -> DEBUG)
+    
+  preloadBundles("tests/uvm-refimpl-test/basic-tests.uir")
 
   "The constant pool" should "contain appropriate constant values" in {
     def gvb(name: String) = microVM.constantPool.getGlobalVarBox(microVM.globalBundle.globalVarNs(name))
