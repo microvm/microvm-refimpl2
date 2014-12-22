@@ -7,6 +7,7 @@ import uvm.types._
 import uvm.ssavariables._
 import uvm.refimpl._
 import uvm.refimpl.itpr._
+import uvm.refimpl.mem._
 import MemoryOrder._
 import AtomicRMWOptr._
 import uvm.refimpl.mem.TypeSizes.Word
@@ -768,16 +769,16 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
       val Seq(f1, f12) = ca.dumpKeepalives(st, 0)
-      
+
       f1.vb.asSInt(64) shouldEqual 2
       f12.vb.asSInt(64) shouldEqual 7
-      
+
       TrapRebindPassVoid(st)
     }
 
     ca.close()
   }
-  
+
   "EXTRACTELEMENT and INSERTELEMENT" should "work on vectors" in {
     val ca = microVM.newClientAgent()
 
@@ -785,15 +786,63 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
       val Seq(ee0, ie0, sv0) = ca.dumpKeepalives(st, 0)
-      
+
       ee0.vb.asFloat shouldEqual 0.0f
       ie0.vb.asVec.map(_.asFloat) shouldEqual Seq(0.0f, 6.0f, 2.0f, 3.0f)
       sv0.vb.asVec.map(_.asFloat) shouldEqual Seq(0.0f, 2.0f, 4.0f, 6.0f)
-      
+
       TrapRebindPassVoid(st)
     }
 
     ca.close()
   }
-  
+
+  "NEW, NEWHYBRID, ALLOCA, ALLOCAHYBRID" should "work" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@allocs")
+
+    val sz = ca.putInt("@i64", 20)
+
+    testFunc(ca, func, Seq(sz)) { (ca, th, st, wp) =>
+      val Seq(n, nh, a, ah) = ca.dumpKeepalives(st, 0)
+
+      // nothing to check at this moment
+
+      TrapRebindPassVoid(st)
+    }
+
+    ca.close()
+  }
+
+  "GETIREF, GETFIELDIREF, GITELEMIREF, SHIFTIREF, GETFIXEDPARTIREF AND GETVARPARTIREF" should "work" in {
+    implicit def typeOf(name: String): Type = microVM.globalBundle.typeNs(name)
+    implicit def structTypeOf(name: String): TypeStruct = typeOf(name).asInstanceOf[TypeStruct]
+    implicit def seqTypeOf(name: String): AbstractSeqType = typeOf(name).asInstanceOf[AbstractSeqType]
+    implicit def hybridTypeOf(name: String): TypeHybrid = typeOf(name).asInstanceOf[TypeHybrid]
+
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@memAddressing")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val Seq(barRef, barIRef, bar3, bazIRef, baz3, baz6, jaRef, jaIRef, jaFix, jaVar) = ca.dumpKeepalives(st, 0)
+
+      barIRef.vb.asIRef shouldEqual (barRef.vb.asRef, 0L)
+      bar3.vb.asIRefAddr shouldEqual (barRef.vb.asRef + TypeSizes.fieldOffsetOf("@StructBar", 3))
+
+      baz3.vb.asIRefAddr shouldEqual (bazIRef.vb.asIRefAddr + TypeSizes.elemOffsetOf("@ArrayBaz", 3))
+      baz6.vb.asIRefAddr shouldEqual (bazIRef.vb.asIRefAddr + TypeSizes.elemOffsetOf("@ArrayBaz", 6))
+      
+      jaIRef.vb.asIRefAddr shouldEqual (jaRef.vb.asRef)
+      jaFix.vb.asIRefAddr shouldEqual (jaRef.vb.asRef)
+      jaVar.vb.asIRefAddr shouldEqual (jaRef.vb.asRef + TypeSizes.varPartOffsetOf("@JavaLikeByteArray"))
+      
+
+      TrapRebindPassVoid(st)
+    }
+
+    ca.close()
+  }
+
 }

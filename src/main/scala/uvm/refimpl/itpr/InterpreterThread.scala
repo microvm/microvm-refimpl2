@@ -421,9 +421,9 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
       case i @ InstExtractElement(vecTy, indTy, opnd, index) => {
         val ob = boxOf(opnd).asInstanceOf[BoxVector]
         val indb = boxOf(index).asInstanceOf[BoxInt]
-        val ind = OpHelper.prepareSigned(indb.value, indTy.length)
+        val ind = OpHelper.prepareUnsigned(indb.value, indTy.length)
 
-        if (ind < 0 || ind > vecTy.len) {
+        if (ind > vecTy.len) {
           throw new UvmRuntimeException(ctx + "Index %d out of range. Vector type: %s".format(ind, vecTy))
         }
 
@@ -437,9 +437,9 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         val ob = boxOf(opnd).asInstanceOf[BoxVector]
 
         val indb = boxOf(index).asInstanceOf[BoxInt]
-        val ind = OpHelper.prepareSigned(indb.value, indTy.length)
+        val ind = OpHelper.prepareUnsigned(indb.value, indTy.length)
 
-        if (ind < 0 || ind > vecTy.len) {
+        if (ind > vecTy.len) {
           throw new UvmRuntimeException(ctx + "Index %d out of range. Vector type: %s".format(ind, vecTy))
         }
 
@@ -467,8 +467,8 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         val ib = boxOf(i).asInstanceOf[BoxVector]
 
         for (((meb, ieb), ind) <- (mb.values zip ib.values).zipWithIndex) {
-          val me = OpHelper.prepareSigned(meb.asInstanceOf[BoxInt].value, maskIntLen)
-          if (0 <= me && me < vecLen) {
+          val me = OpHelper.prepareUnsigned(meb.asInstanceOf[BoxInt].value, maskIntLen)
+          if (me < vecLen) {
             ieb.copyFrom(vb1.values(me.intValue))
           } else if (vecLen <= me && me < vecLen * 2) {
             ieb.copyFrom(vb2.values(me.intValue - vecLen))
@@ -476,6 +476,100 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             throw new UvmRuntimeException(ctx + "Index %d as the %d-th element of mask is out of range. Vector type: %s".format(me, ind, vecTy))
           }
         }
+        continueNormally()
+      }
+
+      case i @ InstNew(allocTy, excClause) => {
+        handleOutOfMemory(excClause) {
+          val addr = mutator.newScalar(allocTy)
+          val ib = boxOf(i).asInstanceOf[BoxRef]
+          ib.objRef = addr
+          continueNormally()
+        }
+      }
+
+      case i @ InstNewHybrid(allocTy, lenTy, length, excClause) => {
+        handleOutOfMemory(excClause) {
+          val lb = boxOf(length).asInstanceOf[BoxInt]
+          val len = OpHelper.prepareUnsigned(lb.value, lenTy.length)
+          val addr = mutator.newHybrid(allocTy, len.longValue)
+          val ib = boxOf(i).asInstanceOf[BoxRef]
+          ib.objRef = addr
+          continueNormally()
+        }
+      }
+
+      case i @ InstAlloca(allocTy, excClause) => {
+        handleOutOfMemory(excClause) {
+          val addr = mutator.allocaScalar(curStack.stackMemory, allocTy)
+          val ib = boxOf(i).asInstanceOf[BoxIRef]
+          ib.objRef = addr
+          ib.offset = 0L
+          continueNormally()
+        }
+      }
+
+      case i @ InstAllocaHybrid(allocTy, lenTy, length, excClause) => {
+        handleOutOfMemory(excClause) {
+          val lb = boxOf(length).asInstanceOf[BoxInt]
+          val len = OpHelper.prepareUnsigned(lb.value, lenTy.length)
+          val addr = mutator.allocaHybrid(curStack.stackMemory, allocTy, len.longValue)
+          val ib = boxOf(i).asInstanceOf[BoxIRef]
+          ib.objRef = addr
+          ib.offset = 0L
+          continueNormally()
+        }
+      }
+
+      case i @ InstGetIRef(referentTy, opnd) => {
+        val ob = boxOf(opnd).asInstanceOf[BoxRef]
+        val ib = boxOf(i).asInstanceOf[BoxIRef]
+        ib.objRef = ob.objRef
+        ib.offset = 0L
+        continueNormally()
+      }
+
+      case i @ InstGetFieldIRef(referentTy, index, opnd) => {
+        val ob = boxOf(opnd).asInstanceOf[BoxIRef]
+        val ib = boxOf(i).asInstanceOf[BoxIRef]
+        ib.objRef = ob.objRef
+        ib.offset = ob.offset + TypeSizes.fieldOffsetOf(referentTy, index)
+        continueNormally()
+      }
+
+      case i @ InstGetElemIRef(referentTy, indTy, opnd, index) => {
+        val ob = boxOf(opnd).asInstanceOf[BoxIRef]
+        val indb = boxOf(index).asInstanceOf[BoxInt]
+        val ind = OpHelper.prepareSigned(indb.value, indTy.length)
+        val ib = boxOf(i).asInstanceOf[BoxIRef]
+        ib.objRef = ob.objRef
+        ib.offset = ob.offset + TypeSizes.elemOffsetOf(referentTy, ind.longValue())
+        continueNormally()
+      }
+
+      case i @ InstShiftIRef(referentTy, offTy, opnd, offset) => {
+        val ob = boxOf(opnd).asInstanceOf[BoxIRef]
+        val offb = boxOf(offset).asInstanceOf[BoxInt]
+        val off = OpHelper.prepareSigned(offb.value, offTy.length)
+        val ib = boxOf(i).asInstanceOf[BoxIRef]
+        ib.objRef = ob.objRef
+        ib.offset = ob.offset + TypeSizes.shiftOffsetOf(referentTy, off.longValue())
+        continueNormally()
+      }
+      
+      case i @ InstGetFixedPartIRef(referentTy, opnd) => {
+        val ob = boxOf(opnd).asInstanceOf[BoxIRef]
+        val ib = boxOf(i).asInstanceOf[BoxIRef]
+        ib.objRef = ob.objRef
+        ib.offset = ob.offset
+        continueNormally()
+      }
+      
+      case i @ InstGetVarPartIRef(referentTy, opnd) => {
+        val ob = boxOf(opnd).asInstanceOf[BoxIRef]
+        val ib = boxOf(i).asInstanceOf[BoxIRef]
+        ib.objRef = ob.objRef
+        ib.offset = ob.offset + TypeSizes.varPartOffsetOf(referentTy)
         continueNormally()
       }
       
@@ -674,4 +768,16 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     }
   }
 
+  private def handleOutOfMemory(excClause: Option[ExcClause])(f: => Unit): Unit = {
+    try {
+      f
+    } catch {
+      case e: UvmOutOfMemoryException => {
+        excClause match {
+          case None                      => throw new UvmRuntimeException(ctx + "Out of memory and there is no handler.", e)
+          case Some(ExcClause(_, excBB)) => branchAndMovePC(excBB, 0L)
+        }
+      }
+    }
+  }
 }

@@ -473,63 +473,58 @@
         COMMINST @uvm.thread_exit
 }
 
-// .typedef @refi64 = ref<@i64>
-// .typedef @irefi64 = iref<@i64>
-// .typedef @weakrefi64 = weakref<@i64>
-// 
-// .typedef @StructBar = struct <
-//     @i64 @i32 @i16 @i8 @float @double
-//     @refi64 @irefi64 @weakrefi64
-// >
-// 
-// .typedef @refBar = ref<@StructBar>
-// .typedef @irefBar = iref<@StructBar>
-// 
-// .typedef @hCharArray = hybrid<@i64 @i8>
-// 
-// .funcsig @allocs_sig = @void (@i64)
-// .funcdef @allocs VERSION @allocs_v1 <@allocs_sig> (%sz) {
-// %entry:
-//     %new = NEW <@StructBar>
-//     %newhybrid = NEWHYBRID <@hCharArray> %sz
-//     %alloca = ALLOCA <@StructBar>
-//     %allocahybrid = ALLOCAHYBRID <@hCharArray> %sz
-// 
-//     %trap = TRAP <@void> KEEPALIVE (%new %newhybrid %alloca %allocahybrid)
-// %exit:
-//     COMMINST @uvm.thread_exit
-// }
-// 
-// .typedef @ArrayBaz = array <@i16 1024>
-// .const @THREE <@i64> = 3
-// 
-// .typedef @JavaLikeByteArray = hybrid <@i32 @i8>
-// 
-// .const @I64_1024 <@i64> = 1024
-// 
-// .funcsig @memAddressing_sig = @noparamsnoret
-// .funcdef @memAddressing VERSION @memAddressing_v1 <@memAddressing_sig> () {
-// %entry:
-//     %bar_ref  = NEW <@StructBar>
-//     %bar_iref = GETIREF <@StructBar> %bar_ref
-//     %bar_3    = GETFIELDIREF <@StructBar 3> %bar_iref
-//     
-//     %baz_iref = ALLOCA <@ArrayBaz>
-//     %baz_3    = GETELEMIREF <@ArrayBaz> %baz_iref @THREE
-//     %baz_6    = SHIFTIREF <@i16> %baz_3 @THREE
-//     
-//     %ja_ref   = NEWHYBRID <@JavaLikeByteArray> @I64_1024
-//     %ja_iref  = GETIREF <@JavaLikeByteArray> %ja_ref
-//     %ja_fix   = GETFIXEDPARTIREF <@JavaLikeByteArray> %ja_iref
-//     %ja_var   = GETVARPARTIREF <@JavaLikeByteArray> %ja_iref
-// 
-//     %trap = TRAP <@void> KEEPALIVE (%bar_ref %bar_iref %bar_3
-//                 %baz_iref %baz_3 %baz_6 %ja_ref %ja_iref %ja_fix %ja_var)
-// %exit:
-//     COMMINST @uvm.thread_exit
-//     
-// }
-// 
+.typedef @refi64 = ref<@i64>
+.typedef @irefi64 = iref<@i64>
+.typedef @weakrefi64 = weakref<@i64>
+
+.typedef @StructBar = struct <
+    @i64 @i32 @i16 @i8 @float @double
+    @refi64 @irefi64 @weakrefi64
+>
+
+.typedef @refBar = ref<@StructBar>
+.typedef @irefBar = iref<@StructBar>
+
+.typedef @hCharArray = hybrid<@i64 @i8>
+
+.funcsig @allocs_sig = @void (@i64)
+.funcdef @allocs VERSION @allocs_v1 <@allocs_sig> (%sz) {
+    %entry:
+        %new = NEW <@StructBar>
+        %newhybrid = NEWHYBRID <@hCharArray @i64> %sz
+        %alloca = ALLOCA <@StructBar>
+        %allocahybrid = ALLOCAHYBRID <@hCharArray @i64> %sz
+
+        %trap = TRAP <@void> KEEPALIVE (%new %newhybrid %alloca %allocahybrid)
+        COMMINST @uvm.thread_exit
+}
+
+.typedef @ArrayBaz = array <@i16 1024>
+
+.typedef @JavaLikeByteArray = hybrid <@i32 @i8>
+
+.const @I64_1024 <@i64> = 1024
+
+.funcdef @memAddressing VERSION @memAddressing_v1 <@noparamsnoret> () {
+    %entry:
+        %bar_ref  = NEW <@StructBar>
+        %bar_iref = GETIREF <@StructBar> %bar_ref
+        %bar_3    = GETFIELDIREF <@StructBar 3> %bar_iref
+        
+        %baz_iref = ALLOCA <@ArrayBaz>
+        %baz_3    = GETELEMIREF <@ArrayBaz @i64> %baz_iref @I64_3
+        %baz_6    = SHIFTIREF <@i16 @i64> %baz_3 @I64_3
+        
+        %ja_ref   = NEWHYBRID <@JavaLikeByteArray @i64> @I64_1024
+        %ja_iref  = GETIREF <@JavaLikeByteArray> %ja_ref
+        %ja_fix   = GETFIXEDPARTIREF <@JavaLikeByteArray> %ja_iref
+        %ja_var   = GETVARPARTIREF <@JavaLikeByteArray> %ja_iref
+
+        %trap = TRAP <@void> KEEPALIVE (%bar_ref %bar_iref %bar_3
+                    %baz_iref %baz_3 %baz_6 %ja_ref %ja_iref %ja_fix %ja_var)
+        COMMINST @uvm.thread_exit
+}
+
 // .global @g_i8   <@i8>
 // .global @g_i16  <@i16>
 // .global @g_i32  <@i32>
