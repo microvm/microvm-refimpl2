@@ -239,12 +239,12 @@
 .typedef @sid = struct <@i64 @double>
 .const @sid1 <@sid> = {@I64_1 @D_1}
 
-.const @v1 <@4xfloat> = {@F_0 @F_0 @F_0 @F_0}
-.const @v2 <@4xfloat> = {@F_1 @F_1 @F_1 @F_1}
+.const @v1 <@4xfloat> = VEC {@F_0 @F_0 @F_0 @F_0}
+.const @v2 <@4xfloat> = VEC {@F_1 @F_1 @F_1 @F_1}
 
 .const @I32_4 <@i32> = 4
 .const @I32_6 <@i32> = 6
-.const @vshf <@4xi32> = {@I32_0 @I32_2 @I32_4 @I32_6}
+.const @vshf <@4xi32> = VEC {@I32_0 @I32_2 @I32_4 @I32_6}
 
 .funcdef @aggregate VERSION @aggregate_v1 <@npnr_sig> () {
     %entry:

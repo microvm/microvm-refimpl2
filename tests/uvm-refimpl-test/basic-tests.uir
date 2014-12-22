@@ -443,23 +443,36 @@
         COMMINST @uvm.thread_exit
 }
 
-// // Some simple struct constants
-// 
-// .typedef @StructFoo = struct <@i32 @i64 @float @double>
-// 
-// .const @STRUCT_FOO <@StructFoo> = {1 2 3.0f 4.0d}
-// 
-// .funcsig @aggregate_sig = @noparamsnoret
-// .funcdef @aggregate VERSION @aggregate_v1 <@aggregate_sig> () {
-// %entry:
-//     %f1 = EXTRACTVALUE <@StructFoo 1> @STRUCT_FOO
-//     %s2 = INSERTVALUE <@StructFoo 1> @STRUCT_FOO 222
-//     %f12 = EXTRACTVALUE <@StructFoo 1> %s2
-//     %trapnor = TRAP <@void> KEEPALIVE (%f1 %f12)
-// %exit:
-//     COMMINST @uvm.thread_exit
-// }
-// 
+// Some simple struct constants
+
+.typedef @StructFoo = struct <@i32 @i64 @float @double>
+
+.const @STRUCT_FOO <@StructFoo> = {@I32_1 @I64_2 @F_3 @D_4}
+
+.funcdef @aggregate_struct VERSION @aggregate_struct_v1 <@noparamsnoret> () {
+    %entry:
+        %f1  = EXTRACTVALUE <@StructFoo 1> @STRUCT_FOO
+        %s2  = INSERTVALUE  <@StructFoo 1> @STRUCT_FOO @I64_7
+        %f12 = EXTRACTVALUE <@StructFoo 1> %s2
+
+        %trapnor = TRAP <@void> KEEPALIVE (%f1 %f12)
+        COMMINST @uvm.thread_exit
+}
+
+.const @v1 <@4xfloat> = VEC {@F_0 @F_1 @F_2 @F_3}
+.const @v2 <@4xfloat> = VEC {@F_4 @F_5 @F_6 @F_7}
+.const @vshf <@4xi32> = VEC {@I32_0 @I32_2 @I32_4 @I32_6}
+
+.funcdef @aggregate_vector VERSION @aggregate_vector_v1 <@noparamsnoret> () {
+    %entry:
+        %ee0 = EXTRACTELEMENT <@4xfloat @i32> @4xF_V1 @I32_0
+        %ie0 = INSERTELEMENT  <@4xfloat @i32> @4xF_V1 @I32_1 @F_6
+        %sv0 = SHUFFLEVECTOR  <@4xfloat @4xi32> @4xF_V1 @4xF_V2 @vshf
+
+        %trapnor = TRAP <@void> KEEPALIVE (%ee0 %ie0 %sv0)
+        COMMINST @uvm.thread_exit
+}
+
 // .typedef @refi64 = ref<@i64>
 // .typedef @irefi64 = iref<@i64>
 // .typedef @weakrefi64 = weakref<@i64>

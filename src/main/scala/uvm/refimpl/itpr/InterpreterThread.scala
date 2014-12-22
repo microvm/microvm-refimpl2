@@ -361,7 +361,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
         curStack.pushFrame(funcVer, argBoxes)
       }
-      
+
       case i @ InstTailCall(sig, callee, argList) => {
         val calleeFunc = boxOf(callee).asInstanceOf[BoxFunc].func.getOrElse {
           throw new UvmRuntimeException(ctx + "Callee must not be NULL")
@@ -373,7 +373,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
         curStack.replaceTop(funcVer, argBoxes)
       }
-      
+
       case i @ InstRet(retTy, retVal) => {
         val rvb = boxOf(retVal)
         curStack.popFrame()
@@ -381,20 +381,103 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         boxOf(newCurInst).copyFrom(rvb)
         continueNormally()
       }
-      
+
       case i @ InstRetVoid() => {
         curStack.popFrame()
         continueNormally()
       }
-      
+
       case i @ InstThrow(excVal) => {
         val exc = boxOf(excVal).asInstanceOf[BoxRef].objRef
         curStack.popFrame()
         catchException(exc)
       }
-      
+
       case i @ InstLandingPad() => throw new UvmRefImplException(ctx + "LANDINGPAD instructions reached in normal execution, " +
         "but LANDINGPAD must only appear in the beginning of basic blocks and not in the entry block.")
+
+      case i @ InstExtractValue(strTy, index, opnd) => {
+        val ob = boxOf(opnd).asInstanceOf[BoxStruct]
+        val fb = ob.values(index)
+        val ib = boxOf(i)
+        ib.copyFrom(fb)
+        continueNormally()
+      }
+
+      case i @ InstInsertValue(strTy, index, opnd, newVal) => {
+        val ob = boxOf(opnd).asInstanceOf[BoxStruct]
+        val nvb = boxOf(newVal)
+        val ib = boxOf(i).asInstanceOf[BoxStruct]
+        for (((ofb, ifb), ind) <- (ob.values zip ib.values).zipWithIndex) {
+          if (ind == index) {
+            ifb.copyFrom(nvb)
+          } else {
+            ifb.copyFrom(ofb)
+          }
+        }
+        continueNormally()
+      }
+
+      case i @ InstExtractElement(vecTy, indTy, opnd, index) => {
+        val ob = boxOf(opnd).asInstanceOf[BoxVector]
+        val indb = boxOf(index).asInstanceOf[BoxInt]
+        val ind = OpHelper.prepareSigned(indb.value, indTy.length)
+
+        if (ind < 0 || ind > vecTy.len) {
+          throw new UvmRuntimeException(ctx + "Index %d out of range. Vector type: %s".format(ind, vecTy))
+        }
+
+        val eb = ob.values(ind.intValue())
+        val ib = boxOf(i)
+        ib.copyFrom(eb)
+        continueNormally()
+      }
+
+      case i @ InstInsertElement(vecTy, indTy, opnd, index, newVal) => {
+        val ob = boxOf(opnd).asInstanceOf[BoxVector]
+
+        val indb = boxOf(index).asInstanceOf[BoxInt]
+        val ind = OpHelper.prepareSigned(indb.value, indTy.length)
+
+        if (ind < 0 || ind > vecTy.len) {
+          throw new UvmRuntimeException(ctx + "Index %d out of range. Vector type: %s".format(ind, vecTy))
+        }
+
+        val indInt = ind.intValue
+
+        val nvb = boxOf(newVal)
+        val ib = boxOf(i).asInstanceOf[BoxVector]
+
+        for (((oeb, ieb), ind2) <- (ob.values zip ib.values).zipWithIndex) {
+          if (ind2 == indInt) {
+            ieb.copyFrom(nvb)
+          } else {
+            ieb.copyFrom(oeb)
+          }
+        }
+        continueNormally()
+      }
+
+      case i @ InstShuffleVector(vecTy, maskTy, vec1, vec2, mask) => {
+        val vecLen = vecTy.len.toInt
+        val maskIntLen = maskTy.elemTy.asInstanceOf[TypeInt].length
+        val vb1 = boxOf(vec1).asInstanceOf[BoxVector]
+        val vb2 = boxOf(vec2).asInstanceOf[BoxVector]
+        val mb = boxOf(mask).asInstanceOf[BoxVector]
+        val ib = boxOf(i).asInstanceOf[BoxVector]
+
+        for (((meb, ieb), ind) <- (mb.values zip ib.values).zipWithIndex) {
+          val me = OpHelper.prepareSigned(meb.asInstanceOf[BoxInt].value, maskIntLen)
+          if (0 <= me && me < vecLen) {
+            ieb.copyFrom(vb1.values(me.intValue))
+          } else if (vecLen <= me && me < vecLen * 2) {
+            ieb.copyFrom(vb2.values(me.intValue - vecLen))
+          } else {
+            throw new UvmRuntimeException(ctx + "Index %d as the %d-th element of mask is out of range. Vector type: %s".format(me, ind, vecTy))
+          }
+        }
+        continueNormally()
+      }
       
       // Indentation guide: Insert more instructions here.
 

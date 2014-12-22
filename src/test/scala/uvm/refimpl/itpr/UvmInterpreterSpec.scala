@@ -18,7 +18,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   setLogLevels(
     ROOT_LOGGER_NAME -> INFO,
     "uvm.refimpl.itpr" -> DEBUG)
-    
+
   preloadBundles("tests/uvm-refimpl-test/basic-tests.uir")
 
   "The constant pool" should "contain appropriate constant values" in {
@@ -760,4 +760,40 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     }
     ca.close()
   }
+
+  "EXTRACTVALUE and INSERTVALUE" should "work" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@aggregate_struct")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val Seq(f1, f12) = ca.dumpKeepalives(st, 0)
+      
+      f1.vb.asSInt(64) shouldEqual 2
+      f12.vb.asSInt(64) shouldEqual 7
+      
+      TrapRebindPassVoid(st)
+    }
+
+    ca.close()
+  }
+  
+  "EXTRACTELEMENT and INSERTELEMENT" should "work on vectors" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@aggregate_vector")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val Seq(ee0, ie0, sv0) = ca.dumpKeepalives(st, 0)
+      
+      ee0.vb.asFloat shouldEqual 0.0f
+      ie0.vb.asVec.map(_.asFloat) shouldEqual Seq(0.0f, 6.0f, 2.0f, 3.0f)
+      sv0.vb.asVec.map(_.asFloat) shouldEqual Seq(0.0f, 2.0f, 4.0f, 6.0f)
+      
+      TrapRebindPassVoid(st)
+    }
+
+    ca.close()
+  }
+  
 }

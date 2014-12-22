@@ -277,3 +277,10 @@ object PrimOpHelpers {
     }
   }
 }
+
+object AggregateOperations {
+  def extractValue(boxStr: BoxStruct, index: Int, boxResult: ValueBox): Unit = {
+    
+  }
+}
+
