@@ -577,7 +577,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         val uty = InternalTypePool.unmarkedOf(referentTy)
         val lb = boxOf(loc).asInstanceOf[BoxIRef]
         val ib = boxOf(i)
-          
+
         val la = lb.objRef + lb.offset
         if (la == 0L) {
           nullRefError(excClause)
@@ -586,7 +586,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           continueNormally()
         }
       }
-      
+
       case i @ InstStore(ord, referentTy, loc, newVal, excClause) => {
         val uty = InternalTypePool.unmarkedOf(referentTy)
         val lb = boxOf(loc).asInstanceOf[BoxIRef]
@@ -601,7 +601,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           continueNormally()
         }
       }
-      
+
       case i @ InstCmpXchg(weak, ordSucc, ordFail, referentTy, loc, expected, desired, excClause) => {
         val uty = InternalTypePool.unmarkedOf(referentTy)
         val lb = boxOf(loc).asInstanceOf[BoxIRef]
@@ -617,7 +617,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           continueNormally()
         }
       }
-      
+
       case i @ InstAtomicRMW(ord, op, referentTy, loc, opnd, excClause) => {
         val uty = InternalTypePool.unmarkedOf(referentTy)
         val lb = boxOf(loc).asInstanceOf[BoxIRef]
@@ -632,13 +632,11 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           continueNormally()
         }
       }
-      
+
       case i @ InstFence(ord) => {
         // No-op in this interpreter
         continueNormally()
       }
-
-      // Indentation guide: Insert more instructions here.
 
       case i @ InstTrap(retTy, excClause, keepAlives) => {
         val ca = microVM.newClientAgent()
@@ -668,6 +666,39 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         ca.close()
       }
 
+      case i @ InstWatchPoint(wpID, retTy, dis, ena, exc, keepAlives) => {
+        val isEnabled = microVM.trapManager.isWatchPointEnabled(wpID)
+
+        if (isEnabled) {
+          val ca = microVM.newClientAgent()
+
+          val hThread = ca.putThread(Some(this))
+          val hStack = ca.putStack(Some(curStack))
+
+          unbind(retTy)
+
+          val res = microVM.trapManager.trapHandler.handleTrap(ca, hThread, hStack, wpID)
+
+          res match {
+            case TrapExit() => {
+              isRunning = false
+            }
+            case TrapRebindPassValue(newStack, value) => {
+              rebindPassValue(newStack.vb.asInstanceOf[BoxStack].stack, value.vb)
+            }
+            case TrapRebindPassVoid(newStack) => {
+              rebindPassVoid(newStack.vb.asInstanceOf[BoxStack].stack)
+            }
+            case TrapRebindThrowExc(newStack, exc) => {
+              rebindThrowExc(newStack.vb.asInstanceOf[BoxStack].stack, exc.vb)
+            }
+          }
+
+          ca.close()
+        } else {
+          branchAndMovePC(dis)
+        }
+      }
       // Indentation guide: Insert more instructions (after TRAP) here.
 
       case i @ InstCommInst(ci, typeList, argList, excClause, keepAlives) => {
@@ -726,7 +757,11 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
   def continueNormally(): Unit = {
     curInst match {
       case wp: InstWatchPoint => {
-        throw new UvmRefImplException("Not Implemented")
+        branchAndMovePC(wp.ena)
+        // NOTE: WatchPoint only "continue normally" when the current stack is rebound with value or void.
+        // This includes executing a watch point. In any case, this watch point must have been enabled. If the watch
+        // point is disabled during the course the stack is unbound, this watch point should still continue from the
+        // destination determined WHEN THIS INSTRUCTION IS EXECUTED.
       }
       case h: HasExcClause => h.excClause match {
         case None => incPC()
@@ -797,6 +832,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     val f = s.top
     val (newFrame, newBB) = unwindUntilCatchable(f)
     s.top = newFrame
+    
+    if (exc != 0L) {
+      logger.debug("Catching exception %d".format(exc))
+    }
 
     branchAndMovePC(newBB, exc)
   }

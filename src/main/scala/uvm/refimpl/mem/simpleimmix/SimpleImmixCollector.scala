@@ -5,7 +5,7 @@ import uvm.refimpl.itpr._
 import uvm.refimpl.mem._
 import uvm.refimpl.mem.los.LargeObjectSpace
 import uvm.refimpl.mem.scanning._
-import TypeSizes.Word
+import TypeSizes._
 import uvm.types._
 import SimpleImmixCollector._
 import org.slf4j.LoggerFactory
@@ -15,10 +15,6 @@ import uvm.refimpl.UvmRefImplException
 
 object SimpleImmixCollector {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
-
-  private val MARK_MASK = 0x4000000000000000L
-
-  private val MOVE_MASK = 0x8000000000000000L
 }
 
 class SimpleImmixCollector(val heap: SimpleImmixHeap,
@@ -52,29 +48,42 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
 
     logger.debug("Marking and getting statistics....")
     val s1 = new AllScanner(microVM, new RefFieldHandler() {
-      override def fromBox(box: HasObjRef): Boolean = box match {
+      override def fromBox(box: HasObjRef): Option[Word] = box match {
         case HasNonZeroRef(toObj) => maybeMarkAndStat(toObj)
-        case _ => false
+        case _ => None
       }
 
-      override def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Boolean = {
+      override def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Option[Word] = {
         if (toObj != 0L) {
           if (isWeak) {
             logger.debug(s"Enqueued weak reference ${iRef} to ${toObj}")
             weakRefs.append(iRef)
-            false
+            None
           } else {
             maybeMarkAndStat(toObj)
           }
         } else {
-          false
+          None
         }
       }
 
-      override def fromInternal(toObj: Word): Boolean = if (toObj != 0L) maybeMarkAndStat(toObj) else false
+      override def fromInternal(toObj: Word): Option[Word] = if (toObj != 0L) maybeMarkAndStat(toObj) else None
 
     })
     s1.scanAll()
+
+    logger.debug("Visit and clear weak references...")
+    for (iRefWR <- weakRefs) {
+      val toObj = MemorySupport.loadLong(iRefWR)
+      val tag = HeaderUtils.getTag(toObj)
+      val isMarked = (tag & MARK_MASK) != 0
+      if (!isMarked) {
+        logger.debug("WeakRef %d whose value was %d is zeroed.".format(iRefWR, toObj))
+        MemorySupport.storeLong(iRefWR, 0)
+      } else {
+        logger.debug("WeakRef %d whose value was %d is still marked. Do not zero.".format(iRefWR, toObj))
+      }
+    }
 
     logger.debug("Stat finished. Unmarking....")
     val s2 = new AllScanner(microVM, clearMarkHandler)
@@ -92,19 +101,6 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
 
     defragMutator.close()
 
-    logger.debug("Visit and clear weak references...")
-    for (iRefWR <- weakRefs) {
-      val toObj = MemorySupport.loadLong(iRefWR)
-      val tag = HeaderUtils.getTag(toObj)
-      val isMarked = (tag & MARK_MASK) != 0
-      if (!isMarked) {
-        logger.debug("WeakRef %d whose value was %d is zeroed.".format(iRefWR, toObj))
-        MemorySupport.storeLong(iRefWR, 0)
-      } else {
-        logger.debug("WeakRef %d whose value was %d is still marked. Do not zero.".format(iRefWR, toObj))
-      }
-    }
-
     logger.debug("Marked. Collecting blocks....")
     val anyMemoryRecycled = collectBlocks()
     if (!anyMemoryRecycled && heap.getMustFreeSpace) {
@@ -119,7 +115,7 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
     heap.untriggerGC()
   }
 
-  private def maybeMarkAndStat(addr: Word): Boolean = {
+  private def maybeMarkAndStat(addr: Word): Option[Word] = {
     assert(addr != 0L, "addr should be non-zero before calling this function")
     val oldHeader = HeaderUtils.getTag(addr)
     logger.debug("GC header of 0x%x is 0x%x".format(addr, oldHeader))
@@ -148,36 +144,32 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
       } else {
         throw new UvmRefImplException("Object ref %d not in any space".format(addr))
       }
-      true
+      Some(addr)
     } else {
-      false
+      None
     }
   }
 
   private val markMover = new RefFieldHandler {
 
-    override def fromBox(box: HasObjRef): Boolean = box match {
+    override def fromBox(box: HasObjRef): Option[Word] = box match {
       case HasNonZeroRef(toObj) => maybeMove(toObj, newObjRef => RefFieldUpdater.updateBox(box, newObjRef))
-      case _ => false
+      case _ => None
     }
 
-    override def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Boolean = {
+    override def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Option[Word] = {
       if (toObj != 0L) {
-        if (isWeak) {
-          throw new UvmRefImplException("BUG: Weak references should have been cleared now.")
-        } else {
-          maybeMove(toObj, newObjRef => RefFieldUpdater.updateMemory(iRef, isTR64, newObjRef))
-        }
+        maybeMove(toObj, newObjRef => RefFieldUpdater.updateMemory(iRef, isTR64, newObjRef))
       } else {
-        false
+        None
       }
     }
 
     // Currently internally referenced objects (only the byte array for stacks) cannot move and does not transitively
     // refer to other objects.
-    override def fromInternal(toObj: Word): Boolean = false
+    override def fromInternal(toObj: Word): Option[Word] = None
 
-    private def maybeMove(toObj: Word, updateFunc: Word => Unit): Boolean = {
+    private def maybeMove(toObj: Word, updateFunc: Word => Unit): Option[Word] = {
       val oldHeader = HeaderUtils.getTag(toObj)
       logger.debug("GC header of 0x%x is 0x%x".format(toObj, oldHeader))
       val markBit = oldHeader & MARK_MASK
@@ -187,10 +179,10 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
       if (wasMoved) {
         val dest = HeaderUtils.getForwardedDest(oldHeader)
         updateFunc(dest)
-        false
+        None
       } else {
         if (wasMarked) {
-          false
+          None
         } else {
           val isInSmallObjectSpace = space.isInSpace(toObj)
 
@@ -223,7 +215,7 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
           } else {
             throw new UvmRefImplException("Object ref %x not in any space".format(actualObj))
           }
-          true
+          Some(actualObj)
         }
       }
     }
@@ -281,28 +273,28 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
   }
 
   private val clearMarkHandler = new RefFieldHandler() {
-    override def fromBox(box: HasObjRef): Boolean = box match {
+    override def fromBox(box: HasObjRef): Option[Word] = box match {
       case HasNonZeroRef(toObj) => clearMark(toObj)
-      case _ => false
+      case _ => None
     }
 
-    override def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Boolean = {
-      if (toObj != 0L) clearMark(toObj) else false
+    override def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Option[Word] = {
+      if (toObj != 0L) clearMark(toObj) else None
     }
 
-    override def fromInternal(toObj: Word): Boolean = if (toObj != 0L) clearMark(toObj) else false
+    override def fromInternal(toObj: Word): Option[Word] = if (toObj != 0L) clearMark(toObj) else None
   }
 
-  private def clearMark(objRef: Long): Boolean = {
+  private def clearMark(objRef: Long): Option[Word] = {
     val oldHeader = HeaderUtils.getTag(objRef)
     logger.debug("GC header of 0x%x is 0x%x".format(objRef, oldHeader))
     val markBit = oldHeader & MARK_MASK
     if (markBit != 0) {
       val newHeader = oldHeader & ~(MARK_MASK | MOVE_MASK)
       HeaderUtils.setTag(objRef, newHeader)
-      true
+      Some(objRef)
     } else {
-      false
+      None
     }
   }
 

@@ -437,6 +437,14 @@ class ClientAgent(microVM: MicroVM) {
     val box = new BoxTagRef64(OpHelper.refToTr64(refv, tagv.longValue))
     newHandle(InternalTypes.TAGREF64, box)
   }
+  
+  def enableWatchPoint(wpID: Int): Unit = {
+    microVM.trapManager.enableWatchPoint(wpID)
+  }
+
+  def disableWatchPoint(wpID: Int): Unit = {
+    microVM.trapManager.disableWatchPoint(wpID)
+  }
 
   // Internal methods for µVM
 

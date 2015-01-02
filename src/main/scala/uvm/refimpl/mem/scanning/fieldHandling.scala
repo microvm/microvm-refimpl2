@@ -8,22 +8,23 @@ import uvm.refimpl.itpr.OpHelper
 /**
  * Handle reference fields or references in boxes.
  * <p>
- * Both fromBox and fromMem method return true if and only if the scanner should follow the reference.
+ * Both fromBox and fromMem method return Some(addr) if addr is to be enqueued by the scanner, or None otherwise. If an
+ * object is moved when scanning an object, the returned addr must be the new address.
  * <p>
  * The caller invokes the methods on all boxes/locations it finds. The Callee checks if the box/location
  * actually contain references or non-null references.
  */
 trait RefFieldHandler {
   /** Scan a box. */
-  def fromBox(box: HasObjRef): Boolean
+  def fromBox(box: HasObjRef): Option[Word]
   /** Scan a memory location. */
-  def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Boolean
+  def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Option[Word]
   /**
    * A reference from somewhere internal to the µVM.
    * For example, from the StackMemory to the memory byte array;
    * from a finaliser table to a finalisable object (to be added).
    */
-  def fromInternal(toObj: Word): Boolean
+  def fromInternal(toObj: Word): Option[Word]
 }
 
 object RefFieldUpdater {

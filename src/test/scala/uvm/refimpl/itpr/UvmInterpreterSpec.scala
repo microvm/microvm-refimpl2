@@ -18,6 +18,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
   setLogLevels(
     ROOT_LOGGER_NAME -> INFO,
+    "uvm.refimpl.mem" -> DEBUG,
     "uvm.refimpl.itpr" -> DEBUG)
 
   preloadBundles("tests/uvm-refimpl-test/basic-tests.uir")
@@ -918,14 +919,107 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@memAccessingNull_v1.trap_exit" => {}
-        case "@memAccessingNull_v1.trap_unreachable" => fail("Reached %trap_unreachable")
-        case n => fail("Unexpected trap " + n)
+        case "@memAccessingNull_v1.trap_exit" => TrapRebindPassVoid(st)
+        case n                                => fail("Unexpected trap " + n)
       }
-      
-      TrapRebindPassVoid(st)
     }
-    
+
     ca.close()
   }
+
+  "TRAP" should "work with all supported destinations" in {
+    val ca = microVM.newClientAgent()
+
+    val exc = ca.newFixed("@void")
+    val fortyTwo = ca.putInt("@i64", 42L)
+    val fortyTwoPointZero = ca.putDouble("@double", 42.0d)
+
+    val func = ca.putFunction("@traptest")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      nameOf(ca.currentInstruction(st, 0)) match {
+        case "@traptest_v1.t1" => {
+          TrapRebindPassValue(st, fortyTwo)
+        }
+        case "@traptest_v1.t2" => {
+          TrapRebindPassValue(st, fortyTwoPointZero)
+        }
+        case "@traptest_v1.t3" => {
+          TrapRebindThrowExc(st, exc)
+        }
+        case "@traptest_v1.trap_exit" => {
+          val Seq(t1, t2, lp) = ca.dumpKeepalives(st, 0)
+
+          t1.vb.asSInt(64) shouldBe 42L
+          t2.vb.asDouble shouldBe 42.0d
+          lp.vb.asRef shouldBe exc.vb.asRef
+          TrapRebindPassVoid(st)
+        }
+        case n => fail("Unexpected trap " + n)
+      }
+    }
+
+    ca.close()
+  }
+
+  "WATCHPOINT" should "do nothing when disabled" in {
+    val ca = microVM.newClientAgent()
+    
+    ca.disableWatchPoint(1)
+    
+    val func = ca.putFunction("@wptest")
+    
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      nameOf(ca.currentInstruction(st, 0)) match {
+        case "@wptest_v1.trap_dis" => {
+          TrapRebindPassVoid(st)
+        }
+        case n => fail("Unexpected trap " + n)
+      }
+    }
+
+    ca.close()
+  }
+
+  "WATCHPOINT" should "work with all supported destinations when enabled" ignore {
+    val ca = microVM.newClientAgent()
+    
+    ca.enableWatchPoint(1)
+
+    val exc = ca.newFixed("@i32")
+    val fortyTwo = ca.putInt("@i64", 42L)
+    val fortyTwoPointZero = ca.putDouble("@double", 42.0d)
+
+    val func = ca.putFunction("@wptest")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      nameOf(ca.currentInstruction(st, 0)) match {
+        case "@wptest_v1.w1" => {
+          wp shouldBe 1
+          TrapRebindPassValue(st, fortyTwo)
+        }
+        case "@wptest_v1.w2" => {
+          wp shouldBe 1
+          TrapRebindPassValue(st, fortyTwoPointZero)
+        }
+        case "@wptest_v1.w3" => {
+          wp shouldBe 1
+          TrapRebindThrowExc(st, exc)
+        }
+        case "@wptest_v1.trap_exit" => {
+          wp shouldBe 0
+          val Seq(w1, w2, lp) = ca.dumpKeepalives(st, 0)
+
+          w1.vb.asSInt(64) shouldBe 42L
+          w2.vb.asDouble shouldBe 42.0d
+          lp.vb.asRef shouldBe exc.vb.asRef
+          TrapRebindPassVoid(st)
+        }
+        case n => fail("Unexpected trap " + n)
+      }
+    }
+
+    ca.close()
+  }
+
 }

@@ -57,6 +57,10 @@ object TypeSizes {
   val GC_HEADER_OFFSET_TAG: Word = -8L;
   val GC_HEADER_OFFSET_HYBRID_LENGTH: Word = -16L;
 
+  val MARK_MASK = 0x4000000000000000L
+
+  val MOVE_MASK = 0x8000000000000000L
+
   def sizeOf(ty: Type): Word = ty match {
     case TypeInt(l) => intBitsToBytes(l)
     case _:TypeFloat => 4L

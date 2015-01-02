@@ -8,13 +8,15 @@ import scala.collection.mutable.ArrayBuffer
 
 class ThreadStackManager(microVM: MicroVM) {
 
-  val stackRegistry = new HashMap[Int, InterpreterStack]()
+  private val stackRegistry = new HashMap[Int, InterpreterStack]()
 
-  val threadRegistry = new HashMap[Int, InterpreterThread]()
+  private val threadRegistry = new HashMap[Int, InterpreterThread]()
 
   def getStackByID(id: Int): Option[InterpreterStack] = stackRegistry.get(id)
 
   def getThreadByID(id: Int): Option[InterpreterThread] = threadRegistry.get(id)
+  
+  def iterateAllLiveStacks: Iterable[InterpreterStack] = stackRegistry.values.filter(_.state != StackState.Dead)
 
   private var nextStackID: Int = 1
 

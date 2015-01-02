@@ -48,8 +48,7 @@ class AllScanner(val microVM: MicroVM, val handler: RefFieldHandler) extends Ref
   }
 
   private def traceStacks() {
-    val sr = microVM.threadStackManager.stackRegistry
-    for (sta <- sr.values if sta.state != StackState.Dead) {
+    for (sta <- microVM.threadStackManager.iterateAllLiveStacks) {
       logger.debug(s"Tracing stack ${sta.id} for registers...")
 
       for (fra <- sta.frames; vb <- fra.boxes.values if vb.isInstanceOf[HasObjRef]) {
@@ -70,32 +69,27 @@ class AllScanner(val microVM: MicroVM, val handler: RefFieldHandler) extends Ref
   private def doTransitiveClosure() {
     while (!queue.isEmpty) {
       val objRef = queue.pollFirst()
+      logger.debug("Scanning heap object 0x%x...".format(objRef))
       MemoryDataScanner.scanAllocUnit(objRef, objRef, microVM, this)
     }
   }
 
-  override def fromBox(box: HasObjRef): Boolean = {
-    val toEnqueue = handler.fromBox(box)
-    if (toEnqueue) {
-      queue.add(box.getObjRef())
-    }
-    toEnqueue
+  override def fromBox(box: HasObjRef): Option[Word] = {
+    val rv = handler.fromBox(box)
+    rv.foreach(queue.add)
+    rv
   }
   
-  override def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Boolean = {
-    val toEnqueue = handler.fromMem(objRef, iRef, toObj, isWeak, isTR64)
-    if (toEnqueue) {
-      queue.add(toObj)
-    }
-    toEnqueue
+  override def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Option[Word] = {
+    val rv = handler.fromMem(objRef, iRef, toObj, isWeak, isTR64)
+    rv.foreach(queue.add)
+    rv
   }
   
-  override def fromInternal(toObj: Word): Boolean = {
-    val toEnqueue = handler.fromInternal(toObj)
-    if (toEnqueue) {
-      queue.add(toObj)
-    }
-    toEnqueue
+  override def fromInternal(toObj: Word): Option[Word] = {
+    val rv = handler.fromInternal(toObj)
+    rv.foreach(queue.add)
+    rv
   }
 
 }

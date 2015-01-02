@@ -7,7 +7,7 @@ object MemUtils extends StrictLogging {
 
   def zeroRegion(start: Word, length: Word) {
     val end = start + length
-    logger.debug(s"Zeroing [${start} -> ${end}] ${length} bytes")
+    logger.debug("Zeroing [0x%x -> 0x%x] %d bytes".format(start, end, length))
     var a = start
     while (a < end) {
       MemorySupport.storeLong(a, 0)
@@ -16,7 +16,7 @@ object MemUtils extends StrictLogging {
   }
 
   def memcpy(src: Word, dst: Word, length: Word) {
-    logger.debug("Copying [${src} -> ${dst}] ${length} bytes")
+    logger.debug("Copying [0x%x -> 0x%x] %d bytes".format(src, dst, length))
     var a: Word = 0
     while (a < length) {
       val oldWord = MemorySupport.loadLong(src + a)
