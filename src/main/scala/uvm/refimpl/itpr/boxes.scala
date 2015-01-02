@@ -48,6 +48,10 @@ case class BoxIRef(var objRef: Word, var offset: Word) extends HasObjRef {
   def hasObjRef() = objRef != 0
   def getObjRef() = objRef
   def setObjRef(newObjRef: Word): Unit = { objRef = newObjRef }
+  
+  // Helper to get and set the objRef and offset at the same time
+  def oo: (Word, Word) = (objRef, offset)
+  def oo_=(newVal: (Word, Word)): Unit = { objRef = newVal._1; offset = newVal._2 }
 }
 case class BoxStruct(var values: Seq[ValueBox]) extends ValueBox {
   def copyFrom(other: ValueBox): Unit = { for ((t, o) <- this.values.zip(other.asInstanceOf[BoxStruct].values)) t.copyFrom(o) }
