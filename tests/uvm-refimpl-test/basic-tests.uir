@@ -709,6 +709,44 @@
         COMMINST @uvm.thread_exit
 }
 
+.funcdef @trapThrow VERSION @trapThrow_v1 <@noparamsnoret> () {
+    %entry:
+        %t = TRAP <@void>
+        %trap_unreachable = TRAP <@void>
+        COMMINST @uvm.thread_exit
+}
+
+.funcdef @wpThrow VERSION @wpThrow_v1 <@noparamsnoret> () {
+    %entry:
+        %w = WATCHPOINT 2 <@void> %dis %ena
+
+    %dis:
+        %trap_unreachable = TRAP <@void>
+        COMMINST @uvm.thread_exit
+
+    %ena:
+        %trap_unreachable2 = TRAP <@void>
+        COMMINST @uvm.thread_exit
+}
+
+.funcdef @trapExc VERSION @trapExc_v1 <@noparamsnoret> () {
+    %entry:
+        CALL <@noparamsnoret> @trapThrow () EXC(%unreachable %bb2)
+
+    %bb2:
+        %lp1 = LANDINGPAD
+        CALL <@noparamsnoret> @wpThrow () EXC(%unreachable %exit)
+
+    %exit:
+        %lp2 = LANDINGPAD
+        %trap_exit = TRAP <@void> KEEPALIVE (%lp1 %lp2)
+        COMMINST @uvm.thread_exit
+
+    %unreachable:
+        %trap_unreachable = TRAP <@void>
+        COMMINST @uvm.thread_exit
+}
+
 // 
 // .funcsig @watchpointtest_sig = @noparamsnoret
 // .funcdef @watchpointtest VERSION @watchpointtest_v1 <@watchpointtest_sig> () {

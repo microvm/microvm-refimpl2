@@ -18,7 +18,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
   setLogLevels(
     ROOT_LOGGER_NAME -> INFO,
-    "uvm.refimpl.mem" -> DEBUG,
+    //"uvm.refimpl.mem" -> DEBUG,
     "uvm.refimpl.itpr" -> DEBUG)
 
   preloadBundles("tests/uvm-refimpl-test/basic-tests.uir")
@@ -981,7 +981,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     ca.close()
   }
 
-  "WATCHPOINT" should "work with all supported destinations when enabled" ignore {
+  "WATCHPOINT" should "work with all supported destinations when enabled" in {
     val ca = microVM.newClientAgent()
     
     ca.enableWatchPoint(1)
@@ -1021,5 +1021,40 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     ca.close()
   }
+  
+  "TRAP and WATCHPOINT" should "throw exceptions out of function when no exceptional dest" in {
+    val ca = microVM.newClientAgent()
+    
+    ca.enableWatchPoint(2)
+
+    val exc1 = ca.newFixed("@void")
+    val exc2 = ca.newFixed("@void")
+
+    val func = ca.putFunction("@trapExc")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      nameOf(ca.currentInstruction(st, 0)) match {
+        case "@trapThrow_v1.t" => {
+          TrapRebindThrowExc(st, exc1)
+        }
+        case "@wpThrow_v1.w" => {
+          wp shouldBe 2
+          TrapRebindThrowExc(st, exc2)
+        }
+        case "@trapExc_v1.trap_exit" => {
+          val Seq(lp1, lp2) = ca.dumpKeepalives(st, 0)
+
+          lp1.vb.asRef shouldBe exc1.vb.asRef
+          lp2.vb.asRef shouldBe exc2.vb.asRef
+          
+          TrapRebindPassVoid(st)
+        }
+        case n => fail("Unexpected trap " + n)
+      }
+    }
+
+    ca.close()
+  }
+  
 
 }

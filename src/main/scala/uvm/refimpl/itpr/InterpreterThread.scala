@@ -832,10 +832,6 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     val f = s.top
     val (newFrame, newBB) = unwindUntilCatchable(f)
     s.top = newFrame
-    
-    if (exc != 0L) {
-      logger.debug("Catching exception %d".format(exc))
-    }
 
     branchAndMovePC(newBB, exc)
   }
