@@ -525,60 +525,66 @@
         COMMINST @uvm.thread_exit
 }
 
-// .global @g_i8   <@i8>
-// .global @g_i16  <@i16>
-// .global @g_i32  <@i32>
-// .global @g_i64  <@i64>
-// .global @g_f    <@float>
-// .global @g_d    <@double>
-// .global @g_r    <@refvoid>
-// .global @g_ir   <@irefvoid>
-// .global @g_wr   <@weakrefvoid>
-//     
-// .global @g_func <@funcdumb>
-//     
-// .global @g_thr  <@thread>
-// .global @g_sta  <@stack>
-// .global @g_tr64 <@tagref64>
-// 
-// .funcsig @memAccessing_sig = @noparamsnoret
-// .funcdef @memAccessing VERSION @memAccessing_v1 <@memAccessing_sig> () {
-// %entry:
-//     STORE <@i8>  @g_i8  41
-//     STORE <@i16> @g_i16 42
-//     STORE <@i32> @g_i32 43
-//     STORE <@i64> @g_i64 44
-//     STORE <@float>  @g_f 45.0f
-//     STORE <@double> @g_d 46.0d
-//     
-//     %void_r  = NEW <@void>
-//     %void_ir = ALLOCA <@void>
-//     
-//     STORE <@refvoid>     @g_r  %void_r
-//     STORE <@irefvoid>    @g_ir %void_ir
-//     STORE <@weakrefvoid> @g_wr %void_r
-// 
-//     STORE <@funcdumb> @g_func @memAccessing
-//     
-//     %li8  = LOAD <@i8>  @g_i8
-//     %li16 = LOAD <@i16> @g_i16
-//     %li32 = LOAD <@i32> @g_i32
-//     %li64 = LOAD <@i64> @g_i64
-//     %lf   = LOAD <@float>  @g_f
-//     %ld   = LOAD <@double> @g_d
-//     
-//     %lr   = LOAD <@refvoid>     @g_r
-//     %lir  = LOAD <@irefvoid>    @g_ir
-//     %lwr  = LOAD <@weakrefvoid> @g_wr
-// 
-//     %lfunc = LOAD <@funcdumb> @g_func
-// 
-//     %trap = TRAP <@void> KEEPALIVE (%void_r %void_ir %li8 %li16
-//                 %li32 %li64 %lf %ld %lr %lir %lwr %lfunc)
-// %exit:
-//     COMMINST @uvm.thread_exit
-// }
-// 
+.global @g_i8   <@i8>
+.global @g_i16  <@i16>
+.global @g_i32  <@i32>
+.global @g_i64  <@i64>
+.global @g_f    <@float>
+.global @g_d    <@double>
+.global @g_r    <@refvoid>
+.global @g_ir   <@irefvoid>
+.global @g_wr   <@weakrefvoid>
+    
+.global @g_func <@funcdumb>
+    
+.global @g_thr  <@thread>
+.global @g_sta  <@stack>
+.global @g_tr64 <@tagref64>
+
+.const @I8_41  <@i8>     = 41
+.const @I16_42 <@i16>    = 42
+.const @I32_43 <@i32>    = 43
+.const @I64_44 <@i64>    = 44
+.const @F_45   <@float>  = 45.0f
+.const @D_46   <@double> = 46.0d
+
+.funcdef @memAccessing VERSION @memAccessing_v1 <@noparamsnoret> () {
+    %entry:
+        STORE <@i8>     @g_i8   @I8_41
+        STORE <@i16>    @g_i16  @I16_42
+        STORE <@i32>    @g_i32  @I32_43
+        STORE <@i64>    @g_i64  @I64_44
+        STORE <@float>  @g_f    @F_45
+        STORE <@double> @g_d    @D_46
+        
+        %void_r  = NEW <@void>
+        %void_ir = ALLOCA <@void>
+        
+        STORE <@refvoid>     @g_r  %void_r
+        STORE <@irefvoid>    @g_ir %void_ir
+        STORE <@weakrefvoid> @g_wr %void_r
+
+        STORE <@funcdumb> @g_func @memAccessing
+        
+        %li8  = LOAD <@i8>      @g_i8
+        %li16 = LOAD <@i16>     @g_i16
+        %li32 = LOAD <@i32>     @g_i32
+        %li64 = LOAD <@i64>     @g_i64
+        %lf   = LOAD <@float>   @g_f
+        %ld   = LOAD <@double>  @g_d
+        
+        %lr   = LOAD <@refvoid>     @g_r
+        %lir  = LOAD <@irefvoid>    @g_ir
+        %lwr  = LOAD <@weakrefvoid> @g_wr
+
+        %lfunc = LOAD <@funcdumb> @g_func
+
+        %trap = TRAP <@void> KEEPALIVE (%void_r %void_ir %li8 %li16
+                    %li32 %li64 %lf %ld %lr %lir %lwr %lfunc)
+    %exit:
+        COMMINST @uvm.thread_exit
+}
+
 // .funcsig @memAccessingAtomic_sig = @noparamsnoret
 // .funcdef @memAccessingAtomic VERSION @memAccessingAtomic_v1 <@memAccessingAtomic_sig> () {
 // %entry:
