@@ -87,8 +87,8 @@ object MemorySupport {
       case XOR => oldVal ^ opnd
       case MAX => Math.max(oldVal, opnd)
       case MIN => Math.min(oldVal, opnd)
-      case UMAX => Math.max(oldVal - Int.MinValue, opnd - Int.MinValue) + Int.MinValue
-      case UMIN => Math.min(oldVal - Int.MinValue, opnd - Int.MinValue) + Int.MinValue
+      case UMAX => Math.max(oldVal - Long.MinValue, opnd - Long.MinValue) + Long.MinValue
+      case UMIN => Math.min(oldVal - Long.MinValue, opnd - Long.MinValue) + Long.MinValue
     }
     storeLong(loc, newVal)
     return oldVal

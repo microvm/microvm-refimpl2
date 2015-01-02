@@ -833,11 +833,10 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
       baz3.vb.asIRefAddr shouldEqual (bazIRef.vb.asIRefAddr + TypeSizes.elemOffsetOf("@ArrayBaz", 3))
       baz6.vb.asIRefAddr shouldEqual (bazIRef.vb.asIRefAddr + TypeSizes.elemOffsetOf("@ArrayBaz", 6))
-      
+
       jaIRef.vb.asIRefAddr shouldEqual (jaRef.vb.asRef)
       jaFix.vb.asIRefAddr shouldEqual (jaRef.vb.asRef)
       jaVar.vb.asIRefAddr shouldEqual (jaRef.vb.asRef + TypeSizes.varPartOffsetOf("@JavaLikeByteArray"))
-      
 
       TrapRebindPassVoid(st)
     }
@@ -845,4 +844,88 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     ca.close()
   }
 
+  "LOAD and STORE" should "work in good cases" in {
+    val ca = microVM.newClientAgent()
+    val func = ca.putFunction("@memAccessing")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val Seq(voidR, voidIR, li8, li16, li32, li64, lf, ld, lr, lir, lwr, lfunc) = ca.dumpKeepalives(st, 0)
+
+      li8.vb.asSInt(8) shouldBe 41
+      li16.vb.asSInt(16) shouldBe 42
+      li32.vb.asSInt(32) shouldBe 43
+      li64.vb.asSInt(64) shouldBe 44
+      lf.vb.asFloat shouldBe 45.0f
+      ld.vb.asDouble shouldBe 46.0d
+
+      lr.vb.asRef shouldBe voidR.vb.asRef
+      lir.vb.asIRef shouldBe voidIR.vb.asIRef
+      lwr.vb.asRef shouldBe voidR.vb.asRef
+
+      lfunc.vb.asFunc shouldBe Some(microVM.globalBundle.funcNs("@memAccessing"))
+
+      TrapRebindPassVoid(st)
+    }
+    ca.close()
+  }
+
+  "CMPXCHG and ATOMICRMW" should "work in good cases" in {
+    val ca = microVM.newClientAgent()
+    val func = ca.putFunction("@memAccessingAtomic")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val kas = ca.dumpKeepalives(st, 0)
+
+      // Scala limits unpacking of Seq to 22 elements
+      val Seq(voidR, voidR2, voidR3, cx32_1, cx32_2, cx64_1, cx64_2, l32, l64, cxr_1, cxr_2, lr,
+        rmw0, rmw1, rmw2, rmw3, rmw4, rmw5, rmw6, rmw7, rmw8, rmw9) = kas.take(22)
+      val Seq(rmwA, l64_2) = kas.drop(22)
+
+      cx32_1.vb.asSInt(32) shouldBe 43
+      cx32_2.vb.asSInt(32) shouldBe 53
+      cx64_1.vb.asSInt(64) shouldBe 44
+      cx64_2.vb.asSInt(64) shouldBe 54
+
+      l32.vb.asSInt(32) shouldBe 53
+      l64.vb.asSInt(64) shouldBe 54
+
+      cxr_1.vb.asRef shouldBe voidR.vb.asRef
+      cxr_2.vb.asRef shouldBe voidR2.vb.asRef
+      lr.vb.asRef shouldBe voidR2.vb.asRef
+
+      rmw0.vb.asSInt(64) shouldBe 1L
+      rmw1.vb.asSInt(64) shouldBe 0x55abL
+      rmw2.vb.asSInt(64) shouldBe 0x55aeL
+      rmw3.vb.asSInt(64) shouldBe 0x55aaL
+      rmw4.vb.asSInt(64) shouldBe 0x500aL
+      rmw5.vb.asSInt(64) shouldBe ~0x500aL
+      rmw6.vb.asSInt(64) shouldBe ~0x000aL
+      rmw7.vb.asSInt(64) shouldBe ~0x55a0L
+      rmw8.vb.asSInt(64) shouldBe -0x7fffffffffffffdeL
+      rmw9.vb.asSInt(64) shouldBe 42L
+      rmwA.vb.asSInt(64) shouldBe 11L
+
+      l64_2.vb.asSInt(64) shouldBe 0xffffffffffffffdeL
+
+      TrapRebindPassVoid(st)
+    }
+    ca.close()
+  }
+
+  "LOAD, STORE, CMPXCHG and ATOMICRMW" should "jump to the exceptional destination on NULL ref access" in {
+    val ca = microVM.newClientAgent()
+    val func = ca.putFunction("@memAccessingNull")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      nameOf(ca.currentInstruction(st, 0)) match {
+        case "@memAccessingNull_v1.trap_exit" => {}
+        case "@memAccessingNull_v1.trap_unreachable" => fail("Reached %trap_unreachable")
+        case n => fail("Unexpected trap " + n)
+      }
+      
+      TrapRebindPassVoid(st)
+    }
+    
+    ca.close()
+  }
 }

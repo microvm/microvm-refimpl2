@@ -544,7 +544,11 @@
 .const @I8_41  <@i8>     = 41
 .const @I16_42 <@i16>    = 42
 .const @I32_43 <@i32>    = 43
+.const @I32_53 <@i32>    = 53
+.const @I32_63 <@i32>    = 63
 .const @I64_44 <@i64>    = 44
+.const @I64_54 <@i64>    = 54
+.const @I64_64 <@i64>    = 64
 .const @F_45   <@float>  = 45.0f
 .const @D_46   <@double> = 46.0d
 
@@ -581,57 +585,88 @@
 
         %trap = TRAP <@void> KEEPALIVE (%void_r %void_ir %li8 %li16
                     %li32 %li64 %lf %ld %lr %lir %lwr %lfunc)
-    %exit:
         COMMINST @uvm.thread_exit
 }
 
-// .funcsig @memAccessingAtomic_sig = @noparamsnoret
-// .funcdef @memAccessingAtomic VERSION @memAccessingAtomic_v1 <@memAccessingAtomic_sig> () {
-// %entry:
-//     STORE SEQ_CST <@i32> @g_i32 43
-//     STORE SEQ_CST <@i64> @g_i64 44
-// 
-//     %void_r   = NEW <@void>
-//     %void_r2  = NEW <@void>
-//     %void_r3  = NEW <@void>
-//     
-//     STORE <@refvoid>     @g_r  %void_r
-// 
-//     %cx32_1 = CMPXCHG SEQ_CST UNORDERED <@i32> @g_i32 43 53
-//     %cx32_2 = CMPXCHG SEQ_CST UNORDERED <@i32> @g_i32 43 63
-//     %cx64_1 = CMPXCHG SEQ_CST UNORDERED <@i64> @g_i64 44 54
-//     %cx64_2 = CMPXCHG SEQ_CST UNORDERED <@i64> @g_i64 44 64
-//     
-//     %l32 = LOAD SEQ_CST <@i32> @g_i32
-//     %l64 = LOAD SEQ_CST <@i64> @g_i64
-//     
-//     %cxr_1 = CMPXCHG SEQ_CST UNORDERED <@refvoid> @g_r %void_r %void_r2
-//     %cxr_2 = CMPXCHG SEQ_CST UNORDERED <@refvoid> @g_r %void_r %void_r3
-//     
-//     %lr   = LOAD <@refvoid>     @g_r
-//     
-//     STORE <@i64> @g_i64 1
-//     
-//     %rmw0 = ATOMICRMW SEQ_CST XCHG  <@i64> @g_i64 0x55ab  // 1 -> 0x55ab
-//     %rmw1 = ATOMICRMW SEQ_CST ADD   <@i64> @g_i64 3       // 0x55ab -> 0x55ae 
-//     %rmw2 = ATOMICRMW SEQ_CST SUB   <@i64> @g_i64 4       // 0x55ae -> 0x55aa
-//     %rmw3 = ATOMICRMW SEQ_CST AND   <@i64> @g_i64 0x5a5a  // 0x55aa -> 0x500a
-//     %rmw4 = ATOMICRMW SEQ_CST NAND  <@i64> @g_i64 0x5a5a  // 0x500a -> ~0x500a
-//     %rmw5 = ATOMICRMW SEQ_CST OR    <@i64> @g_i64 0x5000  // ~0x500a -> ~0x000a
-//     %rmw6 = ATOMICRMW SEQ_CST XOR   <@i64> @g_i64 0x55aa  // ~0x000a -> ~0x55a0 
-//     %rmw7 = ATOMICRMW SEQ_CST MIN   <@i64> @g_i64 -0x7fffffffffffffde // ~0x55a0 -> -0x7fffffffffffffde
-//     %rmw8 = ATOMICRMW SEQ_CST MAX   <@i64> @g_i64 42      // -0x7fffffffffffffde -> 42
-//     %rmw9 = ATOMICRMW SEQ_CST UMIN  <@i64> @g_i64 11      // 42 -> 11
-//     %rmwA = ATOMICRMW SEQ_CST UMAX  <@i64> @g_i64 0xffffffffffffffde // 11 -> 0xffffffffffffffde
-//     
-//     %l64_2 = LOAD SEQ_CST <@i64> @g_i64
-// 
-//     %trap = TRAP <@void> KEEPALIVE (%void_r %void_r2 %void_r3
-//                 %cx32_1 %cx32_2 %cx64_1 %cx64_2 %l32 %l64 %cxr_1 %cxr_2 %lr
-//                 %rmw0 %rmw1 %rmw2 %rmw3 %rmw4 %rmw5 %rmw6 %rmw7 %rmw8 %rmw9 %rmwA %l64_2)
-// %exit:
-//     COMMINST @uvm.thread_exit
-// }
+.const @I64_0x55ab              <@i64> = 0x55ab
+.const @I64_0x5a5a              <@i64> = 0x5a5a
+.const @I64_0x5000              <@i64> = 0x5000
+.const @I64_0x55aa              <@i64> = 0x55aa
+.const @I64_N0x7fffffffffffffde <@i64> = -0x7fffffffffffffde
+.const @I64_42                  <@i64> = 42
+.const @I64_11                  <@i64> = 11
+.const @I64_0xffffffffffffffde  <@i64> = 0xffffffffffffffde
+
+.funcdef @memAccessingAtomic VERSION @memAccessingAtomic_v1 <@noparamsnoret> () {
+    %entry:
+        STORE SEQ_CST <@i32> @g_i32 @I32_43
+        STORE SEQ_CST <@i64> @g_i64 @I64_44
+
+        %void_r   = NEW <@void>
+        %void_r2  = NEW <@void>
+        %void_r3  = NEW <@void>
+        
+        STORE <@refvoid>     @g_r  %void_r
+
+        %cx32_1 = CMPXCHG SEQ_CST RELAXED <@i32> @g_i32 @I32_43 @I32_53
+        %cx32_2 = CMPXCHG SEQ_CST RELAXED <@i32> @g_i32 @I32_43 @I32_63
+        %cx64_1 = CMPXCHG SEQ_CST RELAXED <@i64> @g_i64 @I64_44 @I64_54
+        %cx64_2 = CMPXCHG SEQ_CST RELAXED <@i64> @g_i64 @I64_44 @I64_64
+        
+        %l32 = LOAD SEQ_CST <@i32> @g_i32
+        %l64 = LOAD SEQ_CST <@i64> @g_i64
+        
+        %cxr_1 = CMPXCHG SEQ_CST RELAXED <@refvoid> @g_r %void_r %void_r2
+        %cxr_2 = CMPXCHG SEQ_CST RELAXED <@refvoid> @g_r %void_r %void_r3
+        
+        %lr   = LOAD <@refvoid>     @g_r
+        
+        STORE <@i64> @g_i64 @I64_1
+        
+        %rmw0 = ATOMICRMW SEQ_CST XCHG  <@i64> @g_i64 @I64_0x55ab  // 1 -> 0x55ab
+        %rmw1 = ATOMICRMW SEQ_CST ADD   <@i64> @g_i64 @I64_3       // 0x55ab -> 0x55ae 
+        %rmw2 = ATOMICRMW SEQ_CST SUB   <@i64> @g_i64 @I64_4       // 0x55ae -> 0x55aa
+        %rmw3 = ATOMICRMW SEQ_CST AND   <@i64> @g_i64 @I64_0x5a5a  // 0x55aa -> 0x500a
+        %rmw4 = ATOMICRMW SEQ_CST NAND  <@i64> @g_i64 @I64_0x5a5a  // 0x500a -> ~0x500a
+        %rmw5 = ATOMICRMW SEQ_CST OR    <@i64> @g_i64 @I64_0x5000  // ~0x500a -> ~0x000a
+        %rmw6 = ATOMICRMW SEQ_CST XOR   <@i64> @g_i64 @I64_0x55aa  // ~0x000a -> ~0x55a0 
+        %rmw7 = ATOMICRMW SEQ_CST MIN   <@i64> @g_i64 @I64_N0x7fffffffffffffde // ~0x55a0 -> -0x7fffffffffffffde
+        %rmw8 = ATOMICRMW SEQ_CST MAX   <@i64> @g_i64 @I64_42      // -0x7fffffffffffffde -> 42
+        %rmw9 = ATOMICRMW SEQ_CST UMIN  <@i64> @g_i64 @I64_11      // 42 -> 11
+        %rmwA = ATOMICRMW SEQ_CST UMAX  <@i64> @g_i64 @I64_0xffffffffffffffde // 11 -> 0xffffffffffffffde
+        
+        %l64_2 = LOAD SEQ_CST <@i64> @g_i64
+
+        %trap = TRAP <@void> KEEPALIVE (%void_r %void_r2 %void_r3
+                    %cx32_1 %cx32_2 %cx64_1 %cx64_2 %l32 %l64 %cxr_1 %cxr_2 %lr
+                    %rmw0 %rmw1 %rmw2 %rmw3 %rmw4 %rmw5 %rmw6 %rmw7 %rmw8 %rmw9 %rmwA %l64_2)
+        COMMINST @uvm.thread_exit
+}
+
+.const @NULLIREF_I64 <@irefi64> = NULL
+
+.funcdef @memAccessingNull VERSION @memAccessingNull_v1 <@noparamsnoret> () {
+    %entry:
+        %l = LOAD <@i64> @NULLIREF_I64 EXC(%unreachable %bb2)
+
+    %bb2:
+        %s = STORE <@i64> @NULLIREF_I64 @I64_0 EXC(%unreachable %bb3)
+
+    %bb3:
+        %c = CMPXCHG SEQ_CST RELAXED <@i64> @NULLIREF_I64 @I64_0 @I64_1 EXC(%unreachable %bb4)
+
+    %bb4:
+        %a = ATOMICRMW SEQ_CST XCHG <@i64> @NULLIREF_I64 @I64_0 EXC(%unreachable %exit)
+
+    %exit:
+        %trap_exit = TRAP <@void>
+        COMMINST @uvm.thread_exit
+
+    %unreachable:
+        %trap_unreachable = TRAP <@void>
+        COMMINST @uvm.thread_exit
+}
+
 // 
 // .funcsig @watchpointtest_sig = @noparamsnoret
 // .funcdef @watchpointtest VERSION @watchpointtest_v1 <@watchpointtest_sig> () {

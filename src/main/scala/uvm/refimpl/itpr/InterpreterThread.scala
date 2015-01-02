@@ -574,14 +574,68 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
       }
 
       case i @ InstLoad(ord, referentTy, loc, excClause) => {
+        val uty = InternalTypePool.unmarkedOf(referentTy)
         val lb = boxOf(loc).asInstanceOf[BoxIRef]
+        val ib = boxOf(i)
+          
         val la = lb.objRef + lb.offset
         if (la == 0L) {
           nullRefError(excClause)
         } else {
-
+          MemoryOperations.load(uty, la, ib, microVM)
+          continueNormally()
         }
+      }
+      
+      case i @ InstStore(ord, referentTy, loc, newVal, excClause) => {
+        val uty = InternalTypePool.unmarkedOf(referentTy)
+        val lb = boxOf(loc).asInstanceOf[BoxIRef]
+        val nvb = boxOf(newVal)
+        val ib = boxOf(i)
 
+        val la = lb.objRef + lb.offset
+        if (la == 0L) {
+          nullRefError(excClause)
+        } else {
+          MemoryOperations.store(uty, la, nvb, ib, microVM)
+          continueNormally()
+        }
+      }
+      
+      case i @ InstCmpXchg(weak, ordSucc, ordFail, referentTy, loc, expected, desired, excClause) => {
+        val uty = InternalTypePool.unmarkedOf(referentTy)
+        val lb = boxOf(loc).asInstanceOf[BoxIRef]
+        val eb = boxOf(expected)
+        val db = boxOf(desired)
+        val ib = boxOf(i)
+
+        val la = lb.objRef + lb.offset
+        if (la == 0L) {
+          nullRefError(excClause)
+        } else {
+          MemoryOperations.cmpXchg(uty, la, eb, db, ib, microVM)
+          continueNormally()
+        }
+      }
+      
+      case i @ InstAtomicRMW(ord, op, referentTy, loc, opnd, excClause) => {
+        val uty = InternalTypePool.unmarkedOf(referentTy)
+        val lb = boxOf(loc).asInstanceOf[BoxIRef]
+        val ob = boxOf(opnd)
+        val ib = boxOf(i)
+
+        val la = lb.objRef + lb.offset
+        if (la == 0L) {
+          nullRefError(excClause)
+        } else {
+          MemoryOperations.atomicRMW(uty, op, la, ob, ib, microVM)
+          continueNormally()
+        }
+      }
+      
+      case i @ InstFence(ord) => {
+        // No-op in this interpreter
+        continueNormally()
       }
 
       // Indentation guide: Insert more instructions here.
@@ -791,18 +845,16 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
       f
     } catch {
       case e: UvmOutOfMemoryException => {
-        excClause match {
-          case None                      => throw new UvmRuntimeException(ctx + "Out of memory and there is no handler.", e)
-          case Some(ExcClause(_, excBB)) => branchAndMovePC(excBB, 0L)
+        branchToExcDestOr(excClause) {
+          throw new UvmRuntimeException(ctx + "Out of memory and there is no handler.", e)
         }
       }
     }
   }
 
   private def nullRefError(excClause: Option[ExcClause]): Unit = {
-    excClause match {
-      case None                      => throw new UvmRuntimeException(ctx + "Accessing null reference.")
-      case Some(ExcClause(_, excBB)) => branchAndMovePC(excBB, 0L)
+    branchToExcDestOr(excClause) {
+      throw new UvmRuntimeException(ctx + "Accessing null reference.")
     }
   }
 }
