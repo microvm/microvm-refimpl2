@@ -556,7 +556,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         ib.offset = ob.offset + TypeSizes.shiftOffsetOf(referentTy, off.longValue())
         continueNormally()
       }
-      
+
       case i @ InstGetFixedPartIRef(referentTy, opnd) => {
         val ob = boxOf(opnd).asInstanceOf[BoxIRef]
         val ib = boxOf(i).asInstanceOf[BoxIRef]
@@ -564,7 +564,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         ib.offset = ob.offset
         continueNormally()
       }
-      
+
       case i @ InstGetVarPartIRef(referentTy, opnd) => {
         val ob = boxOf(opnd).asInstanceOf[BoxIRef]
         val ib = boxOf(i).asInstanceOf[BoxIRef]
@@ -572,7 +572,18 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         ib.offset = ob.offset + TypeSizes.varPartOffsetOf(referentTy)
         continueNormally()
       }
-      
+
+      case i @ InstLoad(ord, referentTy, loc, excClause) => {
+        val lb = boxOf(loc).asInstanceOf[BoxIRef]
+        val la = lb.objRef + lb.offset
+        if (la == 0L) {
+          nullRefError(excClause)
+        } else {
+
+        }
+
+      }
+
       // Indentation guide: Insert more instructions here.
 
       case i @ InstTrap(retTy, excClause, keepAlives) => {
@@ -768,6 +779,13 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     }
   }
 
+  private def branchToExcDestOr(excClause: Option[ExcClause])(f: => Unit): Unit = {
+    excClause match {
+      case None                      => f
+      case Some(ExcClause(_, excBB)) => branchAndMovePC(excBB, 0L)
+    }
+  }
+
   private def handleOutOfMemory(excClause: Option[ExcClause])(f: => Unit): Unit = {
     try {
       f
@@ -778,6 +796,13 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           case Some(ExcClause(_, excBB)) => branchAndMovePC(excBB, 0L)
         }
       }
+    }
+  }
+
+  private def nullRefError(excClause: Option[ExcClause]): Unit = {
+    excClause match {
+      case None                      => throw new UvmRuntimeException(ctx + "Accessing null reference.")
+      case Some(ExcClause(_, excBB)) => branchAndMovePC(excBB, 0L)
     }
   }
 }
