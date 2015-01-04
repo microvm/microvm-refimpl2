@@ -699,7 +699,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           branchAndMovePC(dis)
         }
       }
-      
+
       case i @ InstNewStack(sig, callee, argList, excClause) => {
         val calleeFunc = boxOf(callee).asInstanceOf[BoxFunc].func.getOrElse {
           throw new UvmRuntimeException(ctx + "Stack-bottom function must not be NULL")
@@ -708,7 +708,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         val funcVer = getFuncDefOrTriggerCallback(calleeFunc)
 
         val argBoxes = argList.map(boxOf)
-        
+
         val ib = boxOf(i).asInstanceOf[BoxStack]
 
         handleOutOfMemory(excClause) {
@@ -717,11 +717,34 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           continueNormally()
         }
       }
-      
+
       case i @ InstSwapStack(swappee, curStackAction, newStackAction, excClause, keepAlives) => {
-        
+        val oldStack = curStack
+        val newStack = boxOf(swappee).asInstanceOf[BoxStack].stack.getOrElse {
+          throw new UvmRuntimeException(ctx + "Swappee must not be NULL.")
+        }
+
+        curStackAction match {
+          case RetWith(retTy) => {
+            oldStack.state = StackState.Ready(retTy)
+          }
+          case KillOld() => {
+            oldStack.state = StackState.Dead
+          }
+        }
+
+        newStackAction match {
+          case PassValue(argTy, arg) => {
+            val argBox = boxOf(arg)   // The current stack is still the swapper's stack.
+            rebindPassValue(Some(newStack), boxOf(arg))
+          }
+          case PassVoid() => {
+            rebindPassVoid(Some(newStack))
+          }
+        }
+
       }
-      
+
       // Indentation guide: Insert more instructions (after TRAP) here.
 
       case i @ InstCommInst(ci, typeList, argList, excClause, keepAlives) => {
@@ -798,6 +821,11 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
   def unbind(readyType: Type): Unit = {
     curStack.state = StackState.Ready(readyType)
+    stack = None
+  }
+  
+  def unbindAndKillStack(): Unit = {
+    curStack.state = StackState.Dead
     stack = None
   }
 
