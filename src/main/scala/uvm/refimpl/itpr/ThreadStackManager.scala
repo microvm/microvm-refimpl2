@@ -1,6 +1,6 @@
 package uvm.refimpl.itpr
 
-import uvm.Function
+import uvm.FuncVer
 import uvm.refimpl.MicroVM
 import uvm.refimpl.mem._
 import scala.collection.mutable.HashMap
@@ -34,10 +34,10 @@ class ThreadStackManager(microVM: MicroVM) {
    * via the "new_stack" message or µVM threads (the InterpreterThread class) which can execute the NEWSTACK
    * instruction.
    */
-  def newStack(function: Function, args: Seq[ValueBox], mutator: Mutator): InterpreterStack = {
+  def newStack(funcVer: FuncVer, args: Seq[ValueBox], mutator: Mutator): InterpreterStack = {
     val stackMemory = microVM.memoryManager.makeStackMemory(mutator)
     val id = makeStackID()
-    val sta = new InterpreterStack(id, stackMemory, function.versions.head, args)
+    val sta = new InterpreterStack(id, stackMemory, funcVer, args)
     stackRegistry.put(id, sta)
     sta
   }

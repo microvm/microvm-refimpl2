@@ -699,6 +699,29 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           branchAndMovePC(dis)
         }
       }
+      
+      case i @ InstNewStack(sig, callee, argList, excClause) => {
+        val calleeFunc = boxOf(callee).asInstanceOf[BoxFunc].func.getOrElse {
+          throw new UvmRuntimeException(ctx + "Stack-bottom function must not be NULL")
+        }
+
+        val funcVer = getFuncDefOrTriggerCallback(calleeFunc)
+
+        val argBoxes = argList.map(boxOf)
+        
+        val ib = boxOf(i).asInstanceOf[BoxStack]
+
+        handleOutOfMemory(excClause) {
+          val sta = microVM.threadStackManager.newStack(funcVer, argBoxes, mutator)
+          ib.stack = Some(sta)
+          continueNormally()
+        }
+      }
+      
+      case i @ InstSwapStack(swappee, curStackAction, newStackAction, excClause, keepAlives) => {
+        
+      }
+      
       // Indentation guide: Insert more instructions (after TRAP) here.
 
       case i @ InstCommInst(ci, typeList, argList, excClause, keepAlives) => {
