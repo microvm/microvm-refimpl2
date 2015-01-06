@@ -143,10 +143,6 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
       }
 
       case i @ InstCmp(op, opndTy, op1, op2) => {
-        def writeBooleanResult(result: Boolean, br: ValueBox): Unit = {
-          br.asInstanceOf[BoxInt].value = if (result) 1 else 0
-        }
-
         def doInt(l: Int, b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
           val op1v = b1.asInstanceOf[BoxInt].value
           val op2v = b2.asInstanceOf[BoxInt].value
@@ -670,6 +666,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           branchAndMovePC(dis)
         }
       }
+      
+      case i @ InstCCall(callConv, funcTy, sig, callee, argList) => {
+        throw new UvmRefImplException(ctx + "The CCALL instruction is not implemented in this reference implementation")
+      }
 
       case i @ InstNewStack(sig, callee, argList, excClause) => {
         val calleeFunc = boxOf(callee).asInstanceOf[BoxFunc].func.getOrElse {
@@ -720,11 +720,28 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         }
       }
 
-      // Indentation guide: Insert more instructions (after TRAP) here.
-
       case i @ InstCommInst(ci, typeList, argList, excClause, keepAlives) => {
-        def theCI(name: String): CommInst = CommInsts(name)
         ci.name.get match {
+          // Thread and stack operations
+          case "@uvm.new_thread" => {
+            val Seq(s) = argList
+            val sta = boxOf(s).asInstanceOf[BoxStack].stack.getOrElse {
+              throw new UvmRuntimeException(ctx + "Attempt to create new thread on NULL stack.")
+            }
+            val thr = microVM.threadStackManager.newThread(sta)
+            boxOf(i).asInstanceOf[BoxThread].thread = Some(thr)
+            continueNormally()
+          }
+          
+          case "@uvm.kill_thread" => {
+            val Seq(s) = argList
+            val sta = boxOf(s).asInstanceOf[BoxStack].stack.getOrElse {
+              throw new UvmRuntimeException(ctx + "Attempt to kill NULL stack.")
+            }
+            sta.state = StackState.Dead
+            continueNormally()
+          }
+          
           case "@uvm.thread_exit" => {
             threadExit()
           }
@@ -733,6 +750,105 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             val bi = boxOf(i)
             bi.asInstanceOf[BoxStack].stack = stack
             continueNormally()
+          }
+          
+          // 64-bit Tagged Reference
+          
+          case "@uvm.tr64.is_fp" => {
+            val Seq(tr) = argList
+            val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
+            val result = OpHelper.tr64IsFp(raw)
+            writeBooleanResult(result, boxOf(i))
+            continueNormally()
+          }
+
+          case "@uvm.tr64.is_int" => {
+            val Seq(tr) = argList
+            val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
+            val result = OpHelper.tr64IsInt(raw)
+            writeBooleanResult(result, boxOf(i))
+            continueNormally()
+          }
+
+          case "@uvm.tr64.is_ref" => {
+            val Seq(tr) = argList
+            val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
+            val result = OpHelper.tr64IsRef(raw)
+            writeBooleanResult(result, boxOf(i))
+            continueNormally()
+          }
+          
+          case "@uvm.tr64.from_fp" => {
+            val Seq(v) = argList
+            val vFP = boxOf(v).asInstanceOf[BoxDouble].value
+            val raw = OpHelper.fpToTr64(vFP)
+            boxOf(i).asInstanceOf[BoxTagRef64].raw = raw
+            continueNormally()
+          }
+
+          case "@uvm.tr64.from_int" => {
+            val Seq(v) = argList
+            val vInt = OpHelper.prepareUnsigned(boxOf(v).asInstanceOf[BoxInt].value, 52)
+            val raw = OpHelper.intToTr64(vInt.longValue())
+            boxOf(i).asInstanceOf[BoxTagRef64].raw = raw
+            continueNormally()
+          }
+
+          case "@uvm.tr64.from_ref" => {
+            val Seq(ref, tag) = argList
+            val vRef = boxOf(ref).asInstanceOf[BoxRef].objRef
+            val vTag = OpHelper.prepareUnsigned(boxOf(tag).asInstanceOf[BoxInt].value, 6)
+            val raw = OpHelper.refToTr64(vRef, vTag.longValue())
+            boxOf(i).asInstanceOf[BoxTagRef64].raw = raw
+            continueNormally()
+          }
+          
+          case "@uvm.tr64.to_fp" => {
+            val Seq(tr) = argList
+            val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
+            if (OpHelper.tr64IsFp(raw)) {
+              val result = OpHelper.tr64ToFp(raw)
+              boxOf(i).asInstanceOf[BoxDouble].value = result
+              continueNormally()
+            } else {
+              throw new UvmRuntimeException(ctx + "Attempt to extract double from a tagref64 which is not holding a double")
+            }
+          }
+          
+          case "@uvm.tr64.to_int" => {
+            val Seq(tr) = argList
+            val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
+            if (OpHelper.tr64IsInt(raw)) {
+              val result = OpHelper.tr64ToInt(raw)
+              boxOf(i).asInstanceOf[BoxInt].value = OpHelper.unprepare(result, 52)
+              continueNormally()
+            } else {
+              throw new UvmRuntimeException(ctx + "Attempt to extract int from a tagref64 which is not holding a int")
+            }
+          }
+          
+          case "@uvm.tr64.to_ref" => {
+            val Seq(tr) = argList
+            val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
+            if (OpHelper.tr64IsRef(raw)) {
+              val result = OpHelper.tr64ToRef(raw)
+              boxOf(i).asInstanceOf[BoxRef].objRef = result
+              continueNormally()
+            } else {
+              throw new UvmRuntimeException(ctx + "Attempt to extract ref from a tagref64 which is not holding a ref")
+            }
+          }
+          
+          case "@uvm.tr64.to_tag" => {
+            val Seq(tr) = argList
+            val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
+            if (OpHelper.tr64IsRef(raw)) {
+              val result = OpHelper.tr64ToTag(raw)
+              boxOf(i).asInstanceOf[BoxInt].value = OpHelper.unprepare(result, 6)
+              continueNormally()
+            } else {
+              throw new UvmRuntimeException(ctx + "Attempt to extract tag from a tagref64 which is not holding a ref")
+            }
           }
 
           // Insert more CommInsts here.
@@ -853,6 +969,12 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         throw new UvmRefImplException(ctx + "Instruction %s (%s) is in a stack frame when an exception is thrown.".format(inst.repr, inst.getClass.getName))
       }
     }
+  }
+
+  // Misc helper
+  
+  private def writeBooleanResult(result: Boolean, box: ValueBox): Unit = {
+    box.asInstanceOf[BoxInt].value = if (result) 1 else 0
   }
 
   // Thread/stack binding and unbinding
