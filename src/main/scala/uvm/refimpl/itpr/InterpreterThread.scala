@@ -18,10 +18,18 @@ object InterpreterThread {
 class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: InterpreterStack, val mutator: Mutator) {
   import InterpreterThread._
 
-  var stack: Option[InterpreterStack] = Some(initialStack)
+  // Thread states
+  
+  var stack: Option[InterpreterStack] = None
 
   var isRunning: Boolean = true
+  
+  // Initialisation
 
+  rebindPassVoid(initialStack)
+
+  // Public interface
+  
   def step(): Unit = {
     interpretCurrentInstruction()
   }
@@ -30,19 +38,27 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     curStack.state = StackState.Dead
     isRunning = false
   }
+  
+  // Convenient functions to get/set states
 
   def curStack = stack.get
   def top = curStack.top
   def curBB = top.curBB
   def curInst = top.curInst
+  def curInstHalfExecuted = top.curInstHalfExecuted
+  def curInstHalfExecuted_=(v:Boolean) = top.curInstHalfExecuted_=(v)
 
   def incPC(): Unit = top.incPC()
   def jump(bb: BasicBlock, ix: Int): Unit = top.jump(bb, ix)
 
-  def boxOf(v: SSAVariable): ValueBox = v match {
+  def boxOf(s: InterpreterStack, v: SSAVariable): ValueBox = v match {
     case g: GlobalVariable => microVM.constantPool.getGlobalVarBox(g)
-    case l: LocalVariable  => top.boxes(l)
+    case l: LocalVariable  => s.top.boxes(l)
   }
+  
+  def boxOf(v: SSAVariable): ValueBox = boxOf(curStack, v)
+  
+  // Context printing for debugging
 
   def ctx = stack match {
     case None => "(Thred not bound to stack): "
@@ -56,6 +72,8 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     }
   }
 
+  // Interpreting
+  
   private def interpretCurrentInstruction(): Unit = try {
     logger.debug(ctx + "Executing instruction...")
 
@@ -248,11 +266,11 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           }
 
           def refcast(): Unit = (scalarFromTy, scalarToTy) match {
-            case (TypeFunc(_), TypeFunc(_))   => br.copyFrom(bOpnd)
-            case (TypeThread(), TypeThread()) => br.copyFrom(bOpnd)
-            case (TypeStack(), TypeStack())   => br.copyFrom(bOpnd)
+            case (TypeRef(_), TypeRef(_))   => br.copyFrom(bOpnd)
+            case (TypeIRef(_), TypeIRef(_)) => br.copyFrom(bOpnd)
+            case (TypeFunc(_), TypeFunc(_)) => br.copyFrom(bOpnd)
             case _ => throw new UvmRuntimeException(ctx +
-              "REFCAST can only convert between two types both of which are func, thread or stack. Found %s and %s.".format(scalarFromTy, scalarToTy))
+              "REFCAST can only convert between two types both of which are ref, iref, or func. Found %s and %s.".format(scalarFromTy, scalarToTy))
           }
 
           op match {
@@ -358,7 +376,8 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         val funcVer = getFuncDefOrTriggerCallback(calleeFunc)
 
         val argBoxes = argList.map(boxOf)
-
+        
+        curInstHalfExecuted = true
         curStack.pushFrame(funcVer, argBoxes)
       }
 
@@ -379,12 +398,12 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         curStack.popFrame()
         val newCurInst = curInst // in the parent frame of the RET
         boxOf(newCurInst).copyFrom(rvb)
-        continueNormally()
+        finishHalfExecutedInst()
       }
 
       case i @ InstRetVoid() => {
         curStack.popFrame()
-        continueNormally()
+        finishHalfExecutedInst()
       }
 
       case i @ InstThrow(excVal) => {
@@ -639,62 +658,14 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
       }
 
       case i @ InstTrap(retTy, excClause, keepAlives) => {
-        val ca = microVM.newClientAgent()
-
-        val hThread = ca.putThread(Some(this))
-        val hStack = ca.putStack(Some(curStack))
-
-        unbind(retTy)
-
-        val res = microVM.trapManager.trapHandler.handleTrap(ca, hThread, hStack, 0)
-
-        res match {
-          case TrapExit() => {
-            isRunning = false
-          }
-          case TrapRebindPassValue(newStack, value) => {
-            rebindPassValue(newStack.vb.asInstanceOf[BoxStack].stack, value.vb)
-          }
-          case TrapRebindPassVoid(newStack) => {
-            rebindPassVoid(newStack.vb.asInstanceOf[BoxStack].stack)
-          }
-          case TrapRebindThrowExc(newStack, exc) => {
-            rebindThrowExc(newStack.vb.asInstanceOf[BoxStack].stack, exc.vb)
-          }
-        }
-
-        ca.close()
+        doTrap(retTy, 0)
       }
 
       case i @ InstWatchPoint(wpID, retTy, dis, ena, exc, keepAlives) => {
         val isEnabled = microVM.trapManager.isWatchPointEnabled(wpID)
 
         if (isEnabled) {
-          val ca = microVM.newClientAgent()
-
-          val hThread = ca.putThread(Some(this))
-          val hStack = ca.putStack(Some(curStack))
-
-          unbind(retTy)
-
-          val res = microVM.trapManager.trapHandler.handleTrap(ca, hThread, hStack, wpID)
-
-          res match {
-            case TrapExit() => {
-              isRunning = false
-            }
-            case TrapRebindPassValue(newStack, value) => {
-              rebindPassValue(newStack.vb.asInstanceOf[BoxStack].stack, value.vb)
-            }
-            case TrapRebindPassVoid(newStack) => {
-              rebindPassVoid(newStack.vb.asInstanceOf[BoxStack].stack)
-            }
-            case TrapRebindThrowExc(newStack, exc) => {
-              rebindThrowExc(newStack.vb.asInstanceOf[BoxStack].stack, exc.vb)
-            }
-          }
-
-          ca.close()
+          doTrap(retTy, wpID)
         } else {
           branchAndMovePC(dis)
         }
@@ -726,23 +697,27 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
         curStackAction match {
           case RetWith(retTy) => {
-            oldStack.state = StackState.Ready(retTy)
+            curInstHalfExecuted = true
+            unbind(retTy)
           }
           case KillOld() => {
-            oldStack.state = StackState.Dead
+            unbindAndKillStack()
           }
         }
 
         newStackAction match {
           case PassValue(argTy, arg) => {
-            val argBox = boxOf(arg)   // The current stack is still the swapper's stack.
-            rebindPassValue(Some(newStack), boxOf(arg))
+            val argBox = boxOf(oldStack, arg)
+            rebindPassValue(newStack, argBox)
           }
           case PassVoid() => {
-            rebindPassVoid(Some(newStack))
+            rebindPassVoid(newStack)
+          }
+          case ThrowExc(exc) => {
+            val excBox = boxOf(oldStack, exc)
+            rebindThrowExc(newStack, excBox)
           }
         }
-
       }
 
       // Indentation guide: Insert more instructions (after TRAP) here.
@@ -752,6 +727,12 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         ci.name.get match {
           case "@uvm.thread_exit" => {
             threadExit()
+          }
+
+          case "@uvm.current_stack" => {
+            val bi = boxOf(i)
+            bi.asInstanceOf[BoxStack].stack = stack
+            continueNormally()
           }
 
           // Insert more CommInsts here.
@@ -773,6 +754,8 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
       throw e
     }
   }
+  
+  // Control flow helpers
 
   def branchAndMovePC(dest: BasicBlock, excAddr: Word = 0L): Unit = {
     val curBB = this.curBB
@@ -818,49 +801,12 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
       case _ => incPC()
     }
   }
-
-  def unbind(readyType: Type): Unit = {
-    curStack.state = StackState.Ready(readyType)
-    stack = None
-  }
   
-  def unbindAndKillStack(): Unit = {
-    curStack.state = StackState.Dead
-    stack = None
-  }
-
-  def rebind(newStack: Option[InterpreterStack]): Unit = {
-    if (newStack == None) throw new UvmRuntimeException(ctx + "Rebinding to NULL stack. This does not make sense.")
-    stack = newStack
-  }
-
-  def rebindPassValue(newStack: Option[InterpreterStack], value: ValueBox): Unit = {
-    rebind(newStack)
-    try {
-      boxOf(curInst).copyFrom(value)
-    } catch {
-      case e: Exception => {
-        throw new UvmRuntimeException(ctx + "Error during rebinding while assigning the value passed to a stack " +
-          "to the instruction waiting for rebinding. This is usually caused by the mismatching between the type of " +
-          "READY<T> and the actual value type. The passed value box is a %s.".format(value.getClass.getName), e)
-      }
+  def finishHalfExecutedInst(): Unit = {
+    if (curInstHalfExecuted) {
+      curInstHalfExecuted = false
+      continueNormally()
     }
-
-    continueNormally()
-  }
-
-  def rebindPassVoid(newStack: Option[InterpreterStack]): Unit = {
-    rebind(newStack)
-
-    continueNormally()
-  }
-
-  def rebindThrowExc(newStack: Option[InterpreterStack], exc: ValueBox): Unit = {
-    rebind(newStack)
-
-    val excObjRef = exc.asInstanceOf[BoxRef].objRef
-
-    catchException(excObjRef)
   }
 
   /**
@@ -885,6 +831,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     s.top = newFrame
 
     branchAndMovePC(newBB, exc)
+    curInstHalfExecuted = false
   }
 
   /**
@@ -908,6 +855,94 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     }
   }
 
+  // Thread/stack binding and unbinding
+  
+  def unbind(readyType: Type): Unit = {
+    curStack.state = StackState.Ready(readyType)
+    stack = None
+  }
+
+  def unbindAndKillStack(): Unit = {
+    curStack.state = StackState.Dead
+    stack = None
+  }
+
+  def rebind(newStack: InterpreterStack): Unit = {
+    stack = Some(newStack)
+  }
+
+  def rebindPassValue(newStack: InterpreterStack, value: ValueBox): Unit = {
+    rebind(newStack)
+
+    try {
+      boxOf(curInst).copyFrom(value)
+    } catch {
+      case e: Exception => {
+        throw new UvmRuntimeException(ctx + "Error during rebinding while assigning the value passed to a stack " +
+          "to the instruction waiting for rebinding. This is usually caused by the mismatching between the type of " +
+          "READY<T> and the actual value type. The passed value box is a %s.".format(value.getClass.getName), e)
+      }
+    }
+
+    finishHalfExecutedInst()
+  }
+
+  def rebindPassVoid(newStack: InterpreterStack): Unit = {
+    rebind(newStack)
+
+    finishHalfExecutedInst()
+  }
+
+  def rebindThrowExc(newStack: InterpreterStack, exc: ValueBox): Unit = {
+    rebind(newStack)
+
+    val excObjRef = exc.asInstanceOf[BoxRef].objRef
+
+    catchException(excObjRef)
+  }
+  
+  // Trap and watchpoint handling
+
+  def doTrap(retTy: uvm.types.Type, wpID: Int) = {
+    val curCtx = ctx // save the context string for debugging
+
+    val ca = microVM.newClientAgent()
+
+    val hThread = ca.putThread(Some(this))
+    val hStack = ca.putStack(Some(curStack))
+
+    curInstHalfExecuted = true
+    unbind(retTy)
+
+    val res = microVM.trapManager.trapHandler.handleTrap(ca, hThread, hStack, wpID)
+
+    def getStackNotNull(sh: Handle): InterpreterStack = sh.vb.asInstanceOf[BoxStack].stack.getOrElse {
+      throw new UvmRuntimeException(curCtx + "Attempt to rebind to NULL stack when returning from trap.")
+    }
+
+    res match {
+      case TrapExit() => {
+        isRunning = false
+      }
+      case TrapRebindPassValue(newStack, value) => {
+        val ns = getStackNotNull(newStack)
+        rebindPassValue(ns, value.vb)
+      }
+      case TrapRebindPassVoid(newStack) => {
+        val ns = getStackNotNull(newStack)
+        rebindPassVoid(ns)
+      }
+      case TrapRebindThrowExc(newStack, exc) => {
+        val ns = getStackNotNull(newStack)
+        rebindThrowExc(ns, exc.vb)
+      }
+    }
+
+    ca.close()
+  }
+  
+  // Undefined function handling
+
   @tailrec
   private def getFuncDefOrTriggerCallback(f: Function): FuncVer = {
     f.versions.headOption match {
@@ -919,6 +954,8 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     }
   }
 
+  // Internal control structures (syntax sugars)
+  
   private def branchToExcDestOr(excClause: Option[ExcClause])(f: => Unit): Unit = {
     excClause match {
       case None                      => f

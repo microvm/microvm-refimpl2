@@ -747,57 +747,53 @@
         COMMINST @uvm.thread_exit
 }
 
-// 
-// .funcsig @watchpointtest_sig = @noparamsnoret
-// .funcdef @watchpointtest VERSION @watchpointtest_v1 <@watchpointtest_sig> () {
-// %entry:
-//     BRANCH %head
-//     
-// %head:
-//     %wp = WATCHPOINT 42 <@i64> %dis %ena %enaexc KEEPALIVE ()
-// 
-// %dis:
-//     %trapdis = TRAP <@void> %exit %exit KEEPALIVE ()
-// 
-// %ena:
-//     %trapena = TRAP <@void> %exit %exit KEEPALIVE (%wp)
-// 
-// %enaexc:
-//     %exc = LANDINGPAD
-//     %trapena = TRAP <@void> %exit %exit KEEPALIVE (%exc)
-// 
-// %exit:
-//     COMMINST @uvm.thread_exit
-// }
-// 
-// .funcsig @testswapstack_sig = @noparamsnoret
-// .funcdef @testswapstack VERSION @testswapstack_v1 <@testswapstack_sig> () {
-// %entry:
-//     %valueret = ALLOCA <@i64>
-//     %shouldstop = ALLOCA <@i64> // initially zeroed
-//     %thisstack = COMMINST @uvm.current_stack ()
-//     
-//     %iter = NEWSTACK <@itersig> @rangeiter (3 %thisstack %valueret %shouldstop)
-//     COMMINST @uvm.swap_stack (%iter)
-//     BRANCH %head
-//     
-// %head:
-//     %value = LOAD <@i64> %valueret
-//     %stop  = LOAD <@i64> %shouldstop
-//     TRAP <@void> %head2 %head2 KEEPALIVE (%value %stop)
-// 
-// %head2:
-//     %eq = EQ <@i64> %stop 0
-//     BRANCH2 %eq %body %exit
-// 
-// %body:
-//     COMMINST @uvm.swap_stack (%iter)
-//     BRANCH %head
-// 
-// %exit:
-//     COMMINST @uvm.thread_exit
-// }
-// 
+.funcsig @corostackfunc_sig = @void (@stack @i64)
+.funcdef @corostackfunc VERSION @corostackfunc_v1 <@corostackfunc_sig> (%fromsta %p) {
+    %entry:
+        %trap_coro1 = TRAP <@void> KEEPALIVE(%fromsta %p)
+
+        %pp1 = ADD <@i64> %p @I64_1
+
+        %css1 = SWAPSTACK %fromsta RET_WITH <@double> PASS_VALUE <@i64> %pp1
+
+        %trap_coro2 = TRAP <@void> KEEPALIVE(%css1)
+
+        %css2 = SWAPSTACK %fromsta RET_WITH <@void> PASS_VOID KEEPALIVE(%css1)
+
+        %excref = NEW <@i64>
+        %exciref = GETIREF <@i64> %excref
+        STORE <@i64> %exciref @I64_7    // Does not need to be atomic. It is single threaded.
+
+        %css3 = SWAPSTACK %fromsta KILL_OLD THROW_EXC %excref
+}
+
+.funcdef @testswapstack VERSION @testswapstack_v1 <@noparamsnoret> () {
+    %entry:
+        %thisstack = COMMINST @uvm.current_stack ()
+        
+        %coro = NEWSTACK <@corostackfunc_sig> @corostackfunc (%thisstack @I64_2)
+
+        %mss1 = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID
+
+        %trap_main1 = TRAP <@void> KEEPALIVE(%mss1)
+
+        %mss2 = SWAPSTACK %coro RET_WITH <@void> PASS_VALUE <@double> @D_3
+
+        %mss3 = SWAPSTACK %coro RET_WITH <@void> PASS_VOID EXC(%unreachable %exit)
+
+    %exit:
+        %exc = LANDINGPAD
+        %excref = REFCAST <@refvoid @refi64> %exc
+        %exciref = GETIREF <@i64> %excref
+        %excval = LOAD <@i64> %exciref
+        %trap_main2 = TRAP <@void> KEEPALIVE(%excval)
+        COMMINST @uvm.thread_exit
+
+    %unreachable:
+        %trap_unreachable = TRAP <@void>
+        COMMINST @uvm.thread_exit
+}
+
 // .typedef @irefi64 = iref<@i64>
 // 
 // .typedef @irefstack = iref<@stack>

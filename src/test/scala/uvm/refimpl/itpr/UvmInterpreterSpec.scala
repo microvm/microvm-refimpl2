@@ -964,11 +964,11 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
   "WATCHPOINT" should "do nothing when disabled" in {
     val ca = microVM.newClientAgent()
-    
+
     ca.disableWatchPoint(1)
-    
+
     val func = ca.putFunction("@wptest")
-    
+
     testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
         case "@wptest_v1.trap_dis" => {
@@ -983,7 +983,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
   "WATCHPOINT" should "work with all supported destinations when enabled" in {
     val ca = microVM.newClientAgent()
-    
+
     ca.enableWatchPoint(1)
 
     val exc = ca.newFixed("@i32")
@@ -1021,10 +1021,10 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     ca.close()
   }
-  
+
   "TRAP and WATCHPOINT" should "throw exceptions out of function when no exceptional dest" in {
     val ca = microVM.newClientAgent()
-    
+
     ca.enableWatchPoint(2)
 
     val exc1 = ca.newFixed("@void")
@@ -1046,7 +1046,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
           lp1.vb.asRef shouldBe exc1.vb.asRef
           lp2.vb.asRef shouldBe exc2.vb.asRef
-          
+
           TrapRebindPassVoid(st)
         }
         case n => fail("Unexpected trap " + n)
@@ -1055,6 +1055,63 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     ca.close()
   }
-  
+
+  "SWAPSTAK" should "work" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@testswapstack")
+    
+    var coro1Reached = false
+    var coro2Reached = false
+    var main1Reached = false
+    var main2Reached = false
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      nameOf(ca.currentInstruction(st, 0)) match {
+        case "@corostackfunc_v1.trap_coro1" => {
+          val Seq(fromSta, p) = ca.dumpKeepalives(st, 0)
+
+          fromSta.vb.asStack.get.top.funcVer shouldBe microVM.globalBundle.funcVerNs("@testswapstack_v1")
+          p.vb.asSInt(64) shouldBe 2L
+
+          coro1Reached = true
+          TrapRebindPassVoid(st)
+        }
+        case "@corostackfunc_v1.trap_coro2" => {
+          val Seq(css1) = ca.dumpKeepalives(st, 0)
+
+          css1.vb.asDouble shouldBe 3.0d
+
+          coro2Reached = true
+          TrapRebindPassVoid(st)
+        }
+        case "@testswapstack_v1.trap_main1" => {
+          val Seq(mss1) = ca.dumpKeepalives(st, 0)
+
+          mss1.vb.asSInt(64) shouldBe 3L
+          
+          main1Reached = true
+          TrapRebindPassVoid(st)
+        }
+        case "@testswapstack_v1.trap_main2" => {
+          val Seq(excVal) = ca.dumpKeepalives(st, 0)
+
+          excVal.vb.asSInt(64) shouldBe 7L
+          
+          main2Reached = true
+          TrapRebindPassVoid(st)
+        }
+      }
+    }
+    
+    coro1Reached shouldBe true
+    coro2Reached shouldBe true
+    main1Reached shouldBe true
+    main2Reached shouldBe true
+    
+    fail()
+
+    ca.close()
+  }
 
 }
