@@ -828,28 +828,4 @@
                 %i_is_f %i_is_i %i_is_r %r_is_f %r_is_i %r_is_r %fb %ib %rb %rt)
         COMMINST @uvm.thread_exit
 }
- 
-// ///////////////////////// Simple sum
-// 
-// .funcsig @simplesum_sig = @void (@i64 @i64)
-// .funcdef @simplesum VERSION @simplesum_v1 <@simplesum_sig> (%from %to) {
-// %entry:
-//     //BRANCH %head
-//     %starttrap = TRAP <@void> %head %head KEEPALIVE ()
-// 
-// %head:
-//     %sum = PHI <@i64> { %entry: 0; %body: %sum2; }
-//     %i   = PHI <@i64> { %entry: %from; %body: %i2; }
-//     %le  = SLE <@i64> %i %to
-//     BRANCH2 %le %body %exit
-//     
-// %body:
-//     %sum2 = ADD <@i64> %sum %i
-//     %i2   = ADD <@i64> %i 1
-//     BRANCH %head
-//     //%montrap = TRAP <@void> %head %head KEEPALIVE (%from %to %sum %i %le %sum2 %i2)
-// 
-// %exit:
-//     %exittrap = TRAP <@void> KEEPALIVE (%sum) // should stop thread
-//     COMMINST @uvm.thread_exit
-// }
+
