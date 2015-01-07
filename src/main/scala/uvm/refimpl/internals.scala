@@ -34,7 +34,7 @@ object InternalTypes {
   val REF_VOID = TypeRef(VOID) := internal("ref_void")
 
   val STACK = TypeStack() := internal("stack")
-  val THREAD = TypeStack() := internal("thread")
+  val THREAD = TypeThread() := internal("thread")
   val TAGREF64 = TypeTagRef64() := internal("tagref64")
 }
 

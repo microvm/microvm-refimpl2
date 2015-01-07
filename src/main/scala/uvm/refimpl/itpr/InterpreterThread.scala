@@ -733,7 +733,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             continueNormally()
           }
           
-          case "@uvm.kill_thread" => {
+          case "@uvm.kill_stack" => {
             val Seq(s) = argList
             val sta = boxOf(s).asInstanceOf[BoxStack].stack.getOrElse {
               throw new UvmRuntimeException(ctx + "Attempt to kill NULL stack.")

@@ -1060,7 +1060,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     val ca = microVM.newClientAgent()
 
     val func = ca.putFunction("@testswapstack")
-    
+
     var coro1Reached = false
     var coro2Reached = false
     var main1Reached = false
@@ -1089,7 +1089,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
           val Seq(mss1) = ca.dumpKeepalives(st, 0)
 
           mss1.vb.asSInt(64) shouldBe 3L
-          
+
           main1Reached = true
           TrapRebindPassVoid(st)
         }
@@ -1097,21 +1097,46 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
           val Seq(excVal) = ca.dumpKeepalives(st, 0)
 
           excVal.vb.asSInt(64) shouldBe 7L
-          
+
           main2Reached = true
           TrapRebindPassVoid(st)
         }
       }
     }
-    
+
     coro1Reached shouldBe true
     coro2Reached shouldBe true
     main1Reached shouldBe true
     main2Reached shouldBe true
-    
-    fail()
 
     ca.close()
   }
 
+  "COMMINST @uvm.tr64.*" should "work" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@testtr64")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val Seq(rv, f, i, r,
+        f_is_f, f_is_i, f_is_r, i_is_f, i_is_i, i_is_r, r_is_f, r_is_i, r_is_r,
+        fb, ib, rb, tb) = ca.dumpKeepalives(st, 0)
+
+      f.vb.asTR64Raw shouldBe OpHelper.fpToTr64(42.0d)
+      i.vb.asTR64Raw shouldBe OpHelper.intToTr64(0xfedcba9876543L)
+      r.vb.asTR64Raw shouldBe OpHelper.refToTr64(rv.vb.asRef, 31L)
+
+      (Seq(f_is_f, f_is_i, f_is_r, i_is_f, i_is_i, i_is_r, r_is_f, r_is_i, r_is_r).map(_.vb.asUInt(1)) shouldBe
+        Seq(1, 0, 0, 0, 1, 0, 0, 0, 1))
+
+      fb.vb.asDouble shouldBe 42.0d
+      ib.vb.asUInt(52) shouldBe 0xfedcba9876543L
+      rb.vb.asRef shouldBe rv.vb.asRef
+      tb.vb.asUInt(6) shouldBe 31L
+
+      TrapRebindPassVoid(st)
+    }
+
+    ca.close()
+  }
 }

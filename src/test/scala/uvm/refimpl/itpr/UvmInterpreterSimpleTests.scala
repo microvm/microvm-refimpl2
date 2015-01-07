@@ -72,4 +72,60 @@ class UvmInterpreterSimpleTests extends UvmBundleTesterBase {
 
     ca.close()
   }
+
+  "Coroutine test" should "work" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@test_coroutine")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val trapName = nameOf(ca.currentInstruction(st, 0))
+
+      trapName match {
+        case "@test_coroutine_v1.trap_body" => {
+          val Seq(v) = ca.dumpKeepalives(st, 0)
+
+          println(v.vb.asSInt(64))
+
+          TrapRebindPassVoid(st)
+        }
+        case "@test_coroutine_v1.trap_exit" => {
+          val Seq(exc) = ca.dumpKeepalives(st, 0)
+
+          val hsi = ca.putGlobal("@StopIteration")
+          val hrsi = ca.load(MemoryOrder.NOT_ATOMIC, hsi)
+
+          exc.vb.asRef shouldEqual hrsi.vb.asRef
+
+          TrapRebindPassVoid(st)
+        }
+        case _ => fail("Should not hit " + trapName)
+      }
+    }
+
+    ca.close()
+  }
+  
+  "Multi-threading test" should "work" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@test_multithreading")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val trapName = nameOf(ca.currentInstruction(st, 0))
+
+      trapName match {
+        case "@test_multithreading_v1.trap_result" => {
+          val Seq(v) = ca.dumpKeepalives(st, 0)
+
+          v.vb.asSInt(64) shouldEqual 4950
+
+          TrapRebindPassVoid(st)
+        }
+        case _ => fail("Should not hit " + trapName)
+      }
+    }
+
+    ca.close()
+  }
 }

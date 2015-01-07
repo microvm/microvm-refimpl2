@@ -9,6 +9,10 @@
 
 .funcsig @noparamsnoret = @void ()
 
+.typedef @thread = thread
+.typedef @stack = stack
+.typedef @tagref64 = tagref64
+
 .const @TRUE <@i64> = 1
 .const @FALSE <@i64> = 0
 
@@ -26,3 +30,5 @@
 .const @I64_1  <@i64> = 1
 .const @I64_2  <@i64> = 2
 .const @I64_10 <@i64> = 10
+.const @I64_50 <@i64> = 50
+.const @I64_100 <@i64> = 100

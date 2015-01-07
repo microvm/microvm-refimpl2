@@ -1,5 +1,7 @@
 // require primitives.uir
 
+// Factorial
+
 .funcdef @factorial_rec VERSION @factorial_rec_v1 <@i_i> (%n) {
     %entry:
         %zero = EQ <@i64> %n @I64_0
@@ -59,6 +61,8 @@
         %checktrap = TRAP <@void> KEEPALIVE (%r1 %r2 %r3)
         COMMINST @uvm.thread_exit
 }
+
+// Fibonacci
 
 .funcdef @fibonacci_rec VERSION @fibonacci_rec_v1 <@i_i> (%n) {
     %entry:
@@ -167,3 +171,129 @@
                         )
         COMMINST @uvm.thread_exit
 }
+
+// Coroutine iterator
+
+.global @StopIteration <@refvoid>
+
+.funcsig @itersig = @void (@i64 @stack)
+
+.funcdef @rangeiter VERSION @rangeiter_v1 <@itersig> (%n %src) {
+    %entry:
+        BRANCH %head
+
+    %head:
+        %i = PHI <@i64> {
+            %entry: @I64_0;
+            %body: %i2;
+            }
+        %lt = SLT <@i64> %i %n
+        BRANCH2 %lt %body %exit
+        
+    %body:
+        SWAPSTACK %src RET_WITH <@void> PASS_VALUE <@i64> %i
+        %i2 = ADD <@i64> %i @I64_1
+        BRANCH %head
+
+    %exit:
+        %stop_iteration = LOAD <@refvoid> @StopIteration
+        SWAPSTACK %src KILL_OLD THROW_EXC %stop_iteration
+}
+
+.funcdef @test_coroutine VERSION @test_coroutine_v1 <@noparamsnoret> () {
+    %entry:
+        %stop_iteration = NEW <@void>
+        STORE <@refvoid> @StopIteration %stop_iteration
+
+        %curstack = COMMINST @uvm.current_stack
+        %coro = NEWSTACK <@itersig> @rangeiter (@I64_10 %curstack)
+
+        BRANCH %head
+
+    %head:
+        %val = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID EXC(%body %exit)
+
+    %body:
+        %trap_body = TRAP <@void> KEEPALIVE(%val)
+        BRANCH %head
+    
+    %exit:
+        %exc = LANDINGPAD
+        %trap_exit = TRAP <@void> KEEPALIVE(%exc)
+        COMMINST @uvm.thread_exit
+}
+
+// Multi-threading
+
+.typedef @LongAry = hybrid <@void @i64>
+
+.funcsig @summingslave_sig = @void (@irefi64 @i64 @irefi64)
+
+.funcdef @summingslave VERSION @summingslave_v1 <@summingslave_sig> (%ary %sz %result) {
+%entry:
+    BRANCH %head
+    
+%head:
+    %sum = PHI <@i64> { %entry: @I64_0; %body: %sum2; }
+    %i   = PHI <@i64> { %entry: @I64_0; %body: %i2; }
+    %cmp = SLT <@i64> %i %sz
+    BRANCH2 %cmp %body %exit
+
+%body:
+    %curptr = SHIFTIREF <@i64 @i64> %ary %i
+    %curnum = LOAD <@i64> %curptr
+    %sum2 = ADD <@i64> %sum %curnum
+    %i2 = ADD <@i64> %i @I64_1
+    BRANCH %head
+
+%exit:
+    STORE SEQ_CST <@i64> %result %sum
+    COMMINST @uvm.thread_exit
+}
+
+.funcdef @test_multithreading VERSION @test_multithreading_v1 <@noparamsnoret> () {
+%entry:
+    %ary_r = NEWHYBRID <@LongAry @i64> @I64_100
+    %ary_ir = GETIREF <@LongAry> %ary_r
+    %ary0_ir = GETVARPARTIREF <@LongAry> %ary_ir
+    BRANCH %head
+
+%head:
+    %i = PHI <@i64> { %entry: @I64_0; %body: %i2; }
+    %cmp = SLT <@i64> %i @I64_100
+    BRANCH2 %cmp %body %next
+
+%body:
+    %aryi_ir = SHIFTIREF <@i64 @i64> %ary0_ir %i
+    STORE <@i64> %aryi_ir %i
+    %i2 = ADD <@i64> %i @I64_1
+    BRANCH %head
+    
+%next:
+    %result0 = ALLOCA <@i64>
+    %sta0 = NEWSTACK <@summingslave_sig> @summingslave (%ary0_ir @I64_50 %result0)
+    %result1 = ALLOCA <@i64>
+    %ary50_ir = SHIFTIREF <@i64 @i64> %ary0_ir @I64_50
+    %sta1 = NEWSTACK <@summingslave_sig> @summingslave (%ary50_ir @I64_50 %result1)
+    
+    %thr0 = COMMINST @uvm.new_thread (%sta0)
+    %thr1 = COMMINST @uvm.new_thread (%sta1)
+    
+    BRANCH %wait0
+
+%wait0:
+    %res0val = LOAD SEQ_CST <@i64> %result0
+    %cz0 = EQ <@i64> %res0val @I64_0
+    BRANCH2 %cz0 %wait0 %wait1
+    
+%wait1:
+    %res1val = LOAD SEQ_CST <@i64> %result1
+    %cz1 = EQ <@i64> %res1val @I64_0
+    BRANCH2 %cz1 %wait1 %getresult
+    
+%getresult:
+    %sum = ADD <@i64> %res0val %res1val
+    %trap_result = TRAP <@void> KEEPALIVE (%sum)
+    COMMINST @uvm.thread_exit
+}
+
