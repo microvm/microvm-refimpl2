@@ -13,50 +13,119 @@ import uvm.refimpl.mem.TypeSizes.Word
 import ch.qos.logback.classic.Level._
 import uvm.refimpl.UvmBundleTesterBase
 
-class UvmInterpreterSimpleSumTest extends UvmBundleTesterBase {
+class UvmInterpreterSimpleTests extends UvmBundleTesterBase {
   setLogLevels(
     ROOT_LOGGER_NAME -> INFO,
-    "uvm.refimpl.itpr" -> INFO)
+    "uvm.refimpl.itpr" -> DEBUG)
 
   preloadBundles("tests/uvm-refimpl-test/primitives.uir",
-    "tests/uvm-refimpl-test/simple-sum.uir")
+    "tests/uvm-refimpl-test/simple-tests.uir")
 
-  "Simple sum" should "work" in {
+  "Factorial functions" should "work" in {
     val ca = microVM.newClientAgent()
 
-    val from = 1L
-    val to = 1000000L
-    val expectedSum = (from + to) * (to - from + 1L) / 2L
+    val func = ca.putFunction("@test_fac")
 
-    val hFrom = ca.putInt("@i64", from)
-    val hTo = ca.putInt("@i64", to)
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val Seq(r1, r2, r3) = ca.dumpKeepalives(st, 0)
 
-    val func = ca.putFunction("@simplesum")
+      r1.vb.asInt shouldEqual 3628800
+      r2.vb.asInt shouldEqual 3628800
+      r3.vb.asInt shouldEqual 3628800
 
-    var t1: Long = 0L
-    var t2: Long = 0L
+      TrapRebindPassVoid(st)
+    }
 
-    testFunc(ca, func, Seq(hFrom, hTo)) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) match {
-        case "@simplesum_v1.starttrap" => {
-          t1 = System.currentTimeMillis()
+    ca.close()
+  }
+
+  "Fibonacci functions" should "work" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@test_fib")
+
+    val watch = true
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val trapName = nameOf(ca.currentInstruction(st, 0))
+
+      trapName match {
+        case "@fibonacci_mat_v1.watch" => {
+          if (watch) {
+            val vhs = ca.dumpKeepalives(st, 0)
+            val vs = vhs.map(_.vb.asInt)
+            println("watch " + vs)
+          }
           TrapRebindPassVoid(st)
         }
-        case "@simplesum_v1.exittrap" => {
-          t2 = System.currentTimeMillis()
+        case "@test_fib_v1.checktrap" => {
+          val Seq(r1, r2) = ca.dumpKeepalives(st, 0)
 
-          val Seq(sum) = ca.dumpKeepalives(st, 0)
-
-          sum.vb.asSInt(64) shouldBe expectedSum
+          r1.vb.asInt shouldEqual 55
+          r2.vb.asInt shouldEqual 55
 
           TrapRebindPassVoid(st)
         }
+        case _ => fail("Should not hit " + trapName)
       }
     }
 
     ca.close()
+  }
 
-    val timeDiff = t2 - t1
-    printf("Time: %d ms".format(timeDiff))
+  "Coroutine test" should "work" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@test_coroutine")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val trapName = nameOf(ca.currentInstruction(st, 0))
+
+      trapName match {
+        case "@test_coroutine_v1.trap_body" => {
+          val Seq(v) = ca.dumpKeepalives(st, 0)
+
+          println(v.vb.asSInt(64))
+
+          TrapRebindPassVoid(st)
+        }
+        case "@test_coroutine_v1.trap_exit" => {
+          val Seq(exc) = ca.dumpKeepalives(st, 0)
+
+          val hsi = ca.putGlobal("@StopIteration")
+          val hrsi = ca.load(MemoryOrder.NOT_ATOMIC, hsi)
+
+          exc.vb.asRef shouldEqual hrsi.vb.asRef
+
+          TrapRebindPassVoid(st)
+        }
+        case _ => fail("Should not hit " + trapName)
+      }
+    }
+
+    ca.close()
+  }
+  
+  "Multi-threading test" should "work" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@test_multithreading")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val trapName = nameOf(ca.currentInstruction(st, 0))
+
+      trapName match {
+        case "@test_multithreading_v1.trap_result" => {
+          val Seq(v) = ca.dumpKeepalives(st, 0)
+
+          v.vb.asSInt(64) shouldEqual 4950
+
+          TrapRebindPassVoid(st)
+        }
+        case _ => fail("Should not hit " + trapName)
+      }
+    }
+
+    ca.close()
   }
 }
