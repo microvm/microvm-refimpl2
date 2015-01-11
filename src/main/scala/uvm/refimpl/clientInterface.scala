@@ -290,9 +290,8 @@ class ClientAgent(microVM: MicroVM) {
   }
 
   def newStack(func: Handle, args: Seq[Handle]): Handle = {
-    val funcVal = func.vb.asInstanceOf[BoxFunc].func match {
-      case None    => throw new UvmRuntimeException("Stack-bottom function must not be NULL")
-      case Some(v) => v
+    val funcVal = func.vb.asInstanceOf[BoxFunc].func.getOrElse {
+      throw new UvmRuntimeException("Stack-bottom function must not be NULL")
     }
     
     val funcVer = funcVal.versions.headOption.getOrElse {
@@ -385,7 +384,23 @@ class ClientAgent(microVM: MicroVM) {
     }
   }
 
-  def pushFrame = throw new UvmRefImplException("Not defined in spec")
+  def pushFrame(stack: Handle, func: Handle, argList: Seq[Handle]): Unit = {    
+    val sta = stack.vb.asInstanceOf[BoxStack].stack.getOrElse {
+      throw new UvmRuntimeException("Stack must not be NULL")
+    }
+
+    val funcVal = func.vb.asInstanceOf[BoxFunc].func.getOrElse {
+      throw new UvmRuntimeException("Stack-bottom function must not be NULL")
+    }
+    
+    val funcVer = funcVal.versions.headOption.getOrElse {
+      throw new UvmRuntimeException("Stack-bottom function %s is not defined.".format(funcVal.repr))
+    }
+
+    val argBoxes = argList.map(_.vb)
+    
+    sta.pushFrame(funcVer, argBoxes)
+  }
 
   def tr64IsFp(handle: Handle): Boolean = {
     OpHelper.tr64IsFp(handle.vb.asInstanceOf[BoxTagRef64].raw)
