@@ -21,6 +21,7 @@ object MemoryDataScanner extends StrictLogging {
     val tag = HeaderUtils.getTag(objRef)
     logger.debug("Obj 0x%x, tag 0x%x".format(objRef, tag))
     val ty = HeaderUtils.getType(microVM, tag)
+    logger.debug("Type: %s".format(ty.repr))
     scanField(ty, objRef, objRef, handler)
   }
 

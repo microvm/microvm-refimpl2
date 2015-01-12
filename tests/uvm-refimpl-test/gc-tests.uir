@@ -102,7 +102,6 @@
 .global @g_sta  <@stack>
 .global @g_tr64 <@tagref64>
 
-.const @CRAZY_ALLOC_COUNT <@i64> = 100
 .const @RI64_NULL <@refi64> = NULL
 
 .global @g_refi64 <@refi64>
@@ -163,6 +162,8 @@
         RETVOID
 }
 
+.const @CRAZY_ALLOC_COUNT <@i64> = 1000
+
 .funcdef @crazy_allocator VERSION @crazy_allocator_v1 <@noparamsnoret> () {
     %entry:
         BRANCH %head
@@ -181,12 +182,19 @@
         RETVOID
 }
 
+.funcdef @crazy_allocation_test VERSION @crazy_allocation_test_v1 <@noparamsnoret> () {
+    %entry:
+        CALL <@noparamsnoret> @crazy_allocator ()
+        COMMINST @uvm.thread_exit
+}
+
 .typedef @refi64array = hybrid <@void @refi64>
 
 .const @REM_SZ <@i64> = 2000
 .const @REM_PER_ALLOC <@i64> = 100000
-.const @NALLOCS <@i64> = 2000000
+.const @NALLOCS <@i64> = 1000000
 
+// Retain one object per @REM_SZ objects. Testing defragmentation
 .funcdef @breadcrumbs VERSION @breadcrumbs_v1 <@noparamsnoret> () {
     %entry:
         %remember = NEWHYBRID <@refi64array @i64> @REM_SZ
@@ -275,14 +283,16 @@
 .funcdef @testtagrefgc VERSION @testtagrefgc_v1 <@noparamsnoret> () {
     %entry:
         %tr = CALL <@maketr64intref_sig> @maketr64intref ()
+
         %gctrap = TRAP <@void>
-        
-    %next:
+
         %refv = COMMINST @uvm.tr64.to_ref(%tr)
         %tagv = COMMINST @uvm.tr64.to_tag(%tr)
+
         %refi = REFCAST <@refvoid @refi64> %refv
         %irefi = GETIREF <@i64> %refi
         %iv = LOAD <@i64> %irefi
+
         %checktrap = TRAP <@void> KEEPALIVE (%tr %refv %tagv %iv)
 
         COMMINST @uvm.thread_exit

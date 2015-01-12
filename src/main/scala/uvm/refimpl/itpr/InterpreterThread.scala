@@ -518,8 +518,8 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         handleOutOfMemory(excClause) {
           val addr = mutator.allocaScalar(curStack.stackMemory, allocTy)
           val ib = boxOf(i).asInstanceOf[BoxIRef]
-          ib.objRef = addr
-          ib.offset = 0L
+          ib.objRef = 0L
+          ib.offset = addr
           continueNormally()
         }
       }
@@ -530,8 +530,8 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           val len = OpHelper.prepareUnsigned(lb.value, lenTy.length)
           val addr = mutator.allocaHybrid(curStack.stackMemory, allocTy, len.longValue)
           val ib = boxOf(i).asInstanceOf[BoxIRef]
-          ib.objRef = addr
-          ib.offset = 0L
+          ib.objRef = 0L
+          ib.offset = addr
           continueNormally()
         }
       }
