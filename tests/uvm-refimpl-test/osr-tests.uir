@@ -1,0 +1,64 @@
+// requires "primitives.uir"
+
+.funcsig @v_i = @void (@i64)
+
+.funcdef @intro_test_base VERSION @intro_test_base_v1 <@v_i> (%n) {
+    %entry:
+        %rv = CALL <@v_i> @intro_rec (%n)
+        
+        COMMINST @uvm.thread_exit
+}
+
+.funcdef @intro_rec VERSION @intro_rec_v1 <@v_i> (%n) {
+    %entry:
+        %isz = EQ <@i64> %n @I64_0
+        BRANCH2 %isz %zero %nz
+
+    %zero:
+        %trap_rec = TRAP <@i64> KEEPALIVE(%n)
+        RET <@i64> %trap_rec
+
+    %nz:
+        %nm1 = SUB <@i64> %n @I64_1
+        %rv = CALL <@v_i> @intro_rec (%nm1) KEEPALIVE(%n %nm1)
+
+        RET <@i64> %rv
+}
+
+.funcdef @osr_test_base VERSION @osr_test_base_v1 <@v_i> (%n) {
+    %entry:
+        %rv = CALL <@i_i> @sum (%n)
+        %trap_base_exit = TRAP <@void> KEEPALIVE (%rv)
+        COMMINST @uvm.thread_exit
+}
+
+.const @sum_v1.THRESHOLD <@i64> = 5
+
+// Sum from 0..(n-1), but optimise when adding more than 5 numbers
+.funcdef @sum VERSION @sum_v1 <@i_i> (%n) {
+    %entry:
+        BRANCH %head
+
+    %head:
+        %i = PHI <@i64> { %entry: @I64_0; %body: %i2; }
+        %s = PHI <@i64> { %entry: @I64_0; %body: %s2; }
+
+        %ge_thr = SGE <@i64> %i @sum_v1.THRESHOLD
+        BRANCH2 %ge_thr %opt %head2
+
+    %head2:
+        %lt_n = SLT <@i64> %i %n
+        BRANCH2 %lt_n %body %exit
+
+    %body:
+        %i2 = ADD <@i64> %i @I64_1
+        %s2 = ADD <@i64> %s %i
+        BRANCH %head
+
+    %exit:
+        RET <@i64> %s
+
+    %opt:
+        %trap_opt = TRAP <@void> KEEPALIVE(%n %i %s)
+        THROW @NULLREF // unreachable
+}
