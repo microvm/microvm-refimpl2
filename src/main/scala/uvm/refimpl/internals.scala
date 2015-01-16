@@ -23,6 +23,7 @@ object InternalTypes {
 
   val I1 = TypeInt(1) := internal("i1")
   val I6 = TypeInt(6) := internal("i6")
+  val I32 = TypeInt(32) := internal("i32")
   val I52 = TypeInt(52) := internal("i52")
   val I64 = TypeInt(52) := internal("i64")
   val DOUBLE = TypeDouble() := internal("double")
@@ -125,8 +126,10 @@ object TypeInferer {
       case "@uvm.tr64.to_int" => I52
       case "@uvm.tr64.to_ref" => REF_VOID
       case "@uvm.tr64.to_tag" => I6
-      case "@uvm.futex.wait" => I64
-      case "@uvm.futex.wake" => I64
+      case "@uvm.futex.wait" => I32
+      case "@uvm.futex.wait_timeout" => I32
+      case "@uvm.futex.wake" => I32
+      case "@uvm.futex.cmp_requeue" => I32
     }
   }
 }

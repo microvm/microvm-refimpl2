@@ -28,6 +28,8 @@ object CommInsts extends SimpleNamespace[CommInst] {
   commInst(0x21a, "@uvm.tr64.to_tag")
 
   commInst(0x220, "@uvm.futex.wait")
-  commInst(0x221, "@uvm.futex.wake")
+  commInst(0x221, "@uvm.futex.wait_timeout")
+  commInst(0x222, "@uvm.futex.wake")
+  commInst(0x223, "@uvm.futex.cmp_requeue")
 
 }

@@ -19,48 +19,52 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
   import InterpreterThread._
 
   // Thread states
-  
+
+  /** The underlying stack. */
   var stack: Option[InterpreterStack] = None
 
+  /** True if the thread is running. False only if terminated. */
   var isRunning: Boolean = true
-  
+
+  /** True if the thread is waiting in a Futex waiting queue. */
+  var isFutexWaiting: Boolean = false
+
   // Initialisation
 
   rebindPassVoid(initialStack)
 
   // Public interface
-  
+
+  /** Execute one instruction. */
   def step(): Unit = {
     interpretCurrentInstruction()
   }
 
-  def threadExit(): Unit = {
-    curStack.state = StackState.Dead
-    isRunning = false
-  }
-  
   // Convenient functions to get/set states
 
-  def curStack = stack.get
-  def top = curStack.top
-  def curBB = top.curBB
-  def curInst = top.curInst
-  def curInstHalfExecuted = top.curInstHalfExecuted
-  def curInstHalfExecuted_=(v:Boolean) = top.curInstHalfExecuted_=(v)
+  private def curStack = stack.get
+  private def top = curStack.top
+  private def curBB = top.curBB
+  private def curInst = top.curInst
+  private def curInstHalfExecuted = top.curInstHalfExecuted
+  private def curInstHalfExecuted_=(v: Boolean) = top.curInstHalfExecuted_=(v)
 
-  def incPC(): Unit = top.incPC()
-  def jump(bb: BasicBlock, ix: Int): Unit = top.jump(bb, ix)
+  private def incPC(): Unit = top.incPC()
+  private def jump(bb: BasicBlock, ix: Int): Unit = top.jump(bb, ix)
 
-  def boxOf(s: InterpreterStack, v: SSAVariable): ValueBox = v match {
+  /** Get the value box of an SSA variable in a stack. */
+  private def boxOf(s: InterpreterStack, v: SSAVariable): ValueBox = v match {
     case g: GlobalVariable => microVM.constantPool.getGlobalVarBox(g)
     case l: LocalVariable  => s.top.boxes(l)
   }
-  
-  def boxOf(v: SSAVariable): ValueBox = boxOf(curStack, v)
-  
+
+  /** Get the value box of an SSA variable in the current stack. */
+  private def boxOf(v: SSAVariable): ValueBox = boxOf(curStack, v)
+
   // Context printing for debugging
 
-  def ctx = stack match {
+  /** Make a string to identify the current function version, basic block and instruction for debugging. */
+  private def ctx = stack match {
     case None => "(Thred not bound to stack): "
     case Some(_) => {
       val ix = top.curInstIndex
@@ -73,7 +77,8 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
   }
 
   // Interpreting
-  
+
+  /** Interpret the current instruction. */
   private def interpretCurrentInstruction(): Unit = try {
     logger.debug(ctx + "Executing instruction...")
 
@@ -372,7 +377,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         val funcVer = getFuncDefOrTriggerCallback(calleeFunc)
 
         val argBoxes = argList.map(boxOf)
-        
+
         curInstHalfExecuted = true
         curStack.pushFrame(funcVer, argBoxes)
       }
@@ -666,7 +671,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           branchAndMovePC(dis)
         }
       }
-      
+
       case i @ InstCCall(callConv, funcTy, sig, callee, argList) => {
         throw new UvmRefImplException(ctx + "The CCALL instruction is not implemented in this reference implementation")
       }
@@ -732,7 +737,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             boxOf(i).asInstanceOf[BoxThread].thread = Some(thr)
             continueNormally()
           }
-          
+
           case "@uvm.kill_stack" => {
             val Seq(s) = argList
             val sta = boxOf(s).asInstanceOf[BoxStack].stack.getOrElse {
@@ -741,7 +746,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             sta.state = StackState.Dead
             continueNormally()
           }
-          
+
           case "@uvm.thread_exit" => {
             threadExit()
           }
@@ -751,9 +756,9 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             bi.asInstanceOf[BoxStack].stack = stack
             continueNormally()
           }
-          
+
           // 64-bit Tagged Reference
-          
+
           case "@uvm.tr64.is_fp" => {
             val Seq(tr) = argList
             val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
@@ -777,7 +782,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             writeBooleanResult(result, boxOf(i))
             continueNormally()
           }
-          
+
           case "@uvm.tr64.from_fp" => {
             val Seq(v) = argList
             val vFP = boxOf(v).asInstanceOf[BoxDouble].value
@@ -802,7 +807,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             boxOf(i).asInstanceOf[BoxTagRef64].raw = raw
             continueNormally()
           }
-          
+
           case "@uvm.tr64.to_fp" => {
             val Seq(tr) = argList
             val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
@@ -814,7 +819,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
               throw new UvmRuntimeException(ctx + "Attempt to extract double from a tagref64 which is not holding a double")
             }
           }
-          
+
           case "@uvm.tr64.to_int" => {
             val Seq(tr) = argList
             val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
@@ -826,7 +831,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
               throw new UvmRuntimeException(ctx + "Attempt to extract int from a tagref64 which is not holding a int")
             }
           }
-          
+
           case "@uvm.tr64.to_ref" => {
             val Seq(tr) = argList
             val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
@@ -838,7 +843,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
               throw new UvmRuntimeException(ctx + "Attempt to extract ref from a tagref64 which is not holding a ref")
             }
           }
-          
+
           case "@uvm.tr64.to_tag" => {
             val Seq(tr) = argList
             val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
@@ -870,10 +875,11 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
       throw e
     }
   }
-  
+
   // Control flow helpers
 
-  def branchAndMovePC(dest: BasicBlock, excAddr: Word = 0L): Unit = {
+  /** Branch to a basic block and execute starter instructions (PHI and LANDINGPAD). */
+  private def branchAndMovePC(dest: BasicBlock, excAddr: Word = 0L): Unit = {
     val curBB = this.curBB
     var cont = true
     var i = 0
@@ -899,7 +905,8 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     jump(dest, i)
   }
 
-  def continueNormally(): Unit = {
+  /** Continue normally. Work for all instructions. */
+  private def continueNormally(): Unit = {
     curInst match {
       case wp: InstWatchPoint => {
         branchAndMovePC(wp.ena)
@@ -917,8 +924,13 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
       case _ => incPC()
     }
   }
-  
-  def finishHalfExecutedInst(): Unit = {
+
+  /**
+   * Finish a half-executed instruction. Some instructions (CALL, SWAPSTACK, TRAP, WATCHPOINT) can be half-executed
+   *  because of switching to another stack. This function is called on the swappee. If the current instruction is not
+   *  half-executed (the only case is executing a newly created stack or a newly pushed frame), it does nothing.
+   */
+  private def finishHalfExecutedInst(): Unit = {
     if (curInstHalfExecuted) {
       curInstHalfExecuted = false
       continueNormally()
@@ -929,7 +941,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
    * Attempt to catch exception in the current frame. Will repeatedly unwind the stack until the exception can be
    * handled. Stack underflow is an undefined behaviour.
    */
-  def catchException(exc: Word): Unit = {
+  private def catchException(exc: Word): Unit = {
     @tailrec
     def unwindUntilCatchable(f: InterpreterFrame): (InterpreterFrame, BasicBlock) = {
       maybeFindExceptionHandler(f.curInst) match {
@@ -959,7 +971,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
    * @throw Throw UvmRefimplException if a frame stops at an unexpected instruction. Normally the top frame can be
    * executing TRAP, WATCHPOINT, SWAPSTACK or CALL and all other frames must be executing CALL.
    */
-  def maybeFindExceptionHandler(inst: Instruction): Option[BasicBlock] = {
+  private def maybeFindExceptionHandler(inst: Instruction): Option[BasicBlock] = {
     inst match {
       case i: InstCall       => i.excClause.map(_.exc)
       case i: InstTrap       => i.excClause.map(_.exc)
@@ -972,28 +984,40 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
   }
 
   // Misc helper
-  
+
   private def writeBooleanResult(result: Boolean, box: ValueBox): Unit = {
     box.asInstanceOf[BoxInt].value = if (result) 1 else 0
   }
 
+  // Thread termination
+
+  /** Terminate the thread. Please only let the thread terminate itself. */
+  private def threadExit(): Unit = {
+    curStack.state = StackState.Dead
+    isRunning = false
+  }
+
   // Thread/stack binding and unbinding
-  
-  def unbind(readyType: Type): Unit = {
+
+  /** Unbind the current thread from the stack. */
+  private def unbind(readyType: Type): Unit = {
     curStack.state = StackState.Ready(readyType)
     stack = None
   }
 
-  def unbindAndKillStack(): Unit = {
+  /** Unbind and kill the current stack. */
+  private def unbindAndKillStack(): Unit = {
     curStack.state = StackState.Dead
     stack = None
   }
 
-  def rebind(newStack: InterpreterStack): Unit = {
+  /** Rebind to a stack. */
+  private def rebind(newStack: InterpreterStack): Unit = {
     stack = Some(newStack)
   }
 
-  def rebindPassValue(newStack: InterpreterStack, value: ValueBox): Unit = {
+  /** Rebind to a stack and pass a value. */
+  private def rebindPassValue(newStack: InterpreterStack, value: ValueBox): Unit = {
     rebind(newStack)
 
     try {
@@ -1009,23 +1033,26 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     finishHalfExecutedInst()
   }
 
-  def rebindPassVoid(newStack: InterpreterStack): Unit = {
+  /** Rebind to a stack and pass void. */
+  private def rebindPassVoid(newStack: InterpreterStack): Unit = {
     rebind(newStack)
 
     finishHalfExecutedInst()
   }
 
-  def rebindThrowExc(newStack: InterpreterStack, exc: ValueBox): Unit = {
+  /** Rebind to a stack and throw an exception on that stack. */
+  private def rebindThrowExc(newStack: InterpreterStack, exc: ValueBox): Unit = {
     rebind(newStack)
 
     val excObjRef = exc.asInstanceOf[BoxRef].objRef
 
     catchException(excObjRef)
   }
-  
+
   // Trap and watchpoint handling
 
-  def doTrap(retTy: uvm.types.Type, wpID: Int) = {
+  /** Execute the trap handler in the Client. Work for both TRAP and WATCHPOINT. */
+  private def doTrap(retTy: uvm.types.Type, wpID: Int) = {
     val curCtx = ctx // save the context string for debugging
 
     val ca = microVM.newClientAgent()
@@ -1062,9 +1089,13 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
     ca.close()
   }
-  
+
   // Undefined function handling
 
+  /**
+   * Attempt to get the most recent version of a function. If the function is not defined, repeatedly goto the client
+   *  until it is defined.
+   */
   @tailrec
   private def getFuncDefOrTriggerCallback(f: Function): FuncVer = {
     f.versions.headOption match {
@@ -1077,7 +1108,15 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
   }
 
   // Internal control structures (syntax sugars)
-  
+
+  /**
+   *  Branch to an exceptional destination. If there is no ExcClause, execute f. f usually throws an exception.
+   *  @example {{{
+   *  branchToExcDestOr(excClause) {
+   *    throw new UvmRuntimeException("When abnormal thing happens, the absence of ExcClause has undefined behaviour.")
+   *  }
+   *  }}}
+   */
   private def branchToExcDestOr(excClause: Option[ExcClause])(f: => Unit): Unit = {
     excClause match {
       case None                      => f
@@ -1085,6 +1124,19 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     }
   }
 
+  /**
+   * Execute f, but catch the UvmOutOfMemoryException thrown by most allocation methods in the allocator. Out-of-memory
+   * errors in the µVM usually branches to an exception destination, but has undefined behaviour when ExcClause is
+   * absent.
+   * @example {{{
+   * handleOutOfMemory(excClause) {
+   *   allocate
+   *   allocate
+   *   allocate
+   *   ...
+   * }
+   * }}}
+   */
   private def handleOutOfMemory(excClause: Option[ExcClause])(f: => Unit): Unit = {
     try {
       f
@@ -1097,6 +1149,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     }
   }
 
+  /**
+   * Raise NULL reference error. NULL reference errors in the µVM usually branches to an exception destination, but has
+   * undefined behaviour when ExcClause is absent.
+   */
   private def nullRefError(excClause: Option[ExcClause]): Unit = {
     branchToExcDestOr(excClause) {
       throw new UvmRuntimeException(ctx + "Accessing null reference.")
