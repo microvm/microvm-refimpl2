@@ -107,6 +107,8 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
       throw new UvmRefImplException("Out of memory because the GC failed to recycle any memory.")
     }
 
+    notifyMovedObjectsToFutex()
+
     logger.debug("Blocks collected. Unmarking....")
     val s4 = new AllScanner(microVM, clearMarkHandler)
     s4.scanAll()
@@ -296,6 +298,24 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
     } else {
       None
     }
+  }
+
+  private def getMovement(objRef: Word): Option[Word] = {
+    val tag = HeaderUtils.getTag(objRef)
+    logger.debug("Inspecting header for Futex. Obj 0x%x, tag 0x%x".format(objRef, tag))
+
+    val moveBit = tag & MOVE_MASK
+
+    if (moveBit != 0) {
+      val newAddr = HeaderUtils.getForwardedDest(tag)
+      Some(newAddr)
+    } else {
+      None
+    }
+  }
+
+  private def notifyMovedObjectsToFutex(): Unit = {
+    microVM.threadStackManager.futexManager.afterGCAdjust(getMovement)
   }
 
   private object HasNonZeroRef {

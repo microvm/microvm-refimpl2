@@ -37,7 +37,27 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
   /** Execute one instruction. */
   def step(): Unit = {
+    if (!isRunning) throw new UvmRefImplException(ctx + "Attempt to run thread after it has reached exit.")
+    if (isFutexWaiting) throw new UvmRefImplException(ctx + "Attempt to run thread when it is waiting on a futex.")
     interpretCurrentInstruction()
+  }
+
+  /** Write the return value of futex. May be written from FutexManager */
+  def futexReturn(rv: Int): Unit = {
+//    val validInst = curInst match {
+//      case ci: InstCommInst => ci.inst.name.get match {
+//        case "@uvm.futex.wait" => true
+//        case "@uvm.futex.wait_timeout" => true
+//        case _ => false
+//      }
+//      case _ => false
+//    }
+//
+//    if (!validInst) throw new UvmRefImplException(ctx + "The current instruction is not @uvm.futex.wait or wait_timeout.")
+//
+    logger.debug(ctx + "Setting futex return value")
+    writeIntResult(32, rv, boxOf(curInst))
+    continueNormally()
   }
 
   // Convenient functions to get/set states
@@ -55,7 +75,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
   /** Get the value box of an SSA variable in a stack. */
   private def boxOf(s: InterpreterStack, v: SSAVariable): ValueBox = v match {
     case g: GlobalVariable => microVM.constantPool.getGlobalVarBox(g)
-    case l: LocalVariable  => s.top.boxes(l)
+    case l: LocalVariable => s.top.boxes(l)
   }
 
   /** Get the value box of an SSA variable in the current stack. */
@@ -69,9 +89,12 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     case Some(_) => {
       val ix = top.curInstIndex
       if (ix >= curBB.insts.size) {
-        "FuncVer %s, BasicBlock %s, Instruction exceeds the basic block (error)".format(top.funcVer.repr, curBB.repr)
+        "TID %d, FuncVer %s, BasicBlock %s, Instruction exceeds the basic block (error)".format(id, top.funcVer.repr, curBB.repr)
       } else {
-        "FuncVer %s, BasicBlock %s, Instruction %s (%s): ".format(top.funcVer.repr, curBB.repr, curInst.repr, curInst.getClass.getName)
+        "TID %d, FuncVer %s, BasicBlock %s, Instruction %s (%s): ".format(id, top.funcVer.repr, curBB.repr, curInst.repr, curInst match {
+          case ci: InstCommInst => ci.inst.name.get
+          case _ => curInst.getClass.getSimpleName()
+        })
       }
     }
   }
@@ -116,10 +139,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
         def doScalar(scalarTy: Type, b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
           scalarTy match {
-            case TypeInt(l)   => doInt(l, b1, b2, br)
-            case TypeFloat()  => doFloat(b1, b2, br)
+            case TypeInt(l) => doInt(l, b1, b2, br)
+            case TypeFloat() => doFloat(b1, b2, br)
             case TypeDouble() => doDouble(b1, b2, br)
-            case _            => throw new UvmRuntimeException(ctx + "BinOp not suitable for type %s".format(opndTy))
+            case _ => throw new UvmRuntimeException(ctx + "BinOp not suitable for type %s".format(opndTy))
           }
         }
 
@@ -174,10 +197,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
         def doScalar(scalarTy: Type, b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
           scalarTy match {
-            case TypeInt(l)   => doInt(l, b1, b2, br)
-            case TypeFloat()  => doFloat(b1, b2, br)
+            case TypeInt(l) => doInt(l, b1, b2, br)
+            case TypeFloat() => doFloat(b1, b2, br)
             case TypeDouble() => doDouble(b1, b2, br)
-            case _            => throw new UvmRuntimeException(ctx + "Comparison not suitable for type %s".format(opndTy))
+            case _ => throw new UvmRuntimeException(ctx + "Comparison not suitable for type %s".format(opndTy))
           }
         }
 
@@ -204,8 +227,8 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
               val od = bOpnd.asInstanceOf[BoxInt].value
               val result = op match {
                 case ConvOptr.TRUNC => OpHelper.trunc(od, tl)
-                case ConvOptr.ZEXT  => OpHelper.zext(od, fl, tl)
-                case ConvOptr.SEXT  => OpHelper.sext(od, fl, tl)
+                case ConvOptr.ZEXT => OpHelper.zext(od, fl, tl)
+                case ConvOptr.SEXT => OpHelper.sext(od, fl, tl)
               }
               br.asInstanceOf[BoxInt].value = result
             }
@@ -215,12 +238,12 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           def fpToI(signed: Boolean): Unit = {
             val tl = scalarToTy match {
               case TypeInt(l) => l
-              case _          => throw new UvmRuntimeException(ctx + "Expect integer dest type. Found %s".format(scalarToTy))
+              case _ => throw new UvmRuntimeException(ctx + "Expect integer dest type. Found %s".format(scalarToTy))
             }
             val result = scalarFromTy match {
-              case TypeFloat()  => OpHelper.floatToI(bOpnd.asInstanceOf[BoxFloat].value, tl, signed)
+              case TypeFloat() => OpHelper.floatToI(bOpnd.asInstanceOf[BoxFloat].value, tl, signed)
               case TypeDouble() => OpHelper.doubleToI(bOpnd.asInstanceOf[BoxDouble].value, tl, signed)
-              case _            => throw new UvmRuntimeException(ctx + "Expect FP source type. Found %s.".format(scalarFromTy))
+              case _ => throw new UvmRuntimeException(ctx + "Expect FP source type. Found %s.".format(scalarFromTy))
             }
             br.asInstanceOf[BoxInt].value = result
           }
@@ -228,7 +251,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           def iToFP(signed: Boolean): Unit = {
             val fl = scalarFromTy match {
               case TypeInt(l) => l
-              case _          => throw new UvmRuntimeException(ctx + "Expect integer source type. Found %s".format(scalarFromTy))
+              case _ => throw new UvmRuntimeException(ctx + "Expect integer source type. Found %s".format(scalarFromTy))
             }
             val od = bOpnd.asInstanceOf[BoxInt].value
             val extended = if (signed) OpHelper.prepareSigned(od, fl) else OpHelper.prepareUnsigned(od, fl)
@@ -267,7 +290,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           }
 
           def refcast(): Unit = (scalarFromTy, scalarToTy) match {
-            case (TypeRef(_), TypeRef(_))   => br.copyFrom(bOpnd)
+            case (TypeRef(_), TypeRef(_)) => br.copyFrom(bOpnd)
             case (TypeIRef(_), TypeIRef(_)) => br.copyFrom(bOpnd)
             case (TypeFunc(_), TypeFunc(_)) => br.copyFrom(bOpnd)
             case _ => throw new UvmRuntimeException(ctx +
@@ -276,8 +299,8 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
           op match {
             case ConvOptr.TRUNC => iToI()
-            case ConvOptr.ZEXT  => iToI()
-            case ConvOptr.SEXT  => iToI()
+            case ConvOptr.ZEXT => iToI()
+            case ConvOptr.SEXT => iToI()
             case ConvOptr.FPTRUNC => {
               val od = bOpnd.asInstanceOf[BoxDouble].value
               val result = od.toFloat
@@ -288,10 +311,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
               val result = od.toDouble
               br.asInstanceOf[BoxDouble].value = result
             }
-            case ConvOptr.FPTOUI  => fpToI(signed = false)
-            case ConvOptr.FPTOSI  => fpToI(signed = true)
-            case ConvOptr.UITOFP  => iToFP(signed = false)
-            case ConvOptr.SITOFP  => iToFP(signed = true)
+            case ConvOptr.FPTOUI => fpToI(signed = false)
+            case ConvOptr.FPTOSI => fpToI(signed = true)
+            case ConvOptr.UITOFP => iToFP(signed = false)
+            case ConvOptr.SITOFP => iToFP(signed = true)
             case ConvOptr.BITCAST => bitcast()
             case ConvOptr.REFCAST => refcast()
           }
@@ -733,6 +756,11 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             val sta = boxOf(s).asInstanceOf[BoxStack].stack.getOrElse {
               throw new UvmRuntimeException(ctx + "Attempt to create new thread on NULL stack.")
             }
+            
+            if (!sta.state.isInstanceOf[StackState.Ready]) {
+              throw new UvmRuntimeException(ctx + "Stack not in READY<T> state. Actual state: %s".format(sta.state))
+            }
+            
             val thr = microVM.threadStackManager.newThread(sta)
             boxOf(i).asInstanceOf[BoxThread].thread = Some(thr)
             continueNormally()
@@ -856,6 +884,93 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             }
           }
 
+          case "@uvm.futex.wait" => {
+            val Seq(ty) = typeList
+            val Seq(loc, v) = argList
+
+            val len = ty.asInstanceOf[TypeInt].length
+            val bLoc = boxOf(loc).asInstanceOf[BoxIRef]
+            val objRef = bLoc.objRef
+            val offset = bLoc.offset
+            val locWord = objRef + offset
+            val bv = boxOf(v).asInstanceOf[BoxInt]
+
+            val equal = MemoryOperations.cmpInt(len, locWord, bv)
+
+            if (equal) {
+              microVM.threadStackManager.futexManager.futexWaitNoCheck(objRef, offset, this, None)
+              logger.debug(ctx + "Waiting in the futex waiting queue.")
+            } else {
+              logger.debug(ctx + "Memory location does not contain expected value. Don't wait.")
+              futexReturn(-1)
+            }
+          }
+
+          case "@uvm.futex.wait_timeout" => {
+            val Seq(ty) = typeList
+            val Seq(loc, v, timeout) = argList
+
+            val len = ty.asInstanceOf[TypeInt].length
+            val bLoc = boxOf(loc).asInstanceOf[BoxIRef]
+            val objRef = bLoc.objRef
+            val offset = bLoc.offset
+            val locWord = objRef + offset
+            val bv = boxOf(v).asInstanceOf[BoxInt]
+            val bto = boxOf(timeout).asInstanceOf[BoxInt]
+            val toVal = OpHelper.prepareSigned(bto.value, 64).longValue
+
+            if (toVal < 0L) throw new UvmRefImplException(ctx + "This refimpl treats timeout as signed due to restriction of Java.")
+
+            val equal = MemoryOperations.cmpInt(len, locWord, bv)
+
+            if (equal) {
+              microVM.threadStackManager.futexManager.futexWaitNoCheck(objRef, offset, this, Some(toVal))
+              logger.debug(ctx + "Waiting in the futex waiting queue.")
+            } else {
+              logger.debug(ctx + "Memory location does not contain expected value. Don't wait.")
+              futexReturn(-1)
+            }
+          }
+
+          case "@uvm.futex.wake" => {
+            val Seq(ty) = typeList
+            val Seq(loc, nthread) = argList
+
+            val len = ty.asInstanceOf[TypeInt].length
+            val bLoc = boxOf(loc).asInstanceOf[BoxIRef]
+            val objRef = bLoc.objRef
+            val offset = bLoc.offset
+            val locWord = objRef + offset
+            val nth = OpHelper.prepareSigned(boxOf(nthread).asInstanceOf[BoxInt].value, 32).intValue
+
+            if (nth < 0) throw new UvmRuntimeException(ctx + "nthread must not be negative")
+
+            val nWoken = microVM.threadStackManager.futexManager.futexWake(objRef, offset, nth)
+            futexReturn(nWoken)
+          }
+
+          case "@uvm.futex.cmp_requeue" => {
+            val Seq(ty) = typeList
+            val Seq(locSrc, locDst, expected, nthread) = argList
+
+            val len = ty.asInstanceOf[TypeInt].length
+            val (objRefSrc, offsetSrc) = boxOf(locSrc).asInstanceOf[BoxIRef].oo
+            val (objRefDst, offsetDst) = boxOf(locDst).asInstanceOf[BoxIRef].oo
+            val bExp = boxOf(expected).asInstanceOf[BoxInt]
+            val nth = OpHelper.prepareSigned(boxOf(nthread).asInstanceOf[BoxInt].value, 32).intValue
+
+            if (nth < 0) throw new UvmRuntimeException(ctx + "nthread must not be negative")
+
+            val equal = MemoryOperations.cmpInt(len, objRefSrc + offsetSrc, bExp)
+
+            if (equal) {
+              val nWoken = microVM.threadStackManager.futexManager.futexRequeue(objRefSrc, offsetSrc, objRefDst, offsetDst, nth)
+              futexReturn(nWoken)
+            } else {
+              futexReturn(-1)
+            }
+          }
+
           // Insert more CommInsts here.
 
           case ciName => {
@@ -947,7 +1062,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
       maybeFindExceptionHandler(f.curInst) match {
         case Some(bb) => (f, bb)
         case None => f.prev match {
-          case None       => throw new UvmRuntimeException(ctx + "Exception is thrown out of the bottom frame.")
+          case None => throw new UvmRuntimeException(ctx + "Exception is thrown out of the bottom frame.")
           case Some(prev) => unwindUntilCatchable(prev)
         }
       }
@@ -973,10 +1088,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
    */
   private def maybeFindExceptionHandler(inst: Instruction): Option[BasicBlock] = {
     inst match {
-      case i: InstCall       => i.excClause.map(_.exc)
-      case i: InstTrap       => i.excClause.map(_.exc)
+      case i: InstCall => i.excClause.map(_.exc)
+      case i: InstTrap => i.excClause.map(_.exc)
       case i: InstWatchPoint => i.exc
-      case i: InstSwapStack  => i.excClause.map(_.exc)
+      case i: InstSwapStack => i.excClause.map(_.exc)
       case _ => {
         throw new UvmRefImplException(ctx + "Instruction %s (%s) is in a stack frame when an exception is thrown.".format(inst.repr, inst.getClass.getName))
       }
@@ -987,6 +1102,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
   private def writeBooleanResult(result: Boolean, box: ValueBox): Unit = {
     box.asInstanceOf[BoxInt].value = if (result) 1 else 0
+  }
+
+  private def writeIntResult(len: Int, result: BigInt, box: ValueBox): Unit = {
+    box.asInstanceOf[BoxInt].value = OpHelper.unprepare(result, len)
   }
 
   // Thread termination
@@ -1014,6 +1133,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
   /** Rebind to a stack. */
   private def rebind(newStack: InterpreterStack): Unit = {
     stack = Some(newStack)
+    curStack.state = StackState.Running
   }
 
   /** Rebind to a stack and pass a value. */
@@ -1119,7 +1239,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
    */
   private def branchToExcDestOr(excClause: Option[ExcClause])(f: => Unit): Unit = {
     excClause match {
-      case None                      => f
+      case None => f
       case Some(ExcClause(_, excBB)) => branchAndMovePC(excBB, 0L)
     }
   }

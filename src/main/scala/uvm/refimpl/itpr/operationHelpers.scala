@@ -173,20 +173,20 @@ object PrimOpHelpers {
     }
 
     up(op match {
-      case BinOptr.ADD  => pu(op1v) + pu(op2v)
-      case BinOptr.SUB  => pu(op1v) - pu(op2v)
-      case BinOptr.MUL  => pu(op1v) * pu(op2v)
+      case BinOptr.ADD => pu(op1v) + pu(op2v)
+      case BinOptr.SUB => pu(op1v) - pu(op2v)
+      case BinOptr.MUL => pu(op1v) * pu(op2v)
       case BinOptr.UDIV => { checkDivByZero(); pu(op1v) / pu(op2v) }
       case BinOptr.SDIV => { checkDivByZero(); ps(op1v) / ps(op2v) }
       case BinOptr.UREM => { checkDivByZero(); pu(op1v) % pu(op2v) }
       case BinOptr.SREM => { checkDivByZero(); ps(op1v) % ps(op2v) }
-      case BinOptr.SHL  => pu(op1v) << (op2v.intValue & shiftMask)
+      case BinOptr.SHL => pu(op1v) << (op2v.intValue & shiftMask)
       case BinOptr.LSHR => pu(op1v) >> (op2v.intValue & shiftMask)
       case BinOptr.ASHR => ps(op1v) >> (op2v.intValue & shiftMask)
-      case BinOptr.AND  => pu(op1v) & pu(op2v)
-      case BinOptr.OR   => pu(op1v) | pu(op2v)
-      case BinOptr.XOR  => pu(op1v) ^ pu(op2v)
-      case _            => throw new UvmRuntimeException(ctx + "Binary operator %s is not suitable for integer.".format(op))
+      case BinOptr.AND => pu(op1v) & pu(op2v)
+      case BinOptr.OR => pu(op1v) | pu(op2v)
+      case BinOptr.XOR => pu(op1v) ^ pu(op2v)
+      case _ => throw new UvmRuntimeException(ctx + "Binary operator %s is not suitable for integer.".format(op))
     })
   }
 
@@ -197,7 +197,7 @@ object PrimOpHelpers {
       case BinOptr.FMUL => op1v * op2v
       case BinOptr.FDIV => op1v / op2v
       case BinOptr.FREM => Math.IEEEremainder(op1v, op2v).toFloat
-      case _            => throw new UvmRuntimeException(ctx + "Binary operator %s is not suitable for float.".format(op))
+      case _ => throw new UvmRuntimeException(ctx + "Binary operator %s is not suitable for float.".format(op))
     }
   }
 
@@ -208,7 +208,7 @@ object PrimOpHelpers {
       case BinOptr.FMUL => op1v * op2v
       case BinOptr.FDIV => op1v / op2v
       case BinOptr.FREM => Math.IEEEremainder(op1v, op2v)
-      case _            => throw new UvmRuntimeException(ctx + "Binary operator %s is not suitable for double.".format(op))
+      case _ => throw new UvmRuntimeException(ctx + "Binary operator %s is not suitable for double.".format(op))
     }
   }
 
@@ -217,8 +217,8 @@ object PrimOpHelpers {
     def ps(v: BigInt): BigInt = OpHelper.prepareSigned(v, l)
 
     op match {
-      case CmpOptr.EQ  => pu(op1v) == pu(op2v)
-      case CmpOptr.NE  => pu(op1v) != pu(op2v)
+      case CmpOptr.EQ => pu(op1v) == pu(op2v)
+      case CmpOptr.NE => pu(op1v) != pu(op2v)
       case CmpOptr.UGT => pu(op1v) > pu(op2v)
       case CmpOptr.UGE => pu(op1v) >= pu(op2v)
       case CmpOptr.ULT => pu(op1v) < pu(op2v)
@@ -227,7 +227,7 @@ object PrimOpHelpers {
       case CmpOptr.SGE => ps(op1v) >= ps(op2v)
       case CmpOptr.SLT => ps(op1v) < ps(op2v)
       case CmpOptr.SLE => ps(op1v) <= ps(op2v)
-      case _           => throw new UvmRuntimeException(ctx + "Comparison operator %s not suitable for integers".format(op))
+      case _ => throw new UvmRuntimeException(ctx + "Comparison operator %s not suitable for integers".format(op))
     }
   }
 
@@ -236,23 +236,23 @@ object PrimOpHelpers {
     def ord = !isNaN(op1v) && !isNaN(op2v)
     def uno = isNaN(op1v) || isNaN(op2v)
     op match {
-      case CmpOptr.FTRUE  => true
+      case CmpOptr.FTRUE => true
       case CmpOptr.FFALSE => false
-      case CmpOptr.FOEQ   => ord && op1v == op2v
-      case CmpOptr.FONE   => ord && op1v != op2v
-      case CmpOptr.FOGT   => ord && op1v > op2v
-      case CmpOptr.FOGE   => ord && op1v >= op2v
-      case CmpOptr.FOLT   => ord && op1v < op2v
-      case CmpOptr.FOLE   => ord && op1v <= op2v
-      case CmpOptr.FORD   => ord
-      case CmpOptr.FUEQ   => uno || op1v == op2v
-      case CmpOptr.FUNE   => uno || op1v != op2v
-      case CmpOptr.FUGT   => uno || op1v > op2v
-      case CmpOptr.FUGE   => uno || op1v >= op2v
-      case CmpOptr.FULT   => uno || op1v < op2v
-      case CmpOptr.FULE   => uno || op1v <= op2v
-      case CmpOptr.FUNO   => uno
-      case _              => throw new UvmRuntimeException(ctx + "Comparison operator %s is not suitable for float.".format(op))
+      case CmpOptr.FOEQ => ord && op1v == op2v
+      case CmpOptr.FONE => ord && op1v != op2v
+      case CmpOptr.FOGT => ord && op1v > op2v
+      case CmpOptr.FOGE => ord && op1v >= op2v
+      case CmpOptr.FOLT => ord && op1v < op2v
+      case CmpOptr.FOLE => ord && op1v <= op2v
+      case CmpOptr.FORD => ord
+      case CmpOptr.FUEQ => uno || op1v == op2v
+      case CmpOptr.FUNE => uno || op1v != op2v
+      case CmpOptr.FUGT => uno || op1v > op2v
+      case CmpOptr.FUGE => uno || op1v >= op2v
+      case CmpOptr.FULT => uno || op1v < op2v
+      case CmpOptr.FULE => uno || op1v <= op2v
+      case CmpOptr.FUNO => uno
+      case _ => throw new UvmRuntimeException(ctx + "Comparison operator %s is not suitable for float.".format(op))
     }
   }
 
@@ -261,23 +261,23 @@ object PrimOpHelpers {
     def ord = !isNaN(op1v) && !isNaN(op2v)
     def uno = isNaN(op1v) || isNaN(op2v)
     op match {
-      case CmpOptr.FTRUE  => true
+      case CmpOptr.FTRUE => true
       case CmpOptr.FFALSE => false
-      case CmpOptr.FOEQ   => ord && op1v == op2v
-      case CmpOptr.FONE   => ord && op1v != op2v
-      case CmpOptr.FOGT   => ord && op1v > op2v
-      case CmpOptr.FOGE   => ord && op1v >= op2v
-      case CmpOptr.FOLT   => ord && op1v < op2v
-      case CmpOptr.FOLE   => ord && op1v <= op2v
-      case CmpOptr.FORD   => ord
-      case CmpOptr.FUEQ   => uno || op1v == op2v
-      case CmpOptr.FUNE   => uno || op1v != op2v
-      case CmpOptr.FUGT   => uno || op1v > op2v
-      case CmpOptr.FUGE   => uno || op1v >= op2v
-      case CmpOptr.FULT   => uno || op1v < op2v
-      case CmpOptr.FULE   => uno || op1v <= op2v
-      case CmpOptr.FUNO   => uno
-      case _              => throw new UvmRuntimeException(ctx + "Comparison operator %s is not suitable for double.".format(op))
+      case CmpOptr.FOEQ => ord && op1v == op2v
+      case CmpOptr.FONE => ord && op1v != op2v
+      case CmpOptr.FOGT => ord && op1v > op2v
+      case CmpOptr.FOGE => ord && op1v >= op2v
+      case CmpOptr.FOLT => ord && op1v < op2v
+      case CmpOptr.FOLE => ord && op1v <= op2v
+      case CmpOptr.FORD => ord
+      case CmpOptr.FUEQ => uno || op1v == op2v
+      case CmpOptr.FUNE => uno || op1v != op2v
+      case CmpOptr.FUGT => uno || op1v > op2v
+      case CmpOptr.FUGE => uno || op1v >= op2v
+      case CmpOptr.FULT => uno || op1v < op2v
+      case CmpOptr.FULE => uno || op1v <= op2v
+      case CmpOptr.FUNO => uno
+      case _ => throw new UvmRuntimeException(ctx + "Comparison operator %s is not suitable for double.".format(op))
     }
   }
 }
@@ -287,11 +287,11 @@ object MemoryOperations {
     def loadScalar(ty: Type, loc: Word, br: ValueBox): Unit = ty match {
       case TypeInt(l) =>
         val bi: BigInt = l match {
-          case 8  => MemorySupport.loadByte(loc)
+          case 8 => MemorySupport.loadByte(loc)
           case 16 => MemorySupport.loadShort(loc)
           case 32 => MemorySupport.loadInt(loc)
           case 64 => MemorySupport.loadLong(loc)
-          case _  => throw new UnimplementedOprationException("Loading int of length %d is not supported".format(l))
+          case _ => throw new UnimplementedOprationException("Loading int of length %d is not supported".format(l))
         }
         br.asInstanceOf[BoxInt].value = OpHelper.unprepare(bi, l)
       case _: TypeFloat =>
@@ -341,11 +341,11 @@ object MemoryOperations {
       case TypeInt(l) =>
         val bi = nvb.asInstanceOf[BoxInt].value
         l match {
-          case 8  => MemorySupport.storeByte(loc, bi.byteValue)
+          case 8 => MemorySupport.storeByte(loc, bi.byteValue)
           case 16 => MemorySupport.storeShort(loc, bi.shortValue)
           case 32 => MemorySupport.storeInt(loc, bi.intValue)
           case 64 => MemorySupport.storeLong(loc, bi.longValue)
-          case _  => throw new UnimplementedOprationException("Storing int of length %d is not supported".format(l))
+          case _ => throw new UnimplementedOprationException("Storing int of length %d is not supported".format(l))
         }
       case _: TypeFloat =>
         val fv = nvb.asInstanceOf[BoxFloat].value
@@ -452,7 +452,7 @@ object MemoryOperations {
         val rbi: BigInt = l match {
           case 32 => MemorySupport.atomicRMWInt(op, loc, obi.intValue)
           case 64 => MemorySupport.atomicRMWLong(op, loc, obi.longValue)
-          case _  => throw new UnimplementedOprationException("AtomicRMW on int of length %d is not supported".format(l))
+          case _ => throw new UnimplementedOprationException("AtomicRMW on int of length %d is not supported".format(l))
         }
         br.asInstanceOf[BoxInt].value = OpHelper.unprepare(rbi, l)
       case _ =>
@@ -492,6 +492,23 @@ object MemoryOperations {
           }
         }
     }
+  }
+
+  /**
+   * Check if a memory location still holds a particular value. Used by futex.
+   */
+  def cmpInt(len: Int, loc: Word, expected: BoxInt): Boolean = len match {
+    case 64 => {
+      val expNum = OpHelper.prepareSigned(expected.value, len).longValue
+      val actualNum = MemorySupport.loadLong(loc)
+      expNum == actualNum
+    }
+    case 32 => {
+      val expNum = OpHelper.prepareSigned(expected.value, len).intValue
+      val actualNum = MemorySupport.loadInt(loc)
+      expNum == actualNum
+    }
+    case _ => throw new UnimplementedOprationException("Futex of %d bit int is not supported".format(len))
   }
 }
 
