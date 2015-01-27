@@ -1,55 +1,39 @@
-.typedef @i32 = int<32>
-.typedef @bool = int<1>
-
-.const @I32_1 <@i32> = 1
-
-.funcsig @fac_sig = @i32 (@i32)
+.typedef @int_64 = int<64>
+.typedef @int_1 = int<1>
+.typedef @float = float
+.typedef @double = double
+.typedef @void = void
+.typedef @int_8 = int<8>
+.typedef @int_32 = int<32>
+.const @int_64_1 <@int_64> = 1
+.funcsig @fac_sig = @int_64 (@int_64)
 .funcdef @fac VERSION @fac_v1 <@fac_sig> (%n_3)
 {
-  %fac_block_0:
-    // %v46 = EQ <@i32> %n_3 %1
-    %v46 = EQ <@i32> %n_3 @I32_1
-    // %v47 = BITCAST <@bool @bool> %v46
-    // BRANCH2 %v47 %fac_block_2 %fac_block_1
-    BRANCH2 %v46 %fac_block_2 %fac_block_1
+%blk_0:
+    %v48 = EQ <@int_64> %n_3 @int_64_1
+    BRANCH2 %v48 %blk_2 %blk_1
 
-  %fac_block_1:
-    // n_4 = PHI <@i32>
-    %n_4 = PHI <@i32>
-    {
-      // %fac_block_0: %n_3
-      %fac_block_0: %n_3 ;
-    // {
+%blk_2:
+    %v53 = PHI <@int_64> {
+        %blk_1: %v52;
+        %blk_0: @int_64_1;
     }
-    // %v48 = SUB <@i32> %n_4 %1
-    %v48 = SUB <@i32> %n_4 @I32_1
-    // %v49 = CALL <@fac_sig> @fac %v48
-    %v49 = CALL <@fac_sig> @fac (%v48)
-    %v50 = MUL <@i32> %n_4 %v49
-    BRANCH %fac_block_2
+    RET <@int_64> %v53
 
-  %fac_block_2:
-    // v51 = PHI <@i32>
-    %v51 = PHI <@i32>
-    {
-      //%fac_block_1: %v50
-      %fac_block_1: %v50 ;
-      // %fac_block_0: %1
-      %fac_block_0: @I32_1 ;
-    // {
-    }
-    // RET <@i32> v51
-    RET <@i32> %v51
+%blk_1:
+    %v50 = SUB <@int_64> %n_3 @int_64_1
+    %v51 = CALL <@fac_sig> @fac (%v50)
+    %v52 = MUL <@int_64> %n_3 %v51
+    BRANCH %blk_2
+
 }
 
-.typedef @void = void
-
-.const @I32_10 <@i32> = 10
+.const @int_64_10 <@int_32> = 10
 
 .funcsig @main_sig = @void ()
 .funcdef @main VERSION @main_v1 <@main_sig> () {
     %entry:
-        %rv = CALL <@fac_sig> @fac (@I32_10)
+        %rv = CALL <@fac_sig> @fac (@int_64_10)
         %main_trap = TRAP <@void> KEEPALIVE (%rv)
         COMMINST @uvm.thread_exit
 }
