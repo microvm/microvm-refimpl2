@@ -829,3 +829,10 @@
         COMMINST @uvm.thread_exit
 }
 
+.funcdef @testdependency VERSION @testdependency_v1 <@noparamsnoret> () {
+    %entry:
+        %a = ADD <@i64> @I64_1 @I64_2
+        %b = COMMINST @uvm.kill_dependency <@i64> (%a)
+        TRAP <@void> KEEPALIVE (%b)
+        COMMINST @uvm.thread_exit
+}

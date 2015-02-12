@@ -130,6 +130,7 @@ object TypeInferer {
       case "@uvm.futex.wait_timeout" => I32
       case "@uvm.futex.wake" => I32
       case "@uvm.futex.cmp_requeue" => I32
+      case "@uvm.kill_dependency" => i.typeList(0)
     }
   }
 }

@@ -971,6 +971,13 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             }
           }
 
+          case "@uvm.kill_dependency" => {
+            val Seq(v) = argList
+            val vBox = boxOf(v)
+            boxOf(i).copyFrom(vBox)
+            continueNormally()
+          }
+          
           // Insert more CommInsts here.
 
           case ciName => {

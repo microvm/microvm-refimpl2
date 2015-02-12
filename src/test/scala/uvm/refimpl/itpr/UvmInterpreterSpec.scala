@@ -1139,4 +1139,20 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     ca.close()
   }
+  
+  "COMMINST @uvm.kill_dependency" should "do nothing" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@testdependency")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val Seq(b) = ca.dumpKeepalives(st, 0)
+
+      b.vb.asSInt(64) shouldBe 3
+      
+      TrapRebindPassVoid(st)
+    }
+
+    ca.close()
+  }
 }

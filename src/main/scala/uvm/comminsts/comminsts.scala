@@ -32,4 +32,5 @@ object CommInsts extends SimpleNamespace[CommInst] {
   commInst(0x222, "@uvm.futex.wake")
   commInst(0x223, "@uvm.futex.cmp_requeue")
 
+  commInst(0x230, "@uvm.kill_dependency")
 }
