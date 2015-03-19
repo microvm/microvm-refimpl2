@@ -13,7 +13,7 @@ object AllScanner {
 }
 
 /**
- * Traverse through all references in the µVM.
+ * Traverse through all references in the micro VM.
  */
 class AllScanner(val microVM: MicroVM, val handler: RefFieldHandler) extends RefFieldHandler {
   import AllScanner._

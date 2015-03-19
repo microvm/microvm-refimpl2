@@ -40,7 +40,7 @@ class ThreadStackManager(microVM: MicroVM) {
    * <p>
    * About mutator: "Bring your own mutator!" A mutator object is needed to allocate the stack memory. This means all
    * callers of the newStack function must have a mutator. Currently they are either ClientAgents which can create stack
-   * via the "new_stack" message or µVM threads (the InterpreterThread class) which can execute the NEWSTACK
+   * via the "new_stack" message or micro VM threads (the InterpreterThread class) which can execute the NEWSTACK
    * instruction.
    */
   def newStack(funcVer: FuncVer, args: Seq[ValueBox], mutator: Mutator): InterpreterStack = {

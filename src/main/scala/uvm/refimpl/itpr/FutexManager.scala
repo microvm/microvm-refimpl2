@@ -131,7 +131,7 @@ class FutexManager {
    * Adjust waiting queues affected by garbage collection.
    *  <p>
    *  @param getMovement A function that maps an object address to its new address if it is moved. Return None otherwise.
-   *  It assumes the new address is not previously occupied. (This shows why the µVM must be tightly coupled.)
+   *  It assumes the new address is not previously occupied. (This shows why a micro virtual machine must be tightly coupled.)
    */
   def afterGCAdjust(getMovement: Word => Option[Word]): Unit = {
     val oldKeys = objIndex.keySet.toList

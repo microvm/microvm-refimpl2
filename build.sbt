@@ -2,7 +2,7 @@ organization := "org.microvm"
 
 name := "microvm-refimpl2"
 
-description := "The second reference implementation of MicroVM"
+description := "The second reference implementation of Mu, the micro virtual machine"
 
 licenses := Seq("CC BY-SA 4.0" -> url("https://creativecommons.org/licenses/by-sa/4.0/legalcode"))
 

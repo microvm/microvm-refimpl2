@@ -308,7 +308,7 @@ class ClientAgent(microVM: MicroVM) {
 
   private def getStackNotNull(stack: Handle): InterpreterStack = {
     stack.vb.asInstanceOf[BoxStack].stack match {
-      case None    => throw new UvmRuntimeException("Stack argument cannot be a NULL MicroVM stack value.")
+      case None    => throw new UvmRuntimeException("Stack argument cannot be a NULL micro VM stack value.")
       case Some(v) => v
     }
   }
@@ -465,7 +465,7 @@ class ClientAgent(microVM: MicroVM) {
     microVM.trapManager.disableWatchPoint(wpID)
   }
 
-  // Internal methods for µVM
+  // Internal methods for the micro VM
 
   def putThread(thr: Option[InterpreterThread]): Handle = {
     val t = InternalTypes.THREAD
