@@ -20,7 +20,7 @@ trait RefFieldHandler {
   /** Scan a memory location. */
   def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Option[Word]
   /**
-   * A reference from somewhere internal to the µVM.
+   * A reference from somewhere internal to the micro VM.
    * For example, from the StackMemory to the memory byte array;
    * from a finaliser table to a finalisable object (to be added).
    */

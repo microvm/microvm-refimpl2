@@ -1,9 +1,10 @@
-MicroVM Reference Implementation 2
-==================================
+Mu Reference Implementation version 2
+=====================================
 
-This project is the current reference implementation of MicroVM. This project
-implements the current MicroVM specification in
-[microvm-spec](https://github.com/microvm/microvm-spec/wiki)
+This project is the current reference implementation of Mu, the micro virtual
+machine designed by [The Micro Virtual Machine Project](http://microvm.org). It
+implements the [Mu Specification version
+2](https://github.com/microvm/microvm-spec/wiki)
 
 This project is based on the
 [simplest-microvm-project](https://github.com/microvm/simplest-microvm-project).
@@ -49,7 +50,7 @@ yum, pacman, etc. for GNU/Linux distributions and Homebrew for Mac OS X).
 To download all dependencies from the Maven central repository, invoke `sbt
 update`.
 
-To generate the MicroVM IR parser from its Antlr grammar, invoke `sbt
+To generate the Mu IR parser from its Antlr grammar, invoke `sbt
 antlr4:antlr4Generate`. The generated sources will be in
 `target/scala-2.11/src_managed`. Make sure your IDE can see those generated
 sources.

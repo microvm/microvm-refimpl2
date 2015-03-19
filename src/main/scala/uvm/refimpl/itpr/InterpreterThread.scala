@@ -1253,7 +1253,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
   /**
    * Execute f, but catch the UvmOutOfMemoryException thrown by most allocation methods in the allocator. Out-of-memory
-   * errors in the µVM usually branches to an exception destination, but has undefined behaviour when ExcClause is
+   * errors in the micro VM usually branches to an exception destination, but has undefined behaviour when ExcClause is
    * absent.
    * @example {{{
    * handleOutOfMemory(excClause) {
@@ -1277,7 +1277,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
   }
 
   /**
-   * Raise NULL reference error. NULL reference errors in the µVM usually branches to an exception destination, but has
+   * Raise NULL reference error. NULL reference errors in the micro VM usually branches to an exception destination, but has
    * undefined behaviour when ExcClause is absent.
    */
   private def nullRefError(excClause: Option[ExcClause]): Unit = {
