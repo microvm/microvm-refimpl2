@@ -43,7 +43,7 @@ class UvmInterpreterTestBigFunc extends UvmBundleTesterBase {
     
     for(i <- 0 until 100) {
       val miniBundle = s".global @h${i} <@i64>"
-      ca.loadBundle(new StringReader(miniBundle))
+      ca.loadBundle(miniBundle)
     }
     
     val sb = new StringBuilder()
@@ -52,11 +52,11 @@ class UvmInterpreterTestBigFunc extends UvmBundleTesterBase {
     for(i <- 0 until 100) {
       sb ++= s"        %r${i} = STORE <@i64> @h${i} %p\n"
     }
-//    sb ++= "        TRAP <@void>\n"
+    sb ++= "        TRAP <@void>\n"
     sb ++= "        COMMINST @uvm.thread_exit\n"
     sb ++= "}"
  
-    ca.loadBundle(new StringReader(sb.toString()))
+    ca.loadBundle(sb.toString())
     
     val func = ca.putFunction("@bigger")
     val hParam = ca.putInt("@i64", 42)

@@ -10,37 +10,60 @@ import uvm.ssavariables._
 import uvm.types._
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.immutable.Stream
+import java.io.StringWriter
+import java.nio.CharBuffer
 
 class UIRTextReader(val idFactory: IDFactory) {
   import uvm.ir.textinput.Later.Laterable
 
   def read(ir: String, globalBundle: Bundle): Bundle = {
     val input = new ANTLRInputStream(ir)
-    read(input, globalBundle)
+    read(ir, input, globalBundle)
   }
 
   def read(ir: java.io.Reader, globalBundle: Bundle): Bundle = {
-    val input = new ANTLRInputStream(ir)
-    read(input, globalBundle)
+    val sb = new StringBuilder()
+    val cb = new Array[Char](4096)
+
+    var finished = false
+    while (!finished) {
+      val actualRead = ir.read(cb, 0, 4096)
+      if (actualRead > 0) {
+        sb.appendAll(cb, 0, actualRead)
+      } else {
+        finished = true
+      }
+    }
+
+    read(sb.toString(), globalBundle)
   }
 
-  class AccumulativeAntlrErrorListener extends BaseErrorListener {
+  class AccumulativeAntlrErrorListener(source: String) extends BaseErrorListener {
     val buf = new ArrayBuffer[String]()
     var hasError = false
+
+    lazy val sourceLines = ArrayBuffer(source.lines.toSeq: _*)
+
     override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: Object,
                              line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
-      buf.add("line %d:%d %s".format(line, charPositionInLine, msg))
+      val theLine = sourceLines(line - 1)
+      val marker = " " * charPositionInLine + "^"
+      buf.add("line %d:%d %s\n%s\n%s".format(line, charPositionInLine, msg, theLine, marker))
       hasError = true
     }
 
     def getMessages(): String = buf.mkString("\n")
   }
 
-  def read(ir: ANTLRInputStream, globalBundle: Bundle): Bundle = {
-    val lexer = new UIRLexer(ir)
+  def read(source: String, ais: ANTLRInputStream, globalBundle: Bundle): Bundle = {
+    val ea = new AccumulativeAntlrErrorListener(source)
+
+    val lexer = new UIRLexer(ais)
+    lexer.removeErrorListeners()
+    lexer.addErrorListener(ea)
     val tokens = new CommonTokenStream(lexer)
     val parser = new UIRParser(tokens)
-    val ea = new AccumulativeAntlrErrorListener()
     parser.removeErrorListeners()
     parser.addErrorListener(ea)
     val ast = parser.ir()

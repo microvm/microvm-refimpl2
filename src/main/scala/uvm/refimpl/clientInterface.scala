@@ -43,6 +43,11 @@ class ClientAgent(microVM: MicroVM) {
     val bundle = microVM.irReader.read(r, microVM.globalBundle)
     microVM.addBundle(bundle)
   }
+  
+  def loadBundle(s: String): Unit = {
+    val bundle = microVM.irReader.read(s, microVM.globalBundle)
+    microVM.addBundle(bundle)
+  }
 
   private def newHandle(t: Type, vb: ValueBox): Handle = {
     val handle = Handle(t, vb)

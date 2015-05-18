@@ -1,0 +1,12 @@
+.typedef @i64 = int<64>
+
+.const @I64_42 <@i64> = 42
+
+.global @gv <@i64>
+
+.funcsig @foo.sig = @i64 (@i64 @i64)
+.funcdef @foo VERSION @foo.v1 <@foo.sig> (%p0 %p1) {
+    %entry:
+        STORE <@i64> gv @I64_42
+        RET <@i64> @I64_42
+}
