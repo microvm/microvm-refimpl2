@@ -4,6 +4,11 @@ import uvm._
 
 abstract class Type extends IdentifiedSettable {
   override final def toString: String = Type.prettyPrint(this)
+  override def hashCode(): Int = System.identityHashCode(this)
+  override def equals(that: Any): Boolean = that match {
+    case v: AnyRef => this eq v
+    case _         => false
+  }
 }
 
 abstract class FPType extends Type
@@ -35,22 +40,22 @@ case class TypeVector(var elemTy: Type, var len: Long) extends AbstractSeqType
 
 object Type {
   def prettyPrint(ty: Type): String = ty match {
-    case TypeInt(length) => "int<%d>".format(length)
-    case TypeFloat() => "float"
-    case TypeDouble() => "double"
-    case TypeRef(ty) => "ref<%s>".format(ty.repr)
-    case TypeIRef(ty) => "iref<%s>".format(ty.repr)
-    case TypeWeakRef(ty) => "weakref<%s>".format(ty.repr)
-    case TypeStruct(fieldTy) => "struct<%s>".format(fieldTy.map(_.repr).mkString(" "))
-    case TypeArray(elemTy, len) => "array<%s %d>".format(elemTy.repr, len)
+    case TypeInt(length)                => "int<%d>".format(length)
+    case TypeFloat()                    => "float"
+    case TypeDouble()                   => "double"
+    case TypeRef(ty)                    => "ref<%s>".format(ty.repr)
+    case TypeIRef(ty)                   => "iref<%s>".format(ty.repr)
+    case TypeWeakRef(ty)                => "weakref<%s>".format(ty.repr)
+    case TypeStruct(fieldTy)            => "struct<%s>".format(fieldTy.map(_.repr).mkString(" "))
+    case TypeArray(elemTy, len)         => "array<%s %d>".format(elemTy.repr, len)
     case TypeHybrid(fixedPart, varPart) => "hybrid<%s %s>".format(fixedPart.repr, varPart.repr)
-    case TypeVoid() => "void"
-    case TypeFunc(sig) => "func<%s>".format(FuncSig.prettyPrint(sig))
-    case TypeThread() => "thread"
-    case TypeStack() => "stack"
-    case TypeTagRef64() => "tagref64"
-    case TypeVector(elemTy, len) => "vector<%s %d>".format(elemTy.repr, len)
-    case _ => "unknown type " + ty.getClass.getName
+    case TypeVoid()                     => "void"
+    case TypeFunc(sig)                  => "func<%s>".format(FuncSig.prettyPrint(sig))
+    case TypeThread()                   => "thread"
+    case TypeStack()                    => "stack"
+    case TypeTagRef64()                 => "tagref64"
+    case TypeVector(elemTy, len)        => "vector<%s %d>".format(elemTy.repr, len)
+    case _                              => "unknown type " + ty.getClass.getName
   }
 }
 

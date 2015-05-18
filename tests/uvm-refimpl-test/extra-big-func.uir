@@ -1,0 +1,344 @@
+.typedef @i64 = int<64>
+.typedef @void = void
+
+.const @I64_1 <@i64> = 1
+
+.global @g0 <@i64>
+.global @g1 <@i64>
+.global @g2 <@i64>
+.global @g3 <@i64>
+.global @g4 <@i64>
+.global @g5 <@i64>
+.global @g6 <@i64>
+.global @g7 <@i64>
+.global @g8 <@i64>
+.global @g9 <@i64>
+.global @g10 <@i64>
+.global @g11 <@i64>
+.global @g12 <@i64>
+.global @g13 <@i64>
+.global @g14 <@i64>
+.global @g15 <@i64>
+.global @g16 <@i64>
+.global @g17 <@i64>
+.global @g18 <@i64>
+.global @g19 <@i64>
+.global @g20 <@i64>
+.global @g21 <@i64>
+.global @g22 <@i64>
+.global @g23 <@i64>
+.global @g24 <@i64>
+.global @g25 <@i64>
+.global @g26 <@i64>
+.global @g27 <@i64>
+.global @g28 <@i64>
+.global @g29 <@i64>
+.global @g30 <@i64>
+.global @g31 <@i64>
+.global @g32 <@i64>
+.global @g33 <@i64>
+.global @g34 <@i64>
+.global @g35 <@i64>
+.global @g36 <@i64>
+.global @g37 <@i64>
+.global @g38 <@i64>
+.global @g39 <@i64>
+.global @g40 <@i64>
+.global @g41 <@i64>
+.global @g42 <@i64>
+.global @g43 <@i64>
+.global @g44 <@i64>
+.global @g45 <@i64>
+.global @g46 <@i64>
+.global @g47 <@i64>
+.global @g48 <@i64>
+.global @g49 <@i64>
+.global @g50 <@i64>
+.global @g51 <@i64>
+.global @g52 <@i64>
+.global @g53 <@i64>
+.global @g54 <@i64>
+.global @g55 <@i64>
+.global @g56 <@i64>
+.global @g57 <@i64>
+.global @g58 <@i64>
+.global @g59 <@i64>
+.global @g60 <@i64>
+.global @g61 <@i64>
+.global @g62 <@i64>
+.global @g63 <@i64>
+.global @g64 <@i64>
+.global @g65 <@i64>
+.global @g66 <@i64>
+.global @g67 <@i64>
+.global @g68 <@i64>
+.global @g69 <@i64>
+.global @g70 <@i64>
+.global @g71 <@i64>
+.global @g72 <@i64>
+.global @g73 <@i64>
+.global @g74 <@i64>
+.global @g75 <@i64>
+.global @g76 <@i64>
+.global @g77 <@i64>
+.global @g78 <@i64>
+.global @g79 <@i64>
+.global @g80 <@i64>
+.global @g81 <@i64>
+.global @g82 <@i64>
+.global @g83 <@i64>
+.global @g84 <@i64>
+.global @g85 <@i64>
+.global @g86 <@i64>
+.global @g87 <@i64>
+.global @g88 <@i64>
+.global @g89 <@i64>
+.global @g90 <@i64>
+.global @g91 <@i64>
+.global @g92 <@i64>
+.global @g93 <@i64>
+.global @g94 <@i64>
+.global @g95 <@i64>
+.global @g96 <@i64>
+.global @g97 <@i64>
+.global @g98 <@i64>
+.global @g99 <@i64>
+
+
+.funcsig @big.sig = @void (@i64)
+.funcdef @big VERSION @big_v1 <@big.sig> (%p) {
+    %entry:
+        %i0 = ADD <@i64> %p @I64_1
+        %i1 = ADD <@i64> %i0 @I64_1
+        %i2 = ADD <@i64> %i1 @I64_1
+        %i3 = ADD <@i64> %i2 @I64_1
+        %i4 = ADD <@i64> %i3 @I64_1
+        %i5 = ADD <@i64> %i4 @I64_1
+        %i6 = ADD <@i64> %i5 @I64_1
+        %i7 = ADD <@i64> %i6 @I64_1
+        %i8 = ADD <@i64> %i7 @I64_1
+        %i9 = ADD <@i64> %i8 @I64_1
+        %i10 = ADD <@i64> %i9 @I64_1
+        %i11 = ADD <@i64> %i10 @I64_1
+        %i12 = ADD <@i64> %i11 @I64_1
+        %i13 = ADD <@i64> %i12 @I64_1
+        %i14 = ADD <@i64> %i13 @I64_1
+        %i15 = ADD <@i64> %i14 @I64_1
+        %i16 = ADD <@i64> %i15 @I64_1
+        %i17 = ADD <@i64> %i16 @I64_1
+        %i18 = ADD <@i64> %i17 @I64_1
+        %i19 = ADD <@i64> %i18 @I64_1
+        %i20 = ADD <@i64> %i19 @I64_1
+        %i21 = ADD <@i64> %i20 @I64_1
+        %i22 = ADD <@i64> %i21 @I64_1
+        %i23 = ADD <@i64> %i22 @I64_1
+        %i24 = ADD <@i64> %i23 @I64_1
+        %i25 = ADD <@i64> %i24 @I64_1
+        %i26 = ADD <@i64> %i25 @I64_1
+        %i27 = ADD <@i64> %i26 @I64_1
+        %i28 = ADD <@i64> %i27 @I64_1
+        %i29 = ADD <@i64> %i28 @I64_1
+        %i30 = ADD <@i64> %i29 @I64_1
+        %i31 = ADD <@i64> %i30 @I64_1
+        %i32 = ADD <@i64> %i31 @I64_1
+        %i33 = ADD <@i64> %i32 @I64_1
+        %i34 = ADD <@i64> %i33 @I64_1
+        %i35 = ADD <@i64> %i34 @I64_1
+        %i36 = ADD <@i64> %i35 @I64_1
+        %i37 = ADD <@i64> %i36 @I64_1
+        %i38 = ADD <@i64> %i37 @I64_1
+        %i39 = ADD <@i64> %i38 @I64_1
+        %i40 = ADD <@i64> %i39 @I64_1
+        %i41 = ADD <@i64> %i40 @I64_1
+        %i42 = ADD <@i64> %i41 @I64_1
+        %i43 = ADD <@i64> %i42 @I64_1
+        %i44 = ADD <@i64> %i43 @I64_1
+        %i45 = ADD <@i64> %i44 @I64_1
+        %i46 = ADD <@i64> %i45 @I64_1
+        %i47 = ADD <@i64> %i46 @I64_1
+        %i48 = ADD <@i64> %i47 @I64_1
+        %i49 = ADD <@i64> %i48 @I64_1
+        %i50 = ADD <@i64> %i49 @I64_1
+        %i51 = ADD <@i64> %i50 @I64_1
+        %i52 = ADD <@i64> %i51 @I64_1
+        %i53 = ADD <@i64> %i52 @I64_1
+        %i54 = ADD <@i64> %i53 @I64_1
+        %i55 = ADD <@i64> %i54 @I64_1
+        %i56 = ADD <@i64> %i55 @I64_1
+        %i57 = ADD <@i64> %i56 @I64_1
+        %i58 = ADD <@i64> %i57 @I64_1
+        %i59 = ADD <@i64> %i58 @I64_1
+        %i60 = ADD <@i64> %i59 @I64_1
+        %i61 = ADD <@i64> %i60 @I64_1
+        %i62 = ADD <@i64> %i61 @I64_1
+        %i63 = ADD <@i64> %i62 @I64_1
+        %i64 = ADD <@i64> %i63 @I64_1
+        %i65 = ADD <@i64> %i64 @I64_1
+        %i66 = ADD <@i64> %i65 @I64_1
+        %i67 = ADD <@i64> %i66 @I64_1
+        %i68 = ADD <@i64> %i67 @I64_1
+        %i69 = ADD <@i64> %i68 @I64_1
+        %i70 = ADD <@i64> %i69 @I64_1
+        %i71 = ADD <@i64> %i70 @I64_1
+        %i72 = ADD <@i64> %i71 @I64_1
+        %i73 = ADD <@i64> %i72 @I64_1
+        %i74 = ADD <@i64> %i73 @I64_1
+        %i75 = ADD <@i64> %i74 @I64_1
+        %i76 = ADD <@i64> %i75 @I64_1
+        %i77 = ADD <@i64> %i76 @I64_1
+        %i78 = ADD <@i64> %i77 @I64_1
+        %i79 = ADD <@i64> %i78 @I64_1
+        %i80 = ADD <@i64> %i79 @I64_1
+        %i81 = ADD <@i64> %i80 @I64_1
+        %i82 = ADD <@i64> %i81 @I64_1
+        %i83 = ADD <@i64> %i82 @I64_1
+        %i84 = ADD <@i64> %i83 @I64_1
+        %i85 = ADD <@i64> %i84 @I64_1
+        %i86 = ADD <@i64> %i85 @I64_1
+        %i87 = ADD <@i64> %i86 @I64_1
+        %i88 = ADD <@i64> %i87 @I64_1
+        %i89 = ADD <@i64> %i88 @I64_1
+        %i90 = ADD <@i64> %i89 @I64_1
+        %i91 = ADD <@i64> %i90 @I64_1
+        %i92 = ADD <@i64> %i91 @I64_1
+        %i93 = ADD <@i64> %i92 @I64_1
+        %i94 = ADD <@i64> %i93 @I64_1
+        %i95 = ADD <@i64> %i94 @I64_1
+        %i96 = ADD <@i64> %i95 @I64_1
+        %i97 = ADD <@i64> %i96 @I64_1
+        %i98 = ADD <@i64> %i97 @I64_1
+        %i99 = ADD <@i64> %i98 @I64_1
+        %i100 = ADD <@i64> %i99 @I64_1
+        %i101 = ADD <@i64> %i100 @I64_1
+        %i102 = ADD <@i64> %i101 @I64_1
+        %i103 = ADD <@i64> %i102 @I64_1
+        %i104 = ADD <@i64> %i103 @I64_1
+        %i105 = ADD <@i64> %i104 @I64_1
+        %i106 = ADD <@i64> %i105 @I64_1
+        %i107 = ADD <@i64> %i106 @I64_1
+        %i108 = ADD <@i64> %i107 @I64_1
+        %i109 = ADD <@i64> %i108 @I64_1
+        %i110 = ADD <@i64> %i109 @I64_1
+        %i111 = ADD <@i64> %i110 @I64_1
+        %i112 = ADD <@i64> %i111 @I64_1
+        %i113 = ADD <@i64> %i112 @I64_1
+        %i114 = ADD <@i64> %i113 @I64_1
+        %i115 = ADD <@i64> %i114 @I64_1
+        %i116 = ADD <@i64> %i115 @I64_1
+        %i117 = ADD <@i64> %i116 @I64_1
+        %i118 = ADD <@i64> %i117 @I64_1
+        %i119 = ADD <@i64> %i118 @I64_1
+        %i120 = ADD <@i64> %i119 @I64_1
+        %i121 = ADD <@i64> %i120 @I64_1
+        %i122 = ADD <@i64> %i121 @I64_1
+        %i123 = ADD <@i64> %i122 @I64_1
+        %i124 = ADD <@i64> %i123 @I64_1
+        %i125 = ADD <@i64> %i124 @I64_1
+        %i126 = ADD <@i64> %i125 @I64_1
+        %i127 = ADD <@i64> %i126 @I64_1
+        %i128 = ADD <@i64> %i127 @I64_1
+        %i129 = ADD <@i64> %i128 @I64_1
+        %i130 = ADD <@i64> %i129 @I64_1
+        %i131 = ADD <@i64> %i130 @I64_1
+        %i132 = ADD <@i64> %i131 @I64_1
+        %i133 = ADD <@i64> %i132 @I64_1
+        %i134 = ADD <@i64> %i133 @I64_1
+        %i135 = ADD <@i64> %i134 @I64_1
+        %i136 = ADD <@i64> %i135 @I64_1
+        %i137 = ADD <@i64> %i136 @I64_1
+        %i138 = ADD <@i64> %i137 @I64_1
+        %i139 = ADD <@i64> %i138 @I64_1
+        %i140 = ADD <@i64> %i139 @I64_1
+        %i141 = ADD <@i64> %i140 @I64_1
+        %i142 = ADD <@i64> %i141 @I64_1
+        %i143 = ADD <@i64> %i142 @I64_1
+        %i144 = ADD <@i64> %i143 @I64_1
+        %i145 = ADD <@i64> %i144 @I64_1
+        %i146 = ADD <@i64> %i145 @I64_1
+        %i147 = ADD <@i64> %i146 @I64_1
+        %i148 = ADD <@i64> %i147 @I64_1
+        %i149 = ADD <@i64> %i148 @I64_1
+        %i150 = ADD <@i64> %i149 @I64_1
+        %i151 = ADD <@i64> %i150 @I64_1
+        %i152 = ADD <@i64> %i151 @I64_1
+        %i153 = ADD <@i64> %i152 @I64_1
+        %i154 = ADD <@i64> %i153 @I64_1
+        %i155 = ADD <@i64> %i154 @I64_1
+        %i156 = ADD <@i64> %i155 @I64_1
+        %i157 = ADD <@i64> %i156 @I64_1
+        %i158 = ADD <@i64> %i157 @I64_1
+        %i159 = ADD <@i64> %i158 @I64_1
+        %i160 = ADD <@i64> %i159 @I64_1
+        %i161 = ADD <@i64> %i160 @I64_1
+        %i162 = ADD <@i64> %i161 @I64_1
+        %i163 = ADD <@i64> %i162 @I64_1
+        %i164 = ADD <@i64> %i163 @I64_1
+        %i165 = ADD <@i64> %i164 @I64_1
+        %i166 = ADD <@i64> %i165 @I64_1
+        %i167 = ADD <@i64> %i166 @I64_1
+        %i168 = ADD <@i64> %i167 @I64_1
+        %i169 = ADD <@i64> %i168 @I64_1
+        %i170 = ADD <@i64> %i169 @I64_1
+        %i171 = ADD <@i64> %i170 @I64_1
+        %i172 = ADD <@i64> %i171 @I64_1
+        %i173 = ADD <@i64> %i172 @I64_1
+        %i174 = ADD <@i64> %i173 @I64_1
+        %i175 = ADD <@i64> %i174 @I64_1
+        %i176 = ADD <@i64> %i175 @I64_1
+        %i177 = ADD <@i64> %i176 @I64_1
+        %i178 = ADD <@i64> %i177 @I64_1
+        %i179 = ADD <@i64> %i178 @I64_1
+        %i180 = ADD <@i64> %i179 @I64_1
+        %i181 = ADD <@i64> %i180 @I64_1
+        %i182 = ADD <@i64> %i181 @I64_1
+        %i183 = ADD <@i64> %i182 @I64_1
+        %i184 = ADD <@i64> %i183 @I64_1
+        %i185 = ADD <@i64> %i184 @I64_1
+        %i186 = ADD <@i64> %i185 @I64_1
+        %i187 = ADD <@i64> %i186 @I64_1
+        %i188 = ADD <@i64> %i187 @I64_1
+        %i189 = ADD <@i64> %i188 @I64_1
+        %i190 = ADD <@i64> %i189 @I64_1
+        %i191 = ADD <@i64> %i190 @I64_1
+        %i192 = ADD <@i64> %i191 @I64_1
+        %i193 = ADD <@i64> %i192 @I64_1
+        %i194 = ADD <@i64> %i193 @I64_1
+        %i195 = ADD <@i64> %i194 @I64_1
+        %i196 = ADD <@i64> %i195 @I64_1
+        %i197 = ADD <@i64> %i196 @I64_1
+        %i198 = ADD <@i64> %i197 @I64_1
+        %i199 = ADD <@i64> %i198 @I64_1
+        %r0 = LOAD <@i64> @g0
+        %r1 = LOAD <@i64> @g1
+        %r2 = LOAD <@i64> @g2
+        %r3 = LOAD <@i64> @g3
+        %r4 = LOAD <@i64> @g4
+        %r5 = LOAD <@i64> @g5
+        %r6 = LOAD <@i64> @g6
+        %r7 = LOAD <@i64> @g7
+        %r8 = LOAD <@i64> @g8
+        %r9 = LOAD <@i64> @g9
+        %r10 = LOAD <@i64> @g10
+        %r11 = LOAD <@i64> @g11
+        %r12 = LOAD <@i64> @g12
+        %r13 = LOAD <@i64> @g13
+        %r14 = LOAD <@i64> @g14
+        %r15 = LOAD <@i64> @g15
+        %r16 = LOAD <@i64> @g16
+        %r17 = LOAD <@i64> @g17
+        %r18 = LOAD <@i64> @g18
+        %r19 = LOAD <@i64> @g19
+        %r20 = LOAD <@i64> @g20
+        %r21 = LOAD <@i64> @g21
+        %r22 = LOAD <@i64> @g22
+        %r23 = LOAD <@i64> @g23
+        %r24 = LOAD <@i64> @g24
+        %r25 = LOAD <@i64> @g25
+        %r26 = LOAD <@i64> @g26
+        %r27 = LOAD <@i64> @g27
+        %r28 = LOAD <@i64> @g28
+        %r29 = LOAD <@i64> @g29
+        
+        %trap = TRAP <@void> KEEPALIVE (%i199)
+        COMMINST @uvm.thread_exit
+}

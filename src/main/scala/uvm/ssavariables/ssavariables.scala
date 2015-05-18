@@ -6,6 +6,10 @@ import uvm.types._
 
 abstract class SSAVariable extends IdentifiedSettable {
   override def hashCode(): Int = id
+  override def equals(that: Any): Boolean = that match {
+    case v: AnyRef => this eq v
+    case _ => false
+  }
 }
 
 // Global variables: Constants, Global Cells and Functions (Function is defined in controlFlow.scala)
