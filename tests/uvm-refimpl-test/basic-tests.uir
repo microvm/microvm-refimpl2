@@ -408,6 +408,23 @@
         COMMINST @uvm.thread_exit
 }
 
+.funcdef @phi_cyclic_dep_test VERSION @phi_cyclic_dep_test_v1 <@noparamsnoret> () {
+    %entry:
+        BRANCH %head
+
+    %head:
+        %x = PHI <@i64> { %entry: @I64_1; %head: %y; }
+        %y = PHI <@i64> { %entry: @I64_2; %head: %x; }
+        %i = PHI <@i64> { %entry: @I64_0; %head: %i2; }
+        %i2 = ADD <@i64> %i @I64_1
+        %lt = SLT <@i64> %i @I64_1
+        BRANCH2 %lt %head %end
+
+    %end:
+        %trap = TRAP <@void> KEEPALIVE (%x %y)
+        COMMINST @uvm.thread_exit
+}
+
 .funcdef @square_sum VERSION @square_sum_v1 <@i_ii> (%a %b) {
     %entry:
         %a2 = MUL <@i64> %a %a

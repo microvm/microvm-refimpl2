@@ -148,6 +148,12 @@ case class PassValue(var argTy: Type, var arg: SSAVariable) extends NewStackActi
 case class PassVoid() extends NewStackAction
 case class ThrowExc(var exc: SSAVariable) extends NewStackAction
 
+/**
+ * An EdgeAssigned instruction is evaluated at control flow edges rather than sequentially when the PC
+ * reaches that instruction. Currently PHI and LANDINGPAD are the only two such instructions.
+ */
+trait EdgeAssigned extends Instruction
+
 /// Concrete instructions
 case class InstBinOp(var op: BinOptr, var opndTy: Type, var op1: SSAVariable, var op2: SSAVariable,
                      var excClause: Option[ExcClause]) extends HasExcClause
@@ -166,7 +172,7 @@ case class InstBranch2(var cond: SSAVariable, var ifTrue: BasicBlock, var ifFals
 case class InstSwitch(var opndTy: Type, var opnd: SSAVariable, var defDest: BasicBlock,
                       var cases: Seq[(SSAVariable, BasicBlock)]) extends Instruction
 
-case class InstPhi(var opndTy: Type, var cases: Seq[(BasicBlock, SSAVariable)]) extends Instruction
+case class InstPhi(var opndTy: Type, var cases: Seq[(BasicBlock, SSAVariable)]) extends Instruction with EdgeAssigned
 
 case class InstCall(var sig: FuncSig, var callee: SSAVariable, var argList: Seq[SSAVariable],
                     var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable]
@@ -180,7 +186,7 @@ case class InstRetVoid() extends AbstractRet
 
 case class InstThrow(var excVal: SSAVariable) extends Instruction
 
-case class InstLandingPad() extends Instruction
+case class InstLandingPad() extends Instruction with EdgeAssigned
 
 case class InstExtractValue(var strTy: TypeStruct, var index: Int, var opnd: SSAVariable) extends Instruction
 

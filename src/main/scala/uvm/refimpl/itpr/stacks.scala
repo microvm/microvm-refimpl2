@@ -55,6 +55,9 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
 
 class InterpreterFrame(val funcVer: FuncVer, val prev: Option[InterpreterFrame]) {
   val boxes = new HashMap[LocalVariable, ValueBox]()
+  
+  /** Edge-assigned instructions take values determined at look backedges */
+  val edgeAssignedBoxes = new HashMap[EdgeAssigned, ValueBox]()
 
   /** Current basic block */
   var curBB: BasicBlock = funcVer.entry
@@ -101,6 +104,9 @@ class InterpreterFrame(val funcVer: FuncVer, val prev: Option[InterpreterFrame])
   private def putBox(lv: LocalVariable) {
     val ty = TypeInferer.inferType(lv)
     boxes.put(lv, ValueBox.makeBoxForType(ty))
+    if (lv.isInstanceOf[EdgeAssigned]) {
+      edgeAssignedBoxes.put(lv.asInstanceOf[EdgeAssigned], ValueBox.makeBoxForType(ty))
+    }
   }
 
   def curInst: Instruction = try {

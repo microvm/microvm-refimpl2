@@ -705,6 +705,23 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     ca.close()
   }
+  
+  "PHI instructions in a basic block" should "be assigned at the same time in CFG edges" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@phi_cyclic_dep_test")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val Seq(x, y) = ca.dumpKeepalives(st, 0)
+
+      ca.toInt(x, signExt=true) shouldEqual 2
+      ca.toInt(y, signExt=true) shouldEqual 1
+
+      TrapRebindPassVoid(st)
+    }
+
+    ca.close()
+  }
 
   "CALL and RET" should "work for normal returns" in {
     val ca = microVM.newClientAgent()

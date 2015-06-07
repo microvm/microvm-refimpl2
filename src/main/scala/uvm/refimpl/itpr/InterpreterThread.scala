@@ -44,17 +44,17 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
   /** Write the return value of futex. May be written from FutexManager */
   def futexReturn(rv: Int): Unit = {
-//    val validInst = curInst match {
-//      case ci: InstCommInst => ci.inst.name.get match {
-//        case "@uvm.futex.wait" => true
-//        case "@uvm.futex.wait_timeout" => true
-//        case _ => false
-//      }
-//      case _ => false
-//    }
-//
-//    if (!validInst) throw new UvmRefImplException(ctx + "The current instruction is not @uvm.futex.wait or wait_timeout.")
-//
+    //    val validInst = curInst match {
+    //      case ci: InstCommInst => ci.inst.name.get match {
+    //        case "@uvm.futex.wait" => true
+    //        case "@uvm.futex.wait_timeout" => true
+    //        case _ => false
+    //      }
+    //      case _ => false
+    //    }
+    //
+    //    if (!validInst) throw new UvmRefImplException(ctx + "The current instruction is not @uvm.futex.wait or wait_timeout.")
+    //
     logger.debug(ctx + "Setting futex return value")
     writeIntResult(32, rv, boxOf(curInst))
     continueNormally()
@@ -75,11 +75,17 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
   /** Get the value box of an SSA variable in a stack. */
   private def boxOf(s: InterpreterStack, v: SSAVariable): ValueBox = v match {
     case g: GlobalVariable => microVM.constantPool.getGlobalVarBox(g)
-    case l: LocalVariable => s.top.boxes(l)
+    case l: LocalVariable  => s.top.boxes(l)
   }
 
   /** Get the value box of an SSA variable in the current stack. */
   private def boxOf(v: SSAVariable): ValueBox = boxOf(curStack, v)
+
+  /** Get the edge-assigned value box of an edge-assigned instruction in a stack. */
+  private def edgeAssignedBoxOf(s: InterpreterStack, ea: EdgeAssigned): ValueBox = s.top.edgeAssignedBoxes(ea)
+
+  /** Get the edge-assigned value box of an edge-assigned instruction in the current stack. */
+  private def edgeAssignedBoxOf(ea: EdgeAssigned): ValueBox = edgeAssignedBoxOf(curStack, ea)
 
   // Context printing for debugging
 
@@ -93,7 +99,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
       } else {
         "TID %d, FuncVer %s, BasicBlock %s, Instruction %s (%s): ".format(id, top.funcVer.repr, curBB.repr, curInst.repr, curInst match {
           case ci: InstCommInst => ci.inst.name.get
-          case _ => curInst.getClass.getSimpleName()
+          case _                => curInst.getClass.getSimpleName()
         })
       }
     }
@@ -139,10 +145,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
         def doScalar(scalarTy: Type, b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
           scalarTy match {
-            case TypeInt(l) => doInt(l, b1, b2, br)
-            case TypeFloat() => doFloat(b1, b2, br)
+            case TypeInt(l)   => doInt(l, b1, b2, br)
+            case TypeFloat()  => doFloat(b1, b2, br)
             case TypeDouble() => doDouble(b1, b2, br)
-            case _ => throw new UvmRuntimeException(ctx + "BinOp not suitable for type %s".format(opndTy))
+            case _            => throw new UvmRuntimeException(ctx + "BinOp not suitable for type %s".format(opndTy))
           }
         }
 
@@ -197,10 +203,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
         def doScalar(scalarTy: Type, b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
           scalarTy match {
-            case TypeInt(l) => doInt(l, b1, b2, br)
-            case TypeFloat() => doFloat(b1, b2, br)
+            case TypeInt(l)   => doInt(l, b1, b2, br)
+            case TypeFloat()  => doFloat(b1, b2, br)
             case TypeDouble() => doDouble(b1, b2, br)
-            case _ => throw new UvmRuntimeException(ctx + "Comparison not suitable for type %s".format(opndTy))
+            case _            => throw new UvmRuntimeException(ctx + "Comparison not suitable for type %s".format(opndTy))
           }
         }
 
@@ -227,8 +233,8 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
               val od = bOpnd.asInstanceOf[BoxInt].value
               val result = op match {
                 case ConvOptr.TRUNC => OpHelper.trunc(od, tl)
-                case ConvOptr.ZEXT => OpHelper.zext(od, fl, tl)
-                case ConvOptr.SEXT => OpHelper.sext(od, fl, tl)
+                case ConvOptr.ZEXT  => OpHelper.zext(od, fl, tl)
+                case ConvOptr.SEXT  => OpHelper.sext(od, fl, tl)
               }
               br.asInstanceOf[BoxInt].value = result
             }
@@ -238,12 +244,12 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           def fpToI(signed: Boolean): Unit = {
             val tl = scalarToTy match {
               case TypeInt(l) => l
-              case _ => throw new UvmRuntimeException(ctx + "Expect integer dest type. Found %s".format(scalarToTy))
+              case _          => throw new UvmRuntimeException(ctx + "Expect integer dest type. Found %s".format(scalarToTy))
             }
             val result = scalarFromTy match {
-              case TypeFloat() => OpHelper.floatToI(bOpnd.asInstanceOf[BoxFloat].value, tl, signed)
+              case TypeFloat()  => OpHelper.floatToI(bOpnd.asInstanceOf[BoxFloat].value, tl, signed)
               case TypeDouble() => OpHelper.doubleToI(bOpnd.asInstanceOf[BoxDouble].value, tl, signed)
-              case _ => throw new UvmRuntimeException(ctx + "Expect FP source type. Found %s.".format(scalarFromTy))
+              case _            => throw new UvmRuntimeException(ctx + "Expect FP source type. Found %s.".format(scalarFromTy))
             }
             br.asInstanceOf[BoxInt].value = result
           }
@@ -251,7 +257,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           def iToFP(signed: Boolean): Unit = {
             val fl = scalarFromTy match {
               case TypeInt(l) => l
-              case _ => throw new UvmRuntimeException(ctx + "Expect integer source type. Found %s".format(scalarFromTy))
+              case _          => throw new UvmRuntimeException(ctx + "Expect integer source type. Found %s".format(scalarFromTy))
             }
             val od = bOpnd.asInstanceOf[BoxInt].value
             val extended = if (signed) OpHelper.prepareSigned(od, fl) else OpHelper.prepareUnsigned(od, fl)
@@ -290,7 +296,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           }
 
           def refcast(): Unit = (scalarFromTy, scalarToTy) match {
-            case (TypeRef(_), TypeRef(_)) => br.copyFrom(bOpnd)
+            case (TypeRef(_), TypeRef(_))   => br.copyFrom(bOpnd)
             case (TypeIRef(_), TypeIRef(_)) => br.copyFrom(bOpnd)
             case (TypeFunc(_), TypeFunc(_)) => br.copyFrom(bOpnd)
             case _ => throw new UvmRuntimeException(ctx +
@@ -299,8 +305,8 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
 
           op match {
             case ConvOptr.TRUNC => iToI()
-            case ConvOptr.ZEXT => iToI()
-            case ConvOptr.SEXT => iToI()
+            case ConvOptr.ZEXT  => iToI()
+            case ConvOptr.SEXT  => iToI()
             case ConvOptr.FPTRUNC => {
               val od = bOpnd.asInstanceOf[BoxDouble].value
               val result = od.toFloat
@@ -311,10 +317,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
               val result = od.toDouble
               br.asInstanceOf[BoxDouble].value = result
             }
-            case ConvOptr.FPTOUI => fpToI(signed = false)
-            case ConvOptr.FPTOSI => fpToI(signed = true)
-            case ConvOptr.UITOFP => iToFP(signed = false)
-            case ConvOptr.SITOFP => iToFP(signed = true)
+            case ConvOptr.FPTOUI  => fpToI(signed = false)
+            case ConvOptr.FPTOSI  => fpToI(signed = true)
+            case ConvOptr.UITOFP  => iToFP(signed = false)
+            case ConvOptr.SITOFP  => iToFP(signed = true)
             case ConvOptr.BITCAST => bitcast()
             case ConvOptr.REFCAST => refcast()
           }
@@ -756,11 +762,11 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             val sta = boxOf(s).asInstanceOf[BoxStack].stack.getOrElse {
               throw new UvmRuntimeException(ctx + "Attempt to create new thread on NULL stack.")
             }
-            
+
             if (!sta.state.isInstanceOf[StackState.Ready]) {
               throw new UvmRuntimeException(ctx + "Stack not in READY<T> state. Actual state: %s".format(sta.state))
             }
-            
+
             val thr = microVM.threadStackManager.newThread(sta)
             boxOf(i).asInstanceOf[BoxThread].thread = Some(thr)
             continueNormally()
@@ -977,7 +983,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             boxOf(i).copyFrom(vBox)
             continueNormally()
           }
-          
+
           // Insert more CommInsts here.
 
           case ciName => {
@@ -1005,6 +1011,8 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
     val curBB = this.curBB
     var cont = true
     var i = 0
+
+    // Determine the value of edge-assigned instructions (phis and landingpads), but keep them in their temporary boxes.
     while (cont) {
       dest.insts(i) match {
         case phi @ InstPhi(opndTy, cases) => {
@@ -1012,18 +1020,28 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
             throw new UvmRuntimeException(s"Phi node ${phi.repr} does not include the case for source basic block ${curBB.repr}")
           }
           val vb = boxOf(caseVal)
-          val db = boxOf(phi)
+          val db = edgeAssignedBoxOf(phi)
           db.copyFrom(vb)
           i += 1
         }
         case lp: InstLandingPad => {
-          val db = boxOf(lp).asInstanceOf[BoxRef]
+          val db = edgeAssignedBoxOf(lp).asInstanceOf[BoxRef]
           db.objRef = excAddr
           i += 1
         }
         case _ => cont = false
       }
     }
+
+    // Copy the values of edge-assigned instructions (phis and landingpads) to their canonical boxes.
+    for (j <- 0 until i) {
+      val destInst = dest.insts(j)
+      val sb = edgeAssignedBoxOf(destInst.asInstanceOf[EdgeAssigned])
+      val db = boxOf(destInst)
+      db.copyFrom(sb)
+    }
+
+    // Continue execution
     jump(dest, i)
   }
 
@@ -1069,7 +1087,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
       maybeFindExceptionHandler(f.curInst) match {
         case Some(bb) => (f, bb)
         case None => f.prev match {
-          case None => throw new UvmRuntimeException(ctx + "Exception is thrown out of the bottom frame.")
+          case None       => throw new UvmRuntimeException(ctx + "Exception is thrown out of the bottom frame.")
           case Some(prev) => unwindUntilCatchable(prev)
         }
       }
@@ -1095,10 +1113,10 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
    */
   private def maybeFindExceptionHandler(inst: Instruction): Option[BasicBlock] = {
     inst match {
-      case i: InstCall => i.excClause.map(_.exc)
-      case i: InstTrap => i.excClause.map(_.exc)
+      case i: InstCall       => i.excClause.map(_.exc)
+      case i: InstTrap       => i.excClause.map(_.exc)
       case i: InstWatchPoint => i.exc
-      case i: InstSwapStack => i.excClause.map(_.exc)
+      case i: InstSwapStack  => i.excClause.map(_.exc)
       case _ => {
         throw new UvmRefImplException(ctx + "Instruction %s (%s) is in a stack frame when an exception is thrown.".format(inst.repr, inst.getClass.getName))
       }
@@ -1246,7 +1264,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
    */
   private def branchToExcDestOr(excClause: Option[ExcClause])(f: => Unit): Unit = {
     excClause match {
-      case None => f
+      case None                      => f
       case Some(ExcClause(_, excBB)) => branchAndMovePC(excBB, 0L)
     }
   }
