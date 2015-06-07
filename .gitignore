@@ -1,8 +1,10 @@
 target
-.cache
+.cache*
 .project
 .classpath
 .settings
 .idea
 *.iml
 *.swp
+.tmpBin
+.d8_history
