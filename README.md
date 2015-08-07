@@ -63,6 +63,28 @@ plugin](https://github.com/typesafehub/sbteclipse) and invoke `sbt eclipse`.
 IntelliJ IDEA has plugins for Scala and SBT. Make sure you don't commit `.idea`
 or generated project files into the repository.
 
+How to run
+----------
+
+There is a sample factorial program (generously provided by @johnjiabinzhang) in
+the `src/test` directory. To run the program with all dependencies on the
+classpath, you need to run it with sbt. Invoke `sbt` to enter the interactive
+shell. Then type:
+
+```
+set fork := true
+test:runMain junks.FactorialFromRPython
+```
+
+or directly from the command line:
+
+```
+sbt 'set fork:=true' 'test:runMain junks.FactorialFromRPython'
+```
+
+`fork := true` tells sbt to run the program in a different process than the one
+running sbt itself.
+
 Author and Copyright
 --------------------
 
