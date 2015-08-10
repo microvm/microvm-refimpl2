@@ -201,11 +201,63 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
           writeBooleanResult(result, br)
         }
 
+        def doRef(b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
+          val op1v = b1.asInstanceOf[BoxRef].objRef
+          val op2v = b2.asInstanceOf[BoxRef].objRef
+
+          val result = op match {
+            case CmpOptr.EQ => op1v == op2v
+            case CmpOptr.NE => op1v != op2v
+            case _          => throw new UvmRuntimeException(ctx + "Comparison %s not suitable for reference type %s".format(op, opndTy))
+          }
+          writeBooleanResult(result, br)
+        }
+        
+        def doIRef(b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
+          val op1v = b1.asInstanceOf[BoxIRef].oo
+          val op2v = b2.asInstanceOf[BoxIRef].oo
+
+          val result = op match {
+            case CmpOptr.EQ => op1v == op2v
+            case CmpOptr.NE => op1v != op2v
+            case _          => throw new UvmRuntimeException(ctx + "Comparison %s not suitable for internal reference type %s".format(op, opndTy))
+          }
+          writeBooleanResult(result, br)
+        }
+
+        def doFunc(b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
+          val op1v = b1.asInstanceOf[BoxFunc].func
+          val op2v = b2.asInstanceOf[BoxFunc].func
+
+          val result = op match {
+            case CmpOptr.EQ => op1v == op2v
+            case CmpOptr.NE => op1v != op2v
+            case _          => throw new UvmRuntimeException(ctx + "Comparison %s not suitable for function type %s".format(op, opndTy))
+          }
+          writeBooleanResult(result, br)
+        }
+        
+        def doStack(b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
+          val op1v = b1.asInstanceOf[BoxStack].stack
+          val op2v = b2.asInstanceOf[BoxStack].stack
+
+          val result = op match {
+            case CmpOptr.EQ => op1v == op2v
+            case CmpOptr.NE => op1v != op2v
+            case _          => throw new UvmRuntimeException(ctx + "Comparison %s not suitable for stack type %s".format(op, opndTy))
+          }
+          writeBooleanResult(result, br)
+        }
+
         def doScalar(scalarTy: Type, b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
           scalarTy match {
             case TypeInt(l)   => doInt(l, b1, b2, br)
             case TypeFloat()  => doFloat(b1, b2, br)
             case TypeDouble() => doDouble(b1, b2, br)
+            case TypeRef(_)   => doRef(b1, b2, br)
+            case TypeIRef(_)  => doIRef(b1, b2, br)
+            case TypeFunc(_)  => doFunc(b1, b2, br)
+            case TypeStack()  => doStack(b1, b2, br)
             case _            => throw new UvmRuntimeException(ctx + "Comparison not suitable for type %s".format(opndTy))
           }
         }

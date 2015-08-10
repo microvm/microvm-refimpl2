@@ -557,7 +557,89 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     }
     ca.close()
   }
+  
+  "Comparing operations" should "work on general reference types" in {
+    val ca = microVM.newClientAgent()
 
+    val func = ca.putFunction("@cmp_ref")
+
+    val a0 = ca.newFixed("@i64")
+    val a1 = ca.newFixed("@i64")
+    val a2 = ca.putGlobal("@dummy_global1")
+    val a3 = ca.putGlobal("@dummy_global2")
+    val a4 = ca.putFunction("@dummy_func1")
+    val a5 = ca.putFunction("@dummy_func2")
+    val a6 = ca.newStack(a5, Seq())
+    val a7 = ca.newStack(a5, Seq())
+
+    testFunc(ca, func, Seq(a0, a0, a2, a2, a4, a4, a6, a6)) { (ca, th, st, wp) =>
+      val Seq(req, rne,ieq, ine, feq, fne, seq, sne) = ca.dumpKeepalives(st, 0)
+
+      req.vb.asUInt(1) shouldEqual 1
+      rne.vb.asUInt(1) shouldEqual 0
+      ieq.vb.asUInt(1) shouldEqual 1
+      ine.vb.asUInt(1) shouldEqual 0
+      feq.vb.asUInt(1) shouldEqual 1
+      fne.vb.asUInt(1) shouldEqual 0
+      seq.vb.asUInt(1) shouldEqual 1
+      sne.vb.asUInt(1) shouldEqual 0
+
+      TrapRebindPassVoid(st)
+    }
+    
+    testFunc(ca, func, Seq(a0, a1, a2, a3, a4, a5, a6, a7)) { (ca, th, st, wp) =>
+      val Seq(req, rne,ieq, ine, feq, fne, seq, sne) = ca.dumpKeepalives(st, 0)
+
+      req.vb.asUInt(1) shouldEqual 0
+      rne.vb.asUInt(1) shouldEqual 1
+      ieq.vb.asUInt(1) shouldEqual 0
+      ine.vb.asUInt(1) shouldEqual 1
+      feq.vb.asUInt(1) shouldEqual 0
+      fne.vb.asUInt(1) shouldEqual 1
+      seq.vb.asUInt(1) shouldEqual 0
+      sne.vb.asUInt(1) shouldEqual 1
+
+      TrapRebindPassVoid(st)
+    }
+
+    val nr = ca.putConstant("@NULLREF_I64")
+    val ni = ca.putConstant("@NULLIREF_I64")
+    val nf = ca.putConstant("@NULLFUNC")
+    val ns = ca.putConstant("@NULLSTACK")
+    
+    testFunc(ca, func, Seq(nr, nr, ni, ni, nf, nf, ns, ns)) { (ca, th, st, wp) =>
+      val Seq(req, rne,ieq, ine, feq, fne, seq, sne) = ca.dumpKeepalives(st, 0)
+
+      req.vb.asUInt(1) shouldEqual 1
+      rne.vb.asUInt(1) shouldEqual 0
+      ieq.vb.asUInt(1) shouldEqual 1
+      ine.vb.asUInt(1) shouldEqual 0
+      feq.vb.asUInt(1) shouldEqual 1
+      fne.vb.asUInt(1) shouldEqual 0
+      seq.vb.asUInt(1) shouldEqual 1
+      sne.vb.asUInt(1) shouldEqual 0
+
+      TrapRebindPassVoid(st)
+    }
+    
+    testFunc(ca, func, Seq(a0, nr, a2, ni, a4, nf, a6, ns)) { (ca, th, st, wp) =>
+      val Seq(req, rne,ieq, ine, feq, fne, seq, sne) = ca.dumpKeepalives(st, 0)
+
+      req.vb.asUInt(1) shouldEqual 0
+      rne.vb.asUInt(1) shouldEqual 1
+      ieq.vb.asUInt(1) shouldEqual 0
+      ine.vb.asUInt(1) shouldEqual 1
+      feq.vb.asUInt(1) shouldEqual 0
+      fne.vb.asUInt(1) shouldEqual 1
+      seq.vb.asUInt(1) shouldEqual 0
+      sne.vb.asUInt(1) shouldEqual 1
+
+      TrapRebindPassVoid(st)
+    }
+    
+    ca.close()
+  }
+  
   "Conversions" should "work on scalar types" in {
     val ca = microVM.newClientAgent()
 

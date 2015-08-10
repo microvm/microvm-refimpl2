@@ -76,7 +76,13 @@
 .typedef @refvoid = ref<@void>
 .typedef @irefvoid = iref<@void>
 .typedef @weakrefvoid = weakref<@void>
-.const @NULLREF <@refvoid> = NULL
+.const @NULLREF   <@refvoid>  = NULL
+.const @NULLIREF  <@irefvoid> = NULL
+.const @NULLFUNC  <@funcdumb> = NULL
+.const @NULLSTACK <@stack>    = NULL
+
+.const @NULLREF_I64  <@refi64>  = NULL
+.const @NULLIREF_I64 <@irefi64> = NULL
 
 .funcsig @binops32_sig = @void (@i32 @i32)
 .funcdef @binops32 VERSION @binops32_v1 <@binops32_sig> (%p0 %p1) {
@@ -281,6 +287,33 @@
 
         %trap = TRAP <@void> KEEPALIVE (
             %eq %slt %foeqf %fultf %foeqd %fultd
+            )
+        COMMINST @uvm.thread_exit
+}
+
+.global @dummy_global1 <@i64>
+.global @dummy_global2 <@i64>
+
+.funcdecl @dummy_func1 <@noparamsnoret>
+.funcdef @dummy_func2 VERSION @dummy_func2.v1 <@noparamsnoret> () {
+    %entry:
+        RETVOID
+}
+
+.funcsig @cmp_ref_sig = @void (@refi64 @refi64 @irefi64 @irefi64 @funcdumb @funcdumb @stack @stack)
+.funcdef @cmp_ref VERSION @cmp_ref_v1 <@cmp_ref_sig> (%p0 %p1 %p2 %p3 %p4 %p5 %p6 %p7) {
+    %entry:
+        %req     = EQ   <@refi64>   %p0 %p1
+        %rne     = NE   <@refi64>   %p0 %p1
+        %ieq     = EQ   <@irefi64>  %p2 %p3
+        %ine     = NE   <@irefi64>  %p2 %p3
+        %feq     = EQ   <@funcdumb> %p4 %p5
+        %fne     = NE   <@funcdumb> %p4 %p5
+        %seq     = EQ   <@stack>    %p6 %p7
+        %sne     = NE   <@stack>    %p6 %p7
+
+        %trap = TRAP <@void> KEEPALIVE (
+            %req %rne %ieq %ine %feq %fne %seq %sne
             )
         COMMINST @uvm.thread_exit
 }
@@ -661,8 +694,6 @@
                     %rmw0 %rmw1 %rmw2 %rmw3 %rmw4 %rmw5 %rmw6 %rmw7 %rmw8 %rmw9 %rmwA %l64_2)
         COMMINST @uvm.thread_exit
 }
-
-.const @NULLIREF_I64 <@irefi64> = NULL
 
 .funcdef @memAccessingNull VERSION @memAccessingNull_v1 <@noparamsnoret> () {
     %entry:
