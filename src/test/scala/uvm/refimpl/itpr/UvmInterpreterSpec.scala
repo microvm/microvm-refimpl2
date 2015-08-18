@@ -21,6 +21,8 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     //"uvm.refimpl.mem" -> DEBUG,
     "uvm.refimpl.itpr" -> DEBUG)
 
+  override def makeMicroVM = new MicroVM(heapSize = 64L * 1024L * 1024L)
+
   preloadBundles("tests/uvm-refimpl-test/basic-tests.uir")
 
   "The constant pool" should "contain appropriate constant values" in {
@@ -557,7 +559,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     }
     ca.close()
   }
-  
+
   "Comparing operations" should "work on general reference types" in {
     val ca = microVM.newClientAgent()
 
@@ -573,7 +575,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     val a7 = ca.newStack(a5, Seq())
 
     testFunc(ca, func, Seq(a0, a0, a2, a2, a4, a4, a6, a6)) { (ca, th, st, wp) =>
-      val Seq(req, rne,ieq, ine, feq, fne, seq, sne) = ca.dumpKeepalives(st, 0)
+      val Seq(req, rne, ieq, ine, feq, fne, seq, sne) = ca.dumpKeepalives(st, 0)
 
       req.vb.asUInt(1) shouldEqual 1
       rne.vb.asUInt(1) shouldEqual 0
@@ -586,9 +588,9 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
       TrapRebindPassVoid(st)
     }
-    
+
     testFunc(ca, func, Seq(a0, a1, a2, a3, a4, a5, a6, a7)) { (ca, th, st, wp) =>
-      val Seq(req, rne,ieq, ine, feq, fne, seq, sne) = ca.dumpKeepalives(st, 0)
+      val Seq(req, rne, ieq, ine, feq, fne, seq, sne) = ca.dumpKeepalives(st, 0)
 
       req.vb.asUInt(1) shouldEqual 0
       rne.vb.asUInt(1) shouldEqual 1
@@ -606,9 +608,9 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     val ni = ca.putConstant("@NULLIREF_I64")
     val nf = ca.putConstant("@NULLFUNC")
     val ns = ca.putConstant("@NULLSTACK")
-    
+
     testFunc(ca, func, Seq(nr, nr, ni, ni, nf, nf, ns, ns)) { (ca, th, st, wp) =>
-      val Seq(req, rne,ieq, ine, feq, fne, seq, sne) = ca.dumpKeepalives(st, 0)
+      val Seq(req, rne, ieq, ine, feq, fne, seq, sne) = ca.dumpKeepalives(st, 0)
 
       req.vb.asUInt(1) shouldEqual 1
       rne.vb.asUInt(1) shouldEqual 0
@@ -621,9 +623,9 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
       TrapRebindPassVoid(st)
     }
-    
+
     testFunc(ca, func, Seq(a0, nr, a2, ni, a4, nf, a6, ns)) { (ca, th, st, wp) =>
-      val Seq(req, rne,ieq, ine, feq, fne, seq, sne) = ca.dumpKeepalives(st, 0)
+      val Seq(req, rne, ieq, ine, feq, fne, seq, sne) = ca.dumpKeepalives(st, 0)
 
       req.vb.asUInt(1) shouldEqual 0
       rne.vb.asUInt(1) shouldEqual 1
@@ -636,10 +638,10 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
       TrapRebindPassVoid(st)
     }
-    
+
     ca.close()
   }
-  
+
   "Conversions" should "work on scalar types" in {
     val ca = microVM.newClientAgent()
 
@@ -787,7 +789,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     ca.close()
   }
-  
+
   "PHI instructions in a basic block" should "be assigned at the same time in CFG edges" in {
     val ca = microVM.newClientAgent()
 
@@ -796,8 +798,8 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
       val Seq(x, y) = ca.dumpKeepalives(st, 0)
 
-      ca.toInt(x, signExt=true) shouldEqual 2
-      ca.toInt(y, signExt=true) shouldEqual 1
+      ca.toInt(x, signExt = true) shouldEqual 2
+      ca.toInt(y, signExt = true) shouldEqual 1
 
       TrapRebindPassVoid(st)
     }
@@ -1238,7 +1240,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     ca.close()
   }
-  
+
   "COMMINST @uvm.kill_dependency" should "do nothing" in {
     val ca = microVM.newClientAgent()
 
@@ -1248,7 +1250,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
       val Seq(b) = ca.dumpKeepalives(st, 0)
 
       b.vb.asSInt(64) shouldBe 3
-      
+
       TrapRebindPassVoid(st)
     }
 
