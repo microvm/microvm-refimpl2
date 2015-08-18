@@ -22,8 +22,10 @@ class ThreadStackManager(microVM: MicroVM) {
   def getStackByID(id: Int): Option[InterpreterStack] = stackRegistry.get(id)
 
   def getThreadByID(id: Int): Option[InterpreterThread] = threadRegistry.get(id)
-
+  
   def iterateAllLiveStacks: Iterable[InterpreterStack] = stackRegistry.values.filter(_.state != StackState.Dead)
+
+  def iterateAllLiveThreads: Iterable[InterpreterThread] = threadRegistry.values.filter(_.isRunning)
 
   private var nextStackID: Int = 1
 

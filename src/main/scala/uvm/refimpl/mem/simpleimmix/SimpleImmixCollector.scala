@@ -18,9 +18,9 @@ object SimpleImmixCollector {
 }
 
 class SimpleImmixCollector(val heap: SimpleImmixHeap,
-  val space: SimpleImmixSpace,
-  val los: LargeObjectSpace,
-  microVM: MicroVM) extends Collector with Runnable {
+                           val space: SimpleImmixSpace,
+                           val los: LargeObjectSpace,
+                           microVM: MicroVM) extends Collector with Runnable {
 
   import SimpleImmixCollector._
 
@@ -48,12 +48,17 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
 
     logger.debug("Marking and getting statistics....")
     val s1 = new AllScanner(microVM, new RefFieldHandler() {
-      override def fromBox(box: HasObjRef): Option[Word] = box match {
-        case HasNonZeroRef(toObj) => maybeMarkAndStat(toObj)
-        case _ => None
+      override def boxToHeap(box: HasObjRef): Option[Word] = if (box.hasObjRef()) {
+        maybeMarkAndStatIfNotNull(box.getObjRef())
+      } else {
+        None
       }
 
-      override def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Option[Word] = {
+      override def boxToStack(box: BoxStack): Option[InterpreterStack] = {
+        maybeMarkStackIfSome(box.stack)
+      }
+
+      override def memToHeap(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Option[Word] = {
         if (toObj != 0L) {
           if (isWeak) {
             logger.debug(s"Enqueued weak reference ${iRef} to ${toObj}")
@@ -67,7 +72,15 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
         }
       }
 
-      override def fromInternal(toObj: Word): Option[Word] = if (toObj != 0L) maybeMarkAndStat(toObj) else None
+      override def memToStack(objRef: Word, iRef: Word, toStack: Option[InterpreterStack]): Option[InterpreterStack] = {
+        maybeMarkStackIfSome(toStack)
+      }
+
+      override def stackToStackMem(stack: InterpreterStack, toObj: Word): Option[Word] = maybeMarkAndStatIfNotNull(toObj)
+
+      override def threadToStack(thread: InterpreterThread, toStack: Option[InterpreterStack]): Option[InterpreterStack] = {
+        maybeMarkStackIfSome(toStack)
+      }
 
     })
     s1.scanAll()
@@ -103,6 +116,15 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
 
     logger.debug("Marked. Collecting blocks....")
     val anyMemoryRecycled = collectBlocks()
+    
+    logger.debug("Killing unreachable stacks...")
+    for (st <- microVM.threadStackManager.iterateAllLiveStacks) {
+      if(!st.gcMark) {
+        logger.debug("Killing stack %d...".format(st.id))
+        st.state = StackState.Dead
+      }
+    }
+    
     if (!anyMemoryRecycled && heap.getMustFreeSpace) {
       throw new UvmRefImplException("Out of memory because the GC failed to recycle any memory.")
     }
@@ -115,6 +137,10 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
 
     logger.debug("GC finished.")
     heap.untriggerGC()
+  }
+
+  private def maybeMarkAndStatIfNotNull(addr: Word): Option[Word] = {
+    if (addr != 0L) maybeMarkAndStat(addr) else None
   }
 
   private def maybeMarkAndStat(addr: Word): Option[Word] = {
@@ -152,24 +178,52 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
     }
   }
 
-  private val markMover = new RefFieldHandler {
+  private def maybeMarkStackIfSome(maybeStack: Option[InterpreterStack]): Option[InterpreterStack] = {
+    maybeStack.flatMap(maybeMarkStack)
+  }
 
-    override def fromBox(box: HasObjRef): Option[Word] = box match {
-      case HasNonZeroRef(toObj) => maybeMove(toObj, newObjRef => RefFieldUpdater.updateBox(box, newObjRef))
-      case _ => None
-    }
-
-    override def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Option[Word] = {
-      if (toObj != 0L) {
-        maybeMove(toObj, newObjRef => RefFieldUpdater.updateMemory(iRef, isTR64, newObjRef))
+  private def maybeMarkStack(stack: InterpreterStack): Option[InterpreterStack] = {
+    if (stack.state != StackState.Dead) {
+      if (!stack.gcMark) {
+        stack.gcMark = true
+        Some(stack)
       } else {
         None
       }
+    } else {
+      None
     }
+  }
 
+  private val markMover = new RefFieldHandler {
+
+    override def boxToHeap(box: HasObjRef): Option[Word] = if (box.hasObjRef()) {
+      maybeMoveIfNotNull(box.getObjRef, newObjRef => RefFieldUpdater.updateBoxToHeap(box, newObjRef))
+    } else {
+      None
+    }
+    override def boxToStack(box: BoxStack): Option[InterpreterStack] = {
+      maybeMarkStackIfSome(box.stack)
+    }
+    override def memToHeap(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Option[Word] = {
+      maybeMoveIfNotNull(toObj, newObjRef => RefFieldUpdater.updateMemToHeap(iRef, isTR64, newObjRef))
+    }
+    override def memToStack(objRef: Word, iRef: Word, toStack: Option[InterpreterStack]): Option[InterpreterStack] = {
+      maybeMarkStackIfSome(toStack)
+    }
     // Currently internally referenced objects (only the byte array for stacks) cannot move and does not transitively
     // refer to other objects.
-    override def fromInternal(toObj: Word): Option[Word] = None
+    override def stackToStackMem(stack: InterpreterStack, toObj: Word): Option[Word] = {
+      maybeMoveIfNotNull(toObj, _ => throw new UvmRefImplException("Stack memory cannot move."))
+    }
+
+    override def threadToStack(thread: InterpreterThread, toStack: Option[InterpreterStack]): Option[InterpreterStack] = {
+      maybeMarkStackIfSome(toStack)
+    }
+
+    private def maybeMoveIfNotNull(toObj: Word, updateFunc: Word => Unit): Option[Word] = {
+      if (toObj != 0L) maybeMove(toObj, updateFunc) else None
+    }
 
     private def maybeMove(toObj: Word, updateFunc: Word => Unit): Option[Word] = {
       val oldHeader = HeaderUtils.getTag(toObj)
@@ -275,16 +329,33 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
   }
 
   private val clearMarkHandler = new RefFieldHandler() {
-    override def fromBox(box: HasObjRef): Option[Word] = box match {
-      case HasNonZeroRef(toObj) => clearMark(toObj)
-      case _ => None
+    override def boxToHeap(box: HasObjRef): Option[Word] = if (box.hasObjRef) {
+      clearMarkIfNotNull(box.getObjRef())
+    } else {
+      None
     }
 
-    override def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Option[Word] = {
-      if (toObj != 0L) clearMark(toObj) else None
+    override def boxToStack(box: BoxStack): Option[InterpreterStack] = {
+      clearStackMarkIfSome(box.stack)
     }
 
-    override def fromInternal(toObj: Word): Option[Word] = if (toObj != 0L) clearMark(toObj) else None
+    override def memToHeap(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Option[Word] = {
+      clearMarkIfNotNull(toObj)
+    }
+
+    override def memToStack(objRef: Word, iRef: Word, toStack: Option[InterpreterStack]): Option[InterpreterStack] = {
+      clearStackMarkIfSome(toStack)
+    }
+
+    override def stackToStackMem(stack: InterpreterStack, toObj: Word): Option[Word] = clearMarkIfNotNull(toObj)
+
+    override def threadToStack(thread: InterpreterThread, toStack: Option[InterpreterStack]): Option[InterpreterStack] = {
+      clearStackMarkIfSome(toStack)
+    }
+  }
+
+  private def clearMarkIfNotNull(objRef: Long): Option[Word] = {
+    if (objRef != 0L) clearMark(objRef) else None
   }
 
   private def clearMark(objRef: Long): Option[Word] = {
@@ -295,6 +366,19 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
       val newHeader = oldHeader & ~(MARK_MASK | MOVE_MASK)
       HeaderUtils.setTag(objRef, newHeader)
       Some(objRef)
+    } else {
+      None
+    }
+  }
+
+  private def clearStackMarkIfSome(maybeStack: Option[InterpreterStack]): Option[InterpreterStack] = {
+    maybeStack.flatMap(clearStackMark)
+  }
+
+  private def clearStackMark(stack: InterpreterStack): Option[InterpreterStack] = {
+    if (stack.gcMark) {
+      stack.gcMark = false
+      Some(stack)
     } else {
       None
     }
@@ -316,18 +400,6 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
 
   private def notifyMovedObjectsToFutex(): Unit = {
     microVM.threadStackManager.futexManager.afterGCAdjust(getMovement)
-  }
-
-  private object HasNonZeroRef {
-    def unapply(obj: Any): Option[Word] = obj match {
-      case hor: HasObjRef => if (hor.hasObjRef) {
-        val toObj = hor.getObjRef
-        if (toObj != 0L) Some(toObj)
-        else None
-      } else None
-
-      case _ => None
-    }
   }
 
 }

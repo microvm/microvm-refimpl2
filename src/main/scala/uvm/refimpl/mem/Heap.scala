@@ -7,6 +7,7 @@ import uvm.refimpl.UvmRefImplException
 object Heap {
   protected val MUTATOR_RUNNING = 0
   protected val DOING_GC = 1
+  protected val GC_ERROR = 2  // Set if an exception is thrown in GC. In this case, an exception is thrown to the (only) mutator thread.
 }
 
 abstract class Heap {
@@ -19,6 +20,8 @@ abstract class Heap {
   protected var gcState: Int = _
 
   protected var mustFreeSpace: Boolean = _
+  
+  protected var gcException: Exception = null
 
   def mutatorTriggerAndWaitForGCEnd(mustFreeSpace: Boolean) {
     lock.lock()
@@ -45,7 +48,7 @@ abstract class Heap {
   private def mutatorWaitForGCEnd() {
     lock.lock()
     try {
-      while (gcState != MUTATOR_RUNNING) {
+      while (gcState == DOING_GC) {
         try {
           gcFinished.await()
         } catch {
@@ -54,6 +57,10 @@ abstract class Heap {
       }
     } finally {
       lock.unlock()
+    }
+    
+    if (gcState == GC_ERROR) {
+      throw new UvmRefImplException("Exception thrown in the GC thread.", gcException)
     }
   }
 
@@ -67,7 +74,18 @@ abstract class Heap {
       lock.unlock()
     }
   }
-
+  
+  def gcError(e: Exception) {
+    lock.lock()
+    try {
+      assert((gcState == DOING_GC))
+      gcState = GC_ERROR
+      gcException = e
+      gcFinished.signalAll()
+    } finally {
+      lock.unlock()
+    }
+  }
   def collectorWaitForGCStart() {
     lock.lock()
     while (gcState != DOING_GC) {

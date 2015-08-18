@@ -18,7 +18,8 @@ object AllScanner {
 class AllScanner(val microVM: MicroVM, val handler: RefFieldHandler) extends RefFieldHandler {
   import AllScanner._
 
-  private val queue = new ArrayDeque[Word]()
+  private val addrQueue = new ArrayDeque[Word]()
+  private val stackQueue = new ArrayDeque[InterpreterStack]()
 
   def scanAll() {
     traceRoots()
@@ -30,15 +31,16 @@ class AllScanner(val microVM: MicroVM, val handler: RefFieldHandler) extends Ref
     traceClientAgents()
     logger.debug("Tracing globals...")
     traceGlobal()
-    logger.debug("Tracing stacks...")
-    traceStacks()
+    logger.debug("Tracing threads...")
+    traceThreads()
   }
 
   private def traceClientAgents() {
     for (ca <- microVM.clientAgents; h <- ca.handles) {
       h.vb match {
-        case hor: HasObjRef => this.fromBox(hor)
-        case _ =>
+        case hor: HasObjRef => this.boxToHeap(hor)
+        case bst: BoxStack  => this.boxToStack(bst)
+        case _              =>
       }
     }
   }
@@ -47,48 +49,84 @@ class AllScanner(val microVM: MicroVM, val handler: RefFieldHandler) extends Ref
     microVM.memoryManager.globalMemory.allocator.traverseFields(this)
   }
 
-  private def traceStacks() {
-    for (sta <- microVM.threadStackManager.iterateAllLiveStacks) {
-      logger.debug(s"Tracing stack ${sta.id} for registers...")
-
-      for (fra <- sta.frames; vb <- fra.boxes.values if vb.isInstanceOf[HasObjRef]) {
-        val rvb = vb.asInstanceOf[HasObjRef]
-        fromBox(rvb)
-      }
-
-      logger.debug(s"Tracing stack ${sta.id} memory chunk in LOS...")
-      val stackMemory = sta.stackMemory
-      val stackMemObjAddr = stackMemory.stackObjRef
-      fromInternal(stackMemObjAddr) // This is a hack: A reference from nowhere.
-
-      logger.debug(s"Tracing stack ${sta.id} for allocas...")
-      stackMemory.traverseFields(this)
+  private def traceThreads() {
+    for (thr <- microVM.threadStackManager.iterateAllLiveThreads) {
+      logger.debug(s"Tracing live thread ${thr.id} for its stack")
+      this.threadToStack(thr, thr.stack)
     }
+  }
+
+  private def traceStack(sta: InterpreterStack) {
+    logger.debug(s"Tracing stack ${sta.id} for registers...")
+
+    for (fra <- sta.frames; vb <- fra.boxes.values) vb match {
+      case hor: HasObjRef => this.boxToHeap(hor)
+      case bst: BoxStack  => this.boxToStack(bst)
+      case _              =>
+    }
+
+    logger.debug(s"Tracing stack ${sta.id} memory chunk in LOS...")
+    val stackMemory = sta.stackMemory
+    val stackMemObjAddr = stackMemory.stackObjRef
+    this.stackToStackMem(sta, stackMemObjAddr)
+
+    logger.debug(s"Tracing stack ${sta.id} for allocas...")
+    stackMemory.traverseFields(this)
   }
 
   private def doTransitiveClosure() {
-    while (!queue.isEmpty) {
-      val objRef = queue.pollFirst()
-      logger.debug("Scanning heap object 0x%x...".format(objRef))
-      MemoryDataScanner.scanAllocUnit(objRef, objRef, microVM, this)
+    var allEmpty = false
+
+    while (!allEmpty) {
+      allEmpty = true
+      while (!stackQueue.isEmpty) {
+        allEmpty = false
+        val stack = stackQueue.pollFirst()
+        logger.debug("Scanning stack %d...".format(stack.id))
+        traceStack(stack)
+      }
+      while (!addrQueue.isEmpty) {
+        allEmpty = false
+        val objRef = addrQueue.pollFirst()
+        logger.debug("Scanning heap object 0x%x...".format(objRef))
+        MemoryDataScanner.scanAllocUnit(objRef, objRef, microVM, this)
+      }
     }
   }
 
-  override def fromBox(box: HasObjRef): Option[Word] = {
-    val rv = handler.fromBox(box)
-    rv.foreach(queue.add)
+  override def boxToHeap(box: HasObjRef): Option[Word] = {
+    val rv = handler.boxToHeap(box)
+    rv.foreach(addrQueue.add)
     rv
   }
-  
-  override def fromMem(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Option[Word] = {
-    val rv = handler.fromMem(objRef, iRef, toObj, isWeak, isTR64)
-    rv.foreach(queue.add)
+
+  override def boxToStack(box: BoxStack): Option[InterpreterStack] = {
+    val rv = handler.boxToStack(box)
+    rv.foreach(stackQueue.add)
     rv
   }
-  
-  override def fromInternal(toObj: Word): Option[Word] = {
-    val rv = handler.fromInternal(toObj)
-    rv.foreach(queue.add)
+
+  override def memToHeap(objRef: Word, iRef: Word, toObj: Word, isWeak: Boolean, isTR64: Boolean): Option[Word] = {
+    val rv = handler.memToHeap(objRef, iRef, toObj, isWeak, isTR64)
+    rv.foreach(addrQueue.add)
+    rv
+  }
+
+  override def memToStack(objRef: Word, iRef: Word, toStack: Option[InterpreterStack]): Option[InterpreterStack] = {
+    val rv = handler.memToStack(objRef, iRef, toStack)
+    rv.foreach(stackQueue.add)
+    rv
+  }
+
+  override def stackToStackMem(stack: InterpreterStack, toObj: Word): Option[Word] = {
+    val rv = handler.stackToStackMem(stack, toObj)
+    rv.foreach(addrQueue.add)
+    rv
+  }
+
+  override def threadToStack(thread: InterpreterThread, toStack: Option[InterpreterStack]): Option[InterpreterStack] = {
+    val rv = handler.threadToStack(thread, toStack)
+    rv.foreach(stackQueue.add)
     rv
   }
 

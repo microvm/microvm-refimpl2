@@ -1,6 +1,14 @@
 package uvm.refimpl.mem
 
+import org.slf4j.LoggerFactory
+import com.typesafe.scalalogging.Logger
+
+object Collector {
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+}
+
 abstract class Collector extends Runnable() {
+  import Collector._
 
   override def run() {
     try {
@@ -10,9 +18,8 @@ abstract class Collector extends Runnable() {
       }
     } catch {
       case e: Exception => {
-        System.err.println("Error thrown from collection thread.")
-        e.printStackTrace()
-        System.exit(1)
+        logger.error("Collector throws an exception.", e)
+        heap.gcError(e)
       }
     }
   }

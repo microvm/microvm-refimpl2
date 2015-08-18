@@ -18,10 +18,10 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
   setLogLevels(
     ROOT_LOGGER_NAME -> INFO,
-    //"uvm.refimpl.mem" -> DEBUG,
+    //"uvm.refimpl.mem.simpleimmix.SimpleImmixCollector$" -> DEBUG,
     "uvm.refimpl.itpr" -> DEBUG)
 
-  override def makeMicroVM = new MicroVM(heapSize = 64L * 1024L * 1024L)
+  override def makeMicroVM = new MicroVM(heapSize = 8L * 1024L * 1024L)
 
   preloadBundles("tests/uvm-refimpl-test/basic-tests.uir")
 

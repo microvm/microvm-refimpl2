@@ -18,5 +18,5 @@ class UnimplementedOprationException(message: String = null, cause: Throwable = 
  */
 class UvmRuntimeException(message: String = null, cause: Throwable = null) extends UvmRefImplException(message, cause)
 
-/** Thrown when a division by zero is executed and the exception claues is not present. */
+/** Thrown when a division by zero is executed and the exception clause is not present. */
 class UvmDivisionByZeroException(message: String = null, cause: Throwable = null) extends UvmRuntimeException(message, cause)

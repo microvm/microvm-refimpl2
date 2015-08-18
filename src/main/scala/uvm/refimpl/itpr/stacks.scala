@@ -18,6 +18,8 @@ object StackState {
 }
 
 class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFunc: FuncVer, args: Seq[ValueBox]) {
+  var gcMark: Boolean = false  // Mark for GC.
+  
   var state: StackState = StackState.Ready(InternalTypes.VOID) // Initial state is READY<void>
 
   var top: InterpreterFrame = InterpreterFrame.frameForCall(stackBottomFunc, args, None)
