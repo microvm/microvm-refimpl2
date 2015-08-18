@@ -5,7 +5,7 @@ import java.nio.ByteBuffer
 import uvm.ssavariables.AtomicRMWOptr._
 
 object MemorySupport {
-  val MEMORY_SIZE: Word = 64L * 1024L * 1024L
+  val MEMORY_SIZE: Word = 1024L * 1024L * 1024L
 
   val bb: ByteBuffer = ByteBuffer.allocateDirect(MEMORY_SIZE.toInt)
   bb.order(java.nio.ByteOrder.LITTLE_ENDIAN)

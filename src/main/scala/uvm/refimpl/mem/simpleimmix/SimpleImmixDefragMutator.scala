@@ -13,7 +13,7 @@ object SimpleImmixDefragMutator {
 }
 
 class SimpleImmixDefragMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace)
-  extends Mutator with Allocator {
+    extends Mutator with Allocator {
 
   import SimpleImmixDefragMutator._
 
@@ -55,7 +55,7 @@ class SimpleImmixDefragMutator(val heap: SimpleImmixHeap, val space: SimpleImmix
         logger.debug("got new reserved block.")
         if (curBlockAddr == None) {
           logger.debug("No more reserved blocks. Cannot defragment.")
-          return 0
+          throw new NoMoreDefragBlockException("No more blocks for defrag.")
         } else {
           None
         }
