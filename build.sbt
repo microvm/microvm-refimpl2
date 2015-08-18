@@ -6,7 +6,7 @@ description := "The second reference implementation of Mu, the micro virtual mac
 
 licenses := Seq("CC BY-SA 4.0" -> url("https://creativecommons.org/licenses/by-sa/4.0/legalcode"))
 
-scalaVersion := "2.11.6"
+scalaVersion := "2.11.7"
 
 libraryDependencies := Seq(
     "org.antlr" % "antlr4" % "4.5",
