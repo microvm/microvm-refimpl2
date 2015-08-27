@@ -369,3 +369,28 @@
     %exit:
         COMMINST @uvm.thread_exit()
 }
+
+.funcdef @emptystack VERSION @emptystack_v1 <@noparamsnoret> () {
+    %entry:
+        RETVOID
+}
+
+.funcsig @stackcollecttest_sig = @void (@i64)
+.funcdef @stackcollecttest VERSION @stackcollecttest_v1 <@stackcollecttest_sig> (%nstacks) {
+    %entry:
+        BRANCH %head
+
+    %head:
+        %i = PHI <@i64> { %entry: @I64_0; %body: %i2; }
+        %lt = SLT <@i64> %i %nstacks
+        BRANCH2 %lt %body %endloop
+
+    %body:
+        %st = NEWSTACK <@noparamsnoret> @emptystack ()
+        %i2 = ADD <@i64> %i @I64_1
+        BRANCH %head
+
+    %endloop:
+        %trap = TRAP <@void>
+        COMMINST @uvm.thread_exit()
+}
