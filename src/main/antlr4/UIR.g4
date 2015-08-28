@@ -11,6 +11,7 @@ topLevelDef
     |   globalDef
     |   funcDecl
     |   funcDef
+    |   exposeDef
     ;
 
 typeDef
@@ -35,6 +36,10 @@ funcDecl
     
 funcDef
     :   '.funcdef' nam=GLOBAL_NAME 'VERSION' ver=GLOBAL_NAME '<' sig=funcSig '>' params=paramList body=funcBody
+    ;
+    
+exposeDef
+    :   '.expose' nam=GLOBAL_NAME '=' funcName=GLOBAL_NAME '<' callconv '>' cookie=GLOBAL_NAME
     ;
 
 typeConstructor
@@ -145,17 +150,17 @@ instBody
     
     |   'GETIREF'       '<' refTy=type '>' opnd=value                               # InstGetIRef
 
-    |   'GETFIELDIREF'  '<' refTy=type index=intLiteral '>' opnd=value              # InstGetFieldIRef
-    |   'GETELEMIREF'   '<' refTy=type indTy=type '>' opnd=value index=value        # InstGetElemIRef
-    |   'SHIFTIREF'     '<' refTy=type offTy=type '>' opnd=value offset=value       # InstShiftIRef
-    |   'GETFIXEDPARTIREF'  '<' refTy=type '>' opnd=value                           # InstGetFixedPartIRef
-    |   'GETVARPARTIREF'    '<' refTy=type '>' opnd=value                           # InstGetVarPartIRef
+    |   'GETFIELDIREF'      (ptr='PTR'?) '<' refTy=type index=intLiteral '>' opnd=value          # InstGetFieldIRef
+    |   'GETELEMIREF'       (ptr='PTR'?) '<' refTy=type indTy=type '>' opnd=value index=value    # InstGetElemIRef
+    |   'SHIFTIREF'         (ptr='PTR'?) '<' refTy=type offTy=type '>' opnd=value offset=value   # InstShiftIRef
+    |   'GETFIXEDPARTIREF'  (ptr='PTR'?) '<' refTy=type '>' opnd=value                           # InstGetFixedPartIRef
+    |   'GETVARPARTIREF'    (ptr='PTR'?) '<' refTy=type '>' opnd=value                           # InstGetVarPartIRef
     
-    |   'LOAD' memord? '<' type '>' loc=value excClause                             # InstLoad
-    |   'STORE' memord? '<' type '>' loc=value newVal=value excClause               # InstStore
-    |   'CMPXCHG' (isWeak='WEAK'?) ordSucc=memord ordFail=memord
-                    '<' type '>' loc=value expected=value desired=value excClause   # InstCmpXchg
-    |   'ATOMICRMW' memord atomicrmwop '<' type '>' loc=value opnd=value excClause  # InstAtomicRMW
+    |   'LOAD'      (ptr='PTR'?) memord? '<' type '>' loc=value excClause                        # InstLoad
+    |   'STORE'     (ptr='PTR'?) memord? '<' type '>' loc=value newVal=value excClause           # InstStore
+    |   'CMPXCHG'   (ptr='PTR'?) (isWeak='WEAK'?) ordSucc=memord ordFail=memord
+                    '<' type '>' loc=value expected=value desired=value excClause                # InstCmpXchg
+    |   'ATOMICRMW' (ptr='PTR'?) memord atomicrmwop '<' type '>' loc=value opnd=value excClause  # InstAtomicRMW
 
     |   'FENCE' memord                                                              # InstFence
 
@@ -172,7 +177,7 @@ instBody
     |   'SWAPSTACK' swappee=value curStackClause newStackClause excClause keepAliveClause   # InstSwapStack
 
     // Common Instructions
-    |   'COMMINST' nam=GLOBAL_NAME typeList? argList? excClause keepAliveClause     # InstCommInst
+    |   'COMMINST' nam=GLOBAL_NAME flagList? typeList? argList? excClause keepAliveClause     # InstCommInst
     ;
 
 bbName
@@ -193,6 +198,10 @@ excClause
 
 keepAliveClause
     :   ('KEEPALIVE' '(' value* ')')?
+    ;
+
+flagList
+    :   '<' flag* '>'
     ;
 
 typeList
@@ -229,7 +238,7 @@ cmpop
 convop
     : 'TRUNC' | 'ZEXT' | 'SEXT' | 'FPTRUNC' | 'FPEXT'
     | 'FPTOUI' | 'FPTOSI' | 'UITOFP' | 'SITOFP'
-    | 'BITCAST' | 'REFCAST'
+    | 'BITCAST' | 'REFCAST' | 'PTRCAST'
     ;
 
 memord
@@ -242,6 +251,10 @@ atomicrmwop
 
 callconv
     :   'DEFAULT'
+    ;
+
+flag
+    :   callconv
     ;
 
 intLiteral
