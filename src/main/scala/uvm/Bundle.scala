@@ -16,6 +16,7 @@ class Bundle {
    *       + constantNs     // Constants
    *       + globalCellNs   // Global cells
    *       + funcNs         // Functions
+   *       + expFuncNs      // Exposed functions
    *     + localVarNs       // Local variables (per function version)
    *   + bbNs               // Basic blocks (per function version)
    * 
@@ -33,6 +34,7 @@ class Bundle {
   val constantNs = new SimpleNamespace[Constant]()
   val globalCellNs = new SimpleNamespace[GlobalCell]()
   val funcNs = new SimpleNamespace[Function]()
+  val expFuncNs = new SimpleNamespace[ExposedFunc]()
 
   /**
    * Add an identified entity to its appropriate global namespaces.
@@ -47,6 +49,7 @@ class Bundle {
     if (obj.isInstanceOf[Constant]) constantNs.add(obj.asInstanceOf[Constant])
     if (obj.isInstanceOf[GlobalCell]) globalCellNs.add(obj.asInstanceOf[GlobalCell])
     if (obj.isInstanceOf[Function]) funcNs.add(obj.asInstanceOf[Function])
+    if (obj.isInstanceOf[ExposedFunc]) expFuncNs.add(obj.asInstanceOf[ExposedFunc])
   }
 
   private def simpleMerge[T <: Identified](oldNs: Namespace[T], newNs: Namespace[T]) {

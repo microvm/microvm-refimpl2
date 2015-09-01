@@ -20,6 +20,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     def sig(s: String) = b.funcSigNs(s)
     def func(s: String) = b.funcNs(s)
     def funcVer(s: String) = b.funcVerNs(s)
+    def expFunc(s: String) = b.expFuncNs(s)
   }
 
   implicit class MagicalMy(c: FuncVer) {
@@ -131,6 +132,11 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       its.len shouldEqual 2
     }
     
+    our ty "@i32_p" shouldBeA[TypePtr] { its => its.ty shouldBe (our ty "@i32") }
+    our ty "@i64_p" shouldBeA[TypePtr] { its => its.ty shouldBe (our ty "@i64") }
+    our ty "@sig0_fp" shouldBeA[TypeFuncPtr] { its => its.sig shouldBe (our sig "@sig0") }
+    our ty "@sig1_fp" shouldBeA[TypeFuncPtr] { its => its.sig shouldBe (our sig "@sig1") }
+
     // Testing namespaces
     val i8 = our ty "@i8"
     our anything "@i8" shouldBe i8
@@ -299,6 +305,12 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
     }
     
+    our expFunc "@main_native" shouldBeA[ExposedFunc] { its =>
+      its.func shouldBe (our func "@main")
+      its.callConv shouldEqual Flag("#DEFAULT")
+      its.cookie shouldBe (our const "@zero64").asInstanceOf[ConstInt]
+    }
+    
     // Testing namespaces
     val main = our func "@main"
     our globalValue "@main" shouldBe main
@@ -316,7 +328,13 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     val addGN = "@main_v1.add"
     val add = mainV1.localVarNs(addGN)
     our value addGN shouldBe add 
-    our anything addGN shouldBe add 
+    our anything addGN shouldBe add
+    
+    val mainNativeGN = "@main_native"
+    val mainNative = our expFunc mainNativeGN
+    our globalValue mainNativeGN shouldBe mainNative
+    our value mainNativeGN shouldBe mainNative
+    our anything mainNativeGN shouldBe mainNative 
   }
 
   def in(func: Function)(f: (Function, FuncVer) => Unit) {
@@ -520,6 +538,17 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         its.toTy   shouldBe (our ty "@iii_func")
         its.opnd   shouldBe (my param "%p2")
       }
+    }
+    
+    in (our func "@ptrCastTest") { (func, ver) =>
+      val my = ver
+      
+      my inst "%ptrcast" shouldBeA[InstConv] { its =>
+        its.op shouldBe ConvOptr.PTRCAST
+        its.fromTy shouldBe (our ty "@i64")
+        its.toTy shouldBe (our ty "@pi64")
+        its.opnd shouldBe (my param "%p0")
+      } 
     }
 
     in (our func "@ctrlFlow") { (func, ver) =>
@@ -746,12 +775,14 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
       
       my inst "%getfieldiref" shouldBeA[InstGetFieldIRef] { its =>
+        its.ptr shouldBe false
         its.referentTy shouldBe (our ty "@sid")
         its.index shouldBe 0
         its.opnd shouldBe (my inst "%getiref")
       }
       
       my inst "%getelemiref" shouldBeA[InstGetElemIRef] { its =>
+        its.ptr shouldBe false
         its.referentTy shouldBe (our ty "@al")
         its.indTy shouldBe (our ty "@i64")
         its.opnd shouldBe (my inst "%alloca2")
@@ -759,6 +790,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
       
       my inst "%shiftiref" shouldBeA[InstShiftIRef] { its =>
+        its.ptr shouldBe false
         its.referentTy shouldBe (our ty "@i8")
         its.offTy shouldBe (our ty "@i64")
         its.opnd shouldBe (my inst "%getvarpartiref")
@@ -766,16 +798,19 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
 
       my inst "%getfixedpartiref" shouldBeA[InstGetFixedPartIRef] { its =>
+        its.ptr shouldBe false
         its.referentTy shouldBe (our ty "@hic")
         its.opnd shouldBe (my inst "%allocahybrid")
       }
       
       my inst "%getvarpartiref" shouldBeA[InstGetVarPartIRef] { its =>
+        its.ptr shouldBe false
         its.referentTy shouldBe (our ty "@hic")
         its.opnd shouldBe (my inst "%allocahybrid")
       }
       
       my inst "%load" shouldBeA[InstLoad] { its =>
+        its.ptr shouldBe false
         its.ord shouldBe MemoryOrder.NOT_ATOMIC
         its.referentTy shouldBe (our ty "@i64")
         its.loc shouldBe (my inst "%alloca")
@@ -783,6 +818,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
       
       my inst "%store" shouldBeA[InstStore] { its =>
+        its.ptr shouldBe false
         its.ord shouldBe MemoryOrder.NOT_ATOMIC
         its.referentTy shouldBe (our ty "@i64")
         its.loc shouldBe (my inst "%alloca")
@@ -791,6 +827,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
       
       my inst "%cmpxchg" shouldBeA[InstCmpXchg] { its =>
+        its.ptr shouldBe false
         its.ordSucc shouldBe MemoryOrder.SEQ_CST
         its.ordFail shouldBe MemoryOrder.SEQ_CST
         its.referentTy shouldBe (our ty "@i64")
@@ -801,6 +838,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
     
       my inst "%atomicrmw" shouldBeA[InstAtomicRMW] { its =>
+        its.ptr shouldBe false
         its.ord shouldBe MemoryOrder.SEQ_CST
         its.op shouldBe AtomicRMWOptr.ADD
         its.referentTy shouldBe (our ty "@i64")
@@ -810,6 +848,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
    
       my inst "%load_s" shouldBeA[InstLoad] { its =>
+        its.ptr shouldBe false
         its.ord shouldBe MemoryOrder.NOT_ATOMIC
         its.referentTy shouldBe (our ty "@i64")
         its.loc shouldBe (my inst "%alloca")
@@ -817,6 +856,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
       
       my inst "%store_s" shouldBeA[InstStore] { its =>
+        its.ptr shouldBe false
         its.ord shouldBe MemoryOrder.NOT_ATOMIC
         its.referentTy shouldBe (our ty "@i64")
         its.loc shouldBe (my inst "%alloca")
@@ -825,6 +865,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
       
       my inst "%cmpxchg_s" shouldBeA[InstCmpXchg] { its =>
+        its.ptr shouldBe false
         its.ordSucc shouldBe MemoryOrder.SEQ_CST
         its.ordFail shouldBe MemoryOrder.SEQ_CST
         its.referentTy shouldBe (our ty "@i64")
@@ -835,6 +876,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
      }
     
       my inst "%atomicrmw_s" shouldBeA[InstAtomicRMW] { its =>
+        its.ptr shouldBe false
         its.ord shouldBe MemoryOrder.SEQ_CST
         its.op shouldBe AtomicRMWOptr.ADD
         its.referentTy shouldBe (our ty "@i64")
@@ -848,6 +890,86 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
     }
 
+    in (our func "@memops_ptr") { (func, ver) =>
+      val my = ver
+      
+      my inst "%p" shouldBeA[InstCommInst] { _.argList(0) shouldBe (my inst "%new")}
+      
+      my inst "%getfieldiref" shouldBeA[InstGetFieldIRef] { its =>
+        its.ptr shouldBe true
+        its.referentTy shouldBe (our ty "@sid")
+        its.index shouldBe 0
+        its.opnd shouldBe (my inst "%p2")
+      }
+      
+      my inst "%getelemiref" shouldBeA[InstGetElemIRef] { its =>
+        its.ptr shouldBe true
+        its.referentTy shouldBe (our ty "@al")
+        its.indTy shouldBe (our ty "@i64")
+        its.opnd shouldBe (my inst "%p3")
+        its.index shouldBe (my param "%p1")
+      }
+      
+      my inst "%shiftiref" shouldBeA[InstShiftIRef] { its =>
+        its.ptr shouldBe true
+        its.referentTy shouldBe (our ty "@i8")
+        its.offTy shouldBe (our ty "@i64")
+        its.opnd shouldBe (my inst "%getvarpartiref")
+        its.offset shouldBe (my param "%p1")
+      }
+
+      my inst "%getfixedpartiref" shouldBeA[InstGetFixedPartIRef] { its =>
+        its.ptr shouldBe true
+        its.referentTy shouldBe (our ty "@hic")
+        its.opnd shouldBe (my inst "%ph")
+      }
+      
+      my inst "%getvarpartiref" shouldBeA[InstGetVarPartIRef] { its =>
+        its.ptr shouldBe true
+        its.referentTy shouldBe (our ty "@hic")
+        its.opnd shouldBe (my inst "%ph")
+      }
+      
+      my inst "%load" shouldBeA[InstLoad] { its =>
+        its.ptr shouldBe true
+        its.ord shouldBe MemoryOrder.NOT_ATOMIC
+        its.referentTy shouldBe (our ty "@i64")
+        its.loc shouldBe (my inst "%p")
+        its.excClause shouldBe None
+      }
+      
+      my inst "%store" shouldBeA[InstStore] { its =>
+        its.ptr shouldBe true
+        its.ord shouldBe MemoryOrder.NOT_ATOMIC
+        its.referentTy shouldBe (our ty "@i64")
+        its.loc shouldBe (my inst "%p")
+        its.newVal shouldBe (our const "@I64_42")
+        its.excClause shouldBe None
+      }
+      
+      my inst "%cmpxchg" shouldBeA[InstCmpXchg] { its =>
+        its.ptr shouldBe true
+        its.ordSucc shouldBe MemoryOrder.SEQ_CST
+        its.ordFail shouldBe MemoryOrder.SEQ_CST
+        its.referentTy shouldBe (our ty "@i64")
+        its.loc shouldBe (my inst "%p")
+        its.expected shouldBe (our const "@I64_42")
+        its.desired shouldBe (our const "@I64_0")
+        its.excClause shouldBe None
+      }
+    
+      my inst "%atomicrmw" shouldBeA[InstAtomicRMW] { its =>
+        its.ptr shouldBe true
+        its.ord shouldBe MemoryOrder.SEQ_CST
+        its.op shouldBe AtomicRMWOptr.ADD
+        its.referentTy shouldBe (our ty "@i64")
+        its.loc shouldBe (my inst "%p")
+        its.opnd shouldBe (our const "@I64_43")
+        its.excClause shouldBe None
+      }
+   
+    }
+    
     in (our func "@memorder") { (func, ver) =>
       val my = ver
       
@@ -917,8 +1039,8 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       val my = ver
       
       my inst "%rv" shouldBeA[InstCCall] { its =>
-        its.callConv shouldBe CallConv.DEFAULT
-        its.funcTy shouldBe (our ty "@i64")
+        its.callConv shouldBe Flag("#DEFAULT")
+        its.funcTy shouldBe (our ty "@ccall_callee_fp")
         its.sig shouldBe (our sig "@ccall_callee_sig")
         its.callee shouldBe (my param "%p0")
         its.argList shouldBe Seq(our value "@D_1")
@@ -983,7 +1105,9 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       
       my inst "%thr" shouldBeA[InstCommInst] { its =>
         its.inst shouldBe CommInsts("@uvm.new_thread")
+        its.flagList shouldBe empty
         its.typeList shouldBe empty
+        its.funcSigList shouldBe empty
         its.argList shouldBe Seq(my value "%sta")
         its.excClause shouldBe None
         its.keepAlives shouldBe empty
@@ -991,12 +1115,23 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       
       my inst "%th_ex" shouldBeA[InstCommInst] { its =>
         its.inst shouldBe CommInsts("@uvm.thread_exit")
+        its.flagList shouldBe empty
         its.typeList shouldBe empty
+        its.funcSigList shouldBe empty
         its.argList shouldBe empty
         its.excClause shouldBe None
         its.keepAlives shouldBe empty
       }
 
+      my inst "%ex" shouldBeA[InstCommInst] { its =>
+        its.inst shouldBe CommInsts("@uvm.native.expose")
+        its.flagList shouldBe Seq(Flag("#DEFAULT"))
+        its.typeList shouldBe empty
+        its.funcSigList shouldBe Seq(our sig "@npnr_sig")
+        its.argList shouldBe Seq(our func "@swapstack")
+        its.excClause shouldBe None
+        its.keepAlives shouldBe empty
+      }
     }
   }
 

@@ -35,6 +35,12 @@
 .typedef @4xi32     = vector <@i32 4>
 .typedef @2xdouble  = vector <@double 2>
 
+.typedef @pv    = ptr<@void>
+.typedef @pi32  = ptr<@i32>
+.typedef @pi64  = ptr<@i64>
+.typedef @npnr_fp = funcptr<@npnr_sig>
+.typedef @iii_fp  = funcptr<@iii_sig>
+
 .const @I8_0    <@i8>       = 0
 .const @I16_0   <@i16>      = 0
 .const @I32_0   <@i32>      = 0
@@ -164,6 +170,14 @@
         RETVOID
 }
 
+.funcsig @ptrCastTest_sig = @void (@i64)
+.funcdef @ptrCastTest VERSION @ptrCastTest_v1 <@ptrCastTest_sig> (%p0) {
+    %entry:
+        %ptrcast = PTRCAST <@i64 @pi64> %p0
+        
+        RETVOID
+}
+
 .funcsig @select_sig = @void ()
 .funcdef @select VERSION @select_v1 <@select_sig> () {
     %entry:
@@ -237,6 +251,7 @@
 }
 
 .typedef @sid = struct <@i64 @double>
+.typedef @rsid = ref<@sid>
 .const @sid1 <@sid> = {@I64_1 @D_1}
 
 .const @v1 <@4xfloat> = VEC {@F_0 @F_0 @F_0 @F_0}
@@ -260,7 +275,9 @@
 }
 
 .typedef @al = array <@i64 10>
+.typedef @ral = ref<@al>
 .typedef @hic = hybrid <@i64 @i8>
+.typedef @rhic = ref<@hic>
 
 .funcsig @memops_sig = @void (@i64 @i64)
 .funcdef @memops VERSION @memops_v1 <@memops_sig> (%p0 %p1) {
@@ -312,6 +329,35 @@
         RETVOID
 
     %handler:
+        RETVOID
+}
+
+.funcsig @memops_ptr_sig = @void (@i64 @i64)
+.funcdef @memops_ptr VERSION @memops_ptr_v1 <@memops_ptr_sig> (%p0 %p1) {
+    %entry:
+        %new            = NEW <@i64>
+        %newhybrid      = NEWHYBRID <@hic @i64> %p0
+        %new2           = NEW <@sid>
+        %new3           = NEW <@al>
+
+        %p              = COMMINST @uvm.native.pin <@ri64> (%new)
+        %ph             = COMMINST @uvm.native.pin <@rhic> (%newhybrid)
+        %p2             = COMMINST @uvm.native.pin <@rsid> (%new2)
+        %p3             = COMMINST @uvm.native.pin <@ral>  (%new3)
+        
+        %getfieldiref   = GETFIELDIREF PTR <@sid 0>   %p2
+        %getelemiref    = GETELEMIREF  PTR <@al @i64> %p3 %p1
+        
+        %getfixedpartiref   = GETFIXEDPARTIREF PTR <@hic> %ph
+        %getvarpartiref     = GETVARPARTIREF   PTR <@hic> %ph
+        
+        %shiftiref      = SHIFTIREF PTR <@i8 @i64> %getvarpartiref %p1
+        
+        %load       = LOAD  PTR <@i64> %p
+        %store      = STORE PTR <@i64> %p @I64_42
+        %cmpxchg    = CMPXCHG PTR SEQ_CST SEQ_CST <@i64> %p @I64_42 @I64_0
+        %atomicrmw  = ATOMICRMW PTR SEQ_CST ADD <@i64> %p @I64_43
+        
         RETVOID
 }
 
@@ -382,11 +428,12 @@
 }
 
 .funcsig @ccall_callee_sig = @void (@double)
+.typedef @ccall_callee_fp = funcptr<@ccall_callee_sig>
 
-.funcsig @ccall_sig = @void (@i64)
+.funcsig @ccall_sig = @void (@ccall_callee_fp)
 .funcdef @ccall VERSION @ccall_v1 <@ccall_sig> (%p0) {
     %entry:
-        %rv = CCALL DEFAULT <@i64 @ccall_callee_sig> %p0 (@D_1)
+        %rv = CCALL #DEFAULT <@ccall_callee_fp @ccall_callee_sig> %p0 (@D_1)
         
         RETVOID
 }
@@ -419,6 +466,9 @@
         %curstack = COMMINST @uvm.current_stack
         %sta = NEWSTACK <@iii_sig> @callee2 (%curstack)
         %thr = COMMINST @uvm.new_thread (%sta)
+
+        %ex = COMMINST @uvm.native.expose [#DEFAULT] <[@npnr_sig]> (@swapstack)
+
         %th_ex = COMMINST @uvm.thread_exit
         RETVOID
 }

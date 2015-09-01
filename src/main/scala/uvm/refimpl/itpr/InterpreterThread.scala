@@ -630,7 +630,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         continueNormally()
       }
 
-      case i @ InstGetFieldIRef(referentTy, index, opnd) => {
+      case i @ InstGetFieldIRef(ptr, referentTy, index, opnd) => {
         val ob = boxOf(opnd).asInstanceOf[BoxIRef]
         val ib = boxOf(i).asInstanceOf[BoxIRef]
         ib.objRef = ob.objRef
@@ -638,7 +638,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         continueNormally()
       }
 
-      case i @ InstGetElemIRef(referentTy, indTy, opnd, index) => {
+      case i @ InstGetElemIRef(ptr, referentTy, indTy, opnd, index) => {
         val ob = boxOf(opnd).asInstanceOf[BoxIRef]
         val indb = boxOf(index).asInstanceOf[BoxInt]
         val ind = OpHelper.prepareSigned(indb.value, indTy.length)
@@ -648,7 +648,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         continueNormally()
       }
 
-      case i @ InstShiftIRef(referentTy, offTy, opnd, offset) => {
+      case i @ InstShiftIRef(ptr, referentTy, offTy, opnd, offset) => {
         val ob = boxOf(opnd).asInstanceOf[BoxIRef]
         val offb = boxOf(offset).asInstanceOf[BoxInt]
         val off = OpHelper.prepareSigned(offb.value, offTy.length)
@@ -658,7 +658,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         continueNormally()
       }
 
-      case i @ InstGetFixedPartIRef(referentTy, opnd) => {
+      case i @ InstGetFixedPartIRef(ptr, referentTy, opnd) => {
         val ob = boxOf(opnd).asInstanceOf[BoxIRef]
         val ib = boxOf(i).asInstanceOf[BoxIRef]
         ib.objRef = ob.objRef
@@ -666,7 +666,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         continueNormally()
       }
 
-      case i @ InstGetVarPartIRef(referentTy, opnd) => {
+      case i @ InstGetVarPartIRef(ptr, referentTy, opnd) => {
         val ob = boxOf(opnd).asInstanceOf[BoxIRef]
         val ib = boxOf(i).asInstanceOf[BoxIRef]
         ib.objRef = ob.objRef
@@ -674,7 +674,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         continueNormally()
       }
 
-      case i @ InstLoad(ord, referentTy, loc, excClause) => {
+      case i @ InstLoad(ptr, ord, referentTy, loc, excClause) => {
         val uty = InternalTypePool.unmarkedOf(referentTy)
         val lb = boxOf(loc).asInstanceOf[BoxIRef]
         val ib = boxOf(i)
@@ -688,7 +688,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         }
       }
 
-      case i @ InstStore(ord, referentTy, loc, newVal, excClause) => {
+      case i @ InstStore(ptr, ord, referentTy, loc, newVal, excClause) => {
         val uty = InternalTypePool.unmarkedOf(referentTy)
         val lb = boxOf(loc).asInstanceOf[BoxIRef]
         val nvb = boxOf(newVal)
@@ -703,7 +703,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         }
       }
 
-      case i @ InstCmpXchg(weak, ordSucc, ordFail, referentTy, loc, expected, desired, excClause) => {
+      case i @ InstCmpXchg(ptr, weak, ordSucc, ordFail, referentTy, loc, expected, desired, excClause) => {
         val uty = InternalTypePool.unmarkedOf(referentTy)
         val lb = boxOf(loc).asInstanceOf[BoxIRef]
         val eb = boxOf(expected)
@@ -719,7 +719,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         }
       }
 
-      case i @ InstAtomicRMW(ord, op, referentTy, loc, opnd, excClause) => {
+      case i @ InstAtomicRMW(ptr, ord, op, referentTy, loc, opnd, excClause) => {
         val uty = InternalTypePool.unmarkedOf(referentTy)
         val lb = boxOf(loc).asInstanceOf[BoxIRef]
         val ob = boxOf(opnd)
@@ -753,7 +753,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         }
       }
 
-      case i @ InstCCall(callConv, funcTy, sig, callee, argList) => {
+      case i @ InstCCall(callConv, funcTy, sig, callee, argList, keepAlives) => {
         throw new UvmRefImplException(ctx + "The CCALL instruction is not implemented in this reference implementation")
       }
 
@@ -806,7 +806,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         }
       }
 
-      case i @ InstCommInst(ci, typeList, argList, excClause, keepAlives) => {
+      case i @ InstCommInst(ci, flagList, typeList, sigList, argList, excClause, keepAlives) => {
         ci.name.get match {
           // Thread and stack operations
           case "@uvm.new_thread" => {

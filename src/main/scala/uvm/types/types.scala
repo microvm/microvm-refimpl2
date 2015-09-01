@@ -22,6 +22,8 @@ abstract class AbstractSeqType extends Type {
   def len: Long
 }
 
+abstract class AbstractPointerType extends Type
+
 case class TypeInt(var length: Int) extends Type
 case class TypeFloat() extends FPType
 case class TypeDouble() extends FPType
@@ -37,6 +39,8 @@ case class TypeThread() extends Type
 case class TypeStack() extends Type
 case class TypeTagRef64() extends Type
 case class TypeVector(var elemTy: Type, var len: Long) extends AbstractSeqType
+case class TypePtr(var ty: Type) extends AbstractPointerType
+case class TypeFuncPtr(var sig: FuncSig) extends AbstractPointerType
 
 object Type {
   def prettyPrint(ty: Type): String = ty match {
@@ -55,6 +59,8 @@ object Type {
     case TypeStack()                    => "stack"
     case TypeTagRef64()                 => "tagref64"
     case TypeVector(elemTy, len)        => "vector<%s %d>".format(elemTy.repr, len)
+    case TypePtr(ty)                    => "ptr<%s>".format(ty.repr)
+    case TypeFuncPtr(sig)               => "funcptr<%s>".format(FuncSig.prettyPrint(sig))
     case _                              => "unknown type " + ty.getClass.getName
   }
 }

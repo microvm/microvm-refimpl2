@@ -33,4 +33,10 @@ object CommInsts extends SimpleNamespace[CommInst] {
   commInst(0x223, "@uvm.futex.cmp_requeue")
 
   commInst(0x230, "@uvm.kill_dependency")
+  
+  commInst(0x240, "@uvm.native.pin")
+  commInst(0x241, "@uvm.native.unpin")
+  commInst(0x242, "@uvm.native.expose")
+  commInst(0x243, "@uvm.native.unexpose")
+  commInst(0x244, "@uvm.native.get_cookie")
 }

@@ -28,3 +28,6 @@
         RET <@i32> @zero
 }
 
+.const @zero64 <@i64> = 0
+
+.expose @main_native = @main #DEFAULT @zero64

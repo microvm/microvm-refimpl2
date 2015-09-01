@@ -8,7 +8,7 @@ abstract class SSAVariable extends IdentifiedSettable {
   override def hashCode(): Int = id
   override def equals(that: Any): Boolean = that match {
     case v: AnyRef => this eq v
-    case _ => false
+    case _         => false
   }
 }
 
@@ -33,6 +33,8 @@ case class ConstNull(var constTy: Type) extends Constant
 case class ConstVector(var constTy: Type, var elems: Seq[Constant]) extends Constant
 
 case class GlobalCell(var cellTy: Type) extends GlobalVariable
+
+case class ExposedFunc(var func: Function, var callConv: Flag, var cookie: ConstInt) extends GlobalVariable
 
 // Local variables: Parameters and Instructions
 
@@ -65,7 +67,7 @@ import uvm.ssavariables.CmpOptr.CmpOptr
 
 object ConvOptr extends Enumeration {
   type ConvOptr = Value
-  val TRUNC, ZEXT, SEXT, FPTRUNC, FPEXT, FPTOUI, FPTOSI, UITOFP, SITOFP, BITCAST, REFCAST = Value
+  val TRUNC, ZEXT, SEXT, FPTRUNC, FPEXT, FPTOUI, FPTOSI, UITOFP, SITOFP, BITCAST, REFCAST, PTRCAST = Value
 }
 
 import uvm.ssavariables.ConvOptr.ConvOptr
@@ -83,13 +85,6 @@ object AtomicRMWOptr extends Enumeration {
 }
 
 import uvm.ssavariables.AtomicRMWOptr.AtomicRMWOptr
-
-object CallConv extends Enumeration {
-  type CallConv = Value
-  val DEFAULT = Value
-}
-
-import uvm.ssavariables.CallConv.CallConv
 
 /// Abstract instructions and traits
 
@@ -135,6 +130,10 @@ abstract class HeapAlloc extends AbstractAlloc
 
 abstract class StackAlloc extends AbstractAlloc
 
+trait WorksWithPointer extends Instruction {
+  var ptr: Boolean
+}
+
 abstract class AbstractTrap extends HasKeepAliveClause {
   var retTy: Type
 }
@@ -153,6 +152,11 @@ case class ThrowExc(var exc: SSAVariable) extends NewStackAction
  * reaches that instruction. Currently PHI and LANDINGPAD are the only two such instructions.
  */
 trait EdgeAssigned extends Instruction
+
+/**
+ * Flags are used in common instructions.
+ */
+case class Flag(name: String)
 
 /// Concrete instructions
 case class InstBinOp(var op: BinOptr, var opndTy: Type, var op1: SSAVariable, var op2: SSAVariable,
@@ -175,8 +179,7 @@ case class InstSwitch(var opndTy: Type, var opnd: SSAVariable, var defDest: Basi
 case class InstPhi(var opndTy: Type, var cases: Seq[(BasicBlock, SSAVariable)]) extends Instruction with EdgeAssigned
 
 case class InstCall(var sig: FuncSig, var callee: SSAVariable, var argList: Seq[SSAVariable],
-                    var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable]
-                    ) extends AbstractCall with HasExcClause with HasKeepAliveClause
+                    var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable]) extends AbstractCall with HasExcClause with HasKeepAliveClause
 
 case class InstTailCall(var sig: FuncSig, var callee: SSAVariable, var argList: Seq[SSAVariable]) extends AbstractCall
 
@@ -189,7 +192,6 @@ case class InstThrow(var excVal: SSAVariable) extends Instruction
 case class InstLandingPad() extends Instruction with EdgeAssigned
 
 case class InstExtractValue(var strTy: TypeStruct, var index: Int, var opnd: SSAVariable) extends Instruction
-
 
 case class InstInsertValue(var strTy: TypeStruct, var index: Int, var opnd: SSAVariable, var newVal: SSAVariable) extends Instruction
 
@@ -212,27 +214,27 @@ case class InstAllocaHybrid(var allocTy: TypeHybrid, var lenTy: TypeInt, var len
 
 case class InstGetIRef(var referentTy: Type, var opnd: SSAVariable) extends Instruction
 
-case class InstGetFieldIRef(var referentTy: TypeStruct, var index: Int, var opnd: SSAVariable) extends Instruction
+case class InstGetFieldIRef(var ptr: Boolean, var referentTy: TypeStruct, var index: Int, var opnd: SSAVariable) extends WorksWithPointer
 
-case class InstGetElemIRef(var referentTy: AbstractSeqType, var indTy: TypeInt,
-                           var opnd: SSAVariable, var index: SSAVariable) extends Instruction
+case class InstGetElemIRef(var ptr: Boolean, var referentTy: AbstractSeqType, var indTy: TypeInt,
+                           var opnd: SSAVariable, var index: SSAVariable) extends WorksWithPointer
 
-case class InstShiftIRef(var referentTy: Type, var offTy: TypeInt,
-                         var opnd: SSAVariable, var offset: SSAVariable) extends Instruction
+case class InstShiftIRef(var ptr: Boolean, var referentTy: Type, var offTy: TypeInt,
+                         var opnd: SSAVariable, var offset: SSAVariable) extends WorksWithPointer
 
-case class InstGetFixedPartIRef(var referentTy: TypeHybrid, var opnd: SSAVariable) extends Instruction
+case class InstGetFixedPartIRef(var ptr: Boolean, var referentTy: TypeHybrid, var opnd: SSAVariable) extends WorksWithPointer
 
-case class InstGetVarPartIRef(var referentTy: TypeHybrid, var opnd: SSAVariable) extends Instruction
+case class InstGetVarPartIRef(var ptr: Boolean, var referentTy: TypeHybrid, var opnd: SSAVariable) extends WorksWithPointer
 
-case class InstLoad(var ord: MemoryOrder, var referentTy: Type, var loc: SSAVariable, var excClause: Option[ExcClause]) extends HasExcClause
+case class InstLoad(var ptr: Boolean, var ord: MemoryOrder, var referentTy: Type, var loc: SSAVariable, var excClause: Option[ExcClause]) extends WorksWithPointer with HasExcClause
 
-case class InstStore(var ord: MemoryOrder, var referentTy: Type, var loc: SSAVariable, var newVal: SSAVariable, var excClause: Option[ExcClause]) extends HasExcClause
+case class InstStore(var ptr: Boolean, var ord: MemoryOrder, var referentTy: Type, var loc: SSAVariable, var newVal: SSAVariable, var excClause: Option[ExcClause]) extends WorksWithPointer with HasExcClause
 
-case class InstCmpXchg(var weak: Boolean, var ordSucc: MemoryOrder, var ordFail: MemoryOrder, var referentTy: Type,
-                       var loc: SSAVariable, var expected: SSAVariable, var desired: SSAVariable, var excClause: Option[ExcClause])  extends HasExcClause
+case class InstCmpXchg(var ptr: Boolean, var weak: Boolean, var ordSucc: MemoryOrder, var ordFail: MemoryOrder, var referentTy: Type,
+                       var loc: SSAVariable, var expected: SSAVariable, var desired: SSAVariable, var excClause: Option[ExcClause]) extends WorksWithPointer with HasExcClause
 
-case class InstAtomicRMW(var ord: MemoryOrder, var op: AtomicRMWOptr,
-                         var referentTy: Type, var loc: SSAVariable, var opnd: SSAVariable, var excClause: Option[ExcClause]) extends HasExcClause
+case class InstAtomicRMW(var ptr: Boolean, var ord: MemoryOrder, var op: AtomicRMWOptr,
+                         var referentTy: Type, var loc: SSAVariable, var opnd: SSAVariable, var excClause: Option[ExcClause]) extends WorksWithPointer with HasExcClause
 
 case class InstFence(var ord: MemoryOrder) extends Instruction
 
@@ -242,8 +244,8 @@ case class InstWatchPoint(var wpID: Int, var retTy: Type,
                           var dis: BasicBlock, var ena: BasicBlock, var exc: Option[BasicBlock],
                           var keepAlives: Seq[LocalVariable]) extends AbstractTrap
 
-case class InstCCall(var callConv: CallConv, var funcTy: Type,
-                     var sig: FuncSig, var callee: SSAVariable, var argList: Seq[SSAVariable]) extends CallLike
+case class InstCCall(var callConv: Flag, var funcTy: Type,
+                     var sig: FuncSig, var callee: SSAVariable, var argList: Seq[SSAVariable], var keepAlives: Seq[LocalVariable]) extends CallLike with HasKeepAliveClause
 
 case class InstNewStack(var sig: FuncSig, var callee: SSAVariable, var argList: Seq[SSAVariable],
                         var excClause: Option[ExcClause]) extends CallLike with HasExcClause
@@ -251,6 +253,6 @@ case class InstNewStack(var sig: FuncSig, var callee: SSAVariable, var argList: 
 case class InstSwapStack(var swappee: SSAVariable, var curStackAction: CurStackAction, var newStackAction: NewStackAction,
                          var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable]) extends HasExcClause with HasKeepAliveClause
 
-case class InstCommInst(var inst: CommInst, var typeList: Seq[Type], var argList: Seq[SSAVariable],
+case class InstCommInst(var inst: CommInst, var flagList: Seq[Flag], var typeList: Seq[Type], var funcSigList: Seq[FuncSig], var argList: Seq[SSAVariable],
                         var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable])
-  extends HasTypeList with HasArgList with HasExcClause with HasKeepAliveClause
+    extends HasTypeList with HasArgList with HasExcClause with HasKeepAliveClause

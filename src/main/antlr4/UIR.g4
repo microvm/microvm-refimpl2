@@ -39,7 +39,7 @@ funcDef
     ;
     
 exposeDef
-    :   '.expose' nam=GLOBAL_NAME '=' funcName=GLOBAL_NAME '<' callconv '>' cookie=GLOBAL_NAME
+    :   '.expose' nam=GLOBAL_NAME '=' funcName=GLOBAL_NAME callConv=flag cookie=GLOBAL_NAME
     ;
 
 typeConstructor
@@ -58,6 +58,8 @@ typeConstructor
     |   'stack'                                                 # TypeStack
     |   'tagref64'                                              # TypeTagRef64
     |   'vector' '<' type length=intLiteral '>'                 # TypeVector
+    |   'ptr' '<' type '>'                                      # TypePtr
+    |   'funcptr' '<' funcSig '>'                               # TypeFuncPtr
     ;
 
 funcSigConstructor
@@ -170,14 +172,14 @@ instBody
             dis=bbName ena=bbName ('WPEXC' '(' wpExc=bbName ')')? keepAliveClause   # InstWatchPoint
 
     // Foreign Function Interface
-    |   'CCALL' callconv '<' funcTy=type funcSig '>' callee=value argList           # InstCCall
+    |   'CCALL' callConv=flag '<' funcTy=type funcSig '>' callee=value argList keepAliveClause   # InstCCall
 
     // Thread and Stack Operations
     |   'NEWSTACK' funcCallBody excClause                                                   # InstNewStack
     |   'SWAPSTACK' swappee=value curStackClause newStackClause excClause keepAliveClause   # InstSwapStack
 
     // Common Instructions
-    |   'COMMINST' nam=GLOBAL_NAME flagList? typeList? argList? excClause keepAliveClause     # InstCommInst
+    |   'COMMINST' nam=GLOBAL_NAME flagList? typeList? funcSigList? argList? excClause keepAliveClause     # InstCommInst
     ;
 
 bbName
@@ -201,11 +203,15 @@ keepAliveClause
     ;
 
 flagList
-    :   '<' flag* '>'
+    :   '[' flag* ']'
     ;
 
 typeList
     :   '<' type* '>'
+    ;
+
+funcSigList
+    :   '<[' funcSig* ']>'
     ;
 
 argList
@@ -249,12 +255,8 @@ atomicrmwop
     : 'XCHG' | 'ADD' | 'SUB' | 'AND' | 'NAND' | 'OR' | 'XOR' | 'MAX' | 'MIN' | 'UMAX' | 'UMIN'
     ;
 
-callconv
-    :   'DEFAULT'
-    ;
-
 flag
-    :   callconv
+    :   FLAG
     ;
 
 intLiteral
@@ -315,6 +317,10 @@ GLOBAL_NAME
 LOCAL_NAME
     :   LOCAL_NAME_PREFIX IDCHAR+
     ;
+    
+FLAG
+    :   FLAG_PREFIX [A-Z_]+
+    ;
 
 fragment
 DIGIT
@@ -341,6 +347,9 @@ GLOBAL_NAME_PREFIX: '@';
 
 fragment
 LOCAL_NAME_PREFIX: '%';
+
+fragment
+FLAG_PREFIX: '#';
 
 fragment
 IDCHAR

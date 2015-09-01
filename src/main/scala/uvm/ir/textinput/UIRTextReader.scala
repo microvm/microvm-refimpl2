@@ -13,6 +13,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.immutable.Stream
 import java.io.StringWriter
 import java.nio.CharBuffer
+import uvm.ir.textinput.gen.UIRParser.TypePtrContext
 
 class UIRTextReader(val idFactory: IDFactory) {
   import uvm.ir.textinput.Later.Laterable
@@ -158,6 +159,10 @@ class UIRTextReader(val idFactory: IDFactory) {
     def resConstByName(name: String): Constant = cascadeLookup(name, bundle.constantNs, globalBundle.constantNs)
 
     def resGlobalVar(name: String): GlobalVariable = cascadeLookup(name, bundle.globalVarNs, globalBundle.globalVarNs)
+    def resFunc(name: String): Function = cascadeLookup(name, bundle.funcNs, globalBundle.funcNs)
+
+    implicit def convFlag(f: FlagContext): Flag = Flag(f.FLAG().getText)
+    implicit def convFlagList(a: FlagListContext): Seq[Flag] = a.flag().map(convFlag)
 
     // Add entities to namespaces.
 
@@ -174,6 +179,9 @@ class UIRTextReader(val idFactory: IDFactory) {
       bundle.add(obj)
     }
     def addFunc(obj: Function): Unit = {
+      bundle.add(obj)
+    }
+    def addExpFunc(obj: ExposedFunc): Unit = {
       bundle.add(obj)
     }
     def addLocalVar(obj: LocalVariable, localNs: Namespace[LocalVariable]) = {
@@ -201,6 +209,14 @@ class UIRTextReader(val idFactory: IDFactory) {
     def needHybrid[T <: Type](tc: TypeContext) = needType(tc, classOf[TypeHybrid], "hybrid")
     def needSeq[T <: Type](tc: TypeContext) = needType(tc, classOf[AbstractSeqType], "array or vector")
 
+    def needConstInt64(ctx: ParserRuleContext, name: String): ConstInt = {
+      val c = resConstByName(name)
+      if (!c.isInstanceOf[ConstInt]) {
+        throw new UnexpectedTypeException(inCtx(ctx, "Expected 64-bit integer constant, actually %s.".format(c.getClass)))
+      }
+      c.asInstanceOf[ConstInt]
+    }
+
     // Make types and sigs
 
     val phase1 = new Later() // Resolve inter-references between types and sigs
@@ -222,6 +238,8 @@ class UIRTextReader(val idFactory: IDFactory) {
         case t: TypeStackContext    => TypeStack()
         case t: TypeTagRef64Context => TypeTagRef64()
         case t: TypeVectorContext   => TypeVector(null, t.length.longValue()).later(phase1) { _.elemTy = resTy(t.`type`()) }
+        case t: TypePtrContext      => TypePtr(null).later(phase1) { _.ty = resTy(t.`type`()) }
+        case t: TypeFuncPtrContext  => TypeFuncPtr(null).later(phase1) { _.sig = resSig(t.funcSig()) }
         case _                      => throw new TextIRParsingException("foo")
       }
       return ty
@@ -279,6 +297,14 @@ class UIRTextReader(val idFactory: IDFactory) {
       return func
     }
 
+    def mkExpo(c: ExposeDefContext): ExposedFunc = {
+      val efun = ExposedFunc(null, c.callConv, null).later(phase2) { ee =>
+        ee.func = resFunc(c.funcName)
+        ee.cookie = needConstInt64(c, c.cookie)
+      }
+      return efun
+    }
+
     def tryReuseFuncID(name: String): Option[Int] = {
       globalBundle.funcNs.get(name).map(_.id)
     }
@@ -318,6 +344,12 @@ class UIRTextReader(val idFactory: IDFactory) {
       case fdef: FuncDefContext => {
         val func = declFunc(fdef.nam, fdef.funcSig)
         funcDefs = (func, fdef) :: funcDefs
+      }
+      case edef: ExposeDefContext => {
+        val efun = mkExpo(edef)
+        efun.id = idFactory.getID()
+        efun.name = Some(edef.nam)
+        addExpFunc(efun)
       }
       case _ => {}
     }
@@ -387,6 +419,7 @@ class UIRTextReader(val idFactory: IDFactory) {
       // Resolve special structures
 
       implicit def resTypeList(a: TypeListContext): Seq[Type] = a.`type`.map(resTy)
+      implicit def resFuncSigList(a: FuncSigListContext): Seq[FuncSig] = a.funcSig().map(resSig)
 
       implicit def resArgList(a: ArgListContext): Seq[SSAVariable] = a.value.map(resVar)
 
@@ -517,42 +550,42 @@ class UIRTextReader(val idFactory: IDFactory) {
               i.opnd = ii.opnd
             }
           case ii: InstGetFieldIRefContext =>
-            InstGetFieldIRef(needStruct(ii.refTy), ii.intLiteral.intValue, null).later(phase4) { i =>
+            InstGetFieldIRef(ii.ptr != null, needStruct(ii.refTy), ii.intLiteral.intValue, null).later(phase4) { i =>
               i.opnd = ii.opnd
             }
           case ii: InstGetElemIRefContext =>
-            InstGetElemIRef(needSeq(ii.refTy), needInt(ii.indTy), null, null).later(phase4) { i =>
+            InstGetElemIRef(ii.ptr != null, needSeq(ii.refTy), needInt(ii.indTy), null, null).later(phase4) { i =>
               i.opnd = ii.opnd; i.index = ii.index
             }
           case ii: InstShiftIRefContext =>
-            InstShiftIRef(ii.refTy, needInt(ii.offTy), null, null).later(phase4) { i =>
+            InstShiftIRef(ii.ptr != null, ii.refTy, needInt(ii.offTy), null, null).later(phase4) { i =>
               i.opnd = ii.opnd; i.offset = ii.offset
             }
           case ii: InstGetFixedPartIRefContext =>
-            InstGetFixedPartIRef(needHybrid(ii.refTy), null).later(phase4) { i =>
+            InstGetFixedPartIRef(ii.ptr != null, needHybrid(ii.refTy), null).later(phase4) { i =>
               i.opnd = ii.opnd
             }
           case ii: InstGetVarPartIRefContext =>
-            InstGetVarPartIRef(needHybrid(ii.refTy), null).later(phase4) { i =>
+            InstGetVarPartIRef(ii.ptr != null, needHybrid(ii.refTy), null).later(phase4) { i =>
               i.opnd = ii.opnd
             }
           case ii: InstLoadContext =>
-            InstLoad(ii.memord, ii.`type`, null, null).later(phase4) { i =>
+            InstLoad(ii.ptr != null, ii.memord, ii.`type`, null, null).later(phase4) { i =>
               i.loc = ii.loc
               i.excClause = ii.excClause
             }
           case ii: InstStoreContext =>
-            InstStore(ii.memord, ii.`type`, null, null, null).later(phase4) { i =>
+            InstStore(ii.ptr != null, ii.memord, ii.`type`, null, null, null).later(phase4) { i =>
               i.loc = ii.loc; i.newVal = ii.newVal
               i.excClause = ii.excClause
             }
           case ii: InstCmpXchgContext =>
-            InstCmpXchg(ii.isWeak != null, ii.ordSucc, ii.ordFail, ii.`type`, null, null, null, null).later(phase4) { i =>
+            InstCmpXchg(ii.ptr != null, ii.isWeak != null, ii.ordSucc, ii.ordFail, ii.`type`, null, null, null, null).later(phase4) { i =>
               i.loc = ii.loc; i.expected = ii.expected; i.desired = ii.desired
               i.excClause = ii.excClause
             }
           case ii: InstAtomicRMWContext =>
-            InstAtomicRMW(ii.memord, AtomicRMWOptr.withName(ii.atomicrmwop.getText), ii.`type`, null, null, null).later(phase4) { i =>
+            InstAtomicRMW(ii.ptr != null, ii.memord, AtomicRMWOptr.withName(ii.atomicrmwop.getText), ii.`type`, null, null, null).later(phase4) { i =>
               i.loc = ii.loc; i.opnd = ii.opnd
               i.excClause = ii.excClause
             }
@@ -567,8 +600,8 @@ class UIRTextReader(val idFactory: IDFactory) {
               i.dis = ii.dis; i.ena = ii.ena; i.exc = Option(ii.wpExc).map(resBB); i.keepAlives = ii.keepAliveClause
             }
           case ii: InstCCallContext =>
-            InstCCall(CallConv.withName(ii.callconv.getText), ii.funcTy, ii.funcSig, null, null).later(phase4) { i =>
-              i.callee = ii.callee; i.argList = ii.argList
+            InstCCall(ii.callConv, ii.funcTy, ii.funcSig, null, null, null).later(phase4) { i =>
+              i.callee = ii.callee; i.argList = ii.argList; i.keepAlives = ii.keepAliveClause
             }
           case ii: InstNewStackContext =>
             InstNewStack(null, null, null, null).later(phase4) { i =>
@@ -590,8 +623,9 @@ class UIRTextReader(val idFactory: IDFactory) {
               i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
             }
           case ii: InstCommInstContext =>
-            InstCommInst(CommInsts(ii.nam), null, null, null, null).later(phase4) { i =>
+            InstCommInst(CommInsts(ii.nam), Option(ii.flagList()).map(convFlagList).getOrElse(Seq()), null, null, null, null, null).later(phase4) { i =>
               i.typeList = Option(ii.typeList).map(resTypeList).getOrElse(Seq())
+              i.funcSigList = Option(ii.funcSigList).map(resFuncSigList).getOrElse(Seq())
               i.argList = Option(ii.argList).map(resArgList).getOrElse(Seq())
               i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
             }

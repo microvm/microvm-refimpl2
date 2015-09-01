@@ -45,3 +45,8 @@
 .typedef @4xfloat  = vector <@float 4>
 .typedef @4xi32    = vector <@i32 4>
 .typedef @2xdouble = vector <@double 2>
+
+.typedef @i32_p = ptr<@i32>
+.typedef @i64_p = ptr<@i64>
+.typedef @sig0_fp = funcptr<@sig0>
+.typedef @sig1_fp = funcptr<@sig1>
