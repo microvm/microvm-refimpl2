@@ -9,3 +9,5 @@
 }
 
 .funcdecl @foxsay <@IntReturner>
+
+.expose @meaning_external1 = @meaning_of_life #DEFAULT @I64_42

@@ -80,6 +80,12 @@ case class BoxTagRef64(var raw: Long) extends HasObjRef {
     raw = OpHelper.refToTr64(newObjRef, oldTag)
   }
 }
+case class BoxPointer(var addr: Word) extends ValueBox {
+  def copyFrom(other: ValueBox): Unit = {
+    val that = other.asInstanceOf[BoxPointer]
+    this.addr = that.addr
+  }
+}
 
 object ValueBox {
 
@@ -99,6 +105,8 @@ object ValueBox {
     case _: TypeStack => BoxStack(None)
     case _: TypeThread => BoxThread(None)
     case _: TypeTagRef64 => BoxTagRef64(0L)
+    case _: TypePtr => BoxPointer(0L)
+    case _: TypeFuncPtr => BoxPointer(0L)
   }
 
 }

@@ -9,3 +9,5 @@
     %entry:
         %ret = RET <@i64> @I64_43
 }
+
+.expose @meaning_external2 = @meaning_of_life #DEFAULT @I64_43

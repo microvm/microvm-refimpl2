@@ -73,7 +73,19 @@ class Bundle {
       val id = cand.id
       oldNs.get(id) match {
         case None         => oldNs.add(cand)
-        case Some(oldObj) => oldObj.versions = cand.versions.head :: oldObj.versions
+        case Some(oldObj) =>
+          oldObj.versions = cand.versions.head :: oldObj.versions
+          cand.versions.head.func = oldObj
+      }
+    }
+  }
+
+  private def fixExpFuncs(oldNs: Namespace[Function], newNs: Namespace[ExposedFunc]) {
+    for (expFunc <- newNs.all) {
+      val funcID = expFunc.func.id
+      oldNs.get(funcID) match {
+        case None          =>
+        case Some(oldFunc) => expFunc.func = oldFunc
       }
     }
   }
@@ -88,5 +100,7 @@ class Bundle {
     simpleMerge(constantNs, newBundle.constantNs)
     simpleMerge(globalCellNs, newBundle.globalCellNs)
     mergeFunc(funcNs, newBundle.funcNs)
+    simpleMerge(expFuncNs, newBundle.expFuncNs)
+    fixExpFuncs(funcNs, newBundle.expFuncNs)
   }
 }

@@ -1183,9 +1183,26 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     (ourGlobal func "@foxsay").versions.head shouldBe (ourNew funcVer "@foxsay_v1")
     (ourGlobal func "@meaning_of_life").versions.head shouldBe (ourNew funcVer "@meaning_of_life_v2")
     
+    (ourGlobal funcVer "@meaning_of_life_v1").func shouldBe (ourGlobal func "@meaning_of_life")
+    (ourGlobal funcVer "@meaning_of_life_v2").func shouldBe (ourGlobal func "@meaning_of_life")
+    
     val foxSay = ourGlobal func "@foxsay"
     ourGlobal value "@foxsay" shouldBe foxSay
     ourGlobal globalValue "@foxsay" shouldBe foxSay
+    
+    {
+      val its = ourGlobal expFunc "@meaning_external1"
+      its.func shouldBe (ourGlobal func "@meaning_of_life")
+      its.callConv shouldBe Flag("#DEFAULT")
+      its.cookie shouldBe (ourGlobal const "@I64_42")
+    }
+
+    {
+      val its = ourGlobal expFunc "@meaning_external2"
+      its.func shouldBe (ourGlobal func "@meaning_of_life")
+      its.callConv shouldBe Flag("#DEFAULT")
+      its.cookie shouldBe (ourGlobal const "@I64_43")
+    }
   }
 
 }
