@@ -94,6 +94,11 @@ class ClientAgent(microVM: MicroVM) {
     val et = t.elemTy.asInstanceOf[TypeDouble]
     newHandle(t, BoxVector(vs.map(BoxDouble)))
   }
+  
+  def putPointer(typeID: Int, v: Word): Handle = {
+    val t = microVM.globalBundle.typeNs(typeID)
+    newHandle(t, BoxPointer(v))
+  }
 
   def putConstant(id: Int): Handle = {
     val c = microVM.globalBundle.constantNs(id)
@@ -151,6 +156,10 @@ class ClientAgent(microVM: MicroVM) {
 
   def toDoubleVec(h: Handle): Seq[Double] = {
     h.vb.asInstanceOf[BoxVector].values.map(b => b.asInstanceOf[BoxDouble].value)
+  }
+  
+  def toPointer(h: Handle): Word = {
+    h.vb.asInstanceOf[BoxPointer].addr
   }
 
   def extractValue(str: Handle, index: Int): Handle = {
@@ -251,48 +260,56 @@ class ClientAgent(microVM: MicroVM) {
   }
 
   def load(ord: MemoryOrder, loc: Handle): Handle = {
-    val ty = loc.ty.asInstanceOf[TypeIRef].ty
+    val (ptr, ty) = loc.ty match {
+      case TypeIRef(t) => (false, t)
+      case TypePtr(t) => (true, t)
+    }
     val uty = InternalTypePool.unmarkedOf(ty)
-    val b = loc.vb.asInstanceOf[BoxIRef]
-    val iRef = b.objRef + b.offset
+    val addr = MemoryOperations.addressOf(ptr, loc.vb)
     val nb = ValueBox.makeBoxForType(uty) 
     
-    MemoryOperations.load(uty, iRef, nb)
+    MemoryOperations.load(ptr, uty, addr, nb)
 
     newHandle(uty, nb)
   }
 
   def store(ord: MemoryOrder, loc: Handle, newVal: Handle): Unit = {
-    val ty = loc.ty.asInstanceOf[TypeIRef].ty
+    val (ptr, ty) = loc.ty match {
+      case TypeIRef(t) => (false, t)
+      case TypePtr(t) => (true, t)
+    }
     val uty = InternalTypePool.unmarkedOf(ty)
-    val lb = loc.vb.asInstanceOf[BoxIRef]
-    val iRef = lb.objRef + lb.offset
+    val addr = MemoryOperations.addressOf(ptr, loc.vb)
     val nvb = newVal.vb    
     val nb = ValueBox.makeBoxForType(uty)
 
-    MemoryOperations.store(uty, iRef, nvb, nb)
+    MemoryOperations.store(ptr, uty, addr, nvb, nb)
   }
 
   def cmpXchg(ordSucc: MemoryOrder, ordFail: MemoryOrder, weak: Boolean, loc: Handle, expected: Handle, desired: Handle): (Boolean, Handle) = {
-    val ty = loc.ty.asInstanceOf[TypeIRef].ty
+    val (ptr, ty) = loc.ty match {
+      case TypeIRef(t) => (false, t)
+      case TypePtr(t) => (true, t)
+    }
     val uty = InternalTypePool.unmarkedOf(ty)
-    val lb = loc.vb.asInstanceOf[BoxIRef]
-    val iRef = lb.objRef + lb.offset
+    val addr = MemoryOperations.addressOf(ptr, loc.vb)
     val eb = expected.vb
     val db = desired.vb
     val br = ValueBox.makeBoxForType(uty)
-    val succ = MemoryOperations.cmpXchg(uty, iRef, eb, db, br)
+    val succ = MemoryOperations.cmpXchg(ptr, uty, addr, eb, db, br)
     (succ, newHandle(uty, br))
   }
 
   def atomicRMW(ord: MemoryOrder, op: AtomicRMWOptr, loc: Handle, opnd: Handle): Handle = {
-    val ty = loc.ty.asInstanceOf[TypeIRef].ty
+    val (ptr, ty) = loc.ty match {
+      case TypeIRef(t) => (false, t)
+      case TypePtr(t) => (true, t)
+    }
     val uty = InternalTypePool.unmarkedOf(ty)
-    val lb = loc.vb.asInstanceOf[BoxIRef]
-    val iRef = lb.objRef + lb.offset
+    val addr = MemoryOperations.addressOf(ptr, loc.vb)
     val ob = opnd.vb
     val br = ValueBox.makeBoxForType(uty)
-    MemoryOperations.atomicRMW(uty, op, iRef, ob, br)
+    MemoryOperations.atomicRMW(ptr, uty, op, addr, ob, br)
     newHandle(uty, br)
   }
 

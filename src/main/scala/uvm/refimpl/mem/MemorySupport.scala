@@ -51,9 +51,9 @@ class MemorySupport(val muMemorySize: Word) {
 
   def cmpXchgInt(addr: Word, expected: Int, desired: Int, inMu: Boolean = true): (Boolean, Int) = {
     assertInMuMemory(inMu, addr)
-    val oldVal = loadInt(addr)
+    val oldVal = loadInt(addr, inMu)
     if (oldVal == expected) {
-      storeInt(addr, desired)
+      storeInt(addr, desired, inMu)
       return (true, oldVal)
     } else {
       return (false, oldVal)
@@ -62,9 +62,9 @@ class MemorySupport(val muMemorySize: Word) {
 
   def cmpXchgLong(addr: Word, expected: Long, desired: Long, inMu: Boolean = true): (Boolean, Long) = {
     assertInMuMemory(inMu, addr)
-    val oldVal = loadLong(addr)
+    val oldVal = loadLong(addr, inMu)
     if (oldVal == expected) {
-      storeLong(addr, desired)
+      storeLong(addr, desired, inMu)
       return (true, oldVal)
     } else {
       return (false, oldVal)
@@ -73,9 +73,9 @@ class MemorySupport(val muMemorySize: Word) {
 
   def cmpXchgI128(addr: Word, expected: (Long, Long), desired: (Long, Long), inMu: Boolean = true): (Boolean, (Long, Long)) = {
     assertInMuMemory(inMu, addr)
-    val oldVal = loadI128(addr)
+    val oldVal = loadI128(addr, inMu)
     if (oldVal == expected) {
-      storeI128(addr, desired)
+      storeI128(addr, desired, inMu)
       return (true, oldVal)
     } else {
       return (false, oldVal)
@@ -84,7 +84,7 @@ class MemorySupport(val muMemorySize: Word) {
 
   def atomicRMWInt(optr: AtomicRMWOptr, addr: Word, opnd: Int, inMu: Boolean = true): Int = {
     assertInMuMemory(inMu, addr)
-    val oldVal = loadInt(addr)
+    val oldVal = loadInt(addr, inMu)
     val newVal = optr match {
       case XCHG => opnd
       case ADD  => oldVal + opnd
@@ -98,13 +98,13 @@ class MemorySupport(val muMemorySize: Word) {
       case UMAX => Math.max(oldVal - Int.MinValue, opnd - Int.MinValue) + Int.MinValue
       case UMIN => Math.min(oldVal - Int.MinValue, opnd - Int.MinValue) + Int.MinValue
     }
-    storeInt(addr, newVal)
+    storeInt(addr, newVal, inMu)
     return oldVal
   }
 
   def atomicRMWLong(optr: AtomicRMWOptr, addr: Word, opnd: Long, inMu: Boolean = true): Long = {
     assertInMuMemory(inMu, addr)
-    val oldVal = loadLong(addr)
+    val oldVal = loadLong(addr, inMu)
     val newVal = optr match {
       case XCHG => opnd
       case ADD  => oldVal + opnd
@@ -118,14 +118,14 @@ class MemorySupport(val muMemorySize: Word) {
       case UMAX => Math.max(oldVal - Long.MinValue, opnd - Long.MinValue) + Long.MinValue
       case UMIN => Math.min(oldVal - Long.MinValue, opnd - Long.MinValue) + Long.MinValue
     }
-    storeLong(addr, newVal)
+    storeLong(addr, newVal, inMu)
     return oldVal
   }
 
   def xchgI128(addr: Word, desired: (Long, Long), inMu: Boolean = true): (Long, Long) = {
     assertInMuMemory(inMu, addr)
-    val oldVal = loadI128(addr)
-    storeI128(addr, desired)
+    val oldVal = loadI128(addr, inMu)
+    storeI128(addr, desired, inMu)
     return oldVal
   }
 }

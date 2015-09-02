@@ -654,7 +654,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq(a0, a1, a2, a3)) { (ca, th, st, wp) =>
       val Seq(trunc, zext, sext, fptrunc, fpext, fptoui1, fptosi1, fptoui2, fptosi2, uitofp, sitofp,
-        bitcast1, bitcast2, bitcast3, bitcast4) = ca.dumpKeepalives(st, 0)
+        bitcast1, bitcast2, bitcast3, bitcast4, ptrcast1, ptrcast2, ptrcast3) = ca.dumpKeepalives(st, 0)
 
       trunc.vb.asUInt(32) shouldBe 0x9abcdef0L
       zext.vb.asUInt(64) shouldBe 0xfedcba98L
@@ -675,15 +675,23 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
       bitcast3.vb.asFloat shouldBe 1.5f
       bitcast4.vb.asDouble shouldBe 6.25d
 
+      ptrcast1.vb.asPointer shouldBe 0x123456789abcdef0L
+      ptrcast2.vb.asPointer shouldBe 0x123456789abcdef0L
+      ptrcast3.vb.asSInt(64) shouldBe 0x123456789abcdef0L
+
       TrapRebindPassVoid(st)
     }
     val a5 = ca.putInt("@i64", -0x123456789abcdef0L)
 
     testFunc(ca, func, Seq(a0, a5, a2, a3)) { (ca, th, st, wp) =>
       val Seq(trunc, zext, sext, fptrunc, fpext, fptoui1, fptosi1, fptoui2, fptosi2, uitofp, sitofp,
-        bitcast1, bitcast2, bitcast3, bitcast4) = ca.dumpKeepalives(st, 0)
+        bitcast1, bitcast2, bitcast3, bitcast4, ptrcast1, ptrcast2, ptrcast3) = ca.dumpKeepalives(st, 0)
 
       sitofp.vb.asDouble shouldBe (-0x123456789abcdef0L).doubleValue()
+
+      ptrcast1.vb.asPointer shouldBe -0x123456789abcdef0L
+      ptrcast2.vb.asPointer shouldBe -0x123456789abcdef0L
+      ptrcast3.vb.asSInt(64) shouldBe -0x123456789abcdef0L
 
       TrapRebindPassVoid(st)
     }
@@ -917,7 +925,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     ca.close()
   }
 
-  "GETIREF, GETFIELDIREF, GITELEMIREF, SHIFTIREF, GETFIXEDPARTIREF AND GETVARPARTIREF" should "work" in {
+  "GETIREF, GETFIELDIREF, GITELEMIREF, SHIFTIREF, GETFIXEDPARTIREF AND GETVARPARTIREF" should "work with iref" in {
     implicit def typeOf(name: String): Type = microVM.globalBundle.typeNs(name)
     implicit def structTypeOf(name: String): TypeStruct = typeOf(name).asInstanceOf[TypeStruct]
     implicit def seqTypeOf(name: String): AbstractSeqType = typeOf(name).asInstanceOf[AbstractSeqType]
@@ -946,7 +954,40 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     ca.close()
   }
 
-  "LOAD and STORE" should "work in good cases" in {
+  "GETIREF, GETFIELDIREF, GITELEMIREF, SHIFTIREF, GETFIXEDPARTIREF AND GETVARPARTIREF" should "work with pointers" in {
+    implicit def typeOf(name: String): Type = microVM.globalBundle.typeNs(name)
+    implicit def structTypeOf(name: String): TypeStruct = typeOf(name).asInstanceOf[TypeStruct]
+    implicit def seqTypeOf(name: String): AbstractSeqType = typeOf(name).asInstanceOf[AbstractSeqType]
+    implicit def hybridTypeOf(name: String): TypeHybrid = typeOf(name).asInstanceOf[TypeHybrid]
+
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@memAddressingPtr")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val Seq(barPtr, bazPtr, jaPtr, bar3, baz3, baz6, jaFix, jaVar) = ca.dumpKeepalives(st, 0)
+
+      val base = 1024L
+
+      barPtr.vb.asPointer shouldEqual base
+      bazPtr.vb.asPointer shouldEqual base
+      jaPtr.vb.asPointer shouldEqual base
+
+      bar3.vb.asPointer shouldEqual (base + TypeSizes.fieldOffsetOf("@StructBar", 3))
+
+      baz3.vb.asPointer shouldEqual (base + TypeSizes.elemOffsetOf("@ArrayBaz", 3))
+      baz6.vb.asPointer shouldEqual (base + TypeSizes.elemOffsetOf("@ArrayBaz", 6))
+
+      jaFix.vb.asPointer shouldEqual (base)
+      jaVar.vb.asPointer shouldEqual (base + TypeSizes.varPartOffsetOf("@JavaLikeByteArray"))
+
+      TrapRebindPassVoid(st)
+    }
+
+    ca.close()
+  }
+
+  "LOAD and STORE" should "work with iref in good cases" in {
     val ca = microVM.newClientAgent()
     val func = ca.putFunction("@memAccessing")
 
@@ -971,7 +1012,41 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     ca.close()
   }
 
-  "CMPXCHG and ATOMICRMW" should "work in good cases" in {
+  "LOAD and STORE" should "work with pointer in good cases" in {
+    val ca = microVM.newClientAgent()
+    val func = ca.putFunction("@memAccessingPtr")
+
+    val myms = new MemorySupport(1024)
+    val begin = myms.muMemoryBegin
+
+    val a0 = ca.putPointer("@ptri8", begin)
+    val a1 = ca.putPointer("@ptri16", begin + 8L)
+    val a2 = ca.putPointer("@ptri32", begin + 16L)
+    val a3 = ca.putPointer("@ptri64", begin + 32L)
+    val a4 = ca.putPointer("@ptrfloat", begin + 40L)
+    val a5 = ca.putPointer("@ptrdouble", begin + 48L)
+    val a6 = ca.putPointer("@ptrptrvoid", begin + 56L)
+    val a7 = ca.putPointer("@ptrfpi_i", begin + 64L)
+
+    testFunc(ca, func, Seq(a0, a1, a2, a3, a4, a5, a6, a7)) { (ca, th, st, wp) =>
+      val Seq(li8, li16, li32, li64, lf, ld, lp, lfp) = ca.dumpKeepalives(st, 0)
+
+      li8.vb.asSInt(8) shouldBe 41
+      li16.vb.asSInt(16) shouldBe 42
+      li32.vb.asSInt(32) shouldBe 43
+      li64.vb.asSInt(64) shouldBe 44
+      lf.vb.asFloat shouldBe 45.0f
+      ld.vb.asDouble shouldBe 46.0d
+
+      lp.vb.asPointer shouldBe 0x55aaL
+      lfp.vb.asPointer shouldBe 0x55aaL
+
+      TrapRebindPassVoid(st)
+    }
+    ca.close()
+  }
+
+  "CMPXCHG and ATOMICRMW" should "work with iref in good cases" in {
     val ca = microVM.newClientAgent()
     val func = ca.putFunction("@memAccessingAtomic")
 
@@ -1013,7 +1088,65 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     }
     ca.close()
   }
+  
+  "CMPXCHG and ATOMICRMW" should "work with pointer in good cases" in {
+    val ca = microVM.newClientAgent()
+    val func = ca.putFunction("@memAccessingAtomicPtr")
 
+    val myms = new MemorySupport(1024)
+    val begin = myms.muMemoryBegin
+
+    val a0 = ca.putPointer("@ptri8", begin)
+    val a1 = ca.putPointer("@ptri16", begin + 8L)
+    val a2 = ca.putPointer("@ptri32", begin + 16L)
+    val a3 = ca.putPointer("@ptri64", begin + 32L)
+    val a4 = ca.putPointer("@ptrfloat", begin + 40L)
+    val a5 = ca.putPointer("@ptrdouble", begin + 48L)
+    val a6 = ca.putPointer("@ptrptrvoid", begin + 56L)
+    val a7 = ca.putPointer("@ptrfpi_i", begin + 64L)
+
+    testFunc(ca, func, Seq(a0, a1, a2, a3, a4, a5, a6, a7)) { (ca, th, st, wp) =>
+      val kas = ca.dumpKeepalives(st, 0)
+
+      // Scala limits unpacking of Seq to 22 elements
+      val Seq(cx32_1, cx32_2, cx64_1, cx64_2, l32, l64, cxp_1, cxp_2, cxfp_1, cxfp_2, lp, lfp,
+        rmw0, rmw1, rmw2, rmw3, rmw4, rmw5, rmw6, rmw7, rmw8, rmw9) = kas.take(22)
+      val Seq(rmwA, l64_2) = kas.drop(22)
+
+      cx32_1.vb.asSInt(32) shouldBe 43
+      cx32_2.vb.asSInt(32) shouldBe 53
+      cx64_1.vb.asSInt(64) shouldBe 44
+      cx64_2.vb.asSInt(64) shouldBe 54
+
+      l32.vb.asSInt(32) shouldBe 53
+      l64.vb.asSInt(64) shouldBe 54
+
+      cxp_1.vb.asPointer shouldBe 0x55abL
+      cxp_2.vb.asPointer shouldBe 0x5a5aL
+      cxfp_1.vb.asPointer shouldBe 0x55abL
+      cxfp_2.vb.asPointer shouldBe 0x5a5aL
+      lp.vb.asPointer shouldBe 0x5a5aL
+      lfp.vb.asPointer shouldBe 0x5a5aL
+
+      rmw0.vb.asSInt(64) shouldBe 1L
+      rmw1.vb.asSInt(64) shouldBe 0x55abL
+      rmw2.vb.asSInt(64) shouldBe 0x55aeL
+      rmw3.vb.asSInt(64) shouldBe 0x55aaL
+      rmw4.vb.asSInt(64) shouldBe 0x500aL
+      rmw5.vb.asSInt(64) shouldBe ~0x500aL
+      rmw6.vb.asSInt(64) shouldBe ~0x000aL
+      rmw7.vb.asSInt(64) shouldBe ~0x55a0L
+      rmw8.vb.asSInt(64) shouldBe -0x7fffffffffffffdeL
+      rmw9.vb.asSInt(64) shouldBe 42L
+      rmwA.vb.asSInt(64) shouldBe 11L
+
+      l64_2.vb.asSInt(64) shouldBe 0xffffffffffffffdeL
+
+      TrapRebindPassVoid(st)
+    }
+    ca.close()
+  }
+  
   "LOAD, STORE, CMPXCHG and ATOMICRMW" should "jump to the exceptional destination on NULL ref access" in {
     val ca = microVM.newClientAgent()
     val func = ca.putFunction("@memAccessingNull")

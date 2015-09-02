@@ -87,5 +87,6 @@ abstract class UvmBundleTesterBase extends FlatSpec with Matchers {
     def asTR64Box: BoxTagRef64 = vb.asInstanceOf[BoxTagRef64]
     def asTR64Raw: Long = vb.asInstanceOf[BoxTagRef64].raw
     def asVec: Seq[ValueBox] = vb.asInstanceOf[BoxVector].values
+    def asPointer: Word = vb.asInstanceOf[BoxPointer].addr
   }
 }

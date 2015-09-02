@@ -17,10 +17,10 @@ object InterpreterThread {
 
 class InterpreterThread(val id: Int, implicit private val microVM: MicroVM, initialStack: InterpreterStack, val mutator: Mutator) {
   import InterpreterThread._
-  
+
   // Injectable resources (used by memory access instructions)
   implicit private val memorySupport = microVM.memoryManager.memorySupport
-  
+
   // Thread states
 
   /** The underlying stack. */
@@ -215,7 +215,7 @@ class InterpreterThread(val id: Int, implicit private val microVM: MicroVM, init
           }
           writeBooleanResult(result, br)
         }
-        
+
         def doIRef(b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
           val op1v = b1.asInstanceOf[BoxIRef].oo
           val op2v = b2.asInstanceOf[BoxIRef].oo
@@ -239,7 +239,7 @@ class InterpreterThread(val id: Int, implicit private val microVM: MicroVM, init
           }
           writeBooleanResult(result, br)
         }
-        
+
         def doStack(b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
           val op1v = b1.asInstanceOf[BoxStack].stack
           val op2v = b2.asInstanceOf[BoxStack].stack
@@ -358,6 +358,30 @@ class InterpreterThread(val id: Int, implicit private val microVM: MicroVM, init
               "REFCAST can only convert between two types both of which are ref, iref, or func. Found %s and %s.".format(scalarFromTy, scalarToTy))
           }
 
+          def ptrcast(): Unit = {
+            (scalarFromTy, scalarToTy) match {
+              case (TypeInt(_), TypeInt(_)) => throw new UvmRuntimeException(ctx +
+                "PTRCAST cannot convert between two int types. Found %s and %s.".format(scalarFromTy, scalarToTy))
+              case _ =>
+            }
+            val srcAddr: Word = scalarFromTy match {
+              case TypeInt(n) => {
+                val od = bOpnd.asInstanceOf[BoxInt].value
+                val truncExt = if (n >= 64) OpHelper.trunc(od, 64) else OpHelper.zext(od, n, 64)
+                truncExt.toLong
+              }
+              case TypePtr(_) | TypeFuncPtr(_) => bOpnd.asInstanceOf[BoxPointer].addr
+            }
+            scalarToTy match {
+              case TypeInt(n) => {
+                val bi = BigInt(srcAddr)
+                val truncExt = if (n > 64) OpHelper.zext(bi, 64, n) else OpHelper.trunc(bi, n)
+                br.asInstanceOf[BoxInt].value = truncExt
+              }
+              case TypePtr(_) | TypeFuncPtr(_) => br.asInstanceOf[BoxPointer].addr = srcAddr
+            }
+          }
+
           op match {
             case ConvOptr.TRUNC => iToI()
             case ConvOptr.ZEXT  => iToI()
@@ -378,6 +402,7 @@ class InterpreterThread(val id: Int, implicit private val microVM: MicroVM, init
             case ConvOptr.SITOFP  => iToFP(signed = true)
             case ConvOptr.BITCAST => bitcast()
             case ConvOptr.REFCAST => refcast()
+            case ConvOptr.PTRCAST => ptrcast()
           }
         }
 
@@ -634,105 +659,94 @@ class InterpreterThread(val id: Int, implicit private val microVM: MicroVM, init
       }
 
       case i @ InstGetFieldIRef(ptr, referentTy, index, opnd) => {
-        val ob = boxOf(opnd).asInstanceOf[BoxIRef]
-        val ib = boxOf(i).asInstanceOf[BoxIRef]
-        ib.objRef = ob.objRef
-        ib.offset = ob.offset + TypeSizes.fieldOffsetOf(referentTy, index)
+        val addrIncr = TypeSizes.fieldOffsetOf(referentTy, index)
+
+        incrementBoxIRefOrPointer(ptr, opnd, i, addrIncr)
         continueNormally()
       }
 
       case i @ InstGetElemIRef(ptr, referentTy, indTy, opnd, index) => {
-        val ob = boxOf(opnd).asInstanceOf[BoxIRef]
         val indb = boxOf(index).asInstanceOf[BoxInt]
         val ind = OpHelper.prepareSigned(indb.value, indTy.length)
-        val ib = boxOf(i).asInstanceOf[BoxIRef]
-        ib.objRef = ob.objRef
-        ib.offset = ob.offset + TypeSizes.elemOffsetOf(referentTy, ind.longValue())
+        val addrIncr = TypeSizes.elemOffsetOf(referentTy, ind.longValue())
+
+        incrementBoxIRefOrPointer(ptr, opnd, i, addrIncr)
         continueNormally()
       }
 
       case i @ InstShiftIRef(ptr, referentTy, offTy, opnd, offset) => {
-        val ob = boxOf(opnd).asInstanceOf[BoxIRef]
         val offb = boxOf(offset).asInstanceOf[BoxInt]
         val off = OpHelper.prepareSigned(offb.value, offTy.length)
-        val ib = boxOf(i).asInstanceOf[BoxIRef]
-        ib.objRef = ob.objRef
-        ib.offset = ob.offset + TypeSizes.shiftOffsetOf(referentTy, off.longValue())
+        val addrIncr = TypeSizes.shiftOffsetOf(referentTy, off.longValue())
+
+        incrementBoxIRefOrPointer(ptr, opnd, i, addrIncr)
         continueNormally()
       }
 
       case i @ InstGetFixedPartIRef(ptr, referentTy, opnd) => {
-        val ob = boxOf(opnd).asInstanceOf[BoxIRef]
-        val ib = boxOf(i).asInstanceOf[BoxIRef]
-        ib.objRef = ob.objRef
-        ib.offset = ob.offset
+        incrementBoxIRefOrPointer(ptr, opnd, i, 0L)
         continueNormally()
       }
 
       case i @ InstGetVarPartIRef(ptr, referentTy, opnd) => {
-        val ob = boxOf(opnd).asInstanceOf[BoxIRef]
-        val ib = boxOf(i).asInstanceOf[BoxIRef]
-        ib.objRef = ob.objRef
-        ib.offset = ob.offset + TypeSizes.varPartOffsetOf(referentTy)
+        val addrIncr = TypeSizes.varPartOffsetOf(referentTy)
+
+        incrementBoxIRefOrPointer(ptr, opnd, i, addrIncr)
         continueNormally()
       }
 
       case i @ InstLoad(ptr, ord, referentTy, loc, excClause) => {
         val uty = InternalTypePool.unmarkedOf(referentTy)
-        val lb = boxOf(loc).asInstanceOf[BoxIRef]
         val ib = boxOf(i)
 
-        val la = lb.objRef + lb.offset
-        if (la == 0L) {
+        val addr = addressOf(ptr, loc)
+        if (addr == 0L) {
           nullRefError(excClause)
         } else {
-          MemoryOperations.load(uty, la, ib)
+          MemoryOperations.load(ptr, uty, addr, ib)
           continueNormally()
         }
       }
 
       case i @ InstStore(ptr, ord, referentTy, loc, newVal, excClause) => {
         val uty = InternalTypePool.unmarkedOf(referentTy)
-        val lb = boxOf(loc).asInstanceOf[BoxIRef]
         val nvb = boxOf(newVal)
         val ib = boxOf(i)
 
-        val la = lb.objRef + lb.offset
-        if (la == 0L) {
+        val addr = addressOf(ptr, loc)
+        if (addr == 0L) {
           nullRefError(excClause)
         } else {
-          MemoryOperations.store(uty, la, nvb, ib)
+          MemoryOperations.store(ptr, uty, addr, nvb, ib)
           continueNormally()
         }
       }
 
       case i @ InstCmpXchg(ptr, weak, ordSucc, ordFail, referentTy, loc, expected, desired, excClause) => {
         val uty = InternalTypePool.unmarkedOf(referentTy)
-        val lb = boxOf(loc).asInstanceOf[BoxIRef]
         val eb = boxOf(expected)
         val db = boxOf(desired)
         val ib = boxOf(i)
 
-        val la = lb.objRef + lb.offset
-        if (la == 0L) {
+        val addr = addressOf(ptr, loc)
+        if (addr == 0L) {
           nullRefError(excClause)
         } else {
-          MemoryOperations.cmpXchg(uty, la, eb, db, ib)
+          MemoryOperations.cmpXchg(ptr, uty, addr, eb, db, ib)
           continueNormally()
         }
       }
 
       case i @ InstAtomicRMW(ptr, ord, op, referentTy, loc, opnd, excClause) => {
         val uty = InternalTypePool.unmarkedOf(referentTy)
-        val lb = boxOf(loc).asInstanceOf[BoxIRef]
         val ob = boxOf(opnd)
         val ib = boxOf(i)
 
-        val la = lb.objRef + lb.offset
-        if (la == 0L) {
+        val addr = addressOf(ptr, loc)
+        if (addr == 0L) {
           nullRefError(excClause)
         } else {
-          MemoryOperations.atomicRMW(uty, op, la, ob, ib)
+          MemoryOperations.atomicRMW(ptr, uty, op, addr, ob, ib)
           continueNormally()
         }
       }
@@ -1186,6 +1200,26 @@ class InterpreterThread(val id: Int, implicit private val microVM: MicroVM, init
 
   private def writeIntResult(len: Int, result: BigInt, box: ValueBox): Unit = {
     box.asInstanceOf[BoxInt].value = OpHelper.unprepare(result, len)
+  }
+
+  private def incrementBoxIRefOrPointer(ptr: Boolean, src: SSAVariable, dst: SSAVariable, addrIncr: Word): Unit = {
+    if (ptr) {
+      val sb = boxOf(src).asInstanceOf[BoxPointer]
+      val db = boxOf(dst).asInstanceOf[BoxPointer]
+      db.addr = sb.addr + addrIncr
+    } else {
+      val sb = boxOf(src).asInstanceOf[BoxIRef]
+      val db = boxOf(dst).asInstanceOf[BoxIRef]
+      db.objRef = sb.objRef
+      db.offset = sb.offset + addrIncr
+    }
+  }
+
+  private def addressOf(ptr: Boolean, v: SSAVariable): Word = {
+    MemoryOperations.addressOf(ptr, boxOf(v))
+  }
+
+  def incrementBoxPointer(src: BoxPointer, dst: BoxPointer, addrIncr: Word): Unit = {
   }
 
   // Thread termination

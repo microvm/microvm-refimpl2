@@ -50,7 +50,9 @@ object InternalTypePool {
 
   val refOf = LazyPool(TypeRef)
   val irefOf = LazyPool(TypeIRef)
+  val ptrOf = LazyPool(TypePtr)
   val funcOf = LazyPool(TypeFunc)
+  val funcPtrOf = LazyPool(TypeFuncPtr)
   val vecOf = new LazyPool[(Type, Long), TypeVector]({ case (t, l) => TypeVector(t, l) })
   def unmarkedOf(t: Type): Type = t match {
     case TypeWeakRef(r) => refOf(r)
@@ -61,6 +63,11 @@ object InternalTypePool {
 object TypeInferer {
   import InternalTypes._
   import InternalTypePool._
+  
+  def ptrOrIRefOf(ptr: Boolean, ty: Type): Type = {
+    if (ptr) ptrOf(ty) else irefOf(ty)
+  }
+  
   def inferType(v: SSAVariable): Type = v match {
     case c: Constant => c.constTy
     case g: GlobalCell => irefOf(g.cellTy)
@@ -93,11 +100,11 @@ object TypeInferer {
     case i: InstAlloca => irefOf(i.allocTy)
     case i: InstAllocaHybrid => irefOf(i.allocTy)
     case i: InstGetIRef => irefOf(i.referentTy)
-    case i: InstGetFieldIRef => irefOf(i.referentTy.fieldTy(i.index))
-    case i: InstGetElemIRef => irefOf(i.referentTy.elemTy)
-    case i: InstShiftIRef => irefOf(i.referentTy)
-    case i: InstGetFixedPartIRef => irefOf(i.referentTy.fixedTy)
-    case i: InstGetVarPartIRef => irefOf(i.referentTy.varTy)
+    case i: InstGetFieldIRef => ptrOrIRefOf(i.ptr, i.referentTy.fieldTy(i.index))
+    case i: InstGetElemIRef => ptrOrIRefOf(i.ptr, i.referentTy.elemTy)
+    case i: InstShiftIRef => ptrOrIRefOf(i.ptr, i.referentTy)
+    case i: InstGetFixedPartIRef => ptrOrIRefOf(i.ptr, i.referentTy.fixedTy)
+    case i: InstGetVarPartIRef => ptrOrIRefOf(i.ptr, i.referentTy.varTy)
     case i: InstLoad => unmarkedOf(i.referentTy)
     case i: InstStore => VOID
     case i: InstCmpXchg => unmarkedOf(i.referentTy)

@@ -62,29 +62,31 @@ object TypeSizes {
   val MOVE_MASK = 0x8000000000000000L
 
   def sizeOf(ty: Type): Word = ty match {
-    case TypeInt(l) => intBitsToBytes(l)
-    case _:TypeFloat => 4L
-    case _:TypeDouble => 8L
-    case _:TypeRef => WORD_SIZE_BYTES
-    case _:TypeIRef => 2L * WORD_SIZE_BYTES
-    case _:TypeWeakRef => WORD_SIZE_BYTES
-    case t @ TypeStruct(ftys) => structPrefixSizeOf(t, ftys.size)
-    case t @ TypeArray(et,l) => seqPrefixSizeOf(t, l)
-    case _:TypeHybrid => throw new IllegalArgumentException("Hybrid should use hybridSizeOf to probe size")
-    case _:TypeVoid => 0L
-    case _:TypeFunc => WORD_SIZE_BYTES
-    case _:TypeThread => WORD_SIZE_BYTES
-    case _:TypeStack => WORD_SIZE_BYTES
-    case _:TypeTagRef64 => 8L
-    case t @ TypeVector(et,l) => seqPrefixSizeOf(t, l)
+    case TypeInt(l)            => intBitsToBytes(l)
+    case _: TypeFloat          => 4L
+    case _: TypeDouble         => 8L
+    case _: TypeRef            => WORD_SIZE_BYTES
+    case _: TypeIRef           => 2L * WORD_SIZE_BYTES
+    case _: TypeWeakRef        => WORD_SIZE_BYTES
+    case t @ TypeStruct(ftys)  => structPrefixSizeOf(t, ftys.size)
+    case t @ TypeArray(et, l)  => seqPrefixSizeOf(t, l)
+    case _: TypeHybrid         => throw new IllegalArgumentException("Hybrid should use hybridSizeOf to probe size")
+    case _: TypeVoid           => 0L
+    case _: TypeFunc           => WORD_SIZE_BYTES
+    case _: TypeThread         => WORD_SIZE_BYTES
+    case _: TypeStack          => WORD_SIZE_BYTES
+    case _: TypeTagRef64       => 8L
+    case t @ TypeVector(et, l) => seqPrefixSizeOf(t, l)
+    case _: TypePtr            => WORD_SIZE_BYTES
+    case _: TypeFuncPtr        => WORD_SIZE_BYTES
   }
 
   def alignOf(ty: Type): Word = ty match {
     case TypeStruct(ftys) => ftys.map(sizeOf).max
-    case TypeArray(et,_) => alignOf(et)
-    case _:TypeHybrid => throw new IllegalArgumentException("Hybrid should use hybridAlignOf to probe alignment")
-    case _:TypeVoid => 1L
-    case _ => sizeOf(ty)
+    case TypeArray(et, _) => alignOf(et)
+    case _: TypeHybrid    => throw new IllegalArgumentException("Hybrid should use hybridAlignOf to probe alignment")
+    case _: TypeVoid      => 1L
+    case _                => sizeOf(ty)
   }
 
   def hybridSizeOf(ty: TypeHybrid, len: Word): Word = {
@@ -109,7 +111,7 @@ object TypeSizes {
     val offset = alignUp(prefixSize, fieldAlign)
     return offset
   }
-  
+
   def elemOffsetOf(ty: AbstractSeqType, length: Word): Word = {
     return seqPrefixSizeOf(ty, length)
   }
@@ -117,9 +119,9 @@ object TypeSizes {
   def shiftOffsetOf(ty: Type, index: Word): Word = {
     return alignUp(sizeOf(ty), alignOf(ty)) * index
   }
-  
+
   def fixedPartOffsetOf(ty: TypeHybrid): Word = 0L
-  
+
   def varPartOffsetOf(ty: TypeHybrid): Word = {
     return alignUp(sizeOf(ty.fixedTy), alignOf(ty.varTy))
   }

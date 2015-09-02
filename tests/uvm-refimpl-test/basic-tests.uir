@@ -84,6 +84,20 @@
 .const @NULLREF_I64  <@refi64>  = NULL
 .const @NULLIREF_I64 <@irefi64> = NULL
 
+.typedef @ptrvoid   = ptr<@void>
+.typedef @ptri8     = ptr<@i8>
+.typedef @ptri16    = ptr<@i16>
+.typedef @ptri32    = ptr<@i32>
+.typedef @ptri64    = ptr<@i64>
+.typedef @ptrfloat  = ptr<@float>
+.typedef @ptrdouble = ptr<@double>
+.typedef @ptrptrvoid = ptr<@ptrvoid>
+.typedef @ptrfpi_i  = ptr<@fpi_i>
+
+.typedef @fpnoparamsnoret = funcptr<@noparamsnoret>
+.typedef @fpi_i = funcptr<@i_i>
+.typedef @fpi_ii = funcptr<@i_ii>
+
 .funcsig @binops32_sig = @void (@i32 @i32)
 .funcdef @binops32 VERSION @binops32_v1 <@binops32_sig> (%p0 %p1) {
     %entry:
@@ -339,11 +353,16 @@
         %bitcast2 = BITCAST <@double @i64> %p3
         %bitcast3 = BITCAST <@i32 @float > %bitcast1
         %bitcast4 = BITCAST <@i64 @double> %bitcast2
+
+        %ptrcast1 = PTRCAST <@i64 @ptrvoid> %p1
+        %ptrcast2 = PTRCAST <@ptrvoid @fpi_i> %ptrcast1
+        %ptrcast3 = PTRCAST <@fpi_i @i64> %ptrcast2
         
         %trap = TRAP <@void> KEEPALIVE (
             %trunc %zext %sext %fptrunc %fpext
             %fptoui1 %fptosi1 %fptoui2 %fptosi2 %uitofp %sitofp
             %bitcast1 %bitcast2 %bitcast3 %bitcast4
+            %ptrcast1 %ptrcast2 %ptrcast3
             )
         COMMINST @uvm.thread_exit
 }
@@ -536,6 +555,7 @@
 
 .typedef @refBar = ref<@StructBar>
 .typedef @irefBar = iref<@StructBar>
+.typedef @ptrBar = ptr<@StructBar>
 
 .typedef @hCharArray = hybrid<@i64 @i8>
 
@@ -552,8 +572,10 @@
 }
 
 .typedef @ArrayBaz = array <@i16 1024>
+.typedef @ptrBaz = ptr<@ArrayBaz>
 
 .typedef @JavaLikeByteArray = hybrid <@i32 @i8>
+.typedef @ptrJA = ptr<@JavaLikeByteArray>
 
 .const @I64_1024 <@i64> = 1024
 
@@ -574,6 +596,25 @@
 
         %trap = TRAP <@void> KEEPALIVE (%bar_ref %bar_iref %bar_3
                     %baz_iref %baz_3 %baz_6 %ja_ref %ja_iref %ja_fix %ja_var)
+        COMMINST @uvm.thread_exit
+}
+
+.funcdef @memAddressingPtr VERSION @memAddressingPtr_v1 <@noparamsnoret> () {
+    %entry:
+        %bar_ptr  = PTRCAST <@i64 @ptrBar> @I64_1024
+        %baz_ptr  = PTRCAST <@i64 @ptrBaz> @I64_1024
+        %ja_ptr   = PTRCAST <@i64 @ptrJA> @I64_1024
+
+        %bar_3    = GETFIELDIREF PTR <@StructBar 3> %bar_ptr
+        
+        %baz_3    = GETELEMIREF PTR <@ArrayBaz @i64> %baz_ptr @I64_3
+        %baz_6    = SHIFTIREF PTR <@i16 @i64> %baz_3 @I64_3
+        
+        %ja_fix   = GETFIXEDPARTIREF PTR <@JavaLikeByteArray> %ja_ptr
+        %ja_var   = GETVARPARTIREF PTR <@JavaLikeByteArray> %ja_ptr
+
+        %trap = TRAP <@void> KEEPALIVE (%bar_ptr %baz_ptr %ja_ptr
+                    %bar_3 %baz_3 %baz_6 %ja_fix %ja_var)
         COMMINST @uvm.thread_exit
 }
 
@@ -640,6 +681,39 @@
         COMMINST @uvm.thread_exit
 }
 
+.funcsig @memAccessingPtr_sig = @void (@ptri8 @ptri16 @ptri32 @ptri64
+                @ptrfloat @ptrdouble @ptrptrvoid @ptrfpi_i)
+.funcdef @memAccessingPtr VERSION @memAccessingPtr_v1 <@memAccessingPtr_sig> (
+                %p0 %p1 %p2 %p3 %p4 %p5 %p6 %p7) {
+    %entry:
+        STORE PTR <@i8>     %p0  @I8_41
+        STORE PTR <@i16>    %p1  @I16_42
+        STORE PTR <@i32>    %p2  @I32_43
+        STORE PTR <@i64>    %p3  @I64_44
+        STORE PTR <@float>  %p4  @F_45
+        STORE PTR <@double> %p5  @D_46
+        
+        %my_p   = PTRCAST <@i64 @ptrptrvoid> @I64_0x55aa
+        %my_fp  = PTRCAST <@i64 @ptrfpi_i>   @I64_0x55aa
+        
+        STORE PTR <@ptrvoid>    %p6  %my_p
+        STORE PTR <@fpi_i>      %p7  %my_fp
+        
+        %li8  = LOAD PTR <@i8>      %p0
+        %li16 = LOAD PTR <@i16>     %p1
+        %li32 = LOAD PTR <@i32>     %p2
+        %li64 = LOAD PTR <@i64>     %p3
+        %lf   = LOAD PTR <@float>   %p4
+        %ld   = LOAD PTR <@double>  %p5
+        
+        %lp   = LOAD PTR <@ptrvoid> %p6
+        %lfp  = LOAD PTR <@fpi_i>   %p7
+
+        %trap = TRAP <@void> KEEPALIVE (%li8 %li16
+                    %li32 %li64 %lf %ld %lp %lfp)
+        COMMINST @uvm.thread_exit
+}
+
 .const @I64_0x55ab              <@i64> = 0x55ab
 .const @I64_0x5a5a              <@i64> = 0x5a5a
 .const @I64_0x5000              <@i64> = 0x5000
@@ -658,7 +732,7 @@
         %void_r2  = NEW <@void>
         %void_r3  = NEW <@void>
         
-        STORE <@refvoid>     @g_r  %void_r
+        STORE SEQ_CST <@refvoid>     @g_r  %void_r
 
         %cx32_1 = CMPXCHG SEQ_CST RELAXED <@i32> @g_i32 @I32_43 @I32_53
         %cx32_2 = CMPXCHG SEQ_CST RELAXED <@i32> @g_i32 @I32_43 @I32_63
@@ -671,7 +745,7 @@
         %cxr_1 = CMPXCHG SEQ_CST RELAXED <@refvoid> @g_r %void_r %void_r2
         %cxr_2 = CMPXCHG SEQ_CST RELAXED <@refvoid> @g_r %void_r %void_r3
         
-        %lr   = LOAD <@refvoid>     @g_r
+        %lr   = LOAD SEQ_CST <@refvoid>     @g_r
         
         STORE <@i64> @g_i64 @I64_1
         
@@ -691,6 +765,62 @@
 
         %trap = TRAP <@void> KEEPALIVE (%void_r %void_r2 %void_r3
                     %cx32_1 %cx32_2 %cx64_1 %cx64_2 %l32 %l64 %cxr_1 %cxr_2 %lr
+                    %rmw0 %rmw1 %rmw2 %rmw3 %rmw4 %rmw5 %rmw6 %rmw7 %rmw8 %rmw9 %rmwA %l64_2)
+        COMMINST @uvm.thread_exit
+}
+
+.funcsig @memAccessingAtomicPtr_sig = @void (@ptri8 @ptri16 @ptri32 @ptri64
+                @ptrfloat @ptrdouble @ptrptrvoid @ptrfpi_i)
+.funcdef @memAccessingAtomicPtr VERSION @memAccessingAtomicPtr_v1 <@memAccessingAtomicPtr_sig> (
+                %p0 %p1 %p2 %p3 %p4 %p5 %p6 %p7) {
+    %entry:
+        STORE PTR SEQ_CST <@i32> %p2 @I32_43
+        STORE PTR SEQ_CST <@i64> %p3 @I64_44
+
+        %ptr0  = PTRCAST <@i64 @ptrvoid> @I64_0x55ab
+        %ptr1  = PTRCAST <@i64 @ptrvoid> @I64_0x5a5a
+        %ptr2  = PTRCAST <@i64 @ptrvoid> @I64_0x5000
+        %fp0   = PTRCAST <@i64 @fpi_i>   @I64_0x55ab
+        %fp1   = PTRCAST <@i64 @fpi_i>   @I64_0x5a5a
+        %fp2   = PTRCAST <@i64 @fpi_i>   @I64_0x5000
+        
+        STORE PTR SEQ_CST <@ptrvoid> %p6  %ptr0
+        STORE PTR SEQ_CST <@fpi_i>   %p7  %fp0
+
+        %cx32_1 = CMPXCHG PTR SEQ_CST RELAXED <@i32> %p2 @I32_43 @I32_53
+        %cx32_2 = CMPXCHG PTR SEQ_CST RELAXED <@i32> %p2 @I32_43 @I32_63
+        %cx64_1 = CMPXCHG PTR SEQ_CST RELAXED <@i64> %p3 @I64_44 @I64_54
+        %cx64_2 = CMPXCHG PTR SEQ_CST RELAXED <@i64> %p3 @I64_44 @I64_64
+        
+        %l32 = LOAD PTR SEQ_CST <@i32> %p2
+        %l64 = LOAD PTR SEQ_CST <@i64> %p3
+        
+        %cxp_1  = CMPXCHG PTR SEQ_CST RELAXED <@ptrvoid> %p6 %ptr0 %ptr1
+        %cxp_2  = CMPXCHG PTR SEQ_CST RELAXED <@ptrvoid> %p6 %ptr0 %ptr2
+        %cxfp_1 = CMPXCHG PTR SEQ_CST RELAXED <@fpi_i>   %p7 %fp0 %fp1
+        %cxfp_2 = CMPXCHG PTR SEQ_CST RELAXED <@fpi_i>   %p7 %fp0 %fp2
+        
+        %lp   = LOAD PTR SEQ_CST <@ptrvoid> %p6
+        %lfp  = LOAD PTR SEQ_CST <@fpi_i>   %p7
+        
+        STORE PTR <@i64> %p3 @I64_1
+        
+        %rmw0 = ATOMICRMW PTR SEQ_CST XCHG  <@i64> %p3 @I64_0x55ab  // 1 -> 0x55ab
+        %rmw1 = ATOMICRMW PTR SEQ_CST ADD   <@i64> %p3 @I64_3       // 0x55ab -> 0x55ae 
+        %rmw2 = ATOMICRMW PTR SEQ_CST SUB   <@i64> %p3 @I64_4       // 0x55ae -> 0x55aa
+        %rmw3 = ATOMICRMW PTR SEQ_CST AND   <@i64> %p3 @I64_0x5a5a  // 0x55aa -> 0x500a
+        %rmw4 = ATOMICRMW PTR SEQ_CST NAND  <@i64> %p3 @I64_0x5a5a  // 0x500a -> ~0x500a
+        %rmw5 = ATOMICRMW PTR SEQ_CST OR    <@i64> %p3 @I64_0x5000  // ~0x500a -> ~0x000a
+        %rmw6 = ATOMICRMW PTR SEQ_CST XOR   <@i64> %p3 @I64_0x55aa  // ~0x000a -> ~0x55a0 
+        %rmw7 = ATOMICRMW PTR SEQ_CST MIN   <@i64> %p3 @I64_N0x7fffffffffffffde // ~0x55a0 -> -0x7fffffffffffffde
+        %rmw8 = ATOMICRMW PTR SEQ_CST MAX   <@i64> %p3 @I64_42      // -0x7fffffffffffffde -> 42
+        %rmw9 = ATOMICRMW PTR SEQ_CST UMIN  <@i64> %p3 @I64_11      // 42 -> 11
+        %rmwA = ATOMICRMW PTR SEQ_CST UMAX  <@i64> %p3 @I64_0xffffffffffffffde // 11 -> 0xffffffffffffffde
+        
+        %l64_2 = LOAD PTR SEQ_CST <@i64> %p3
+
+        %trap = TRAP <@void> KEEPALIVE (
+                    %cx32_1 %cx32_2 %cx64_1 %cx64_2 %l32 %l64 %cxp_1 %cxp_2 %cxfp_1 %cxfp_2 %lp %lfp
                     %rmw0 %rmw1 %rmw2 %rmw3 %rmw4 %rmw5 %rmw6 %rmw7 %rmw8 %rmw9 %rmwA %l64_2)
         COMMINST @uvm.thread_exit
 }
