@@ -8,7 +8,8 @@ class MemoryManager(val heapSize: Word, val globalSize: Word, val stackSize: Wor
   
   val totalMemorySize = heapSize + globalSize
   
-  implicit val memorySupport = new MemorySupport(totalMemorySize)  
+  // Allocate slightly more memory to meet the SimpleImmixSpace's alignment requirement.
+  implicit val memorySupport = new MemorySupport(totalMemorySize + SimpleImmixSpace.BLOCK_SIZE) 
   
   val memoryBegin = memorySupport.muMemoryBegin
   val heapBegin = TypeSizes.alignUp(memoryBegin, SimpleImmixSpace.BLOCK_SIZE)
