@@ -12,7 +12,8 @@ object SimpleImmixDefragMutator {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
-class SimpleImmixDefragMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace)
+class SimpleImmixDefragMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace)(
+  implicit memorySupport: MemorySupport)
     extends Mutator with Allocator {
 
   import SimpleImmixDefragMutator._

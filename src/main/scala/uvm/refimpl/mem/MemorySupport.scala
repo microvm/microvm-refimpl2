@@ -3,100 +3,129 @@ package uvm.refimpl.mem
 import uvm.refimpl.mem.TypeSizes.Word
 import java.nio.ByteBuffer
 import uvm.ssavariables.AtomicRMWOptr._
+import jnr.ffi.{ Runtime, Memory, Pointer }
+import uvm.refimpl.UvmRuntimeException
+import uvm.refimpl.UvmIllegalMemoryAccessException
 
-object MemorySupport {
-  val MEMORY_SIZE: Word = 1024L * 1024L * 1024L
+/**
+ * Support for native memory access. Backed by JNR-FFI.
+ */
+class MemorySupport(val muMemorySize: Word) {
+  val SIZE_LIMIT: Word = Int.MaxValue.toLong
 
-  val bb: ByteBuffer = ByteBuffer.allocateDirect(MEMORY_SIZE.toInt)
-  bb.order(java.nio.ByteOrder.LITTLE_ENDIAN)
+  if (muMemorySize > SIZE_LIMIT) {
+    throw new UvmRuntimeException("Memory too large (%d bytes requested)." +
+      " Due to the limitation of JNR-FFI, the maximum available memory size is %d bytes.".format(muMemorySize, SIZE_LIMIT))
+  }
 
-  def loadByte(loc: Word): Byte = bb.get(loc.toInt)
-  def loadShort(loc: Word): Short = bb.getShort(loc.toInt)
-  def loadInt(loc: Word): Int = bb.getInt(loc.toInt)
-  def loadLong(loc: Word): Long = bb.getLong(loc.toInt)
-  def loadI128(loc: Word): (Long, Long) = (bb.getLong(loc.toInt), bb.getLong(loc.toInt + 8))
-  def loadFloat(loc: Word): Float = bb.getFloat(loc.toInt)
-  def loadDouble(loc: Word): Double = bb.getDouble(loc.toInt)
+  val jnrRuntime = Runtime.getSystemRuntime
+  val muMemory = Memory.allocateDirect(jnrRuntime, muMemorySize.toInt, true)
+  val muMemoryBegin = muMemory.address()
+  val muMemoryEnd = muMemoryBegin + muMemorySize
 
-  def storeByte(loc: Word, v: Byte): Unit = bb.put(loc.toInt, v)
-  def storeShort(loc: Word, v: Short): Unit = bb.putShort(loc.toInt, v)
-  def storeInt(loc: Word, v: Int): Unit = bb.putInt(loc.toInt, v)
-  def storeLong(loc: Word, v: Long): Unit = bb.putLong(loc.toInt, v)
-  def storeI128(loc: Word, v: (Long, Long)): Unit = { val (low, high) = v; bb.putLong(loc.toInt, low); bb.putLong(loc.toInt + 8, high) }
-  def storeFloat(loc: Word, v: Float): Unit = bb.putFloat(loc.toInt, v)
-  def storeDouble(loc: Word, v: Double): Unit = bb.putDouble(loc.toInt, v)
+  val theMemory = Pointer.wrap(jnrRuntime, 0L)
 
-  def cmpXchgInt(loc: Word, expected: Int, desired: Int): (Boolean, Int) = {
-    val oldVal = loadInt(loc)
+  def isInMuMemory(addr: Word): Boolean = muMemoryBegin <= addr && addr < muMemoryEnd
+
+  def assertInMuMemory(inMu: Boolean, addr: Word): Unit = {
+    if (inMu && !isInMuMemory(addr)) {
+      throw new UvmIllegalMemoryAccessException("Accessed address 0x%x outside the Mu memory [0x%x-0x%x].".format(addr, muMemoryBegin, muMemoryEnd))
+    }
+  }
+
+  def loadByte(addr: Word, inMu: Boolean = true): Byte = { assertInMuMemory(inMu, addr); theMemory.getByte(addr) }
+  def loadShort(addr: Word, inMu: Boolean = true): Short = { assertInMuMemory(inMu, addr); theMemory.getShort(addr) }
+  def loadInt(addr: Word, inMu: Boolean = true): Int = { assertInMuMemory(inMu, addr); theMemory.getInt(addr) }
+  def loadLong(addr: Word, inMu: Boolean = true): Long = { assertInMuMemory(inMu, addr); theMemory.getLong(addr) }
+  def loadI128(addr: Word, inMu: Boolean = true): (Long, Long) = { assertInMuMemory(inMu, addr); (theMemory.getLong(addr), theMemory.getLong(addr + 8)) }
+  def loadFloat(addr: Word, inMu: Boolean = true): Float = { assertInMuMemory(inMu, addr); theMemory.getFloat(addr) }
+  def loadDouble(addr: Word, inMu: Boolean = true): Double = { assertInMuMemory(inMu, addr); theMemory.getDouble(addr) }
+
+  def storeByte(addr: Word, v: Byte, inMu: Boolean = true): Unit = { assertInMuMemory(inMu, addr); theMemory.putByte(addr, v) }
+  def storeShort(addr: Word, v: Short, inMu: Boolean = true): Unit = { assertInMuMemory(inMu, addr); theMemory.putShort(addr, v) }
+  def storeInt(addr: Word, v: Int, inMu: Boolean = true): Unit = { assertInMuMemory(inMu, addr); theMemory.putInt(addr, v) }
+  def storeLong(addr: Word, v: Long, inMu: Boolean = true): Unit = { assertInMuMemory(inMu, addr); theMemory.putLong(addr, v) }
+  def storeI128(addr: Word, v: (Long, Long), inMu: Boolean = true): Unit = { assertInMuMemory(inMu, addr); val (low, high) = v; theMemory.putLong(addr, low); theMemory.putLong(addr + 8, high) }
+  def storeFloat(addr: Word, v: Float, inMu: Boolean = true): Unit = { assertInMuMemory(inMu, addr); theMemory.putFloat(addr, v) }
+  def storeDouble(addr: Word, v: Double, inMu: Boolean = true): Unit = { assertInMuMemory(inMu, addr); theMemory.putDouble(addr, v) }
+
+  def cmpXchgInt(addr: Word, expected: Int, desired: Int, inMu: Boolean = true): (Boolean, Int) = {
+    assertInMuMemory(inMu, addr)
+    val oldVal = loadInt(addr)
     if (oldVal == expected) {
-      storeInt(loc, desired)
+      storeInt(addr, desired)
       return (true, oldVal)
     } else {
       return (false, oldVal)
     }
   }
 
-  def cmpXchgLong(loc: Word, expected: Long, desired: Long): (Boolean, Long) = {
-    val oldVal = loadLong(loc)
+  def cmpXchgLong(addr: Word, expected: Long, desired: Long, inMu: Boolean = true): (Boolean, Long) = {
+    assertInMuMemory(inMu, addr)
+    val oldVal = loadLong(addr)
     if (oldVal == expected) {
-      storeLong(loc, desired)
+      storeLong(addr, desired)
       return (true, oldVal)
     } else {
       return (false, oldVal)
     }
   }
 
-  def cmpXchgI128(loc: Word, expected: (Long, Long), desired: (Long, Long)): (Boolean, (Long, Long)) = {
-    val oldVal = loadI128(loc)
+  def cmpXchgI128(addr: Word, expected: (Long, Long), desired: (Long, Long), inMu: Boolean = true): (Boolean, (Long, Long)) = {
+    assertInMuMemory(inMu, addr)
+    val oldVal = loadI128(addr)
     if (oldVal == expected) {
-      storeI128(loc, desired)
+      storeI128(addr, desired)
       return (true, oldVal)
     } else {
       return (false, oldVal)
     }
   }
 
-  def atomicRMWInt(optr: AtomicRMWOptr, loc: Word, opnd: Int): Int = {
-    val oldVal = loadInt(loc)
+  def atomicRMWInt(optr: AtomicRMWOptr, addr: Word, opnd: Int, inMu: Boolean = true): Int = {
+    assertInMuMemory(inMu, addr)
+    val oldVal = loadInt(addr)
     val newVal = optr match {
       case XCHG => opnd
-      case ADD => oldVal + opnd
-      case SUB => oldVal - opnd
-      case AND => oldVal & opnd
+      case ADD  => oldVal + opnd
+      case SUB  => oldVal - opnd
+      case AND  => oldVal & opnd
       case NAND => ~(oldVal & opnd)
-      case OR => oldVal | opnd
-      case XOR => oldVal ^ opnd
-      case MAX => Math.max(oldVal, opnd)
-      case MIN => Math.min(oldVal, opnd)
+      case OR   => oldVal | opnd
+      case XOR  => oldVal ^ opnd
+      case MAX  => Math.max(oldVal, opnd)
+      case MIN  => Math.min(oldVal, opnd)
       case UMAX => Math.max(oldVal - Int.MinValue, opnd - Int.MinValue) + Int.MinValue
       case UMIN => Math.min(oldVal - Int.MinValue, opnd - Int.MinValue) + Int.MinValue
     }
-    storeInt(loc, newVal)
+    storeInt(addr, newVal)
     return oldVal
   }
 
-  def atomicRMWLong(optr: AtomicRMWOptr, loc: Word, opnd: Long): Long = {
-    val oldVal = loadLong(loc)
+  def atomicRMWLong(optr: AtomicRMWOptr, addr: Word, opnd: Long, inMu: Boolean = true): Long = {
+    assertInMuMemory(inMu, addr)
+    val oldVal = loadLong(addr)
     val newVal = optr match {
       case XCHG => opnd
-      case ADD => oldVal + opnd
-      case SUB => oldVal - opnd
-      case AND => oldVal & opnd
+      case ADD  => oldVal + opnd
+      case SUB  => oldVal - opnd
+      case AND  => oldVal & opnd
       case NAND => ~(oldVal & opnd)
-      case OR => oldVal | opnd
-      case XOR => oldVal ^ opnd
-      case MAX => Math.max(oldVal, opnd)
-      case MIN => Math.min(oldVal, opnd)
+      case OR   => oldVal | opnd
+      case XOR  => oldVal ^ opnd
+      case MAX  => Math.max(oldVal, opnd)
+      case MIN  => Math.min(oldVal, opnd)
       case UMAX => Math.max(oldVal - Long.MinValue, opnd - Long.MinValue) + Long.MinValue
       case UMIN => Math.min(oldVal - Long.MinValue, opnd - Long.MinValue) + Long.MinValue
     }
-    storeLong(loc, newVal)
+    storeLong(addr, newVal)
     return oldVal
   }
 
-  def xchgI128(loc: Word, desired: (Long, Long)): (Long, Long) = {
-    val oldVal = loadI128(loc)
-    storeI128(loc, desired)
+  def xchgI128(addr: Word, desired: (Long, Long), inMu: Boolean = true): (Long, Long) = {
+    assertInMuMemory(inMu, addr)
+    val oldVal = loadI128(addr)
+    storeI128(addr, desired)
     return oldVal
   }
 }

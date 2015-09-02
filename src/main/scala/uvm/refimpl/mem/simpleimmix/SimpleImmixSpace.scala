@@ -19,8 +19,9 @@ object SimpleImmixSpace {
   private val N_BUCKETS = 256
 }
 
-class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, extend: Word)
-  extends Space(name, begin, extend) {
+class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, extend: Word)(
+  implicit memorySupport: MemorySupport)
+    extends Space(name, begin, extend) {
 
   import SimpleImmixSpace._
 
@@ -31,7 +32,7 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
   if (extend % BLOCK_SIZE != 0) {
     throw new UvmRefImplException("space size should be a multiple of BLOCK_SIZE " + BLOCK_SIZE)
   }
-  
+
   val nBlocks: Int = (extend / BLOCK_SIZE).toInt
 
   /** The number of reserved blocks (for defrag). */
@@ -255,18 +256,18 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
 
   // Debugging
   def debugLogBlockStates() {
-      val sb1 = new StringBuilder("Reserved freelist:")
-      for (i <- 0 until defragResvFree) {
-        sb1.append(" ").append(defragResv(i))
-      }
-      logger.debug(sb1.toString)
-      val sb2 = new StringBuilder("Freelist:")
-      for (i <- 0 until freeListValidCount) {
-        sb2.append(" ").append(freeList(i))
-      }
-      logger.debug(sb2.toString)
-      for (i <- 0 until nBlocks) {
-        logger.debug(s"blockFlags[${i}] = ${blockFlags(i)}")
-      }
+    val sb1 = new StringBuilder("Reserved freelist:")
+    for (i <- 0 until defragResvFree) {
+      sb1.append(" ").append(defragResv(i))
+    }
+    logger.debug(sb1.toString)
+    val sb2 = new StringBuilder("Freelist:")
+    for (i <- 0 until freeListValidCount) {
+      sb2.append(" ").append(freeList(i))
+    }
+    logger.debug(sb2.toString)
+    for (i <- 0 until nBlocks) {
+      logger.debug(s"blockFlags[${i}] = ${blockFlags(i)}")
+    }
   }
 }

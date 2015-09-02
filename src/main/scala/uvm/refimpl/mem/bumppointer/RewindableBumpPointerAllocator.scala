@@ -14,8 +14,9 @@ object RewindableBumpPointerAllocator {
   val logger: Logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
-class RewindableBumpPointerAllocator(val begin: Word, val extend: Word, val microVM: MicroVM)
-  extends Allocator {
+class RewindableBumpPointerAllocator(val begin: Word, val extend: Word)(
+  implicit microVM: MicroVM, memorySupport: MemorySupport)
+    extends Allocator {
   import RewindableBumpPointerAllocator._
 
   var top: Word = begin
@@ -30,7 +31,7 @@ class RewindableBumpPointerAllocator(val begin: Word, val extend: Word, val micr
     }
     logger.debug(s"alloc(${size}, ${align}, ${headerSize}) top=${top} iRef=${iRef} nextTop=${nextTop}")
     MemUtils.zeroRegion(dataStart, nextTop - dataStart)
-    MemorySupport.storeLong(nextTop, iRef)
+    memorySupport.storeLong(nextTop, iRef)
     top = nextTop
     iRef
   }
@@ -45,7 +46,7 @@ class RewindableBumpPointerAllocator(val begin: Word, val extend: Word, val micr
     var reachBottom = false
     while (!reachBottom) {
       logger.debug("curTopLoc is 0x%x".format(curTopLoc))
-      val iRef = MemorySupport.loadLong(curTopLoc)
+      val iRef = memorySupport.loadLong(curTopLoc)
       logger.debug("iRef is 0x%x".format(iRef))
       if (iRef != 0) {
         val hdr = HeaderUtils.getTag(iRef)
@@ -53,7 +54,7 @@ class RewindableBumpPointerAllocator(val begin: Word, val extend: Word, val micr
         logger.debug("hdr=0x%x, typeID=0x%x".format(hdr, typeID))
         val ty = microVM.globalBundle.typeNs(typeID)
         logger.debug("type=%s: %s".format(ty.repr, ty.toString))
-        MemoryDataScanner.scanField(ty, 0, iRef, microVM, handler)
+        MemoryDataScanner.scanField(ty, 0, iRef, handler)
         var prevTopLoc: Word = 0L
         prevTopLoc = if (ty.isInstanceOf[TypeHybrid]) {
           iRef - TypeSizes.GC_HEADER_SIZE_HYBRID - WORD_SIZE_BYTES

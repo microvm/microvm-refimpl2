@@ -17,12 +17,15 @@ object MicroVM {
 class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
   globalSize: Word = MicroVM.DEFAULT_GLOBAL_SIZE,
   stackSize: Word = MicroVM.DEFAULT_STACK_SIZE) {
+  
+  // implicitly injected resources
+  private implicit val microVM = this
 
   val globalBundle = new Bundle()
-  val constantPool = new ConstantPool(this)
-  val memoryManager = new MemoryManager(heapSize, globalSize, stackSize, this)
-  val threadStackManager = new ThreadStackManager(this)
-  val trapManager = new TrapManager(this)
+  val constantPool = new ConstantPool()
+  val memoryManager = new MemoryManager(heapSize, globalSize, stackSize)
+  val threadStackManager = new ThreadStackManager()
+  val trapManager = new TrapManager()
   val clientAgents = new HashSet[ClientAgent]()
   
   val irReader = new UIRTextReader(new IDFactory())

@@ -17,33 +17,33 @@ object MemoryDataScanner extends StrictLogging {
    * Scan an allocation unit. In this implementation, heap objects, alloca cells and global
    * cells all have the same layout.
    */
-  def scanAllocUnit(objRef: Word, iRef: Word, microVM: MicroVM, handler: RefFieldHandler) {
+  def scanAllocUnit(objRef: Word, iRef: Word, handler: RefFieldHandler)(implicit microVM: MicroVM, memorySupport: MemorySupport) {
     val tag = HeaderUtils.getTag(objRef)
     logger.debug("Obj 0x%x, tag 0x%x".format(objRef, tag))
     val ty = HeaderUtils.getType(microVM, tag)
     logger.debug("Type: %s".format(ty.repr))
-    scanField(ty, objRef, objRef, microVM, handler)
+    scanField(ty, objRef, objRef, handler)
   }
 
-  def scanField(ty: Type, objRef: Word, iRef: Word, microVM: MicroVM, handler: RefFieldHandler) {
+  def scanField(ty: Type, objRef: Word, iRef: Word, handler: RefFieldHandler)(implicit microVM: MicroVM, memorySupport: MemorySupport) {
     ty match {
       case t: TypeRef => {
-        val toObj = MemorySupport.loadLong(iRef)
+        val toObj = memorySupport.loadLong(iRef)
         logger.debug(s"Ref field ${iRef} -> ${toObj}")
         handler.memToHeap(objRef, iRef, toObj, false, false)
       }
       case t: TypeIRef => {
-        val toObj = MemorySupport.loadLong(iRef)
+        val toObj = memorySupport.loadLong(iRef)
         logger.debug(s"IRef field ${iRef} -> ${toObj}")
         handler.memToHeap(objRef, iRef, toObj, false, false)
       }
       case t: TypeWeakRef => {
-        val toObj = MemorySupport.loadLong(iRef)
+        val toObj = memorySupport.loadLong(iRef)
         logger.debug(s"WeakRef field ${iRef} -> ${toObj}")
         handler.memToHeap(objRef, iRef, toObj, true, false)
       }
       case t: TypeTagRef64 => {
-        val bits = MemorySupport.loadLong(iRef)
+        val bits = memorySupport.loadLong(iRef)
         if (paranoiaLogger.underlying.isDebugEnabled()) {
           paranoiaLogger.debug(s"Tagref bits ${bits}")
           if (OpHelper.tr64IsFp(bits)) {
@@ -65,7 +65,7 @@ object MemoryDataScanner extends StrictLogging {
         for (fieldTy <- t.fieldTy) {
           val fieldAlign = TypeSizes.alignOf(fieldTy)
           fieldAddr = TypeSizes.alignUp(fieldAddr, fieldAlign)
-          scanField(fieldTy, objRef, fieldAddr, microVM, handler)
+          scanField(fieldTy, objRef, fieldAddr, handler)
           fieldAddr += TypeSizes.sizeOf(fieldTy)
         }
       }
@@ -75,7 +75,7 @@ object MemoryDataScanner extends StrictLogging {
         val elemAlign = TypeSizes.alignOf(elemTy)
         var elemAddr = iRef
         for (i <- 0L until t.len) {
-          scanField(elemTy, objRef, elemAddr, microVM, handler)
+          scanField(elemTy, objRef, elemAddr, handler)
           elemAddr = TypeSizes.alignUp(elemAddr + elemSize, elemAlign)
         }
 
@@ -89,15 +89,15 @@ object MemoryDataScanner extends StrictLogging {
         val varAlign = TypeSizes.alignOf(varTy)
         var curAddr = iRef
         val varLength = HeaderUtils.getVarLength(iRef)
-        scanField(fixedTy, objRef, curAddr, microVM, handler)
+        scanField(fixedTy, objRef, curAddr, handler)
         curAddr = TypeSizes.alignUp(curAddr + fixedSize, fixedAlign)
         for (i <- 0L until varLength) {
-          scanField(varTy, objRef, curAddr, microVM, handler)
+          scanField(varTy, objRef, curAddr, handler)
           curAddr = TypeSizes.alignUp(curAddr + varSize, varAlign)
         }
       }
       case t: TypeStack => {
-        val toStackID = MemorySupport.loadLong(iRef)
+        val toStackID = memorySupport.loadLong(iRef)
         val maybeToStack = if (toStackID == 0) {
           None
         } else {

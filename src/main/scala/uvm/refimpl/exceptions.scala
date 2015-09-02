@@ -20,3 +20,6 @@ class UvmRuntimeException(message: String = null, cause: Throwable = null) exten
 
 /** Thrown when a division by zero is executed and the exception clause is not present. */
 class UvmDivisionByZeroException(message: String = null, cause: Throwable = null) extends UvmRuntimeException(message, cause)
+
+/** Thrown when accessing Mu memory but the address is outside the allocated region. */
+class UvmIllegalMemoryAccessException(message: String = null, cause: Throwable = null) extends UvmRuntimeException(message, cause)

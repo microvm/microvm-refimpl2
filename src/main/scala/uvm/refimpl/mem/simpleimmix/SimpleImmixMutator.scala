@@ -12,8 +12,9 @@ object SimpleImmixMutator {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
-class SimpleImmixMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace, val los: LargeObjectSpace)
-  extends Mutator with Allocator {
+class SimpleImmixMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace, val los: LargeObjectSpace)(
+  implicit memorySupport: MemorySupport)
+    extends Mutator with Allocator {
 
   import SimpleImmixMutator._
 

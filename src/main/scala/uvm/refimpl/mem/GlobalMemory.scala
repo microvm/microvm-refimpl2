@@ -7,9 +7,11 @@ import uvm.refimpl.mem.TypeSizes._
 import uvm.refimpl.mem.bumppointer.RewindableBumpPointerAllocator
 import java.util.HashMap
 
-class GlobalMemory(begin: Word, size: Word, microVM: MicroVM) extends Space("GlobalSpace", begin, size) {
+class GlobalMemory(begin: Word, size: Word)(
+  implicit microVM: MicroVM, memorySupport: MemorySupport)
+    extends Space("GlobalSpace", begin, size) {
 
-  val allocator = new RewindableBumpPointerAllocator(begin, size, microVM)
+  val allocator = new RewindableBumpPointerAllocator(begin, size)
 
   private val locationMap = new HashMap[GlobalCell, Word]()
 

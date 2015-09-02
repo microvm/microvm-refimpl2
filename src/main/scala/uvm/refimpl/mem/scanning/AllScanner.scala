@@ -15,7 +15,8 @@ object AllScanner {
 /**
  * Traverse through all references in the micro VM.
  */
-class AllScanner(val microVM: MicroVM, val handler: RefFieldHandler) extends RefFieldHandler {
+class AllScanner(val handler: RefFieldHandler)(
+    implicit microVM: MicroVM, memorySupport: MemorySupport) extends RefFieldHandler {
   import AllScanner._
 
   private val addrQueue = new ArrayDeque[Word]()
@@ -89,7 +90,7 @@ class AllScanner(val microVM: MicroVM, val handler: RefFieldHandler) extends Ref
         allEmpty = false
         val objRef = addrQueue.pollFirst()
         logger.debug("Scanning heap object 0x%x...".format(objRef))
-        MemoryDataScanner.scanAllocUnit(objRef, objRef, microVM, this)
+        MemoryDataScanner.scanAllocUnit(objRef, objRef, this)
       }
     }
   }

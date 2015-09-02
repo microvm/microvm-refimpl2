@@ -15,9 +15,12 @@ object InterpreterThread {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
-class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: InterpreterStack, val mutator: Mutator) {
+class InterpreterThread(val id: Int, implicit private val microVM: MicroVM, initialStack: InterpreterStack, val mutator: Mutator) {
   import InterpreterThread._
-
+  
+  // Injectable resources (used by memory access instructions)
+  implicit private val memorySupport = microVM.memoryManager.memorySupport
+  
   // Thread states
 
   /** The underlying stack. */
@@ -683,7 +686,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         if (la == 0L) {
           nullRefError(excClause)
         } else {
-          MemoryOperations.load(uty, la, ib, microVM)
+          MemoryOperations.load(uty, la, ib)
           continueNormally()
         }
       }
@@ -698,7 +701,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         if (la == 0L) {
           nullRefError(excClause)
         } else {
-          MemoryOperations.store(uty, la, nvb, ib, microVM)
+          MemoryOperations.store(uty, la, nvb, ib)
           continueNormally()
         }
       }
@@ -714,7 +717,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         if (la == 0L) {
           nullRefError(excClause)
         } else {
-          MemoryOperations.cmpXchg(uty, la, eb, db, ib, microVM)
+          MemoryOperations.cmpXchg(uty, la, eb, db, ib)
           continueNormally()
         }
       }
@@ -729,7 +732,7 @@ class InterpreterThread(val id: Int, microVM: MicroVM, initialStack: Interpreter
         if (la == 0L) {
           nullRefError(excClause)
         } else {
-          MemoryOperations.atomicRMW(uty, op, la, ob, ib, microVM)
+          MemoryOperations.atomicRMW(uty, op, la, ob, ib)
           continueNormally()
         }
       }

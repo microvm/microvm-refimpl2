@@ -3,7 +3,7 @@ package uvm.refimpl.itpr
 import uvm.refimpl._
 import scala.collection.mutable.HashSet
 
-class TrapManager(microVM: MicroVM) {
+class TrapManager(implicit microVM: MicroVM) {
   var trapHandler: TrapHandler = DefaultTrapHandler
   var undefinedFunctionHandler: UndefinedFunctionHandler = DefaultUndefinedFunctionHandler
 

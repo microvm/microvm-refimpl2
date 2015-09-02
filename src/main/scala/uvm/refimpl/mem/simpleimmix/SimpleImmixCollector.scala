@@ -17,10 +17,9 @@ object SimpleImmixCollector {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
-class SimpleImmixCollector(val heap: SimpleImmixHeap,
-                           val space: SimpleImmixSpace,
-                           val los: LargeObjectSpace,
-                           microVM: MicroVM) extends Collector with Runnable {
+class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpace, val los: LargeObjectSpace)(
+  implicit microVM: MicroVM, memorySupport: MemorySupport)
+    extends Collector with Runnable {
 
   import SimpleImmixCollector._
 
@@ -47,7 +46,7 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
     val weakRefs = new ArrayBuffer[Word]()
 
     logger.debug("Marking and getting statistics....")
-    val s1 = new AllScanner(microVM, new RefFieldHandler() {
+    val s1 = new AllScanner(new RefFieldHandler() {
       override def boxToHeap(box: HasObjRef): Option[Word] = if (box.hasObjRef()) {
         maybeMarkAndStatIfNotNull(box.getObjRef())
       } else {
@@ -87,19 +86,19 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
 
     logger.debug("Visit and clear weak references...")
     for (iRefWR <- weakRefs) {
-      val toObj = MemorySupport.loadLong(iRefWR)
+      val toObj = memorySupport.loadLong(iRefWR)
       val tag = HeaderUtils.getTag(toObj)
       val isMarked = (tag & MARK_MASK) != 0
       if (!isMarked) {
         logger.debug("WeakRef %d whose value was %d is zeroed.".format(iRefWR, toObj))
-        MemorySupport.storeLong(iRefWR, 0)
+        memorySupport.storeLong(iRefWR, 0)
       } else {
         logger.debug("WeakRef %d whose value was %d is still marked. Do not zero.".format(iRefWR, toObj))
       }
     }
 
     logger.debug("Stat finished. Unmarking....")
-    val s2 = new AllScanner(microVM, clearMarkHandler)
+    val s2 = new AllScanner(clearMarkHandler)
     s2.scanAll()
 
     val resvSpace = space.getTotalReserveSpace
@@ -109,22 +108,22 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
     canDefrag = true
 
     logger.debug("Mark again, maybe move objects....")
-    val s3 = new AllScanner(microVM, markMover)
+    val s3 = new AllScanner(markMover)
     s3.scanAll()
 
     defragMutator.close()
 
     logger.debug("Marked. Collecting blocks....")
     val anyMemoryRecycled = collectBlocks()
-    
+
     logger.debug("Killing unreachable stacks...")
     for (st <- microVM.threadStackManager.iterateAllLiveStacks) {
-      if(!st.gcMark) {
+      if (!st.gcMark) {
         logger.debug("Killing stack %d...".format(st.id))
         st.state = StackState.Dead
       }
     }
-    
+
     if (!anyMemoryRecycled && heap.getMustFreeSpace) {
       throw new UvmRefImplException("Out of memory because the GC failed to recycle any memory.")
     }
@@ -132,7 +131,7 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap,
     notifyMovedObjectsToFutex()
 
     logger.debug("Blocks collected. Unmarking....")
-    val s4 = new AllScanner(microVM, clearMarkHandler)
+    val s4 = new AllScanner(clearMarkHandler)
     s4.scanAll()
 
     logger.debug("GC finished.")

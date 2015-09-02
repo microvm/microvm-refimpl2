@@ -27,6 +27,11 @@ trait UndefinedFunctionHandler {
 }
 
 class ClientAgent(microVM: MicroVM) {
+  
+  // Injectable resources (used by memory access operations)
+  private implicit val microVM_ = microVM
+  private implicit val memorySupport = microVM.memoryManager.memorySupport
+  
   val handles = new HashSet[Handle]()
 
   microVM.clientAgents.add(this)
@@ -252,7 +257,7 @@ class ClientAgent(microVM: MicroVM) {
     val iRef = b.objRef + b.offset
     val nb = ValueBox.makeBoxForType(uty) 
     
-    MemoryOperations.load(uty, iRef, nb, microVM)
+    MemoryOperations.load(uty, iRef, nb)
 
     newHandle(uty, nb)
   }
@@ -265,7 +270,7 @@ class ClientAgent(microVM: MicroVM) {
     val nvb = newVal.vb    
     val nb = ValueBox.makeBoxForType(uty)
 
-    MemoryOperations.store(uty, iRef, nvb, nb, microVM)
+    MemoryOperations.store(uty, iRef, nvb, nb)
   }
 
   def cmpXchg(ordSucc: MemoryOrder, ordFail: MemoryOrder, weak: Boolean, loc: Handle, expected: Handle, desired: Handle): (Boolean, Handle) = {
@@ -276,7 +281,7 @@ class ClientAgent(microVM: MicroVM) {
     val eb = expected.vb
     val db = desired.vb
     val br = ValueBox.makeBoxForType(uty)
-    val succ = MemoryOperations.cmpXchg(uty, iRef, eb, db, br, microVM)
+    val succ = MemoryOperations.cmpXchg(uty, iRef, eb, db, br)
     (succ, newHandle(uty, br))
   }
 
@@ -287,7 +292,7 @@ class ClientAgent(microVM: MicroVM) {
     val iRef = lb.objRef + lb.offset
     val ob = opnd.vb
     val br = ValueBox.makeBoxForType(uty)
-    MemoryOperations.atomicRMW(uty, op, iRef, ob, br, microVM)
+    MemoryOperations.atomicRMW(uty, op, iRef, ob, br)
     newHandle(uty, br)
   }
 

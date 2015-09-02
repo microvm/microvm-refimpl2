@@ -3,7 +3,7 @@ package uvm.refimpl.mem
 import uvm.types._
 import TypeSizes._
 
-abstract class Mutator {
+abstract class Mutator(implicit memorySupport: MemorySupport) {
 
   def alloc(size: Word, align: Word, headerSize: Word): Word
 

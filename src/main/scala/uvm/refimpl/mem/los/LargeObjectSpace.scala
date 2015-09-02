@@ -38,10 +38,9 @@ object LargeObjectSpace {
  * <p>
  * Objects in this space are never moved.
  */
-class LargeObjectSpace(val heap: SimpleImmixHeap,
-  name: String,
-  begin: Long,
-  extend: Word) extends Space(name, begin, extend) {
+class LargeObjectSpace(val heap: SimpleImmixHeap, name: String, begin: Long, extend: Word)(
+  implicit memorySupport: MemorySupport)
+    extends Space(name, begin, extend) {
 
   if (extend % BLOCK_SIZE != 0)
     throw new UvmRefImplException("extend %d should be a multiple of BLOCK_SIZE %d".format(
@@ -148,15 +147,15 @@ class LargeObjectSpace(val heap: SimpleImmixHeap,
   }
 
   private def markBlock(blockAddr: Word) {
-    MemorySupport.storeLong(blockAddr + OFFSET_MARK, MARK_BIT)
+    memorySupport.storeLong(blockAddr + OFFSET_MARK, MARK_BIT)
   }
 
   private def unmarkBlock(blockAddr: Word) {
-    MemorySupport.storeLong(blockAddr + OFFSET_MARK, 0)
+    memorySupport.storeLong(blockAddr + OFFSET_MARK, 0)
   }
 
   private def getBlockMark(blockAddr: Word): Word = {
-    MemorySupport.loadLong(blockAddr + OFFSET_MARK)
+    memorySupport.loadLong(blockAddr + OFFSET_MARK)
   }
 
   private def link(blockAddr: Word) {
@@ -186,18 +185,18 @@ class LargeObjectSpace(val heap: SimpleImmixHeap,
   }
 
   private def getPrev(blockAddr: Word): Word = {
-    MemorySupport.loadLong(blockAddr + OFFSET_PREV)
+    memorySupport.loadLong(blockAddr + OFFSET_PREV)
   }
 
   private def getNext(blockAddr: Word): Word = {
-    MemorySupport.loadLong(blockAddr + OFFSET_NEXT)
+    memorySupport.loadLong(blockAddr + OFFSET_NEXT)
   }
 
   private def setPrev(blockAddr: Word, toBlock: Word) {
-    MemorySupport.storeLong(blockAddr + OFFSET_PREV, toBlock)
+    memorySupport.storeLong(blockAddr + OFFSET_PREV, toBlock)
   }
 
   private def setNext(blockAddr: Word, toBlock: Word) {
-    MemorySupport.storeLong(blockAddr + OFFSET_NEXT, toBlock)
+    memorySupport.storeLong(blockAddr + OFFSET_NEXT, toBlock)
   }
 }

@@ -12,7 +12,7 @@ object ThreadStackManager {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
-class ThreadStackManager(microVM: MicroVM) {
+class ThreadStackManager(implicit microVM: MicroVM) {
   import ThreadStackManager._
 
   private val stackRegistry = new HashMap[Int, InterpreterStack]()

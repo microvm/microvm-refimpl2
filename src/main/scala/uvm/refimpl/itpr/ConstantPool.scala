@@ -6,7 +6,7 @@ import uvm.ssavariables._
 import uvm.refimpl.MicroVM
 import scala.collection.mutable.HashMap
 
-class ConstantPool(microVM: MicroVM) {
+class ConstantPool(implicit microVM: MicroVM) {
   val globalVarBoxes = HashMap[GlobalVariable, ValueBox]()
 
   def addGlobalVar(g: GlobalVariable) {

@@ -37,17 +37,17 @@ trait RefFieldHandler {
 object RefFieldUpdater {
   def updateBoxToHeap(box: HasObjRef, newObjRef: Word): Unit = box.setObjRef(newObjRef)
   def updateBoxToStack(box: BoxStack, newStack: Option[InterpreterStack]) = box.stack = newStack
-  def updateMemToHeap(iRef: Word, isTR64: Boolean, newObjRef: Word): Unit = {
+  def updateMemToHeap(iRef: Word, isTR64: Boolean, newObjRef: Word)(implicit memorySupport: MemorySupport): Unit = {
     if (isTR64) {
-      val oldRaw = MemorySupport.loadLong(iRef)
+      val oldRaw = memorySupport.loadLong(iRef)
       val oldTag = OpHelper.tr64ToTag(oldRaw)
       val newRaw = OpHelper.refToTr64(newObjRef, oldTag)
-      MemorySupport.storeLong(iRef, newRaw)
+      memorySupport.storeLong(iRef, newRaw)
     } else {
-      MemorySupport.storeLong(iRef, newObjRef)
+      memorySupport.storeLong(iRef, newObjRef)
     }
   }
-  def updateMemToStack(iRef: Word, newStack: Option[InterpreterStack]) = {
-    MemorySupport.storeLong(iRef, newStack.map(_.id).getOrElse(0).toLong)
+  def updateMemToStack(iRef: Word, newStack: Option[InterpreterStack])(implicit memorySupport: MemorySupport): Unit = {
+    memorySupport.storeLong(iRef, newStack.map(_.id).getOrElse(0).toLong)
   }
 }
