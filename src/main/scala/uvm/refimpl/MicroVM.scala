@@ -7,6 +7,7 @@ import uvm.refimpl.mem.TypeSizes.Word
 import scala.collection.mutable.HashSet
 import uvm.ir.textinput.UIRTextReader
 import uvm.ir.textinput.IDFactory
+import uvm.refimpl.nat.NativeHelper
 
 object MicroVM {
   val DEFAULT_HEAP_SIZE: Word = 4L * 1024L * 1024L; // 4MiB
@@ -26,6 +27,8 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
   val memoryManager = new MemoryManager(heapSize, globalSize, stackSize)
 
   private implicit val memorySupport = memoryManager.memorySupport
+  
+  val nativeHelper = new NativeHelper()
 
   val threadStackManager = new ThreadStackManager()
   val trapManager = new TrapManager()

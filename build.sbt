@@ -13,6 +13,8 @@ libraryDependencies := Seq(
     "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0",
     "ch.qos.logback" % "logback-classic" % "1.1.2",
     "com.github.jnr" % "jnr-ffi" % "2.0.3",
+    "com.github.jnr" % "jffi" % "1.2.9",
+    "com.github.jnr" % "jnr-posix" % "3.0.17",
     "org.scalatest" %% "scalatest" % "2.2.0"
 )
 	

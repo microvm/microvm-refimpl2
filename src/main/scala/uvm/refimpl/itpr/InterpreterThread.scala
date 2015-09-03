@@ -373,20 +373,12 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
               case _ =>
             }
             val srcAddr: Word = scalarFromTy match {
-              case TypeInt(n) => {
-                val od = bOpnd.asInstanceOf[BoxInt].value
-                val truncExt = if (n >= 64) OpHelper.trunc(od, 64) else OpHelper.zext(od, n, 64)
-                truncExt.toLong
-              }
-              case TypePtr(_) | TypeFuncPtr(_) => bOpnd.asInstanceOf[BoxPointer].addr
+              case TypeInt(n)             => bOpnd.asInstanceOf[BoxInt].value.longValue // truncates
+              case _: AbstractPointerType => bOpnd.asInstanceOf[BoxPointer].addr
             }
             scalarToTy match {
-              case TypeInt(n) => {
-                val bi = BigInt(srcAddr)
-                val truncExt = if (n > 64) OpHelper.zext(bi, 64, n) else OpHelper.trunc(bi, n)
-                br.asInstanceOf[BoxInt].value = truncExt
-              }
-              case TypePtr(_) | TypeFuncPtr(_) => br.asInstanceOf[BoxPointer].addr = srcAddr
+              case TypeInt(n)             => br.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(srcAddr), Math.min(n, 64))
+              case _: AbstractPointerType => br.asInstanceOf[BoxPointer].addr = srcAddr
             }
           }
 
@@ -779,7 +771,18 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
       }
 
       case i @ InstCCall(callConv, funcTy, sig, callee, argList, keepAlives) => {
-        throw new UvmRefImplException(ctx + "The CCALL instruction is not implemented in this reference implementation")
+        if (callConv != Flag("#DEFAULT")) {
+          throw new UvmRefImplException(ctx + "Currently only support the #DEFAULT callConv. %s found.".format(callConv.name))
+        }
+        
+        val addr = boxOf(callee).asInstanceOf[BoxPointer].addr
+        
+        val argBoxes = argList.map(boxOf)
+        val retBox = boxOf(i)
+        
+        microVM.nativeHelper.callNative(sig, addr, argBoxes, retBox)
+        
+        continueNormally()
       }
 
       case i @ InstNewStack(sig, callee, argList, excClause) => {
@@ -1064,29 +1067,29 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
           case "@uvm.native.pin" => {
             val Seq(ty) = typeList
             val Seq(r) = argList
-            
-            val addr = ty match {
-              case TypeRef(_) => boxOf(r).asInstanceOf[BoxRef].objRef
-              case TypeIRef(_) => boxOf(r).asInstanceOf[BoxIRef].objRef
+
+            val (addr, offset) = ty match {
+              case TypeRef(_)  => (boxOf(r).asInstanceOf[BoxRef].objRef, 0L)
+              case TypeIRef(_) => boxOf(r).asInstanceOf[BoxIRef].oo
             }
-            
+
             pin(addr)
-            
-            boxOf(i).asInstanceOf[BoxPointer].addr = addr
+
+            boxOf(i).asInstanceOf[BoxPointer].addr = addr + offset
             continueNormally()
           }
-          
+
           case "@uvm.native.unpin" => {
             val Seq(ty) = typeList
             val Seq(r) = argList
-            
+
             val addr = ty match {
-              case TypeRef(_) => boxOf(r).asInstanceOf[BoxRef].objRef
+              case TypeRef(_)  => boxOf(r).asInstanceOf[BoxRef].objRef
               case TypeIRef(_) => boxOf(r).asInstanceOf[BoxIRef].objRef
             }
-            
+
             unpin(addr)
-            
+
             continueNormally()
           }
           // Insert more CommInsts here.

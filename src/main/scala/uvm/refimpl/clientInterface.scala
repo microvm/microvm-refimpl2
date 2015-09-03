@@ -497,7 +497,7 @@ class ClientAgent(mutator: Mutator)(
     }
 
     val box = newType match {
-      case TypeInt(n)             => new BoxInt(OpHelper.trunc(BigInt(addr), n))
+      case TypeInt(n)             => new BoxInt(OpHelper.trunc(BigInt(addr), Math.min(n, 64)))
       case _: AbstractPointerType => new BoxPointer(addr)
     }
 
@@ -505,13 +505,13 @@ class ClientAgent(mutator: Mutator)(
   }
 
   def pin(handle: Handle): Handle = {
-    val (objTy, objRef) = handle.ty match {
-      case TypeRef(t)  => (t, handle.vb.asInstanceOf[BoxRef].objRef)
-      case TypeIRef(t) => (t, handle.vb.asInstanceOf[BoxIRef].objRef)
+    val (objTy, (objRef, offset)) = handle.ty match {
+      case TypeRef(t)  => (t, (handle.vb.asInstanceOf[BoxRef].objRef, 0L))
+      case TypeIRef(t) => (t, handle.vb.asInstanceOf[BoxIRef].oo)
     }
     pin(objRef)
     val ptrTy = InternalTypePool.ptrOf(objTy)
-    val box = new BoxPointer(objRef)
+    val box = new BoxPointer(objRef + offset)
     newHandle(ptrTy, box)
   }
 

@@ -3,6 +3,7 @@ package uvm.refimpl
 import uvm._
 import uvm.types._
 import uvm.ssavariables._
+import uvm.utils.LazyPool
 import uvm.ir.textinput.IDFactory
 import scala.collection.mutable.HashMap
 import uvm.FuncSig
@@ -40,20 +41,12 @@ object InternalTypes {
 }
 
 object InternalTypePool {
-  class LazyPool[FromT, ToT](factory: FromT => ToT) {
-    val pool = HashMap[FromT, ToT]()
-    def apply(obj: FromT): ToT = pool.get(obj).getOrElse(factory(obj))
-  }
-  object LazyPool {
-    def apply[FromT, ToT](factory: FromT => ToT): LazyPool[FromT, ToT] = new LazyPool[FromT, ToT](factory)
-  }
-
   val refOf = LazyPool(TypeRef)
   val irefOf = LazyPool(TypeIRef)
   val ptrOf = LazyPool(TypePtr)
   val funcOf = LazyPool(TypeFunc)
   val funcPtrOf = LazyPool(TypeFuncPtr)
-  val vecOf = new LazyPool[(Type, Long), TypeVector]({ case (t, l) => TypeVector(t, l) })
+  val vecOf = LazyPool[(Type, Long), TypeVector] { case (t, l) => TypeVector(t, l) }
   def unmarkedOf(t: Type): Type = t match {
     case TypeWeakRef(r) => refOf(r)
     case _ => t
