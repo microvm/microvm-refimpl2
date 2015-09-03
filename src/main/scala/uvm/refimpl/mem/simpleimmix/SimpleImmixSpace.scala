@@ -13,6 +13,7 @@ object SimpleImmixSpace {
 
   val BLOCK_MARKED = 0x1
   val BLOCK_RESERVED = 0x2
+  val BLOCK_PINNED = 0x4
 
   private val LINE_SIZE = 128L
 
@@ -124,15 +125,18 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
     ((blockAddr - begin) / BLOCK_SIZE).toInt
   }
 
-  def markBlockByIndex(index: Int) {
-    blockFlags(index) |= BLOCK_MARKED
+  def markBlockByIndex(index: Int, pin: Boolean = false) {
+    val addMark = if (pin) BLOCK_MARKED | BLOCK_PINNED else BLOCK_MARKED
+    blockFlags(index) |= addMark
   }
 
-  def markBlockByObjRef(objRef: Word) {
+  def markBlockByObjRef(objRef: Word, pin: Boolean = false) {
     val blockIndex = objRefToBlockIndex(objRef)
-    markBlockByIndex(blockIndex)
-    logger.debug(s"Marked block ${blockIndex}")
+    markBlockByIndex(blockIndex, pin)
+    logger.debug(s"Marked block ${blockIndex}. pin=${pin}")
   }
+  
+  def isPinned(pageNum: Int): Boolean = (blockFlags(pageNum) & BLOCK_MARKED) != 0
 
   def collectBlocks(): Boolean = {
     // Shift defrag reserved blocks to the beginning;
@@ -144,7 +148,7 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
     var newNFree = 0
     for (i <- 0 until nBlocks) {
       var flag = blockFlags(i)
-      val bits = (flag & (BLOCK_MARKED | BLOCK_RESERVED))
+      val bits = (flag & (BLOCK_MARKED | BLOCK_RESERVED | BLOCK_PINNED))
       if (bits == 0) {
         if (newDefragResvFree < nReserved) {
           defragResv(newDefragResvFree) = i
@@ -158,7 +162,7 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
       } else {
         logger.debug(s"Block ${i} is not freed because flag bits is ${bits}")
       }
-      flag &= ~BLOCK_MARKED
+      flag &= ~(BLOCK_MARKED | BLOCK_PINNED) 
       blockFlags(i) = flag
     }
     defragResvFree = newDefragResvFree

@@ -9,6 +9,7 @@ import uvm.ssavariables.MemoryOrder._
 import uvm.ssavariables.AtomicRMWOptr._
 import uvm.refimpl.mem._
 import uvm.ssavariables.HasKeepAliveClause
+import scala.collection.mutable.ArrayBuffer
 
 case class Handle(ty: Type, vb: ValueBox)
 
@@ -26,17 +27,11 @@ trait UndefinedFunctionHandler {
   def handleUndefinedFunction(functionID: Int): Unit
 }
 
-class ClientAgent(microVM: MicroVM) {
-  
-  // Injectable resources (used by memory access operations)
-  private implicit val microVM_ = microVM
-  private implicit val memorySupport = microVM.memoryManager.memorySupport
-  
+class ClientAgent(mutator: Mutator)(
+    implicit microVM: MicroVM, memorySupport: MemorySupport) extends ObjectPinner {
   val handles = new HashSet[Handle]()
 
-  microVM.clientAgents.add(this)
-
-  val mutator = microVM.memoryManager.heap.makeMutator()
+  val pinSet = new ArrayBuffer[Word]
 
   def close(): Unit = {
     handles.clear()
@@ -48,7 +43,7 @@ class ClientAgent(microVM: MicroVM) {
     val bundle = microVM.irReader.read(r, microVM.globalBundle)
     microVM.addBundle(bundle)
   }
-  
+
   def loadBundle(s: String): Unit = {
     val bundle = microVM.irReader.read(s, microVM.globalBundle)
     microVM.addBundle(bundle)
@@ -94,7 +89,7 @@ class ClientAgent(microVM: MicroVM) {
     val et = t.elemTy.asInstanceOf[TypeDouble]
     newHandle(t, BoxVector(vs.map(BoxDouble)))
   }
-  
+
   def putPointer(typeID: Int, v: Word): Handle = {
     val t = microVM.globalBundle.typeNs(typeID)
     newHandle(t, BoxPointer(v))
@@ -157,7 +152,7 @@ class ClientAgent(microVM: MicroVM) {
   def toDoubleVec(h: Handle): Seq[Double] = {
     h.vb.asInstanceOf[BoxVector].values.map(b => b.asInstanceOf[BoxDouble].value)
   }
-  
+
   def toPointer(h: Handle): Word = {
     h.vb.asInstanceOf[BoxPointer].addr
   }
@@ -262,12 +257,12 @@ class ClientAgent(microVM: MicroVM) {
   def load(ord: MemoryOrder, loc: Handle): Handle = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypePtr(t) => (true, t)
+      case TypePtr(t)  => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
-    val nb = ValueBox.makeBoxForType(uty) 
-    
+    val nb = ValueBox.makeBoxForType(uty)
+
     MemoryOperations.load(ptr, uty, addr, nb)
 
     newHandle(uty, nb)
@@ -276,11 +271,11 @@ class ClientAgent(microVM: MicroVM) {
   def store(ord: MemoryOrder, loc: Handle, newVal: Handle): Unit = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypePtr(t) => (true, t)
+      case TypePtr(t)  => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
-    val nvb = newVal.vb    
+    val nvb = newVal.vb
     val nb = ValueBox.makeBoxForType(uty)
 
     MemoryOperations.store(ptr, uty, addr, nvb, nb)
@@ -289,7 +284,7 @@ class ClientAgent(microVM: MicroVM) {
   def cmpXchg(ordSucc: MemoryOrder, ordFail: MemoryOrder, weak: Boolean, loc: Handle, expected: Handle, desired: Handle): (Boolean, Handle) = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypePtr(t) => (true, t)
+      case TypePtr(t)  => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
@@ -303,7 +298,7 @@ class ClientAgent(microVM: MicroVM) {
   def atomicRMW(ord: MemoryOrder, op: AtomicRMWOptr, loc: Handle, opnd: Handle): Handle = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypePtr(t) => (true, t)
+      case TypePtr(t)  => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
@@ -320,7 +315,7 @@ class ClientAgent(microVM: MicroVM) {
     val funcVal = func.vb.asInstanceOf[BoxFunc].func.getOrElse {
       throw new UvmRuntimeException("Stack-bottom function must not be NULL")
     }
-    
+
     val funcVer = funcVal.versions.headOption.getOrElse {
       throw new UvmRuntimeException("Stack-bottom function %s is not defined.".format(funcVal.repr))
     }
@@ -406,12 +401,12 @@ class ClientAgent(microVM: MicroVM) {
     val st = getStackNotNull(stack)
     val top = st.top
     top.prev match {
-      case None => throw new UvmRuntimeException("Attempting to pop the last frame of a stack.")
+      case None       => throw new UvmRuntimeException("Attempting to pop the last frame of a stack.")
       case Some(prev) => st.top = prev
     }
   }
 
-  def pushFrame(stack: Handle, func: Handle, argList: Seq[Handle]): Unit = {    
+  def pushFrame(stack: Handle, func: Handle, argList: Seq[Handle]): Unit = {
     val sta = stack.vb.asInstanceOf[BoxStack].stack.getOrElse {
       throw new UvmRuntimeException("Stack must not be NULL")
     }
@@ -419,13 +414,13 @@ class ClientAgent(microVM: MicroVM) {
     val funcVal = func.vb.asInstanceOf[BoxFunc].func.getOrElse {
       throw new UvmRuntimeException("Stack-bottom function must not be NULL")
     }
-    
+
     val funcVer = funcVal.versions.headOption.getOrElse {
       throw new UvmRuntimeException("Stack-bottom function %s is not defined.".format(funcVal.repr))
     }
 
     val argBoxes = argList.map(_.vb)
-    
+
     sta.pushFrame(funcVer, argBoxes)
   }
 
@@ -483,13 +478,49 @@ class ClientAgent(microVM: MicroVM) {
     val box = new BoxTagRef64(OpHelper.refToTr64(refv, tagv.longValue))
     newHandle(InternalTypes.TAGREF64, box)
   }
-  
+
   def enableWatchPoint(wpID: Int): Unit = {
     microVM.trapManager.enableWatchPoint(wpID)
   }
 
   def disableWatchPoint(wpID: Int): Unit = {
     microVM.trapManager.disableWatchPoint(wpID)
+  }
+
+  def ptrcast(handle: Handle, newType: Type): Handle = {
+    require(handle.ty.isInstanceOf[AbstractPointerType] || handle.ty.isInstanceOf[TypeInt], "handle must have type int, ptr or funcptr. %s found".format(handle.ty.repr))
+    require(newType.isInstanceOf[AbstractPointerType] || newType.isInstanceOf[TypeInt], "can only convert to int, ptr or funcptr. %s found".format(newType.repr))
+
+    val addr = handle.ty match {
+      case TypeInt(n)             => OpHelper.trunc(handle.vb.asInstanceOf[BoxInt].value, 64).toLong
+      case _: AbstractPointerType => handle.vb.asInstanceOf[BoxPointer].addr
+    }
+
+    val box = newType match {
+      case TypeInt(n)             => new BoxInt(OpHelper.trunc(BigInt(addr), n))
+      case _: AbstractPointerType => new BoxPointer(addr)
+    }
+
+    newHandle(newType, box)
+  }
+
+  def pin(handle: Handle): Handle = {
+    val (objTy, objRef) = handle.ty match {
+      case TypeRef(t)  => (t, handle.vb.asInstanceOf[BoxRef].objRef)
+      case TypeIRef(t) => (t, handle.vb.asInstanceOf[BoxIRef].objRef)
+    }
+    pin(objRef)
+    val ptrTy = InternalTypePool.ptrOf(objTy)
+    val box = new BoxPointer(objRef)
+    newHandle(ptrTy, box)
+  }
+
+  def unpin(handle: Handle): Unit = {
+    val (objTy, objRef) = handle.ty match {
+      case TypeRef(t)  => (t, handle.vb.asInstanceOf[BoxRef].objRef)
+      case TypeIRef(t) => (t, handle.vb.asInstanceOf[BoxIRef].objRef)
+    }
+    unpin(objRef)
   }
 
   // Internal methods for the micro VM

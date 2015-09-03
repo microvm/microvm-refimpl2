@@ -1014,3 +1014,24 @@
         TRAP <@void> KEEPALIVE (%b)
         COMMINST @uvm.thread_exit
 }
+
+.funcdef @objectpinning VERSION @objectpinning_v1 <@noparamsnoret> () {
+    %entry:
+        %a = NEW <@i64>
+        %b = GETIREF <@i64> %a
+
+        %c = COMMINST @uvm.native.pin <@refi64> (%a)
+        %d = COMMINST @uvm.native.pin <@irefi64> (%b)
+
+        STORE PTR <@i64> %c @I64_42
+        
+        %e = LOAD PTR <@i64> %d
+        %f = LOAD <@i64> %b
+
+        TRAP <@void> KEEPALIVE (%a %b %c %d %e %f)
+
+        COMMINST @uvm.native.unpin <@refi64>  (%a)
+        COMMINST @uvm.native.unpin <@irefi64> (%b)
+
+        COMMINST @uvm.thread_exit
+}

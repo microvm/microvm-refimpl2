@@ -1,21 +1,26 @@
 package uvm.refimpl.itpr
 
+import scala.annotation.tailrec
+import scala.collection.mutable.ArrayBuffer
+
+import org.slf4j.LoggerFactory
+
+import com.typesafe.scalalogging.Logger
+
 import uvm._
-import uvm.types._
-import uvm.ssavariables._
 import uvm.comminsts._
 import uvm.refimpl._
 import uvm.refimpl.mem._
-import TypeSizes.Word
-import scala.annotation.tailrec
-import org.slf4j.LoggerFactory
-import com.typesafe.scalalogging.Logger
+import uvm.refimpl.mem.TypeSizes.Word
+import uvm.ssavariables._
+import uvm.types._
 
 object InterpreterThread {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
-class InterpreterThread(val id: Int, implicit private val microVM: MicroVM, initialStack: InterpreterStack, val mutator: Mutator) {
+class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator: Mutator)(
+    implicit microVM: MicroVM) extends ObjectPinner {
   import InterpreterThread._
 
   // Injectable resources (used by memory access instructions)
@@ -31,6 +36,9 @@ class InterpreterThread(val id: Int, implicit private val microVM: MicroVM, init
 
   /** True if the thread is waiting in a Futex waiting queue. */
   var isFutexWaiting: Boolean = false
+
+  /** Object-pinnning multiset. */
+  val pinSet = new ArrayBuffer[Word]
 
   // Initialisation
 
@@ -1053,6 +1061,34 @@ class InterpreterThread(val id: Int, implicit private val microVM: MicroVM, init
             continueNormally()
           }
 
+          case "@uvm.native.pin" => {
+            val Seq(ty) = typeList
+            val Seq(r) = argList
+            
+            val addr = ty match {
+              case TypeRef(_) => boxOf(r).asInstanceOf[BoxRef].objRef
+              case TypeIRef(_) => boxOf(r).asInstanceOf[BoxIRef].objRef
+            }
+            
+            pin(addr)
+            
+            boxOf(i).asInstanceOf[BoxPointer].addr = addr
+            continueNormally()
+          }
+          
+          case "@uvm.native.unpin" => {
+            val Seq(ty) = typeList
+            val Seq(r) = argList
+            
+            val addr = ty match {
+              case TypeRef(_) => boxOf(r).asInstanceOf[BoxRef].objRef
+              case TypeIRef(_) => boxOf(r).asInstanceOf[BoxIRef].objRef
+            }
+            
+            unpin(addr)
+            
+            continueNormally()
+          }
           // Insert more CommInsts here.
 
           case ciName => {

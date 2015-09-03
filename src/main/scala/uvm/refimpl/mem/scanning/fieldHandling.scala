@@ -32,6 +32,8 @@ trait RefFieldHandler {
   def stackToStackMem(stack: InterpreterStack, toObj: Word): Option[Word]
   /** An InterpreterThread referring to its stack. GC cannot rebind stacks. */
   def threadToStack(thread: InterpreterThread, toStack: Option[InterpreterStack]): Option[InterpreterStack]
+  /** Pin set referring to the memory. Pinned objects cannot be moved. */
+  def pinSetToMem(toObj: Word): Option[Word]
 }
 
 object RefFieldUpdater {

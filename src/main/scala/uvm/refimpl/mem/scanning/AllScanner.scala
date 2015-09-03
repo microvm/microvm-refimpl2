@@ -28,12 +28,31 @@ class AllScanner(val handler: RefFieldHandler)(
   }
 
   private def traceRoots() {
+    logger.debug("Tracing pin sets...")
+    tracePinSets()
     logger.debug("Tracing external roots...")
     traceClientAgents()
     logger.debug("Tracing globals...")
     traceGlobal()
     logger.debug("Tracing threads...")
     traceThreads()
+  }
+
+  private def tracePinSets() {
+    logger.debug(s"Tracing client agents for pinned objects")
+    for (ca <- microVM.clientAgents) {
+      assert(ca != null)
+      assert(ca.pinSet != null)
+      for (addr <- ca.pinSet) {
+        this.pinSetToMem(addr)
+      }
+    }
+    for (thr <- microVM.threadStackManager.iterateAllLiveThreads) {
+      logger.debug(s"Tracing live thread ${thr.id} for pined objects")
+      for (addr <- thr.pinSet) {
+        this.pinSetToMem(addr)
+      }
+    }
   }
 
   private def traceClientAgents() {
@@ -128,6 +147,12 @@ class AllScanner(val handler: RefFieldHandler)(
   override def threadToStack(thread: InterpreterThread, toStack: Option[InterpreterStack]): Option[InterpreterStack] = {
     val rv = handler.threadToStack(thread, toStack)
     rv.foreach(stackQueue.add)
+    rv
+  }
+
+  override def pinSetToMem(toObj: Word): Option[Word] = {
+    val rv = handler.pinSetToMem(toObj)
+    rv.foreach(addrQueue.add)
     rv
   }
 

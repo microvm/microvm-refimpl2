@@ -4,15 +4,10 @@ import com.typesafe.scalalogging.StrictLogging
 import TypeSizes._
 
 object MemUtils extends StrictLogging {
-
   def zeroRegion(start: Word, length: Word)(implicit memorySupport: MemorySupport) {
     val end = start + length
     logger.debug("Zeroing [0x%x -> 0x%x] %d bytes".format(start, end, length))
-    var a = start
-    while (a < end) {
-      memorySupport.storeLong(a, 0L)
-      a += WORD_SIZE_BYTES
-    }
+    memorySupport.memset(start, length, 0)
   }
 
   def memcpy(src: Word, dst: Word, length: Word)(implicit memorySupport: MemorySupport) {

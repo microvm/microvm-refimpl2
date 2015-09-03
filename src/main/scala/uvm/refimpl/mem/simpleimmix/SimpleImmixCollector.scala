@@ -81,6 +81,9 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
         maybeMarkStackIfSome(toStack)
       }
 
+      override def pinSetToMem(toObj: Word): Option[Word] = {
+        maybeMarkAndStatIfNotNull(toObj)
+      }
     })
     s1.scanAll()
 
@@ -220,6 +223,14 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
       maybeMarkStackIfSome(toStack)
     }
 
+    override def pinSetToMem(toObj: Word): Option[Word] = {
+      if (space.isInSpace(toObj)) {
+        logger.debug("Object 0x%x is in small object space and is pinned. Marking block %d".format(toObj, space.objRefToBlockIndex(toObj)))
+        space.markBlockByObjRef(toObj, true)
+      }
+      maybeMoveIfNotNull(toObj, _ => throw new UvmRefImplException("Pinned object cannot move."))
+    }
+
     private def maybeMoveIfNotNull(toObj: Word, updateFunc: Word => Unit): Option[Word] = {
       if (toObj != 0L) maybeMove(toObj, updateFunc) else None
     }
@@ -243,8 +254,13 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
 
           val isMovable = if (isInSmallObjectSpace) {
             val pageNum = space.objRefToBlockIndex(toObj)
-            val stat = space.getStat(pageNum)
-            if (stat < threshold) true else false
+            if (space.isPinned(pageNum)) {
+              logger.debug("Object 0x%x is in pinned page %d, cannot move.".format(toObj, pageNum))
+              false
+            } else {
+              val stat = space.getStat(pageNum)
+              if (stat < threshold) true else false
+            }
           } else {
             false
           }
@@ -350,6 +366,10 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
 
     override def threadToStack(thread: InterpreterThread, toStack: Option[InterpreterStack]): Option[InterpreterStack] = {
       clearStackMarkIfSome(toStack)
+    }
+
+    override def pinSetToMem(toObj: Word): Option[Word] = {
+      clearMarkIfNotNull(toObj)
     }
   }
 

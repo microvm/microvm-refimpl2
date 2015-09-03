@@ -138,6 +138,14 @@ object TypeInferer {
       case "@uvm.futex.wake" => I32
       case "@uvm.futex.cmp_requeue" => I32
       case "@uvm.kill_dependency" => i.typeList(0)
+      case "@uvm.native.pin" => i.typeList(0) match{
+        case TypeRef(t) => ptrOf(t)
+        case TypeIRef(t) => ptrOf(t)
+      }
+      case "@uvm.native.unpin" => VOID
+      case "@uvm.native.expose" => funcPtrOf(i.funcSigList(0))
+      case "@uvm.native.unexpose" => VOID
+      case "@uvm.native.get_cookie" => I64
     }
   }
 }

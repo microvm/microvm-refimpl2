@@ -128,4 +128,8 @@ class MemorySupport(val muMemorySize: Word) {
     storeI128(addr, desired, inMu)
     return oldVal
   }
+  
+  def memset(addr: Word, size: Word, value: Byte): Unit = {
+    theMemory.setMemory(addr, size, value)
+  }
 }

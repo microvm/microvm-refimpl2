@@ -1088,7 +1088,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     }
     ca.close()
   }
-  
+
   "CMPXCHG and ATOMICRMW" should "work with pointer in good cases" in {
     val ca = microVM.newClientAgent()
     val func = ca.putFunction("@memAccessingAtomicPtr")
@@ -1146,7 +1146,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     }
     ca.close()
   }
-  
+
   "LOAD, STORE, CMPXCHG and ATOMICRMW" should "jump to the exceptional destination on NULL ref access" in {
     val ca = microVM.newClientAgent()
     val func = ca.putFunction("@memAccessingNull")
@@ -1383,6 +1383,35 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
       val Seq(b) = ca.dumpKeepalives(st, 0)
 
       b.vb.asSInt(64) shouldBe 3
+
+      TrapRebindPassVoid(st)
+    }
+
+    ca.close()
+  }
+
+  "COMMINST @uvm.native.pin and @uvm.native.unpin" should "expose ref/iref as ptr for access" in {
+    val ca = microVM.newClientAgent()
+
+    val func = ca.putFunction("@objectpinning")
+
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val Seq(a, b, c, d, e, f) = ca.dumpKeepalives(st, 0)
+
+      val aAddr = a.vb.asRef
+      val (bObj, bOff) = b.vb.asIRef
+      val cAddr = c.vb.asPointer
+      val dAddr = d.vb.asPointer
+
+      aAddr shouldEqual cAddr
+      bObj shouldEqual dAddr
+      cAddr shouldEqual dAddr
+
+      e.vb.asSInt(64) shouldEqual 42
+      f.vb.asSInt(64) shouldEqual 42
+      
+      val thr = th.vb.asThread.get
+      thr.pinSet should contain(cAddr)
 
       TrapRebindPassVoid(st)
     }

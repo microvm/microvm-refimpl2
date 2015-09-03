@@ -15,21 +15,24 @@ object MicroVM {
 }
 
 class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
-  globalSize: Word = MicroVM.DEFAULT_GLOBAL_SIZE,
-  stackSize: Word = MicroVM.DEFAULT_STACK_SIZE) {
-  
+              globalSize: Word = MicroVM.DEFAULT_GLOBAL_SIZE,
+              stackSize: Word = MicroVM.DEFAULT_STACK_SIZE) {
+
   // implicitly injected resources
   private implicit val microVM = this
 
   val globalBundle = new Bundle()
   val constantPool = new ConstantPool()
   val memoryManager = new MemoryManager(heapSize, globalSize, stackSize)
+
+  private implicit val memorySupport = memoryManager.memorySupport
+
   val threadStackManager = new ThreadStackManager()
   val trapManager = new TrapManager()
   val clientAgents = new HashSet[ClientAgent]()
-  
+
   val irReader = new UIRTextReader(new IDFactory())
-  
+
   {
     // The micro VM allocates stacks on the heap in the large object space. It is represented as a bug chunk of byte array.
     // So the GC must know about this type because the GC looks up the globalBundle for types.
@@ -54,17 +57,21 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
       constantPool.addGlobalVar(g)
     }
   }
-  
+
   /**
    * Create a new ClientAgent.
    */
-  def newClientAgent(): ClientAgent = new ClientAgent(this)
-
+  def newClientAgent(): ClientAgent = {
+    val mutator = microVM.memoryManager.heap.makeMutator() // This may trigger GC
+    val ca = new ClientAgent(mutator)
+    clientAgents.add(ca)
+    ca
+  }
   /**
    * Given a name, get the ID of an identified entity.
    */
   def idOf(name: String): Int = globalBundle.allNs(name).id
-  
+
   /**
    * Given an ID, get the name of an identified entity.
    */

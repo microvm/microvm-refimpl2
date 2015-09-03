@@ -59,7 +59,7 @@ class ThreadStackManager(implicit microVM: MicroVM) {
   def newThread(stack: InterpreterStack): InterpreterThread = {
     val mutator = microVM.memoryManager.makeMutator()
     val id = makeThreadID()
-    val thr = new InterpreterThread(id, microVM, stack, mutator)
+    val thr = new InterpreterThread(id, stack, mutator)
     threadRegistry.put(id, thr)
     thr
   }
