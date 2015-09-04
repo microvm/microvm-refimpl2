@@ -57,7 +57,7 @@ class UvmInterpreterNativeTests extends UvmBundleTesterBase {
 
     val func = ca.putFunction("@writetest")
 
-    val a0 = ca.putInt("@i64", funcAddr)
+    val a0 = ca.putPointer("@write_fp", funcAddr)
 
     testFunc(ca, func, Seq(a0)) { (ca, th, st, wp) =>
       val Seq(fp, rv, buf, bufV0P) = ca.dumpKeepalives(st, 0)
@@ -77,11 +77,13 @@ class UvmInterpreterNativeTests extends UvmBundleTesterBase {
     val lib = Library.getDefault()
     val funcAddr = lib.getSymbolAddress("memcpy")
 
+    val hgfp = ca.putGlobal("@FP_MEMCPY")
+    val hfp = ca.putPointer("@memcpy_fp", funcAddr)
+    ca.store(MemoryOrder.NOT_ATOMIC, hgfp, hfp)
+
     val func = ca.putFunction("@memcpytest")
 
-    val a0 = ca.putInt("@i64", funcAddr)
-
-    testFunc(ca, func, Seq(a0)) { (ca, th, st, wp) =>
+    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
       val Seq(fp, rv, ob, b0, b1, b2, b3, b4, b5) = ca.dumpKeepalives(st, 0)
 
       fp.vb.asPointer shouldEqual funcAddr

@@ -64,10 +64,10 @@
 .const @F_2 <@float> = 2.0f
 .const @F_3 <@float> = 3.0f
 .const @F_4 <@float> = 4.0f
-.const @I32_1 <@float> = 1
-.const @I32_2 <@float> = 2
-.const @I32_3 <@float> = 3
-.const @I32_4 <@float> = 4
+.const @I32_1 <@i32> = 1
+.const @I32_2 <@i32> = 2
+.const @I32_3 <@i32> = 3
+.const @I32_4 <@i32> = 4
 .const @D_1 <@float> = 1.0d
 .const @D_2 <@float> = 2.0d
 
@@ -82,3 +82,9 @@
 .typedef @sgf_t = struct<@ii64 @func0>
 
 .const @sgf <@sgf_t> = {@gi64 @fdummy}
+
+.typedef @i32_p = ptr<@i32>
+.typedef @sig0_fp = funcptr<@sig0>
+
+.const @I32P_PTR1   <@i32_p>   = 0x123456789abcdef0
+.const @SIG0FP_PTR1 <@sig0_fp> = 0xfedcba9876543210

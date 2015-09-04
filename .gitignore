@@ -8,3 +8,4 @@ target
 *.swp
 .tmpBin
 .d8_history
+hs_err_pid*.log

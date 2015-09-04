@@ -230,6 +230,17 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       its fields 1 shouldBe (our globalValue "@fdummy")
     }
     
+    our const "@I32P_PTR1" shouldBeA[ConstPointer] { its =>
+      its.constTy shouldBe (our ty "@i32_p")
+      its.addr shouldBe 0x123456789abcdef0L
+    }
+    
+    our const "@SIG0FP_PTR1" shouldBeA[ConstPointer] { its =>
+      its.constTy shouldBe (our ty "@sig0_fp")
+      its.addr shouldBe 0xfedcba9876543210L
+    }
+
+    
     // Testing namespaces
     val ci8 = our const "@ci8"
     our globalValue "@ci8" shouldBe ci8

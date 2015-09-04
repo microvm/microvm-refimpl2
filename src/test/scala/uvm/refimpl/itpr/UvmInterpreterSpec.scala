@@ -653,9 +653,11 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     val a3 = ca.putDouble("@double", 6.25d)
 
     testFunc(ca, func, Seq(a0, a1, a2, a3)) { (ca, th, st, wp) =>
-      val Seq(trunc, zext, sext, fptrunc, fpext, fptoui1, fptosi1, fptoui2, fptosi2, uitofp, sitofp,
-        bitcast1, bitcast2, bitcast3, bitcast4, ptrcast1, ptrcast2, ptrcast3) = ca.dumpKeepalives(st, 0)
+      val kas = ca.dumpKeepalives(st, 0)
 
+      val Seq(trunc, zext, sext, fptrunc, fpext, fptoui1, fptosi1, fptoui2, fptosi2, uitofp, sitofp) = kas.take(11)
+      val Seq(bitcast1, bitcast2, bitcast3, bitcast4, ptrcast1, ptrcast2, ptrcast3, ptrcast4, ptrcast5, ptrcast6) = kas.drop(11)
+      
       trunc.vb.asUInt(32) shouldBe 0x9abcdef0L
       zext.vb.asUInt(64) shouldBe 0xfedcba98L
       sext.vb.asUInt(64) shouldBe BigInt("fffffffffedcba98", 16)
@@ -679,13 +681,19 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
       ptrcast2.vb.asPointer shouldBe 0x123456789abcdef0L
       ptrcast3.vb.asSInt(64) shouldBe 0x123456789abcdef0L
 
+      ptrcast4.vb.asSInt(64) shouldBe 0xdeadbeef13572468L
+      ptrcast5.vb.asPointer shouldBe 0x55aa55aa5a5a5a5aL
+      ptrcast6.vb.asInt shouldBe 0x13572468L
+
       TrapRebindPassVoid(st)
     }
     val a5 = ca.putInt("@i64", -0x123456789abcdef0L)
 
     testFunc(ca, func, Seq(a0, a5, a2, a3)) { (ca, th, st, wp) =>
-      val Seq(trunc, zext, sext, fptrunc, fpext, fptoui1, fptosi1, fptoui2, fptosi2, uitofp, sitofp,
-        bitcast1, bitcast2, bitcast3, bitcast4, ptrcast1, ptrcast2, ptrcast3) = ca.dumpKeepalives(st, 0)
+      val kas = ca.dumpKeepalives(st, 0)
+
+      val Seq(trunc, zext, sext, fptrunc, fpext, fptoui1, fptosi1, fptoui2, fptosi2, uitofp, sitofp) = kas.take(11)
+      val Seq(bitcast1, bitcast2, bitcast3, bitcast4, ptrcast1, ptrcast2, ptrcast3, ptrcast4, ptrcast5, ptrcast6) = kas.drop(11)
 
       sitofp.vb.asDouble shouldBe (-0x123456789abcdef0L).doubleValue()
 
@@ -1409,7 +1417,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
       e.vb.asSInt(64) shouldEqual 42
       f.vb.asSInt(64) shouldEqual 42
-      
+
       val thr = th.vb.asThread.get
       thr.pinSet should contain(cAddr)
 

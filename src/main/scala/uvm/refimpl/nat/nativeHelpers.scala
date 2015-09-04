@@ -1,22 +1,31 @@
 package uvm.refimpl.nat
 
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import org.slf4j.LoggerFactory
 import com.kenai.jffi.{ Type => JType, Struct => JStruct, Function => JFunction, HeapInvocationBuffer, Invoker }
+import com.typesafe.scalalogging.Logger
 import uvm.FuncSig
 import uvm.refimpl.UvmRefImplException
+import uvm.refimpl.itpr._
 import uvm.refimpl.itpr.ValueBox
+import uvm.refimpl.mem.TypeSizes
 import uvm.refimpl.mem.TypeSizes.Word
 import uvm.types._
 import uvm.types.{ Type => MType }
 import uvm.utils.LazyPool
-import javax.vecmath.Tuple2d
-import uvm.refimpl.itpr._
-import java.nio.ByteBuffer
-import uvm.refimpl.mem.TypeSizes
+import uvm.utils.HexDump
+
+object NativeHelper {
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+}
 
 /**
  * Helps calling native functions. Based on JFFI.
  */
 class NativeHelper {
+  import NativeHelper._
+  
   val jffiTypePool: LazyPool[MType, JType] = LazyPool {
     case TypeVoid()       => JType.VOID
     case TypeInt(8)       => JType.SINT8
@@ -55,12 +64,14 @@ class NativeHelper {
         val fldvbs = vb.asInstanceOf[BoxStruct].values
         for (((fty, fvb), i) <- (flds zip fldvbs).zipWithIndex) {
           val off2 = TypeSizes.fieldOffsetOf(s, i)
-          putArgToBuf(buf, off + off2.toInt, mty, vb)
+          putArgToBuf(buf, off + off2.toInt, fty, fvb)
         }
       }
       case _: AbstractPointerType => buf.putLong(off, vb.asInstanceOf[BoxPointer].addr)
     }
   }
+
+  private val FORCE_ALIGN_UP = 16L
 
   private def putArg(hib: HeapInvocationBuffer, mty: MType, vb: ValueBox): Unit = {
     mty match {
@@ -71,8 +82,10 @@ class NativeHelper {
       case TypeFloat()  => hib.putFloat(vb.asInstanceOf[BoxFloat].value)
       case TypeDouble() => hib.putDouble(vb.asInstanceOf[BoxDouble].value)
       case TypeStruct(flds) => {
-        val buf = ByteBuffer.allocate(TypeSizes.sizeOf(mty).toInt)
+        val buf = ByteBuffer.allocate(TypeSizes.alignUp(TypeSizes.sizeOf(mty), FORCE_ALIGN_UP).intValue())
+        buf.order(ByteOrder.LITTLE_ENDIAN)
         putArgToBuf(buf, 0, mty, vb)
+        logger.debug("Hexdump:\n" + HexDump.dumpByteBuffer(buf))
         hib.putStruct(buf.array(), buf.arrayOffset())
       }
       case _: AbstractPointerType => hib.putAddress(vb.asInstanceOf[BoxPointer].addr)
@@ -91,6 +104,9 @@ class NativeHelper {
     val inv = Invoker.getInstance
 
     sig.retTy match {
+      case TypeVoid() => {
+        inv.invokeLong(jFunc, hib)
+      }
       case TypeInt(8) => {
         val rv = inv.invokeInt(jFunc, hib).toByte
         retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 8)
@@ -117,7 +133,8 @@ class NativeHelper {
       }
       case TypeStruct(flds) => {
         val rv = inv.invokeStruct(jFunc, hib)
-        val buf = ByteBuffer.wrap(rv)
+        val buf = ByteBuffer.wrap(rv).order(ByteOrder.LITTLE_ENDIAN)
+        logger.debug("Hexdump:\n" + HexDump.dumpByteBuffer(buf))
         getArgFromBuf(buf, 0, sig.retTy, retBox)
       }
       case _: AbstractPointerType => {
@@ -139,7 +156,7 @@ class NativeHelper {
         val fldvbs = vb.asInstanceOf[BoxStruct].values
         for (((fty, fvb), i) <- (flds zip fldvbs).zipWithIndex) {
           val off2 = TypeSizes.fieldOffsetOf(s, i)
-          getArgFromBuf(buf, off + off2.toInt, mty, vb)
+          getArgFromBuf(buf, off + off2.toInt, fty, fvb)
         }
       }
       case _: AbstractPointerType => vb.asInstanceOf[BoxPointer].addr = buf.getLong(off)

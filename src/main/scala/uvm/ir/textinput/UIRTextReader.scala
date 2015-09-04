@@ -275,7 +275,10 @@ class UIRTextReader(val idFactory: IDFactory) {
 
     def mkConst(t: Type, c: ConstConstructorContext): Constant = {
       val con = c match {
-        case cc: ConstIntContext    => ConstInt(t, cc.intLiteral)
+        case cc: ConstIntContext => t match {
+          case _: TypeInt             => ConstInt(t, cc.intLiteral)
+          case _: AbstractPointerType => ConstPointer(t, cc.intLiteral().longValue())
+        }
         case cc: ConstFloatContext  => ConstFloat(t, cc.floatLiteral)
         case cc: ConstDoubleContext => ConstDouble(t, cc.doubleLiteral)
         case cc: ConstStructContext => ConstStruct(t, null).later(phase2) {

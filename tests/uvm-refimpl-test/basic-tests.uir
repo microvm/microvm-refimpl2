@@ -332,6 +332,9 @@
         COMMINST @uvm.thread_exit
 }
 
+.const @PTRVOID_DUMMY1 <@ptrvoid> = 0xdeadbeef13572468
+.const @FPI_I_DUMMY2   <@fpi_i>   = 0x55aa55aa5a5a5a5a
+
 .funcsig @conv_sig = @void (@i32 @i64 @float @double)
 .funcdef @conv VERSION @conv_v1 <@conv_sig> (%p0 %p1 %p2 %p3) {
     %entry:
@@ -358,11 +361,16 @@
         %ptrcast2 = PTRCAST <@ptrvoid @fpi_i> %ptrcast1
         %ptrcast3 = PTRCAST <@fpi_i @i64> %ptrcast2
         
+        // Testing constants.
+        %ptrcast4 = PTRCAST <@ptrvoid @i64> @PTRVOID_DUMMY1
+        %ptrcast5 = PTRCAST <@fpi_i @ptrvoid> @FPI_I_DUMMY2
+        %ptrcast6 = PTRCAST <@ptrvoid @i32> @PTRVOID_DUMMY1
+        
         %trap = TRAP <@void> KEEPALIVE (
             %trunc %zext %sext %fptrunc %fpext
             %fptoui1 %fptosi1 %fptoui2 %fptosi2 %uitofp %sitofp
             %bitcast1 %bitcast2 %bitcast3 %bitcast4
-            %ptrcast1 %ptrcast2 %ptrcast3
+            %ptrcast1 %ptrcast2 %ptrcast3 %ptrcast4 %ptrcast5 %ptrcast6
             )
         COMMINST @uvm.thread_exit
 }
