@@ -130,8 +130,37 @@ class FuncSigDef() extends TopLevelDefinition {
 }
 
 /** A constant. ".const" */
-abstract class ConstDef() extends TopLevelDefinition {
+abstract class ConstDef extends TopLevelDefinition {
   @BeanProperty var ty: MuName = _
+}
+
+/** An int constant. */
+class ConstInt() extends ConstDef {
+  @BeanProperty var num: Long = _
+}
+
+/** A float constant. */
+class ConstFloat() extends ConstDef {
+  @BeanProperty var num: Float = _
+}
+
+/** A double constant. */
+class ConstDouble() extends ConstDef {
+  @BeanProperty var num: Double = _
+}
+
+/** A struct constant. */
+class ConstStruct() extends ConstDef {
+  @BeanProperty var fields: List[MuName] = makeList()
+}
+
+/** A NULL constant. */
+class ConstNull() extends ConstDef {
+}
+
+/** A pointer constant. */
+class ConstPointer() extends ConstDef {
+  @BeanProperty var addr: Long = _
 }
 
 /** A global cell definition. ".global" */
