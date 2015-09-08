@@ -33,7 +33,7 @@ class Bundle() {
   @BeanProperty var globalCellDefs: ListType[GlobalCellDef] = makeList()
   @BeanProperty var funcDefs: ListType[FuncDef] = makeList()
   @BeanProperty var funcDecls: ListType[FuncDecl] = makeList()
-  @BeanProperty var expFuncDefs: ListType[FuncExpDef] = makeList()
+  @BeanProperty var funcExpDefs: ListType[FuncExpDef] = makeList()
 }
 
 /**
@@ -426,7 +426,7 @@ class InstGetElemIRef() extends Instruction with MemoryAddressing with WorksWith
 }
 
 /** SHIFTIREF */
-class InstShiftIRefextends() extends Instruction with MemoryAddressing with WorksWithPointer {
+class InstShiftIRef() extends Instruction with MemoryAddressing with WorksWithPointer {
   @BeanProperty var offTy: TypeMuName = _ // T2 in spec
   @BeanProperty var offset: VarMuName = _
 }
@@ -460,7 +460,7 @@ class InstStore() extends Instruction with WorksWithPointer with MemoryAccessing
 }
 
 /** CMPXCHG */
-class InstCmpXchg() extends Instruction with WorksWithPointer with HasExcClause {
+class InstCmpXchg() extends Instruction with WorksWithPointer with MemoryAccessing with HasExcClause {
   @BeanProperty var weak: Boolean = false
   /** The memory order when successful. Must not be null. Cannot be NOT_ATOMIC. */
   @BeanProperty var ordSucc: String = _
@@ -471,7 +471,7 @@ class InstCmpXchg() extends Instruction with WorksWithPointer with HasExcClause 
 }
 
 /** ATOMICRMW */
-class InstAtomicRMW() extends Instruction with WorksWithPointer with HasExcClause {
+class InstAtomicRMW() extends Instruction with WorksWithPointer with MemoryAccessing with HasExcClause {
   @BeanProperty var ord: String = _
   @BeanProperty var op: String = _
   @BeanProperty var opnd: VarMuName = _
@@ -498,7 +498,7 @@ class InstWatchPoint() extends Instruction with HasKeepAlives {
 /** CCALL */
 class InstCCall() extends Instruction with CallLike with HasKeepAlives {
   @BeanProperty var callConv: Flag = _
-  @BeanProperty var funcTy: TypeMuName = _ // T in spec
+  @BeanProperty var calleeTy: TypeMuName = _ // T in spec
 }
 
 /** NEWSTACK */
