@@ -13,7 +13,7 @@ import DefaultTypes._
  * have two different prefixes and one is not a prefix of the other, they are guaranteed to give a unique name
  * each time nextName is called. The "hint" argument provides a human-readable suffix to a name.
  * <p>
- * The global name prefix "@" is assumed. It is not recommended to use local names in generated code, since they
+ * It is not recommended to use local names in generated code, since they
  * strictly aliases of @funcvername.localname.
  * <p>
  * Example:
@@ -25,14 +25,16 @@ import DefaultTypes._
  */
 class NameFactory(prefix: String) {
   private var num = 0
+  
+  def nextName(): MuName = nextName(null)
 
-  def nextName(hint: String = null): MuName = {
+  def nextName(hint: String): MuName = {
     val myNum = num
     num += 1
     if (hint == null) {
-      "@%s_%04d".format(prefix, myNum)
+      "%s_%04d".format(prefix, myNum)
     } else {
-      "@%s_%04d_%s".format(prefix, myNum, hint)
+      "%s_%04d_%s".format(prefix, myNum, hint)
     }
   }
 }
@@ -52,7 +54,12 @@ class FuncDefBuilder(name: MuName, version: MuName, sig: MuName) {
   // Automatic name generation
   private val paramNamer = new NameFactory(version + ".param")
   private val bbNamer = new NameFactory(version + ".bb")
-  private val instNamer = new NameFactory(version + ".inst")
+  @BeanProperty
+  val instNamer = new NameFactory(version + ".inst")
+  
+  // Some convenient functions because the client may frequently request new names.
+  def nextInstName(hint: String): String = instNamer.nextName(hint)
+  def nextInstName(): String = instNamer.nextName()
 
   /**
    * Add a parameter.
@@ -66,14 +73,6 @@ class FuncDefBuilder(name: MuName, version: MuName, sig: MuName) {
     paramName
   }
 
-  /** The entry block. */
-  @BeanProperty
-  val entry = new BasicBlock()
-  entry.name = "entry"
-
-  @BeanProperty
-  var curBB = entry
-
   /**
    * Create a new basic block and add to the funcDef.
    * @param hint: A human-readable suffix of the basic block name, or null if not needed.
@@ -85,6 +84,13 @@ class FuncDefBuilder(name: MuName, version: MuName, sig: MuName) {
     funcDef.bbs.add(bb)
     bb
   }
+
+  /** The entry block. */
+  @BeanProperty
+  val entry = newBB("entry")
+
+  @BeanProperty
+  var curBB = entry
 
   /**
    * Add the instruction into the current basic block.

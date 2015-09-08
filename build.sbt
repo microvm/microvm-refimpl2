@@ -15,7 +15,8 @@ libraryDependencies := Seq(
     "com.github.jnr" % "jnr-ffi" % "2.0.3",
     "com.github.jnr" % "jffi" % "1.2.9",
     "com.github.jnr" % "jnr-posix" % "3.0.17",
-    "org.scalatest" %% "scalatest" % "2.2.0"
+    "org.scalatest" %% "scalatest" % "2.2.0" % "test",
+    "junit" % "junit" % "4.12" % "test"
 )
 	
 antlr4Settings
