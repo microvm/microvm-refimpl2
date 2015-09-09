@@ -3,7 +3,6 @@ package uvm.clientsupport.text
 import scala.beans._
 import java.util._
 import DefaultTypes._
-import uvm.ir.textinput.gen.UIRParser.TopLevelDefContext
 
 /**
  * This object contains common types and helper methods.
@@ -152,6 +151,11 @@ class ConstDouble() extends ConstDef {
 /** A struct constant. */
 class ConstStruct() extends ConstDef {
   @BeanProperty var fields: List[MuName] = makeList()
+}
+
+/** A vector constant. */
+class ConstVector() extends ConstDef {
+  @BeanProperty var elems: List[MuName] = makeList()
 }
 
 /** A NULL constant. */
@@ -379,9 +383,9 @@ trait FixedAlloc {
 /** MixIn for hybrid allocation (NEWHYBRID and ALLOCAHYBRID) */
 trait HybridAlloc {
   /** The type to allocate. */
-  @BeanProperty var allocTy: TypeHybrid = _ // T1 in spec
+  @BeanProperty var allocTy: TypeMuName = _ // T1 in spec
   /** The type of the length argument. Must be int. */
-  @BeanProperty var lenTy: TypeInt = _ // T2 in spec
+  @BeanProperty var lenTy: TypeMuName = _ // T2 in spec
   /** The length. */
   @BeanProperty var length: VarMuName = _
 }
@@ -507,20 +511,20 @@ class InstNewStack() extends Instruction with CallLike with HasExcClause
 abstract class CurStackClause
 /** RET_WITH */
 case class RetWith(
-  @BeanProperty var retTy: TypeMuName /* T1 */) extends CurStackClause
+  @BeanProperty var retTy: TypeMuName /* T1 */ ) extends CurStackClause
 /** KILL_OLD */
 case class KillOld() extends CurStackClause
 
 abstract class NewStackClause
 /** PASS_VALUE */
 case class PassValue(
-  @BeanProperty var argTy: TypeMuName /* T2 */,
+  @BeanProperty var argTy: TypeMuName /* T2 */ ,
   @BeanProperty var arg: VarMuName) extends NewStackClause
 /** PASS_VOID */
 case class PassVoid() extends NewStackClause
 /** THROW_EXC */
 case class ThrowExc(
-    @BeanProperty var exc: VarMuName) extends NewStackClause
+  @BeanProperty var exc: VarMuName) extends NewStackClause
 
 /** SWAPSTACK */
 class InstSwapStack() extends Instruction with HasExcClause with HasKeepAlives {

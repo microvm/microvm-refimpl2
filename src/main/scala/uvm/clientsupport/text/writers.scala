@@ -5,7 +5,7 @@ import scala.collection.JavaConversions._
 object TextIRWriter {
   def bundleToText(bundle: Bundle): String = {
     val sb = new StringBuilder()
-    
+
     for (d <- bundle.typeDefs) sb ++= typeToText(d) ++= "\n"
     for (d <- bundle.funcSigDefs) sb ++= funcSigToText(d) ++= "\n"
     for (d <- bundle.constDefs) sb ++= constToText(d) ++= "\n"
@@ -20,18 +20,13 @@ object TextIRWriter {
   def typeToText(typeDef: TypeDef): String = {
     val name = typeDef.name
     val ctor = typeDef match {
-      case t: TypeInt     => "int<%d>".format(t.len)
-      case t: TypeFloat   => "float"
-      case t: TypeDouble  => "double"
-      case t: TypeRef     => "ref<%s>".format(t.ty)
-      case t: TypeIRef    => "iref<%s>".format(t.ty)
-      case t: TypeWeakRef => "weakref<%s>".format(t.ty)
-      case t: TypeStruct => {
-        val sb = new StringBuilder("struct<")
-        for (ty <- t.fieldTy) sb ++= " " ++= ty
-        sb ++= " >"
-        sb.toString
-      }
+      case t: TypeInt      => "int<%d>".format(t.len)
+      case t: TypeFloat    => "float"
+      case t: TypeDouble   => "double"
+      case t: TypeRef      => "ref<%s>".format(t.ty)
+      case t: TypeIRef     => "iref<%s>".format(t.ty)
+      case t: TypeWeakRef  => "weakref<%s>".format(t.ty)
+      case t: TypeStruct   => "struct<%s>".format(t.fieldTy.mkString(" "))
       case t: TypeArray    => "array<%s %d>".format(t.elemTy, t.len)
       case t: TypeHybrid   => "hybrid<%s %s>".format(t.fixedTy, t.varTy)
       case t: TypeVoid     => "void"
@@ -47,27 +42,19 @@ object TextIRWriter {
   }
 
   def funcSigToText(funcSigDef: FuncSigDef): String = {
-    val paramTys = {
-      val sb = new StringBuilder(" ")
-      for (ty <- funcSigDef.paramTy) sb ++= ty ++= " "
-      sb.toString
-    }
-    ".funcsig %s = %s (%s)".format(funcSigDef.name, funcSigDef.retTy, funcSigDef.paramTy)
+    val paramTys = funcSigDef.paramTy.mkString(" ")
+    ".funcsig %s = %s (%s)".format(funcSigDef.name, funcSigDef.retTy, paramTys)
   }
 
   def constToText(constDef: ConstDef): String = {
     val name = constDef.name
     val ty = constDef.ty
     val ctor: String = constDef match {
-      case c: ConstInt    => c.num.toString
-      case c: ConstFloat  => "bitsf(0x%x)".format(java.lang.Float.floatToRawIntBits(c.num))
-      case c: ConstDouble => "bitsd(0x%x)".format(java.lang.Double.doubleToRawLongBits(c.num))
-      case c: ConstStruct => {
-        val sb = new StringBuilder("{ ")
-        for (f <- c.fields) sb ++= f ++= " "
-        sb ++= "}"
-        sb.toString
-      }
+      case c: ConstInt     => c.num.toString
+      case c: ConstFloat   => "bitsf(0x%x)".format(java.lang.Float.floatToRawIntBits(c.num))
+      case c: ConstDouble  => "bitsd(0x%x)".format(java.lang.Double.doubleToRawLongBits(c.num))
+      case c: ConstStruct  => "{%s}".format(c.fields.mkString(" "))
+      case c: ConstVector  => "VEC{%s}".format(c.elems.mkString(" "))
       case c: ConstNull    => "NULL"
       case c: ConstPointer => c.addr.toString
     }
@@ -109,8 +96,8 @@ object TextIRWriter {
       case i: InstBinOp   => "%s <%s> %s %s %s".format(i.op, i.opndTy, i.op1, i.op2, maybeExcClause(i))
       case i: InstCmp     => "%s <%s> %s %s".format(i.op, i.opndTy, i.op1, i.op2)
       case i: InstConv    => "%s <%s %s> %s".format(i.op, i.fromTy, i.toTy, i.opnd)
-      case i: InstSelect  => "SELECT <%s %s> %s %s".format(i.condTy, i.opndTy, i.cond, i.ifTrue, i.ifFalse)
-      case i: InstBranch  => "BRAHCN %s".format(i.dest)
+      case i: InstSelect  => "SELECT <%s %s> %s %s %s".format(i.condTy, i.opndTy, i.cond, i.ifTrue, i.ifFalse)
+      case i: InstBranch  => "BRANCH %s".format(i.dest)
       case i: InstBranch2 => "BRANCH2 %s %s %s".format(i.cond, i.ifTrue, i.ifFalse)
       case i: InstSwitch => {
         val sHead = "SWITCH <%s> %s %s {\n".format(i.opndTy, i.opnd, i.defDest)
@@ -143,13 +130,13 @@ object TextIRWriter {
       case i: InstThrow            => "THROW %s".format(i.excVal)
       case i: InstLandingPad       => "LANDINGPAD"
       case i: InstExtractValue     => "EXTRACTVALUE <%s %d> %s".format(i.strTy, i.index, i.opnd)
-      case i: InstInsertValue      => "INSERT <%s %d> %s %s".format(i.strTy, i.index, i.opnd, i.newVal)
+      case i: InstInsertValue      => "INSERTVALUE <%s %d> %s %s".format(i.strTy, i.index, i.opnd, i.newVal)
       case i: InstExtractElement   => "EXTRACTELEMENT <%s %s> %s %s".format(i.vecTy, i.indTy, i.opnd, i.index)
       case i: InstInsertElement    => "INSERTELEMENT <%s %s> %s %s %s".format(i.vecTy, i.indTy, i.opnd, i.index, i.newVal)
       case i: InstShuffleVector    => "SHUFFLEVECTOR <%s %s> %s %s %s".format(i.vecTy, i.maskTy, i.vec1, i.vec2, i.mask)
       case i: InstNew              => "NEW <%s> %s".format(i.allocTy, maybeExcClause(i))
       case i: InstNewHybrid        => "NEWHYBRID <%s %s> %s %s".format(i.allocTy, i.lenTy, i.length, maybeExcClause(i))
-      case i: InstAlloca           => "ALLOCA<%s> %s".format(i.allocTy, maybeExcClause(i))
+      case i: InstAlloca           => "ALLOCA <%s> %s".format(i.allocTy, maybeExcClause(i))
       case i: InstAllocaHybrid     => "ALLOCAHYBRID <%s %s> %s %s".format(i.allocTy, i.lenTy, i.length, maybeExcClause(i))
       case i: InstGetIRef          => "GETIREF <%s> %s".format(i.referentTy, i.opnd)
       case i: InstGetFieldIRef     => "GETFIELDIREF %s <%s %d> %s".format(maybePtr(i), i.referentTy, i.index, i.opnd)
@@ -169,7 +156,7 @@ object TextIRWriter {
       case i: InstCCall => {
         val argList = i.argList.mkString(" ")
         val ka = maybeKeepAlives(i)
-        "CCALL %s <%s %s> %s %s %s".format(i.callConv, i.calleeTy, i.sig, i.callee, argList, ka)
+        "CCALL %s <%s %s> %s (%s) %s".format(i.callConv, i.calleeTy, i.sig, i.callee, argList, ka)
       }
       case i: InstNewStack => {
         val argList = i.argList.mkString(" ")
@@ -178,11 +165,11 @@ object TextIRWriter {
       }
       case i: InstSwapStack => {
         val curStackClause = i.curStackClause match {
-          case RetWith(t) => "RET_WITH(%s)".format(t)
+          case RetWith(t) => "RET_WITH (%s)".format(t)
           case KillOld()  => "KILL_OLD"
         }
         val newStackClause = i.newStackClause match {
-          case PassValue(t, v) => "PASS_VALUE(%s %s)".format(t, v)
+          case PassValue(t, v) => "PASS_VALUE <%s> %s".format(t, v)
           case PassVoid()      => "PASS_VOID"
           case ThrowExc(e)     => "THROW_EXC(%s)".format(e)
         }
