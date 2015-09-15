@@ -11,21 +11,25 @@ import uvm.refimpl.itpr._
 import uvm.refimpl.itpr.ValueBox
 import uvm.refimpl.mem.TypeSizes
 import uvm.refimpl.mem.TypeSizes.Word
+import uvm.{Function => MFunc}
 import uvm.types._
 import uvm.types.{ Type => MType }
 import uvm.utils.LazyPool
 import uvm.utils.HexDump
+import scala.collection.mutable.HashMap
+import com.kenai.jffi.Closure
 
-object NativeHelper {
+object NativeCallHelper {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
 /**
- * Helps calling native functions. Based on JFFI.
+ * Helps calling native functions and supports callbacks from native. Based on JFFI.
  */
-class NativeHelper {
-  import NativeHelper._
+class NativeCallHelper {
+  import NativeCallHelper._
   
+  /** A mapping of Mu types to JFFI types. Cached for struct types. */
   val jffiTypePool: LazyPool[MType, JType] = LazyPool {
     case TypeVoid()       => JType.VOID
     case TypeInt(8)       => JType.SINT8
@@ -44,6 +48,7 @@ class NativeHelper {
     case t                      => throw new UvmRefImplException("Type %s cannot be used in native calls.".format(t.repr))
   }
 
+  /** A mapping from referenced C functions (signature, function pointer) to JFFI functions. Cached. */
   val jffiFuncPool = LazyPool[(FuncSig, Word), JFunction] {
     case (sig, funcAddr) => {
       val jParamTypes = sig.paramTy.map(jffiTypePool.apply)
@@ -51,7 +56,26 @@ class NativeHelper {
       new JFunction(funcAddr, jRetTy, jParamTypes: _*)
     }
   }
-
+  
+  /**
+   * A dynamically-exposed Mu function. A Mu function may be exposed many times. Each DynExpFunc corresponds to one
+   * such callable instance.
+   * <p>
+   * A ".expose" definition will permanently create an instance.
+   * <p>
+   * The "@uvm.native.expose" instruction will also create one such instance. Such instances can be removed later by
+   * "@uvm.native.unexpose". The equivalent API calls do the same.   
+   */
+  class DynExpFunc(val muFunc: MFunc, val closureHandle: Closure.Handle) {
+    val addr = closureHandle.getAddress()
+  }
+  
+  val exposedFuncs = new HashMap[Word, DynExpFunc]()
+  
+  def exposeFunc(muFunc: MFunc, cookie: Word): Word = {
+    ???
+  }
+  
   private def putArgToBuf(buf: ByteBuffer, off: Int, mty: MType, vb: ValueBox): Unit = {
     mty match {
       case TypeInt(8)   => buf.put(off, vb.asInstanceOf[BoxInt].value.toByte)
@@ -82,6 +106,7 @@ class NativeHelper {
       case TypeFloat()  => hib.putFloat(vb.asInstanceOf[BoxFloat].value)
       case TypeDouble() => hib.putDouble(vb.asInstanceOf[BoxDouble].value)
       case TypeStruct(flds) => {
+        // Always allocate more space so that C may access the word that contains the byte instead of just the byte.
         val buf = ByteBuffer.allocate(TypeSizes.alignUp(TypeSizes.sizeOf(mty), FORCE_ALIGN_UP).intValue())
         buf.order(ByteOrder.LITTLE_ENDIAN)
         putArgToBuf(buf, 0, mty, vb)
@@ -92,6 +117,26 @@ class NativeHelper {
     }
   }
 
+  private def getArgFromBuf(buf: ByteBuffer, off: Int, mty: MType, vb: ValueBox): Unit = {
+    mty match {
+      case TypeInt(8)   => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(buf.get(off), 8)
+      case TypeInt(16)  => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(buf.getShort(off), 16)
+      case TypeInt(32)  => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(buf.getInt(off), 32)
+      case TypeInt(64)  => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(buf.getLong(off), 64)
+      case TypeFloat()  => vb.asInstanceOf[BoxFloat].value = buf.getFloat(off)
+      case TypeDouble() => vb.asInstanceOf[BoxDouble].value = buf.getDouble(off)
+      case s @ TypeStruct(flds) => {
+        val fldvbs = vb.asInstanceOf[BoxStruct].values
+        for (((fty, fvb), i) <- (flds zip fldvbs).zipWithIndex) {
+          val off2 = TypeSizes.fieldOffsetOf(s, i)
+          getArgFromBuf(buf, off + off2.toInt, fty, fvb)
+        }
+      }
+      case _: AbstractPointerType => vb.asInstanceOf[BoxPointer].addr = buf.getLong(off)
+    }
+  }
+  
+  /** Call a native (C) function. */
   def callNative(sig: FuncSig, func: Word, args: Seq[ValueBox], retBox: ValueBox): Unit = {
     val jFunc = jffiFuncPool((sig, func))
 
@@ -144,22 +189,4 @@ class NativeHelper {
     }
   }
 
-  private def getArgFromBuf(buf: ByteBuffer, off: Int, mty: MType, vb: ValueBox): Unit = {
-    mty match {
-      case TypeInt(8)   => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(buf.get(off), 8)
-      case TypeInt(16)  => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(buf.getShort(off), 16)
-      case TypeInt(32)  => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(buf.getInt(off), 32)
-      case TypeInt(64)  => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(buf.getLong(off), 64)
-      case TypeFloat()  => vb.asInstanceOf[BoxFloat].value = buf.getFloat(off)
-      case TypeDouble() => vb.asInstanceOf[BoxDouble].value = buf.getDouble(off)
-      case s @ TypeStruct(flds) => {
-        val fldvbs = vb.asInstanceOf[BoxStruct].values
-        for (((fty, fvb), i) <- (flds zip fldvbs).zipWithIndex) {
-          val off2 = TypeSizes.fieldOffsetOf(s, i)
-          getArgFromBuf(buf, off + off2.toInt, fty, fvb)
-        }
-      }
-      case _: AbstractPointerType => vb.asInstanceOf[BoxPointer].addr = buf.getLong(off)
-    }
-  }
 }

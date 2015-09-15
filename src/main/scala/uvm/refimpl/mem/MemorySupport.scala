@@ -6,11 +6,15 @@ import uvm.ssavariables.AtomicRMWOptr._
 import jnr.ffi.{ Runtime, Memory, Pointer }
 import uvm.refimpl.UvmRuntimeException
 import uvm.refimpl.UvmIllegalMemoryAccessException
+import uvm.refimpl.nat.NativeSupport
 
 /**
  * Support for native memory access. Backed by JNR-FFI.
  */
 class MemorySupport(val muMemorySize: Word) {
+  val jnrRuntime = NativeSupport.jnrRuntime
+  val theMemory = NativeSupport.theMemory
+
   val SIZE_LIMIT: Word = Int.MaxValue.toLong
 
   if (muMemorySize > SIZE_LIMIT) {
@@ -18,12 +22,9 @@ class MemorySupport(val muMemorySize: Word) {
       " Due to the limitation of JNR-FFI, the maximum available memory size is %d bytes.".format(muMemorySize, SIZE_LIMIT))
   }
 
-  val jnrRuntime = Runtime.getSystemRuntime
   val muMemory = Memory.allocateDirect(jnrRuntime, muMemorySize.toInt, true)
   val muMemoryBegin = muMemory.address()
   val muMemoryEnd = muMemoryBegin + muMemorySize
-
-  val theMemory = Pointer.wrap(jnrRuntime, 0L)
 
   def isInMuMemory(addr: Word): Boolean = muMemoryBegin <= addr && addr < muMemoryEnd
 
