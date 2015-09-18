@@ -79,4 +79,11 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
    * Given an ID, get the name of an identified entity.
    */
   def nameOf(id: Int): String = globalBundle.allNs(id).name.get
+  
+  /**
+   * Execute. This is the external pusher of the execution.
+   */
+  def execute(): Unit = {
+    threadStackManager.execute()
+  }
 }

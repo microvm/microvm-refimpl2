@@ -68,7 +68,7 @@ abstract class UvmBundleTesterBase extends FlatSpec with Matchers {
     microVM.trapManager.trapHandler = new MockTrapHandler(handler)
     val hStack = ca.newStack(func, args)
     val hThread = ca.newThread(hStack)
-    microVM.threadStackManager.joinAll()
+    microVM.execute()
   }
 
   implicit class MagicalBox(vb: ValueBox) {

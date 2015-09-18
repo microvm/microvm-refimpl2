@@ -12,6 +12,10 @@ object ThreadStackManager {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
+/**
+ * The manager of all Mu threads and stacks. Also responsible for the actual execution of Mu IR code, i.e. as the "boss"
+ * of all InterpreterThread instances.
+ */
 class ThreadStackManager(implicit microVM: MicroVM) {
   import ThreadStackManager._
 
@@ -22,7 +26,7 @@ class ThreadStackManager(implicit microVM: MicroVM) {
   def getStackByID(id: Int): Option[InterpreterStack] = stackRegistry.get(id)
 
   def getThreadByID(id: Int): Option[InterpreterThread] = threadRegistry.get(id)
-  
+
   def iterateAllLiveStacks: Iterable[InterpreterStack] = stackRegistry.values.filter(_.state != StackState.Dead)
 
   def iterateAllLiveThreads: Iterable[InterpreterThread] = threadRegistry.values.filter(_.isRunning)
@@ -36,6 +40,11 @@ class ThreadStackManager(implicit microVM: MicroVM) {
   private def makeThreadID(): Int = { val id = nextThreadID; nextThreadID += 1; id }
 
   val futexManager = new FutexManager
+
+  /**
+   * The current Mu thread that is calling a native function via CCALL.
+   */
+  var threadCallingNative: Option[InterpreterThread] = None
 
   /**
    * Create a new stack with function and args as the stack-bottom function and its arguments.
@@ -64,60 +73,62 @@ class ThreadStackManager(implicit microVM: MicroVM) {
     thr
   }
 
-  def joinAll() {
+  /**
+   * Execute one instruction in each currently executable thread.
+   */
+  def roundRobin(): Boolean = {
+
     var someRunning: Boolean = false
     var someWaiting: Boolean = false
+    futexManager.futexWakeTimeout()
 
-    var continue: Boolean = false
-
-    do {
-      futexManager.futexWakeTimeout()
-
-      someRunning = false
-      someWaiting = false
-      val curThreads = threadRegistry.values.toList
-      for (thr2 <- curThreads) {
-        if (thr2.isRunning)
-          if (thr2.isFutexWaiting) {
-            someWaiting = thr2.isFutexWaiting || someWaiting
-          } else {
-            thr2.step()
-            someRunning = thr2.isRunning || someRunning
-          }
-      }
-
-      continue = if (someRunning) {
-        true
-      } else {
-        if (someWaiting) {
-          futexManager.nextWakeup match {
-            case Some(nextWakeup) => {
-              val now = System.currentTimeMillis() * 1000000L
-              val sleep = nextWakeup - now
-              val sleepMillis = sleep / 1000000L
-              val sleepNanos = sleep % 1000000L
-              logger.debug("Waiting for futex. Now: %d, next wake up: %d, sleep: %d".format(now, nextWakeup, sleep))
-              Thread.sleep(sleepMillis, sleepNanos.toInt)
-              true
-            }
-            case None => {
-              logger.error("No threads are running. No threads are waiting for futex with timer. This is a deadlock situation.")
-              false
-            }
-          }
+    someRunning = false
+    someWaiting = false
+    val curThreads = threadRegistry.values.toList
+    for (thr2 <- curThreads) {
+      if (thr2.isRunning)
+        if (thr2.isFutexWaiting) {
+          someWaiting = thr2.isFutexWaiting || someWaiting
         } else {
-          false
+          thr2.step()
+          someRunning = thr2.isRunning || someRunning
         }
-      }
-    } while (continue)
-  }
+    }
 
-  def joinThread(thr: InterpreterThread) {
-    while (thr.isRunning) {
-      val curThreads = threadRegistry.values.toList
-      for (thr2 <- curThreads) {
-        thr2.step()
+    val shouldContinue = if (someRunning) {
+      true
+    } else {
+      if (someWaiting) {
+        futexManager.nextWakeup match {
+          case Some(nextWakeup) => {
+            val now = System.currentTimeMillis() * 1000000L
+            val sleep = nextWakeup - now
+            val sleepMillis = sleep / 1000000L
+            val sleepNanos = sleep % 1000000L
+            logger.debug("Waiting for futex. Now: %d, next wake up: %d, sleep: %d".format(now, nextWakeup, sleep))
+            Thread.sleep(sleepMillis, sleepNanos.toInt)
+            true
+          }
+          case None => {
+            logger.error("No threads are running. No threads are waiting for futex with timer. This is a deadlock situation.")
+            false
+          }
+        }
+      } else {
+        false
       }
     }
+    shouldContinue
+  }
+
+  /**
+   * Execute until all threads stopped.
+   */
+  def execute() {
+    var shouldContinue: Boolean = false
+
+    do {
+      shouldContinue = roundRobin()
+    } while (shouldContinue)
   }
 }

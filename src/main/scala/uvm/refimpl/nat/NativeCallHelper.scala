@@ -11,13 +11,17 @@ import uvm.refimpl.itpr._
 import uvm.refimpl.itpr.ValueBox
 import uvm.refimpl.mem.TypeSizes
 import uvm.refimpl.mem.TypeSizes.Word
-import uvm.{Function => MFunc}
+import uvm.{ Function => MFunc }
 import uvm.types._
 import uvm.types.{ Type => MType }
 import uvm.utils.LazyPool
 import uvm.utils.HexDump
 import scala.collection.mutable.HashMap
 import com.kenai.jffi.Closure
+import com.kenai.jffi.ClosureManager
+import com.kenai.jffi.CallingConvention
+import uvm.refimpl.UvmRuntimeException
+import uvm.refimpl.MicroVM
 
 object NativeCallHelper {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
@@ -26,9 +30,9 @@ object NativeCallHelper {
 /**
  * Helps calling native functions and supports callbacks from native. Based on JFFI.
  */
-class NativeCallHelper {
+class NativeCallHelper(implicit microVM: MicroVM) {
   import NativeCallHelper._
-  
+
   /** A mapping of Mu types to JFFI types. Cached for struct types. */
   val jffiTypePool: LazyPool[MType, JType] = LazyPool {
     case TypeVoid()       => JType.VOID
@@ -56,7 +60,7 @@ class NativeCallHelper {
       new JFunction(funcAddr, jRetTy, jParamTypes: _*)
     }
   }
-  
+
   /**
    * A dynamically-exposed Mu function. A Mu function may be exposed many times. Each DynExpFunc corresponds to one
    * such callable instance.
@@ -64,18 +68,68 @@ class NativeCallHelper {
    * A ".expose" definition will permanently create an instance.
    * <p>
    * The "@uvm.native.expose" instruction will also create one such instance. Such instances can be removed later by
-   * "@uvm.native.unexpose". The equivalent API calls do the same.   
+   * "@uvm.native.unexpose". The equivalent API calls do the same.
    */
-  class DynExpFunc(val muFunc: MFunc, val closureHandle: Closure.Handle) {
-    val addr = closureHandle.getAddress()
-  }
-  
+  class DynExpFunc(val muFunc: MFunc, val cookie: Long, val closure: MuCallbackClosure, val closureHandle: Closure.Handle)
+
+  /**
+   * Map each address of closure handle to the DynExpFunc record so that the closure handle can be disposed.
+   */
   val exposedFuncs = new HashMap[Word, DynExpFunc]()
-  
-  def exposeFunc(muFunc: MFunc, cookie: Word): Word = {
-    ???
+
+  /** Call a native (C) function. */
+  def callNative(sig: FuncSig, func: Word, args: Seq[ValueBox], retBox: ValueBox): Unit = {
+    val jFunc = jffiFuncPool((sig, func))
+
+    val hib = new HeapInvocationBuffer(jFunc)
+
+    for ((mty, vb) <- (sig.paramTy zip args)) {
+      putArg(hib, mty, vb)
+    }
+
+    val inv = Invoker.getInstance
+
+    sig.retTy match {
+      case TypeVoid() => {
+        inv.invokeLong(jFunc, hib)
+      }
+      case TypeInt(8) => {
+        val rv = inv.invokeInt(jFunc, hib).toByte
+        retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 8)
+      }
+      case TypeInt(16) => {
+        val rv = inv.invokeInt(jFunc, hib).toShort
+        retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 16)
+      }
+      case TypeInt(32) => {
+        val rv = inv.invokeInt(jFunc, hib)
+        retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 32)
+      }
+      case TypeInt(64) => {
+        val rv = inv.invokeLong(jFunc, hib)
+        retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 64)
+      }
+      case TypeFloat() => {
+        val rv = inv.invokeFloat(jFunc, hib)
+        retBox.asInstanceOf[BoxFloat].value = rv
+      }
+      case TypeDouble() => {
+        val rv = inv.invokeDouble(jFunc, hib)
+        retBox.asInstanceOf[BoxDouble].value = rv
+      }
+      case TypeStruct(flds) => {
+        val rv = inv.invokeStruct(jFunc, hib)
+        val buf = ByteBuffer.wrap(rv).order(ByteOrder.LITTLE_ENDIAN)
+        logger.debug("Hexdump:\n" + HexDump.dumpByteBuffer(buf))
+        getArgFromBuf(buf, 0, sig.retTy, retBox)
+      }
+      case _: AbstractPointerType => {
+        val rv = inv.invokeAddress(jFunc, hib)
+        retBox.asInstanceOf[BoxPointer].addr = rv
+      }
+    }
   }
-  
+
   private def putArgToBuf(buf: ByteBuffer, off: Int, mty: MType, vb: ValueBox): Unit = {
     mty match {
       case TypeInt(8)   => buf.put(off, vb.asInstanceOf[BoxInt].value.toByte)
@@ -135,58 +189,40 @@ class NativeCallHelper {
       case _: AbstractPointerType => vb.asInstanceOf[BoxPointer].addr = buf.getLong(off)
     }
   }
+
+  /**
+   * Expose a Mu function.
+   * 
+   * @return the address of the exposed function (i.e. of the closure handle)
+   */
+  def exposeFunc(muFunc: MFunc, cookie: Long): Word = {
+    val sig = muFunc.sig
+    val jParamTypes = sig.paramTy.map(jffiTypePool.apply)
+    val jRetTy = jffiTypePool(sig.retTy)
+    
+    val clos = new MuCallbackClosure(muFunc, cookie)
+    val handle = NativeSupport.cloaureManager.newClosure(clos, jRetTy, jParamTypes.toArray, CallingConvention.DEFAULT)
+    val addr = handle.getAddress
+    
+    val dynExpFunc = new DynExpFunc(muFunc, cookie, clos, handle)
+    
+    exposedFuncs(addr) = dynExpFunc
+    
+    addr
+  }
   
-  /** Call a native (C) function. */
-  def callNative(sig: FuncSig, func: Word, args: Seq[ValueBox], retBox: ValueBox): Unit = {
-    val jFunc = jffiFuncPool((sig, func))
-
-    val hib = new HeapInvocationBuffer(jFunc)
-
-    for ((mty, vb) <- (sig.paramTy zip args)) {
-      putArg(hib, mty, vb)
+  def unexposeFunc(addr: Word): Unit = {
+    val dynExpFunc = exposedFuncs.remove(addr).getOrElse {
+      throw new UvmRuntimeException("Attempt to unexpose function %d (0x%x) which has not been exposed.".format(addr, addr))
     }
-
-    val inv = Invoker.getInstance
-
-    sig.retTy match {
-      case TypeVoid() => {
-        inv.invokeLong(jFunc, hib)
-      }
-      case TypeInt(8) => {
-        val rv = inv.invokeInt(jFunc, hib).toByte
-        retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 8)
-      }
-      case TypeInt(16) => {
-        val rv = inv.invokeInt(jFunc, hib).toShort
-        retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 16)
-      }
-      case TypeInt(32) => {
-        val rv = inv.invokeInt(jFunc, hib)
-        retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 32)
-      }
-      case TypeInt(64) => {
-        val rv = inv.invokeLong(jFunc, hib)
-        retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 64)
-      }
-      case TypeFloat() => {
-        val rv = inv.invokeFloat(jFunc, hib)
-        retBox.asInstanceOf[BoxFloat].value = rv
-      }
-      case TypeDouble() => {
-        val rv = inv.invokeDouble(jFunc, hib)
-        retBox.asInstanceOf[BoxDouble].value = rv
-      }
-      case TypeStruct(flds) => {
-        val rv = inv.invokeStruct(jFunc, hib)
-        val buf = ByteBuffer.wrap(rv).order(ByteOrder.LITTLE_ENDIAN)
-        logger.debug("Hexdump:\n" + HexDump.dumpByteBuffer(buf))
-        getArgFromBuf(buf, 0, sig.retTy, retBox)
-      }
-      case _: AbstractPointerType => {
-        val rv = inv.invokeAddress(jFunc, hib)
-        retBox.asInstanceOf[BoxPointer].addr = rv
-      }
+    
+    dynExpFunc.closureHandle.dispose() 
+  }
+  
+  /** Handles calling back from C */
+  class MuCallbackClosure(val muFunc: MFunc, val cookie: Long) extends Closure {
+    def invoke(buf: Closure.Buffer): Unit = {
+      ???
     }
   }
-
 }

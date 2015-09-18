@@ -36,7 +36,7 @@ object FactorialFromRPython extends App {
   val sta = ca.newStack(m, Seq())
   val thr = ca.newThread(sta)
 
-  microVM.threadStackManager.joinAll() // run until all threads stop
+  microVM.execute() // run until all threads stop
 
   ca.close()
 }

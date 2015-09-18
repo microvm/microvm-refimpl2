@@ -780,6 +780,8 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
         val argBoxes = argList.map(boxOf)
         val retBox = boxOf(i)
         
+        microVM.threadStackManager.threadCallingNative = Some(this)
+        
         microVM.nativeCallHelper.callNative(sig, addr, argBoxes, retBox)
         
         continueNormally()
