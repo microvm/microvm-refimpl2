@@ -77,10 +77,12 @@ class NativeCallHelper(implicit microVM: MicroVM) {
    */
   val exposedFuncs = new HashMap[Word, DynExpFunc]()
 
-  /** Call a native (C) function. */
-  def callNative(sig: FuncSig, func: Word, args: Seq[ValueBox], retBox: ValueBox): Unit = {
+  /**
+   * Call a native function. Must be called by a NativeStackKeeper.Slave thread.
+   */
+  def callNative(nsk: NativeStackKeeper, sig: FuncSig, func: Word, args: Seq[ValueBox], retBox: ValueBox): Unit = {
     val jFunc = jffiFuncPool((sig, func))
-
+    
     val hib = new HeapInvocationBuffer(jFunc)
 
     for ((mty, vb) <- (sig.paramTy zip args)) {
