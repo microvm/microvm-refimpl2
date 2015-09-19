@@ -30,7 +30,7 @@ object NativeCallHelper {
 /**
  * Helps calling native functions and supports callbacks from native. Based on JFFI.
  */
-class NativeCallHelper(implicit microVM: MicroVM) {
+class NativeCallHelper {
   import NativeCallHelper._
 
   /** A mapping of Mu types to JFFI types. Cached for struct types. */
@@ -76,6 +76,17 @@ class NativeCallHelper(implicit microVM: MicroVM) {
    * Map each address of closure handle to the DynExpFunc record so that the closure handle can be disposed.
    */
   val exposedFuncs = new HashMap[Word, DynExpFunc]()
+  
+  /**
+   * The current NativeStackKeeper instance that makes the native call.
+   * <p>
+   * It is set just before entering native, by calling a native function, or returning to a native function which called
+   * back to Mu.
+   * <p>
+   * It is cleared after returning to JVM, either when returning from a native function, or when the native calls back
+   * to Mu (to JVM).
+   */
+  val currentNativeStackKeeper = new ThreadLocal[NativeStackKeeper]()
 
   /**
    * Call a native function. Must be called by a NativeStackKeeper.Slave thread.
@@ -88,6 +99,8 @@ class NativeCallHelper(implicit microVM: MicroVM) {
     for ((mty, vb) <- (sig.paramTy zip args)) {
       putArg(hib, mty, vb)
     }
+    
+    currentNativeStackKeeper.set(nsk)
 
     val inv = Invoker.getInstance
 

@@ -2,13 +2,11 @@ package uvm.refimpl.nat
 
 import org.scalatest.FlatSpec
 import org.scalatest.Matchers
-
 import com.kenai.jffi.CallingConvention
 import com.kenai.jffi.Closure
 import com.kenai.jffi.Closure.Buffer
 import com.kenai.jffi.ClosureManager
 import com.kenai.jffi.{ Type => JType }
-
 import uvm.FuncSig
 import uvm.refimpl.itpr.BoxDouble
 import uvm.refimpl.itpr.BoxInt
@@ -16,14 +14,15 @@ import uvm.refimpl.itpr.BoxPointer
 import uvm.types.TypeDouble
 import uvm.types.TypeFuncPtr
 import uvm.types.TypeInt
+import uvm.refimpl.MicroVM
 
 class NativeStackKeeperTest extends FlatSpec with Matchers {
   behavior of "NativeStackKeeper"
 
-  implicit val nh = new NativeHelper()
-
   val lib = NativeLibraryTestHelper.loadTestLibrary("callbacktest")
 
+  implicit val nch = new NativeCallHelper()
+  
   def autoClose[T](nsk: NativeStackKeeper)(f: => T) = {
     try {
       f
@@ -62,6 +61,8 @@ class NativeStackKeeperTest extends FlatSpec with Matchers {
 
   it should "handle one-level callback" in {
     val addr = lib.getSymbolAddress("one_level")
+    
+    addr should not be 0
 
     val nsk = new NativeStackKeeper()
 
@@ -83,13 +84,17 @@ class NativeStackKeeperTest extends FlatSpec with Matchers {
       
       val closHandle = ClosureManager.getInstance.newClosure(clos, JType.DOUBLE, Array(JType.DOUBLE, JType.POINTER), CallingConvention.DEFAULT)
 
+      closHandle.getAddress should not be 0
+      
       val b1 = BoxDouble(3.0)
-      val b2 = BoxPointer(0)
-      val br = BoxInt(-1)
+      val b2 = BoxPointer(closHandle.getAddress)
+      val br = BoxDouble(-1.0)
 
       nsk.callNative(sig, addr, Seq(b1, b2), br)
 
-      br.value shouldBe 7
+      closHandle.dispose()
+      
+      br.value shouldBe 25.0
     }
   }
 }
