@@ -76,7 +76,7 @@ class NativeCallHelper {
    * Map each address of closure handle to the DynExpFunc record so that the closure handle can be disposed.
    */
   val exposedFuncs = new HashMap[Word, DynExpFunc]()
-  
+
   /**
    * The current NativeStackKeeper instance that makes the native call.
    * <p>
@@ -93,14 +93,15 @@ class NativeCallHelper {
    */
   def callNative(nsk: NativeStackKeeper, sig: FuncSig, func: Word, args: Seq[ValueBox], retBox: ValueBox): Unit = {
     val jFunc = jffiFuncPool((sig, func))
-    
+
     val hib = new HeapInvocationBuffer(jFunc)
 
     for ((mty, vb) <- (sig.paramTy zip args)) {
       putArg(hib, mty, vb)
     }
-    
+
     currentNativeStackKeeper.set(nsk)
+    assert(currentNativeStackKeeper.get() == nsk)
 
     val inv = Invoker.getInstance
 
@@ -143,6 +144,7 @@ class NativeCallHelper {
         retBox.asInstanceOf[BoxPointer].addr = rv
       }
     }
+    currentNativeStackKeeper.remove()
   }
 
   private def putArgToBuf(buf: ByteBuffer, off: Int, mty: MType, vb: ValueBox): Unit = {
@@ -207,37 +209,109 @@ class NativeCallHelper {
 
   /**
    * Expose a Mu function.
-   * 
+   *
    * @return the address of the exposed function (i.e. of the closure handle)
    */
   def exposeFunc(muFunc: MFunc, cookie: Long): Word = {
     val sig = muFunc.sig
     val jParamTypes = sig.paramTy.map(jffiTypePool.apply)
     val jRetTy = jffiTypePool(sig.retTy)
-    
+
     val clos = new MuCallbackClosure(muFunc, cookie)
-    val handle = NativeSupport.cloaureManager.newClosure(clos, jRetTy, jParamTypes.toArray, CallingConvention.DEFAULT)
+    val handle = NativeSupport.closureManager.newClosure(clos, jRetTy, jParamTypes.toArray, CallingConvention.DEFAULT)
     val addr = handle.getAddress
-    
+
     val dynExpFunc = new DynExpFunc(muFunc, cookie, clos, handle)
-    
+
     exposedFuncs(addr) = dynExpFunc
-    
+
     addr
   }
-  
+
   def unexposeFunc(addr: Word): Unit = {
     val dynExpFunc = exposedFuncs.remove(addr).getOrElse {
       throw new UvmRuntimeException("Attempt to unexpose function %d (0x%x) which has not been exposed.".format(addr, addr))
     }
-    
-    dynExpFunc.closureHandle.dispose() 
+
+    dynExpFunc.closureHandle.dispose()
   }
-  
+
   /** Handles calling back from C */
   class MuCallbackClosure(val muFunc: MFunc, val cookie: Long) extends Closure {
     def invoke(buf: Closure.Buffer): Unit = {
-      ???
+      val nsk = currentNativeStackKeeper.get()
+      logger.debug("nsk = %s, currentThread = %s".format(nsk, Thread.currentThread()))
+      assert(nsk != null)
+      currentNativeStackKeeper.remove()
+
+      if (nsk == null) {
+        throw new UvmNativeCallException(s"Native calls Mu function ${muFunc.repr} with cookie ${cookie}, but Mu did not call native.")
+      }
+
+      val sig = muFunc.sig
+
+      val paramBoxes = for ((paramTy, i) <- sig.paramTy.zipWithIndex) yield {
+        makeBoxForParam(buf, paramTy, i)
+      }
+
+      val rvBox = ValueBox.makeBoxForType(sig.retTy)
+
+      nsk.slave.onCallBack(muFunc, cookie, paramBoxes, rvBox)
+      
+      logger.debug("Back from onCallBack. Returning to native...")
+
+      putRvToBuf(buf, sig.retTy, rvBox)
+
+      currentNativeStackKeeper.set(nsk)
+    }
+
+    def makeBoxForParam(buf: Closure.Buffer, ty: MType, index: Int): ValueBox = ty match {
+      case TypeInt(8)   => BoxInt(OpHelper.trunc(buf.getByte(index), 8))
+      case TypeInt(16)  => BoxInt(OpHelper.trunc(buf.getShort(index), 16))
+      case TypeInt(32)  => BoxInt(OpHelper.trunc(buf.getInt(index), 32))
+      case TypeInt(64)  => BoxInt(OpHelper.trunc(buf.getLong(index), 64))
+      case TypeFloat()  => BoxFloat(buf.getFloat(index))
+      case TypeDouble() => BoxDouble(buf.getDouble(index))
+      case s @ TypeStruct(flds) => {
+        val mem = buf.getStruct(index)
+        makeBoxFromMemory(ty, mem)
+      }
+      case _: AbstractPointerType => BoxPointer(buf.getAddress(index))
+    }
+
+    def makeBoxFromMemory(ty: MType, addr: Word): ValueBox = ty match {
+      case TypeInt(8)   => BoxInt(OpHelper.trunc(NativeSupport.theMemory.getByte(addr), 8))
+      case TypeInt(16)  => BoxInt(OpHelper.trunc(NativeSupport.theMemory.getShort(addr), 16))
+      case TypeInt(32)  => BoxInt(OpHelper.trunc(NativeSupport.theMemory.getInt(addr), 32))
+      case TypeInt(64)  => BoxInt(OpHelper.trunc(NativeSupport.theMemory.getLong(addr), 64))
+      case TypeFloat()  => BoxFloat(NativeSupport.theMemory.getFloat(addr))
+      case TypeDouble() => BoxDouble(NativeSupport.theMemory.getDouble(addr))
+      case s @ TypeStruct(flds) => {
+        val fldvbs = for ((fty, i) <- flds.zipWithIndex) yield {
+          val off = TypeSizes.fieldOffsetOf(s, i)
+          makeBoxFromMemory(fty, addr + off.toInt)
+        }
+        BoxStruct(fldvbs)
+      }
+      case _: AbstractPointerType => BoxPointer(NativeSupport.theMemory.getAddress(addr))
+    }
+
+    def putRvToBuf(buf: Closure.Buffer, ty: MType, vb: ValueBox): Unit = ty match {
+      case TypeInt(8)   => buf.setByteReturn(vb.asInstanceOf[BoxInt].value.toByte)
+      case TypeInt(16)  => buf.setShortReturn(vb.asInstanceOf[BoxInt].value.toShort)
+      case TypeInt(32)  => buf.setIntReturn(vb.asInstanceOf[BoxInt].value.toInt)
+      case TypeInt(64)  => buf.setLongReturn(vb.asInstanceOf[BoxInt].value.toLong)
+      case TypeFloat()  => buf.setFloatReturn(vb.asInstanceOf[BoxFloat].value)
+      case TypeDouble() => buf.setDoubleReturn(vb.asInstanceOf[BoxDouble].value)
+      case s @ TypeStruct(flds) => {
+        // Always allocate more space so that C may access the word that contains the byte instead of just the byte.
+        val bbuf = ByteBuffer.allocate(TypeSizes.alignUp(TypeSizes.sizeOf(ty), FORCE_ALIGN_UP).intValue())
+        bbuf.order(ByteOrder.LITTLE_ENDIAN)
+        putArgToBuf(bbuf, 0, ty, vb)
+        logger.debug("Hexdump:\n" + HexDump.dumpByteBuffer(bbuf))
+        buf.setStructReturn(bbuf.array(), bbuf.arrayOffset())
+      }
+      case _: AbstractPointerType => buf.setAddressReturn(vb.asInstanceOf[BoxPointer].addr)
     }
   }
 }

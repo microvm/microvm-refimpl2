@@ -9,5 +9,5 @@ import com.kenai.jffi.ClosureManager
 object NativeSupport {
   val jnrRuntime = Runtime.getSystemRuntime
   val theMemory = Pointer.wrap(jnrRuntime, 0L)
-  val cloaureManager = ClosureManager.getInstance()
+  val closureManager = ClosureManager.getInstance()
 }

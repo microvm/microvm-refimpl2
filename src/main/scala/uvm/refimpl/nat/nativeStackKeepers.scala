@@ -5,12 +5,19 @@ import uvm.refimpl.itpr.ValueBox
 import uvm.refimpl.mem.TypeSizes.Word
 import uvm.{ Function => MFunc }
 import uvm.refimpl.UvmRuntimeException
+import com.typesafe.scalalogging.Logger
+import org.slf4j.LoggerFactory
+
+object PoorManAgent {
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+}
 
 /**
  * An Agent is something that has a mailbox. It allows Erlang-like usage pattern. But it does not automatically
  * provide a thread.
  */
 trait PoorManAgent[T] {
+  import PoorManAgent._
   val inBox = new java.util.concurrent.ArrayBlockingQueue[T](1)
 
   def send(msg: T) {
@@ -24,8 +31,12 @@ trait PoorManAgent[T] {
 
 abstract class NativeCallResult
 object NativeCallResult {
-  case class CallBack(sig: FuncSig, func: MFunc, args: Seq[ValueBox], retBox: ValueBox) extends NativeCallResult
+  case class CallBack(func: MFunc, cookie: Long, args: Seq[ValueBox], retBox: ValueBox) extends NativeCallResult
   case class Return() extends NativeCallResult
+}
+
+object NativeStackKeeper {
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
 /**
@@ -49,6 +60,7 @@ object NativeCallResult {
  * This allows the interpreter thread to swap between multiple Mu stacks (including native frames).
  */
 class NativeStackKeeper(implicit nativeCallHelper: NativeCallHelper) extends PoorManAgent[NativeCallResult] {
+  import NativeStackKeeper._
 
   abstract class ToSlave
   object ToSlave {
@@ -63,25 +75,72 @@ class NativeStackKeeper(implicit nativeCallHelper: NativeCallHelper) extends Poo
 
     def run(): Unit = {
       while (true) {
-        receive() match {
+        val received = try {
+          receive()
+        } catch {
+          case e: InterruptedException =>
+            logger.debug("Native stack keeper slave thread interrupted. No native frames. Stopping slave...")
+            return
+        }
+        received match {
           case ToSlave.CallNative(sig, func, args, retBox) => {
             nativeCallHelper.callNative(master, sig, func, args, retBox)
             master.send(NativeCallResult.Return())
           }
 
           case ToSlave.ReturnToCallBack() => {
-            throw new UvmNativeCallException("Attempt to return to callback functions when there is no native function calling back")
+            throw new UvmNativeCallException("Attempt to return to native function, but no native function called back before")
           }
 
           case ToSlave.Stop() => {
+            logger.debug("Received Stop msg. Stopping slave...")
             return
           }
         }
       }
     }
 
-    def onCallBack(): Unit = {
+    def onCallBack(func: MFunc, cookie: Long, args: Seq[ValueBox], retBox: ValueBox): Unit = {
+      logger.debug("sending master the CallBack message...")
+      master.send(NativeCallResult.CallBack(func, cookie, args, retBox))
+      logger.debug("msg sent. Waiting for master's reply...")
+      try {
+        while (true) {
+          val received = try {
+            receive()
+          } catch {
+            case e: InterruptedException =>
+              logger.debug("Native stack keeper slave thread interrupted while there are native frames alive. " +
+                "This may happen when the micro VM itself is killed but the stack is still alive. " +
+                "Prepare for undefined behaviours in native frames (or JVM frames if the native calls back again).")
+              throw e
+          }
+          received match {
+            case ToSlave.CallNative(sig, func, args, retBox) => {
+              nativeCallHelper.callNative(master, sig, func, args, retBox)
+              master.send(NativeCallResult.Return())
+            }
 
+            case ToSlave.ReturnToCallBack() => {
+              return
+            }
+
+            case ToSlave.Stop() => {
+              val msg = "Attempt to kill the native stack, but there are still native frames alive. " +
+                "This has implementation-defined behaviour. Although not forbidden, it is almost always dangerous."
+              logger.debug(msg)
+              throw new UvmNativeCallException(msg)
+            }
+          }
+        }
+      } catch {
+        case e: Exception =>
+          logger.debug("Exception occured in the slave thread when there are native threads alive. " +
+            "Prepare for undefined behaviours in native frames (or JVM frames if the native calls back again).")
+          throw e
+      }
+
+      logger.debug("returning...")
     }
   }
 
