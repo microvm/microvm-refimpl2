@@ -74,26 +74,35 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
   // Convenient functions to get/set states
 
   private def curStack = stack.get
-  private def top = curStack.top
-  private def curBB = top.curBB
-  private def curInst = top.curInst
-  private def curInstHalfExecuted = top.curInstHalfExecuted
-  private def curInstHalfExecuted_=(v: Boolean) = top.curInstHalfExecuted_=(v)
+  private def top: InterpreterFrame = curStack.top
+  private def topMu: MuFrame = curStack.top match {
+    case f: MuFrame => f
+    case f: NativeFrame => throw new UvmRefImplException(("Attempt to access the top frame of stack %d as a Mu frame " +
+      "while it is actually a native frame for native function 0x%x.").format(curStack.id, f.func))
+  }
+  private def curBB = topMu.curBB
+  private def curInst = topMu.curInst
+  private def curInstHalfExecuted = topMu.curInstHalfExecuted
+  private def curInstHalfExecuted_=(v: Boolean) = topMu.curInstHalfExecuted_=(v)
 
-  private def incPC(): Unit = top.incPC()
-  private def jump(bb: BasicBlock, ix: Int): Unit = top.jump(bb, ix)
+  private def incPC(): Unit = topMu.incPC()
+  private def jump(bb: BasicBlock, ix: Int): Unit = topMu.jump(bb, ix)
 
   /** Get the value box of an SSA variable in a stack. */
   private def boxOf(s: InterpreterStack, v: SSAVariable): ValueBox = v match {
     case g: GlobalVariable => microVM.constantPool.getGlobalVarBox(g)
-    case l: LocalVariable  => s.top.boxes(l)
+    case l: LocalVariable => s.top match {
+      case f: MuFrame => f.boxes(l)
+      case f: NativeFrame => throw new UvmRefImplException(("Attempt to find box for local variable %s on the top frame of stack %d as a Mu frame " +
+        "while the frame is actually a native frame for native function 0x%x.").format(l.repr, curStack.id, f.func))
+    }
   }
 
   /** Get the value box of an SSA variable in the current stack. */
   private def boxOf(v: SSAVariable): ValueBox = boxOf(curStack, v)
 
   /** Get the edge-assigned value box of an edge-assigned instruction in a stack. */
-  private def edgeAssignedBoxOf(s: InterpreterStack, ea: EdgeAssigned): ValueBox = s.top.edgeAssignedBoxes(ea)
+  private def edgeAssignedBoxOf(s: InterpreterStack, ea: EdgeAssigned): ValueBox = topMu.edgeAssignedBoxes(ea)
 
   /** Get the edge-assigned value box of an edge-assigned instruction in the current stack. */
   private def edgeAssignedBoxOf(ea: EdgeAssigned): ValueBox = edgeAssignedBoxOf(curStack, ea)
@@ -103,15 +112,18 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
   /** Make a string to identify the current function version, basic block and instruction for debugging. */
   private def ctx = stack match {
     case None => "(Thred not bound to stack): "
-    case Some(_) => {
-      val ix = top.curInstIndex
-      if (ix >= curBB.insts.size) {
-        "TID %d, FuncVer %s, BasicBlock %s, Instruction exceeds the basic block (error)".format(id, top.funcVer.repr, curBB.repr)
-      } else {
-        "TID %d, FuncVer %s, BasicBlock %s, Instruction %s (%s): ".format(id, top.funcVer.repr, curBB.repr, curInst.repr, curInst match {
-          case ci: InstCommInst => ci.inst.name.get
-          case _                => curInst.getClass.getSimpleName()
-        })
+    case Some(s) => s.top match {
+      case f: NativeFrame => "TID %d, Native frame for function 0x%x: ".format(id, f.func)
+      case f: MuFrame => {
+        val ix = f.curInstIndex
+        if (ix >= curBB.insts.size) {
+          "TID %d, FuncVer %s, BB %s, Inst(%d): index out of the basic block boundary (error): ".format(id, f.funcVer.repr, curBB.repr, ix)
+        } else {
+          "TID %d, FuncVer %s, BB %s, Inst(%d): %s (%s): ".format(id, f.funcVer.repr, curBB.repr, ix, curInst.repr, curInst match {
+            case ci: InstCommInst => ci.inst.name.get
+            case _                => curInst.getClass.getSimpleName()
+          })
+        }
       }
     }
   }
@@ -488,7 +500,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
         val argBoxes = argList.map(boxOf)
 
         curInstHalfExecuted = true
-        curStack.pushFrame(funcVer, argBoxes)
+        curStack.pushMuFrame(funcVer, argBoxes)
       }
 
       case i @ InstTailCall(sig, callee, argList) => {
@@ -500,7 +512,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
 
         val argBoxes = argList.map(boxOf)
 
-        curStack.replaceTop(funcVer, argBoxes)
+        curStack.replaceTopMuFrame(funcVer, argBoxes)
       }
 
       case i @ InstRet(retTy, retVal) => {
@@ -774,18 +786,18 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
         if (callConv != Flag("#DEFAULT")) {
           throw new UvmRefImplException(ctx + "Currently only support the #DEFAULT callConv. %s found.".format(callConv.name))
         }
-        
+
         val addr = boxOf(callee).asInstanceOf[BoxPointer].addr
-        
+
         val argBoxes = argList.map(boxOf)
         val retBox = boxOf(i)
-        
+
         ???
-//        
-//        microVM.threadStackManager.threadCallingNative = Some(this)
-//        
-//        microVM.nativeCallHelper.callNative(sig, addr, argBoxes, retBox)
-        
+        //        
+        //        microVM.threadStackManager.threadCallingNative = Some(this)
+        //        
+        //        microVM.nativeCallHelper.callNative(sig, addr, argBoxes, retBox)
+
         continueNormally()
       }
 
@@ -1195,20 +1207,24 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
    */
   private def catchException(exc: Word): Unit = {
     @tailrec
-    def unwindUntilCatchable(f: InterpreterFrame): (InterpreterFrame, BasicBlock) = {
-      maybeFindExceptionHandler(f.curInst) match {
+    def unwindUntilCatchable(frame: InterpreterFrame): (InterpreterFrame, BasicBlock) = frame match {
+      case f: MuFrame => maybeFindExceptionHandler(f.curInst) match {
         case Some(bb) => (f, bb)
         case None => f.prev match {
           case None       => throw new UvmRuntimeException(ctx + "Exception is thrown out of the bottom frame.")
           case Some(prev) => unwindUntilCatchable(prev)
         }
       }
+      case f: NativeFrame => {
+        throw new UvmRuntimeException(ctx + "Attempt to throw exception into a native frame. It has implementation-defined. "+
+            "behaviour, and the refimpl does not allow it. Although not always forbidden elsewhere, it is almost always dangerous.")
+      }
     }
 
     val s = curStack
     val f = s.top
     val (newFrame, newBB) = unwindUntilCatchable(f)
-    s.top = newFrame
+    s.unwindTo(newFrame)
 
     branchAndMovePC(newBB, exc)
     curInstHalfExecuted = false

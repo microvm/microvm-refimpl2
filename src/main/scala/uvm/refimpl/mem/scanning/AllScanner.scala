@@ -79,7 +79,7 @@ class AllScanner(val handler: RefFieldHandler)(
   private def traceStack(sta: InterpreterStack) {
     logger.debug(s"Tracing stack ${sta.id} for registers...")
 
-    for (fra <- sta.frames; vb <- fra.boxes.values) vb match {
+    for (fra <- sta.muFrames; vb <- fra.boxes.values) vb match {
       case hor: HasObjRef => this.boxToHeap(hor)
       case bst: BoxStack  => this.boxToStack(bst)
       case _              =>

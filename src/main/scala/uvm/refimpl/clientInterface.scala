@@ -369,30 +369,43 @@ class ClientAgent(mutator: Mutator)(
   def currentFuncVer(stack: Handle, frame: Int): Int = {
     val sv = getStackNotNull(stack)
     val fr = nthFrame(sv, frame)
-    fr.funcVer.id
+    fr match {
+      case f: NativeFrame => 0
+      case f: MuFrame     => f.funcVer.id
+    }
   }
 
   def currentInstruction(stack: Handle, frame: Int): Int = {
     val sv = getStackNotNull(stack)
     val fr = nthFrame(sv, frame)
-    fr.curInst.id
+    fr match {
+      case f: NativeFrame => 0
+      case f: MuFrame     => f.curInst.id
+    }
   }
 
   def dumpKeepalives(stack: Handle, frame: Int): Seq[Handle] = {
     val sv = getStackNotNull(stack)
     val fr = nthFrame(sv, frame)
-    val i = fr.curInst
-    i match {
-      case hkac: HasKeepAliveClause => {
-        val kas = hkac.keepAlives
-        for (ka <- kas) yield {
-          val box = fr.boxes(ka)
-          val ty = TypeInferer.inferType(ka)
-          newHandle(ty, box)
-        }
+    fr match {
+      case f: NativeFrame => {
+        throw new UvmRefImplException("Attempt to dump keepalive variables for a native frame for native funciton 0x%x".format(f.func))
       }
-      case _ => {
-        throw new UvmRuntimeException("The current instruction %s does not have keep-alive clause.".format(i.repr))
+      case f: MuFrame => {
+        val i = f.curInst
+        i match {
+          case hkac: HasKeepAliveClause => {
+            val kas = hkac.keepAlives
+            for (ka <- kas) yield {
+              val box = f.boxes(ka)
+              val ty = TypeInferer.inferType(ka)
+              newHandle(ty, box)
+            }
+          }
+          case _ => {
+            throw new UvmRuntimeException("The current instruction %s does not have keep-alive clause.".format(i.repr))
+          }
+        }
       }
     }
   }
@@ -400,9 +413,12 @@ class ClientAgent(mutator: Mutator)(
   def popFrame(stack: Handle): Unit = {
     val st = getStackNotNull(stack)
     val top = st.top
-    top.prev match {
-      case None       => throw new UvmRuntimeException("Attempting to pop the last frame of a stack.")
-      case Some(prev) => st.top = prev
+    top match {
+      case f: NativeFrame => throw new UvmRuntimeException("Attempting to pop a native frame. It has implementation-defined behaviour and this refimpl does not allow it.")
+      case f: MuFrame => f.prev match {
+        case None       => throw new UvmRuntimeException("Attempting to pop the last frame of a stack.")
+        case Some(prev) => st.popFrame()
+      }
     }
   }
 
@@ -421,7 +437,7 @@ class ClientAgent(mutator: Mutator)(
 
     val argBoxes = argList.map(_.vb)
 
-    sta.pushFrame(funcVer, argBoxes)
+    sta.pushMuFrame(funcVer, argBoxes)
   }
 
   def tr64IsFp(handle: Handle): Boolean = {

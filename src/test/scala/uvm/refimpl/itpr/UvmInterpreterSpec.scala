@@ -1313,7 +1313,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
         case "@corostackfunc_v1.trap_coro1" => {
           val Seq(fromSta, p) = ca.dumpKeepalives(st, 0)
 
-          fromSta.vb.asStack.get.top.funcVer shouldBe microVM.globalBundle.funcVerNs("@testswapstack_v1")
+          fromSta.vb.asStack.get.top.asInstanceOf[MuFrame].funcVer shouldBe microVM.globalBundle.funcVerNs("@testswapstack_v1")
           p.vb.asSInt(64) shouldBe 2L
 
           coro1Reached = true

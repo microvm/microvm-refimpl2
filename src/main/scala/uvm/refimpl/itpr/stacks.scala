@@ -22,7 +22,10 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
   
   var state: StackState = StackState.Ready(InternalTypes.VOID) // Initial state is READY<void>
 
-  var top: InterpreterFrame = InterpreterFrame.frameForCall(stackBottomFunc, args, None)
+  private var _top: InterpreterFrame = InterpreterFrame.forMuFunc(stackBottomFunc, args, None)
+  
+  def top = _top
+  private def top_=(f: InterpreterFrame) = _top = f
 
   def frames: Iterator[InterpreterFrame] = new AbstractIterator[InterpreterFrame] {
     var curFrame: Option[InterpreterFrame] = Some(top)
@@ -33,18 +36,24 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
       res
     }
   }
-
-  def pushFrame(funcVer: FuncVer, args: Seq[ValueBox]): Unit = {
-    val newFrame = InterpreterFrame.frameForCall(funcVer, args, Some(top))
+  
+  def muFrames: Iterator[MuFrame] = frames.filter(_.isInstanceOf[MuFrame]).map(_.asInstanceOf[MuFrame])
+  
+  def pushMuFrame(funcVer: FuncVer, args: Seq[ValueBox]): Unit = {
+    val newFrame = InterpreterFrame.forMuFunc(funcVer, args, Some(top))
     top = newFrame
     top.savedStackPointer = stackMemory.top
   }
 
-  def replaceTop(funcVer: FuncVer, args: Seq[ValueBox]): Unit = {
-    val newFrame = InterpreterFrame.frameForCall(funcVer, args, top.prev)
+  def replaceTopMuFrame(funcVer: FuncVer, args: Seq[ValueBox]): Unit = {
+    val newFrame = InterpreterFrame.forMuFunc(funcVer, args, top.prev)
     stackMemory.rewind(top.savedStackPointer)
     top = newFrame
     top.savedStackPointer = stackMemory.top
+  }
+  
+  def pushNativeFrame(func: Word): Unit = {
+    val newFrame = InterpreterFrame.forNativeFunc(func, Some(top))
   }
 
   def popFrame(): Unit = {
@@ -53,9 +62,41 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
       throw new UvmRuntimeException("Attemting to pop the last frame of a stack. Stack ID: %d.".format(id))
     }
   }
+  
+  def unwindTo(f: InterpreterFrame): Unit = {
+    top = f
+    stackMemory.rewind(top.savedStackPointer)
+  }
 }
 
-class InterpreterFrame(val funcVer: FuncVer, val prev: Option[InterpreterFrame]) {
+abstract class InterpreterFrame(val prev: Option[InterpreterFrame]) {
+  /**
+   * The stack pointer to restore to when unwinding THE CURRENT FRAME. In other word, this value is the stackMemory.top
+   * of the stack when the current frame is pushed.
+   * <p>
+   * Native frames do not really use this. They use their own stacks.
+   */
+  var savedStackPointer: Word = 0
+}
+
+object InterpreterFrame {
+  def forMuFunc(funcVer: FuncVer, args: Seq[ValueBox], prev: Option[InterpreterFrame]): MuFrame = {
+    val frm = new MuFrame(funcVer, prev) // Bottom frame
+
+    for ((p, a) <- (funcVer.params zip args)) {
+      frm.boxes(p).copyFrom(a)
+    }
+
+    frm
+  }
+  
+  def forNativeFunc(func: Word, prev: Option[InterpreterFrame]): NativeFrame = {
+    val frm = new NativeFrame(func, prev)
+    frm
+  }
+}
+
+class MuFrame(val funcVer: FuncVer, prev: Option[InterpreterFrame]) extends InterpreterFrame(prev) {
   val boxes = new HashMap[LocalVariable, ValueBox]()
   
   /** Edge-assigned instructions take values determined at look backedges */
@@ -80,17 +121,14 @@ class InterpreterFrame(val funcVer: FuncVer, val prev: Option[InterpreterFrame])
    * <li>TRAP/WATCHPOINT: The current stack becomes unbound on entering the client. When returning from the client,
    * there is a stack re-binding. The same thing happens as SWAPSTACK.
    * </ul>
+   * The CCALL instruction does not use this flag, because the control flow is deterministic. Unlike swapstack, CCALL
+   * must return from the only source -- the native program.
+   * </p>
    * This flag is set when executing CALL, SWAPSTACK, TRAP or WATCHPOINT. It is cleared when executing 
    * InterpreterThread.finishHalfExecutedInst or InterpreterThread.catchException. Particularly, the RET, RETVOID,
    * THROW, TRAP, WATCHPOINT and SWAPSTACK instruction will call those two functions.
    */
   var curInstHalfExecuted: Boolean = false
-
-  /**
-   * The stack pointer to restore to when unwinding THE CURRENT FRAME. In other word, this value is the stackMemory.top
-   * of the stack when the current frame is pushed.
-   */
-  var savedStackPointer: Word = 0
 
   makeBoxes()
 
@@ -144,14 +182,5 @@ class InterpreterFrame(val funcVer: FuncVer, val prev: Option[InterpreterFrame])
   }
 }
 
-object InterpreterFrame {
-  def frameForCall(funcVer: FuncVer, args: Seq[ValueBox], prev: Option[InterpreterFrame]): InterpreterFrame = {
-    val frm = new InterpreterFrame(funcVer, prev) // Bottom frame
-
-    for ((p, a) <- (funcVer.params zip args)) {
-      frm.boxes(p).copyFrom(a)
-    }
-
-    frm
-  }
+class NativeFrame(val func: Word, prev: Option[InterpreterFrame]) extends InterpreterFrame(prev) {
 }
