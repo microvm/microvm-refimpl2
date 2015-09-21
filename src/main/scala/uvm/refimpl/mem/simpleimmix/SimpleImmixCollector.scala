@@ -123,7 +123,7 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
     for (st <- microVM.threadStackManager.iterateAllLiveStacks) {
       if (!st.gcMark) {
         logger.debug("Killing stack %d...".format(st.id))
-        st.state = StackState.Dead
+        st.kill()
       }
     }
 

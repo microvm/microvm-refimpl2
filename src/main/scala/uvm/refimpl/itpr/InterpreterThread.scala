@@ -2,11 +2,8 @@ package uvm.refimpl.itpr
 
 import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
-
 import org.slf4j.LoggerFactory
-
 import com.typesafe.scalalogging.Logger
-
 import uvm._
 import uvm.comminsts._
 import uvm.refimpl._
@@ -14,6 +11,7 @@ import uvm.refimpl.mem._
 import uvm.refimpl.mem.TypeSizes.Word
 import uvm.ssavariables._
 import uvm.types._
+import uvm.refimpl.nat.NativeCallResult
 
 object InterpreterThread {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
@@ -518,14 +516,39 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
       case i @ InstRet(retTy, retVal) => {
         val rvb = boxOf(retVal)
         curStack.popFrame()
-        val newCurInst = curInst // in the parent frame of the RET
-        boxOf(newCurInst).copyFrom(rvb)
-        finishHalfExecutedInst()
+        top match {
+          case f: MuFrame => {
+            val newCurInst = curInst // in the parent frame of the RET
+            boxOf(newCurInst).copyFrom(rvb)
+            finishHalfExecutedInst()
+          }
+          case f: NativeFrame => {
+            // Now the top is a native frame, and it must be calling back to Mu.
+            // Set its return value
+            f.maybeCallback.get.retBox.copyFrom(rvb)
+            // Return to native, and keep an eye on the result, in case it calls back again.
+            val result = curStack.returnToNativeOnStack()
+            // Handle the control flow according to how the native function respond
+            handleNativeCallResult(result)
+          }
+        }
       }
 
       case i @ InstRetVoid() => {
         curStack.popFrame()
-        finishHalfExecutedInst()
+        top match {
+          case f: MuFrame => {
+            finishHalfExecutedInst()
+          }
+          case f: NativeFrame => {
+            // Now the top is a native frame, and it must be calling back to Mu.
+            // Since Mu returns void, we don't need to assign the return value.
+            // Return to native, and keep an eye on the result, in case it calls back again.
+            val result = curStack.returnToNativeOnStack()
+            // Handle the control flow according to how the native function respond
+            handleNativeCallResult(result)
+          }
+        }
       }
 
       case i @ InstThrow(excVal) => {
@@ -792,13 +815,9 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
         val argBoxes = argList.map(boxOf)
         val retBox = boxOf(i)
 
-        ???
-        //        
-        //        microVM.threadStackManager.threadCallingNative = Some(this)
-        //        
-        //        microVM.nativeCallHelper.callNative(sig, addr, argBoxes, retBox)
+        val result = curStack.callNativeOnStack(sig, addr, argBoxes, retBox)
 
-        continueNormally()
+        handleNativeCallResult(result)
       }
 
       case i @ InstNewStack(sig, callee, argList, excClause) => {
@@ -873,7 +892,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
             val sta = boxOf(s).asInstanceOf[BoxStack].stack.getOrElse {
               throw new UvmRuntimeException(ctx + "Attempt to kill NULL stack.")
             }
-            sta.state = StackState.Dead
+            sta.kill()
             continueNormally()
           }
 
@@ -1216,8 +1235,8 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
         }
       }
       case f: NativeFrame => {
-        throw new UvmRuntimeException(ctx + "Attempt to throw exception into a native frame. It has implementation-defined. "+
-            "behaviour, and the refimpl does not allow it. Although not always forbidden elsewhere, it is almost always dangerous.")
+        throw new UvmRuntimeException(ctx + "Attempt to throw exception into a native frame. It has implementation-defined. " +
+          "behaviour, and the refimpl does not allow it. Although not always forbidden elsewhere, it is almost always dangerous.")
       }
     }
 
@@ -1248,6 +1267,23 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
       case _ => {
         throw new UvmRefImplException(ctx + "Instruction %s (%s) is in a stack frame when an exception is thrown.".format(inst.repr, inst.getClass.getName))
       }
+    }
+  }
+
+  // Control flow involving native functions
+
+  /**
+   *
+   */
+  private def handleNativeCallResult(result: NativeCallResult): Unit = result match {
+    case NativeCallResult.CallBack(func, cookie, args, retBox) => {
+      val funcVer = getFuncDefOrTriggerCallback(func)
+
+      curInstHalfExecuted = true
+      curStack.pushMuFrame(funcVer, args)
+    }
+    case NativeCallResult.Return() => {
+      continueNormally()
     }
   }
 
@@ -1285,7 +1321,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
 
   /** Terminate the thread. Please only let the thread terminate itself. */
   private def threadExit(): Unit = {
-    curStack.state = StackState.Dead
+    curStack.kill()
     isRunning = false
   }
 
@@ -1293,20 +1329,20 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
 
   /** Unbind the current thread from the stack. */
   private def unbind(readyType: Type): Unit = {
-    curStack.state = StackState.Ready(readyType)
+    curStack.unbindFromThread(readyType)
     stack = None
   }
 
   /** Unbind and kill the current stack. */
   private def unbindAndKillStack(): Unit = {
-    curStack.state = StackState.Dead
+    curStack.kill()
     stack = None
   }
 
   /** Rebind to a stack. */
   private def rebind(newStack: InterpreterStack): Unit = {
     stack = Some(newStack)
-    curStack.state = StackState.Running
+    curStack.rebindToThread()
   }
 
   /** Rebind to a stack and pass a value. */

@@ -7,6 +7,7 @@ import scala.collection.mutable.HashMap
 import scala.collection.mutable.ArrayBuffer
 import org.slf4j.LoggerFactory
 import com.typesafe.scalalogging.Logger
+import uvm.refimpl.nat.NativeCallHelper
 
 object ThreadStackManager {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
@@ -16,7 +17,7 @@ object ThreadStackManager {
  * The manager of all Mu threads and stacks. Also responsible for the actual execution of Mu IR code, i.e. as the "boss"
  * of all InterpreterThread instances.
  */
-class ThreadStackManager(implicit microVM: MicroVM) {
+class ThreadStackManager(implicit microVM: MicroVM, nativeCallHelper: NativeCallHelper) {
   import ThreadStackManager._
 
   private val stackRegistry = new HashMap[Int, InterpreterStack]()

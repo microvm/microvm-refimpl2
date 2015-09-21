@@ -346,7 +346,7 @@ class ClientAgent(mutator: Mutator)(
   def killStack(stack: Handle): Unit = {
     val sv = getStackNotNull(stack)
 
-    sv.state = StackState.Dead
+    sv.kill()
   }
 
   private def nthFrame(stack: InterpreterStack, n: Int): InterpreterFrame = {

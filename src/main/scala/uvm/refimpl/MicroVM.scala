@@ -28,7 +28,7 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
 
   private implicit val memorySupport = memoryManager.memorySupport
   
-  val nativeCallHelper = new NativeCallHelper()
+  implicit val nativeCallHelper = new NativeCallHelper()
 
   val threadStackManager = new ThreadStackManager()
   val trapManager = new TrapManager()
