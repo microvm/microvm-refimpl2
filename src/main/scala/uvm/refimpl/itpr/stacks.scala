@@ -28,7 +28,7 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
   def state = _state
   private def state_=(s: StackState) = _state = s
 
-  private var _top: InterpreterFrame = InterpreterFrame.forMuFunc(stackBottomFunc, args, None)
+  private var _top: InterpreterFrame = InterpreterFrame.forMuFunc(stackBottomFunc, 0L, args, None)
   def top = _top
   private def top_=(f: InterpreterFrame) = _top = f
 
@@ -54,13 +54,19 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
   def muFrames: Iterator[MuFrame] = frames.filter(_.isInstanceOf[MuFrame]).map(_.asInstanceOf[MuFrame])
 
   def pushMuFrame(funcVer: FuncVer, args: Seq[ValueBox]): Unit = {
-    val newFrame = InterpreterFrame.forMuFunc(funcVer, args, Some(top))
+    val newFrame = InterpreterFrame.forMuFunc(funcVer, 0L, args, Some(top))
+    top = newFrame
+    top.savedStackPointer = stackMemory.top
+  }
+  
+  def pushMuFrameForCallBack(funcVer: FuncVer, cookie: Long, args: Seq[ValueBox]): Unit = {
+    val newFrame = InterpreterFrame.forMuFunc(funcVer, cookie, args, Some(top))
     top = newFrame
     top.savedStackPointer = stackMemory.top
   }
 
   def replaceTopMuFrame(funcVer: FuncVer, args: Seq[ValueBox]): Unit = {
-    val newFrame = InterpreterFrame.forMuFunc(funcVer, args, top.prev)
+    val newFrame = InterpreterFrame.forMuFunc(funcVer, 0L, args, top.prev)
     stackMemory.rewind(top.savedStackPointer)
     top = newFrame
     top.savedStackPointer = stackMemory.top
@@ -137,8 +143,8 @@ abstract class InterpreterFrame(val prev: Option[InterpreterFrame]) {
 }
 
 object InterpreterFrame {
-  def forMuFunc(funcVer: FuncVer, args: Seq[ValueBox], prev: Option[InterpreterFrame]): MuFrame = {
-    val frm = new MuFrame(funcVer, prev) // Bottom frame
+  def forMuFunc(funcVer: FuncVer, cookie: Long, args: Seq[ValueBox], prev: Option[InterpreterFrame]): MuFrame = {
+    val frm = new MuFrame(funcVer, cookie, prev) // Bottom frame
 
     for ((p, a) <- (funcVer.params zip args)) {
       frm.boxes(p).copyFrom(a)
@@ -153,7 +159,12 @@ object InterpreterFrame {
   }
 }
 
-class MuFrame(val funcVer: FuncVer, prev: Option[InterpreterFrame]) extends InterpreterFrame(prev) {
+/**
+ * A Mu frame
+ * 
+ * @param cookie: The cookie in the native interface. When called by another Mu function, cookie can be any value.
+ */
+class MuFrame(val funcVer: FuncVer, val cookie: Long, prev: Option[InterpreterFrame]) extends InterpreterFrame(prev) {
   val boxes = new HashMap[LocalVariable, ValueBox]()
 
   /** Edge-assigned instructions take values determined at look backedges */

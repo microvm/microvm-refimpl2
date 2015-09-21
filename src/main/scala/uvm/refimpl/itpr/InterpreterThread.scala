@@ -1127,6 +1127,21 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
 
             continueNormally()
           }
+
+          case "@uvm.native.expose" => {
+            ???
+          }
+          
+          case "@uvm.native.unexpose" => {
+            ???
+          }
+          
+          case "@uvm.native.get_cookie" => {
+            val cookie = topMu.cookie
+            boxOf(i).asInstanceOf[BoxInt].value = OpHelper.trunc(cookie, 64)
+            continueNormally()
+          }
+          
           // Insert more CommInsts here.
 
           case ciName => {
@@ -1280,7 +1295,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
       val funcVer = getFuncDefOrTriggerCallback(func)
 
       curInstHalfExecuted = true
-      curStack.pushMuFrame(funcVer, args)
+      curStack.pushMuFrameForCallBack(funcVer, cookie, args)
     }
     case NativeCallResult.Return() => {
       continueNormally()
