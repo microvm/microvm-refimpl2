@@ -81,7 +81,7 @@ class NativeStackKeeperTest extends FlatSpec with Matchers with ExtraMatchers {
       val mockMuCallbackFunc = new MFunc()
       mockMuCallbackFunc.sig = dtdSig
 
-      val mockClosAddr = nch.exposeFunc(mockMuCallbackFunc, 42L)
+      val mockClosAddr = nch.exposeFunc(mockMuCallbackFunc, 42L, true)
 
       mockClosAddr should not be 0
 

@@ -810,6 +810,8 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
           throw new UvmRefImplException(ctx + "Currently only support the #DEFAULT callConv. %s found.".format(callConv.name))
         }
 
+        curInstHalfExecuted = true
+
         val addr = boxOf(callee).asInstanceOf[BoxPointer].addr
 
         val argBoxes = argList.map(boxOf)
@@ -1131,17 +1133,17 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
           case "@uvm.native.expose" => {
             ???
           }
-          
+
           case "@uvm.native.unexpose" => {
             ???
           }
-          
+
           case "@uvm.native.get_cookie" => {
             val cookie = topMu.cookie
             boxOf(i).asInstanceOf[BoxInt].value = OpHelper.trunc(cookie, 64)
             continueNormally()
           }
-          
+
           // Insert more CommInsts here.
 
           case ciName => {
@@ -1294,7 +1296,6 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
     case NativeCallResult.CallBack(func, cookie, args, retBox) => {
       val funcVer = getFuncDefOrTriggerCallback(func)
 
-      curInstHalfExecuted = true
       curStack.pushMuFrameForCallBack(funcVer, cookie, args)
     }
     case NativeCallResult.Return() => {

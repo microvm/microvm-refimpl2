@@ -35,6 +35,7 @@ class ConstantPool(implicit microVM: MicroVM) {
     case ConstPointer(ty, addr) => BoxPointer(addr)
     case gc:GlobalCell => BoxIRef(0L, microVM.memoryManager.globalMemory.addrForGlobalCell(gc))
     case f:Function => BoxFunc(Some(f))
+    case ef:ExposedFunc => BoxPointer(ef.addr)
   }
   
   def getGlobalVarBox(g: GlobalVariable): ValueBox = globalVarBoxes(g)

@@ -62,15 +62,18 @@ class NativeCallHelper {
   }
 
   /**
-   * A dynamically-exposed Mu function. A Mu function may be exposed many times. Each DynExpFunc corresponds to one
-   * such callable instance.
+   * A run-time record of an exposed Mu function. A Mu function may be exposed many times. Each ExpFuncRecord
+   * corresponds to one such callable instance.
    * <p>
    * A ".expose" definition will permanently create an instance.
    * <p>
    * The "@uvm.native.expose" instruction will also create one such instance. Such instances can be removed later by
    * "@uvm.native.unexpose". The equivalent API calls do the same.
+   *
+   * @param isDynamic true if it is exposed via the "@uvm.native.expose" instruction or the equivalent API call. false
+   * if it is exposed by the ".expose" top-level definintion of the Mu IR.
    */
-  class DynExpFunc(val muFunc: MFunc, val cookie: Long, val closure: MuCallbackClosure, val closureHandle: Closure.Handle)
+  class DynExpFunc(val muFunc: MFunc, val cookie: Long, val closure: MuCallbackClosure, val closureHandle: Closure.Handle, val isDynamic: Boolean)
 
   /**
    * Map each address of closure handle to the DynExpFunc record so that the closure handle can be disposed.
@@ -212,7 +215,7 @@ class NativeCallHelper {
    *
    * @return the address of the exposed function (i.e. of the closure handle)
    */
-  def exposeFunc(muFunc: MFunc, cookie: Long): Word = {
+  def exposeFunc(muFunc: MFunc, cookie: Long, isDynamic: Boolean): Word = {
     val sig = muFunc.sig
     val jParamTypes = sig.paramTy.map(jffiTypePool.apply)
     val jRetTy = jffiTypePool(sig.retTy)
@@ -221,7 +224,7 @@ class NativeCallHelper {
     val handle = NativeSupport.closureManager.newClosure(clos, jRetTy, jParamTypes.toArray, CallingConvention.DEFAULT)
     val addr = handle.getAddress
 
-    val dynExpFunc = new DynExpFunc(muFunc, cookie, clos, handle)
+    val dynExpFunc = new DynExpFunc(muFunc, cookie, clos, handle, isDynamic)
 
     exposedFuncs(addr) = dynExpFunc
 
@@ -229,9 +232,15 @@ class NativeCallHelper {
   }
 
   def unexposeFunc(addr: Word): Unit = {
-    val dynExpFunc = exposedFuncs.remove(addr).getOrElse {
+    val dynExpFunc = exposedFuncs.get(addr).getOrElse {
       throw new UvmRuntimeException("Attempt to unexpose function %d (0x%x) which has not been exposed.".format(addr, addr))
     }
+
+    if (!dynExpFunc.isDynamic) {
+      throw new UvmRuntimeException("Attempt to unexpose a function %d (0x%x) exposed via the '.expose' top-level definition.".format(addr, addr))
+    }
+    
+    exposedFuncs.remove(addr)
 
     dynExpFunc.closureHandle.dispose()
   }
@@ -257,7 +266,7 @@ class NativeCallHelper {
       val rvBox = ValueBox.makeBoxForType(sig.retTy)
 
       nsk.slave.onCallBack(muFunc, cookie, paramBoxes, rvBox)
-      
+
       logger.debug("Back from onCallBack. Returning to native...")
 
       putRvToBuf(buf, sig.retTy, rvBox)

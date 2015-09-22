@@ -56,6 +56,11 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
     for (gc <- bundle.globalCellNs.all) {
       memoryManager.globalMemory.addGlobalCell(gc)
     }
+    for (ef <- bundle.expFuncNs.all) {
+      val addr = nativeCallHelper.exposeFunc(ef.func, ef.cookie.num.toLong, false)
+      ef.addr = addr
+    }
+    // Must allocate the memory and expose the functions before making constants.
     for (g <- bundle.globalVarNs.all) {
       constantPool.addGlobalVar(g)
     }

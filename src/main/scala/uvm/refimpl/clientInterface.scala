@@ -33,6 +33,16 @@ class ClientAgent(mutator: Mutator)(
 
   val pinSet = new ArrayBuffer[Word]
 
+  /**
+   * Given a name, get the ID of an identified entity.
+   */
+  def idOf(name: String): Int = microVM.idOf(name)
+
+  /**
+   * Given an ID, get the name of an identified entity.
+   */
+  def nameOf(id: Int): String = microVM.nameOf(id)
+
   def close(): Unit = {
     handles.clear()
     mutator.close()
@@ -114,6 +124,13 @@ class ClientAgent(mutator: Mutator)(
     val f = microVM.globalBundle.funcNs(id)
     val t = InternalTypePool.funcOf(f.sig)
     val box = BoxFunc(Some(f))
+    newHandle(t, box)
+  }
+
+  def putExpFunc(id: Int): Handle = {
+    val ef = microVM.globalBundle.expFuncNs(id)
+    val t = InternalTypePool.funcPtrOf(ef.func.sig)
+    val box = BoxPointer(ef.addr)
     newHandle(t, box)
   }
 
