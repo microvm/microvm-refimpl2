@@ -35,7 +35,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
     hCBAddr should not be 0L
 
     val nativeFuncAddr = libCallbacktest.getSymbolAddress("one_level")
-    assert(nativeFuncAddr != 0L)
+    nativeFuncAddr should not be 0L
 
     val hFP = ca.putPointer("@one_level.fp", nativeFuncAddr)
 
@@ -90,7 +90,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
     val ca = microVM.newClientAgent()
 
     val nativeFuncAddr = libCallbacktest.getSymbolAddress("one_level")
-    assert(nativeFuncAddr != 0L)
+    nativeFuncAddr should not be 0L
 
     val hFP = ca.putPointer("@one_level.fp", nativeFuncAddr)
 
@@ -178,7 +178,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
     hCBAddr should not be 0L
 
     val nativeFuncAddr = libCallbacktest.getSymbolAddress("one_level")
-    assert(nativeFuncAddr != 0L)
+    nativeFuncAddr should not be 0L
 
     val hFP = ca.putPointer("@one_level.fp", nativeFuncAddr)
 
@@ -229,6 +229,87 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
     ca.unexpose(Flag("#DEFAULT"), hCB)
     microVM.nativeCallHelper.exposedFuncs should not contain hCBAddr
+
+    ca.close()
+  }
+
+  "The exposing definition" should "allow multi-level nested/recursive Mu-native calls" in {
+    val ca = microVM.newClientAgent()
+
+    val hPongFP = ca.putExpFunc("@pong.exposed")
+    val pongAddr = ca.toPointer(hPongFP)
+    println("Exposed Mu func (pong) addr: 0x%x".format(pongAddr))
+    pongAddr should not be 0L
+
+    val pingAddr = libCallbacktest.getSymbolAddress("ping")
+    println("Native func (ping) addr: 0x%x".format(pingAddr))
+    pingAddr should not be 0L
+
+    val hPingFP = ca.putPointer("@PingPong.fp", pingAddr)
+
+    val hPongTest = ca.putFunction("@pong_test")
+    val initialV = ca.putInt("@i32", 10)
+
+    var pongCalled: Int = 0
+
+    testFunc(ca, hPongTest, Seq(initialV, hPingFP)) { (ca, th, st, wp) =>
+      ca.nameOf(ca.currentInstruction(st, 0)) match {
+        case "@pong.v1.entrytrap" => {
+          val Seq(v, peer) = ca.dumpKeepalives(st, 0)
+          val vInt = ca.toInt(v).toInt
+          val peerAddr = ca.toPointer(peer)
+
+          pongCalled += 1
+          
+          printf("Pong called. v=%d, peer=0x%x\n", vInt, peerAddr)
+
+          vInt shouldBe (pongCalled match {
+            case 1 => 10
+            case 2 => 8
+            case 3 => 6
+            case 4 => 4
+            case 5 => 2
+            case 6 => 0
+          })
+
+          ca.toPointer(peer) shouldEqual pingAddr
+
+          TrapRebindPassVoid(st)
+        }
+        case "@pong.v1.resptrap" => {
+          val Seq(v, resp) = ca.dumpKeepalives(st, 0)
+          val vInt = ca.toInt(v).toInt
+          val respInt = ca.toInt(resp).toInt
+
+          respInt shouldBe (vInt match {
+            case 10 => 362880
+            case 8 => 5040
+            case 6 => 120
+            case 4 => 6
+            case 2 => 1
+          })
+
+          TrapRebindPassVoid(st)
+        }
+        case "@pong_test.v1.entrytrap" => {
+          val Seq(v, peer) = ca.dumpKeepalives(st, 0)
+
+          ca.toInt(v).toInt shouldEqual 10
+          ca.toPointer(peer) shouldEqual pingAddr
+
+          TrapRebindPassVoid(st)
+        }
+        case "@pong_test.v1.exittrap" => {
+          val Seq(rv) = ca.dumpKeepalives(st, 0)
+
+          ca.toInt(rv).toInt shouldEqual 3628800
+
+          TrapRebindPassVoid(st)
+        }
+      }
+    }
+
+    pongCalled shouldBe 6
 
     ca.close()
   }

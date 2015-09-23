@@ -193,3 +193,33 @@
         %trap = TRAP <@void> KEEPALIVE (%fp %rv)
         COMMINST @uvm.thread_exit
 }
+
+.funcsig @PingPong.sig = @i32 (@i32 @PingPong.fp)
+.typedef @PingPong.fp  = funcptr<@PingPong.sig>
+
+.funcdef @pong VERSION @pong.v1 <@PingPong.sig> (%v %peer) {
+    %entry:
+        %entrytrap = TRAP<@void> KEEPALIVE (%v %peer)
+        %check_zero = EQ <@i32> %v @I32_0
+        BRANCH2 %check_zero %is_zero %not_zero
+
+    %is_zero:
+        RET <@i32> @I32_1
+
+    %not_zero:
+        %nextv = SUB <@i32> %v @I32_1
+        %resp  = CCALL #DEFAULT <@PingPong.fp @PingPong.sig> %peer (%nextv @pong.exposed)
+        %resptrap = TRAP<@void> KEEPALIVE (%v %resp)
+        %rv = MUL <@i32> %resp %v
+        RET <@i32> %rv
+}
+
+.expose @pong.exposed = @pong #DEFAULT @I64_0
+
+.funcdef @pong_test VERSION @pong_test.v1 <@PingPong.sig> (%v %peer) {
+    %entry:
+        %entrytrap = TRAP<@void> KEEPALIVE (%v %peer)
+        %rv  = CALL <@PingPong.sig> @pong (%v %peer)
+        %exittrap = TRAP<@void> KEEPALIVE (%rv)
+        COMMINST @uvm.thread_exit
+}
