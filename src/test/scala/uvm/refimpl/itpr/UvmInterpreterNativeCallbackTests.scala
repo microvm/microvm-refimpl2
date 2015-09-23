@@ -260,8 +260,8 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
           val peerAddr = ca.toPointer(peer)
 
           pongCalled += 1
-          
-          printf("Pong called. v=%d, peer=0x%x\n", vInt, peerAddr)
+
+          printf("[Mu:@pong]: Pong called. v=%d, peer=0x%x\n", vInt, peerAddr)
 
           vInt shouldBe (pongCalled match {
             case 1 => 10
@@ -283,10 +283,10 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
           respInt shouldBe (vInt match {
             case 10 => 362880
-            case 8 => 5040
-            case 6 => 120
-            case 4 => 6
-            case 2 => 1
+            case 8  => 5040
+            case 6  => 120
+            case 4  => 6
+            case 2  => 1
           })
 
           TrapRebindPassVoid(st)
@@ -310,6 +310,50 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
     }
 
     pongCalled shouldBe 6
+
+    ca.close()
+  }
+
+  "The Mu micro VM" should "be able to swap between stacks with native frames" in {
+    val ca = microVM.newClientAgent()
+
+    val giverAddr = libCallbacktest.getSymbolAddress("giver")
+    println("Native func (giver) addr: 0x%x".format(giverAddr))
+    giverAddr should not be 0L
+
+    val takerAddr = libCallbacktest.getSymbolAddress("taker")
+    println("Native func (taker) addr: 0x%x".format(takerAddr))
+    takerAddr should not be 0L
+
+    val hGiverFP = ca.putPointer("@giver.fp", giverAddr)
+    val hGiverGlobal = ca.putGlobal("@giver.global")
+    ca.store(MemoryOrder.NOT_ATOMIC, hGiverGlobal, hGiverFP)
+
+    val hTakerFP = ca.putPointer("@taker.fp", takerAddr)
+    val hTakerGlobal = ca.putGlobal("@taker.global")
+    ca.store(MemoryOrder.NOT_ATOMIC, hTakerGlobal, hTakerFP)
+
+    val muFunc = ca.putFunction("@native_sched_test")
+
+    testFunc(ca, muFunc, Seq()) { (ca, th, st, wp) =>
+      ca.nameOf(ca.currentInstruction(st, 0)) match {
+        case "@native_sched_test.v1.exittrap" => {
+          try {
+            val Seq(rvTaker) = ca.dumpKeepalives(st, 0)
+
+            ca.toInt(rvTaker).toInt shouldEqual 3628800
+
+            TrapRebindPassVoid(st)
+          } catch {
+            case e: Exception =>
+              e.printStackTrace()
+              // Have to immediately stop the process because those native frames will not return.
+              System.exit(1)
+              throw new Exception("Unreachable")
+          }
+        }
+      }
+    }
 
     ca.close()
   }

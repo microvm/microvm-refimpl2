@@ -134,9 +134,9 @@ class NativeStackKeeper(implicit nativeCallHelper: NativeCallHelper) extends Poo
           }
         }
       } catch {
-        case e: Exception =>
+        case e: Throwable =>
           logger.debug("Exception occured in the slave thread when there are native threads alive. " +
-            "Prepare for undefined behaviours in native frames (or JVM frames if the native calls back again).")
+            "Prepare for undefined behaviours in native frames (or JVM frames if the native calls back again).", e)
           throw e
       }
 

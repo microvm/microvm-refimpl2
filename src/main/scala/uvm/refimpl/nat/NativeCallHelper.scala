@@ -239,7 +239,7 @@ class NativeCallHelper {
     if (!dynExpFunc.isDynamic) {
       throw new UvmRuntimeException("Attempt to unexpose a function %d (0x%x) exposed via the '.expose' top-level definition.".format(addr, addr))
     }
-    
+
     exposedFuncs.remove(addr)
 
     dynExpFunc.closureHandle.dispose()
@@ -248,33 +248,44 @@ class NativeCallHelper {
   /** Handles calling back from C */
   class MuCallbackClosure(val muFunc: MFunc, val cookie: Long) extends Closure {
     def invoke(buf: Closure.Buffer): Unit = {
-      val nsk = currentNativeStackKeeper.get()
-      logger.debug("nsk = %s, currentThread = %s".format(nsk, Thread.currentThread()))
-      assert(nsk != null)
-      currentNativeStackKeeper.remove()
+      try {
+        val nsk = currentNativeStackKeeper.get()
+        logger.debug("Called back. nsk = %s, currentThread = %s, muFunc = %s".format(nsk, Thread.currentThread(), muFunc.repr))
+        assert(nsk != null)
+        currentNativeStackKeeper.remove()
 
-      if (nsk == null) {
-        throw new UvmNativeCallException(s"Native calls Mu function ${muFunc.repr} with cookie ${cookie}, but Mu did not call native.")
+        if (nsk == null) {
+          throw new UvmNativeCallException(s"Native calls Mu function ${muFunc.repr} with cookie ${cookie}, but Mu did not call native.")
+        }
+
+        val sig = muFunc.sig
+
+        val paramBoxes = for ((paramTy, i) <- sig.paramTy.zipWithIndex) yield {
+          makeBoxForParam(buf, paramTy, i)
+        }
+
+        val rvBox = ValueBox.makeBoxForType(sig.retTy)
+
+        logger.debug("Calling to Mu nsk.slave...")
+
+        nsk.slave.onCallBack(muFunc, cookie, paramBoxes, rvBox)
+
+        logger.debug("Back from nsk.slave. Returning to native...")
+
+        putRvToBuf(buf, sig.retTy, rvBox)
+
+        currentNativeStackKeeper.set(nsk)
+      } catch {
+        case e: Throwable =>
+          logger.debug("Exception occured in the slave thread when there are native threads alive. " +
+            "Prepare for undefined behaviours in native frames (or JVM frames if the native calls back again).", e)
+          throw e
+
       }
-
-      val sig = muFunc.sig
-
-      val paramBoxes = for ((paramTy, i) <- sig.paramTy.zipWithIndex) yield {
-        makeBoxForParam(buf, paramTy, i)
-      }
-
-      val rvBox = ValueBox.makeBoxForType(sig.retTy)
-
-      nsk.slave.onCallBack(muFunc, cookie, paramBoxes, rvBox)
-
-      logger.debug("Back from onCallBack. Returning to native...")
-
-      putRvToBuf(buf, sig.retTy, rvBox)
-
-      currentNativeStackKeeper.set(nsk)
     }
 
     def makeBoxForParam(buf: Closure.Buffer, ty: MType, index: Int): ValueBox = ty match {
+      case TypeVoid()   => BoxVoid()
       case TypeInt(8)   => BoxInt(OpHelper.trunc(buf.getByte(index), 8))
       case TypeInt(16)  => BoxInt(OpHelper.trunc(buf.getShort(index), 16))
       case TypeInt(32)  => BoxInt(OpHelper.trunc(buf.getInt(index), 32))
@@ -306,6 +317,7 @@ class NativeCallHelper {
     }
 
     def putRvToBuf(buf: Closure.Buffer, ty: MType, vb: ValueBox): Unit = ty match {
+      case TypeVoid()   => // do nothing
       case TypeInt(8)   => buf.setByteReturn(vb.asInstanceOf[BoxInt].value.toByte)
       case TypeInt(16)  => buf.setShortReturn(vb.asInstanceOf[BoxInt].value.toShort)
       case TypeInt(32)  => buf.setIntReturn(vb.asInstanceOf[BoxInt].value.toInt)

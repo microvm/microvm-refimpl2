@@ -194,6 +194,8 @@
         COMMINST @uvm.thread_exit
 }
 
+// Multi-level recursion
+
 .funcsig @PingPong.sig = @i32 (@i32 @PingPong.fp)
 .typedef @PingPong.fp  = funcptr<@PingPong.sig>
 
@@ -222,4 +224,129 @@
         %rv  = CALL <@PingPong.sig> @pong (%v %peer)
         %exittrap = TRAP<@void> KEEPALIVE (%rv)
         COMMINST @uvm.thread_exit
+}
+
+// Native and swapstack
+
+.funcsig @GiveToMu.sig   = @void (@i32)
+.typedef @GiveToMu.fp    = funcptr<@GiveToMu.sig>
+.funcsig @TakeFromMu.sig = @i32 (@void)
+.typedef @TakeFromMu.fp  = funcptr<@TakeFromMu.sig>
+
+.funcsig @giver.sig = @void (@GiveToMu.fp)
+.typedef @giver.fp  = funcptr<@giver.sig>
+.global  @giver.global <@giver.fp>
+
+.funcsig @taker.sig = @i32 (@TakeFromMu.fp)
+.typedef @taker.fp  = funcptr<@taker.sig>
+.global  @taker.global <@taker.fp>
+
+.typedef @stacktable = hybrid<@void @stack>
+.typedef @refstacktable = ref<@stacktable>
+.global  @cookie_stack_table <@refstacktable>
+
+.const @I64_STACK_TABLE_SZ <@i64> = 16
+.const @I64_MY_MAGIC_NUM <@i64> = 7
+
+.const @I32_N1 <@i32> = -1
+
+.funcdef @native_sched_test VERSION @native_sched_test.v1 <@noparamsnoret> () {
+    %entry:
+        // Make a table to map cookies to values. This emulates supporting more
+        // than one "closures" as callbacks via cookies.
+        %stab = NEWHYBRID <@stacktable @i64> @I64_STACK_TABLE_SZ
+        STORE <@refstacktable> @cookie_stack_table %stab
+
+        // Put the main stack in the table.
+        %stab_i = GETIREF <@stacktable> %stab
+        %stab_v = GETVARPARTIREF <@stacktable> %stab_i
+        %myentry_i = SHIFTIREF <@stack @i64> %stab_v @I64_MY_MAGIC_NUM
+        %mainstack = COMMINST @uvm.current_stack
+        STORE <@stack> %myentry_i %mainstack
+
+        // Expose the two callbacks with cookies set to @I64_MY_MAGIC_NUM.
+        // In this way, both of the two callbacks are agnostic of the current
+        // stack. i.e. I can use those callbacks from different main stacks.
+        %give_to_mu_exposed = COMMINST @uvm.native.expose [#DEFAULT] <[@GiveToMu.sig]> (@give_to_mu @I64_MY_MAGIC_NUM)
+        %take_from_mu_exposed = COMMINST @uvm.native.expose [#DEFAULT] <[@TakeFromMu.sig]> (@take_from_mu @I64_MY_MAGIC_NUM)
+
+        %giver_stack = NEWSTACK <@giver_wrapper.sig> @giver_wrapper (%mainstack %give_to_mu_exposed)
+        %taker_stack = NEWSTACK <@taker_wrapper.sig> @taker_wrapper (%mainstack %take_from_mu_exposed)
+
+        // Let the taker reach its first swapstack point so that it is ready
+        // to consume values.
+        %taker_first_swap = SWAPSTACK %taker_stack RET_WITH <@void> PASS_VOID
+
+        // Enter loop
+        BRANCH %head
+
+    %head:
+        // Loop until @giver_wrapper throws an exception to us.
+        %rv = SWAPSTACK %giver_stack RET_WITH <@i32> PASS_VOID EXC(%body %exit)
+
+    %body:
+        // Normal return from %giver_stack. Feed the value to the taker.
+        %rv2 = SWAPSTACK %taker_stack RET_WITH <@void> PASS_VALUE <@i32> %rv
+        BRANCH %head
+
+    %exit:
+        // Receive the exception. In this case it is actually just an object
+        // with @void content, but real-world languages (such as Python) may
+        // expect a StopIteration exception.
+        %exc = LANDINGPAD
+
+        // Send taker -1 so it can stop. Then collect the result.
+        %rv_taker = SWAPSTACK %taker_stack RET_WITH <@i32> PASS_VALUE <@i32> @I32_N1
+
+        %exittrap = TRAP <@void> KEEPALIVE (%rv_taker)
+
+        COMMINST @uvm.thread_exit
+}
+
+.funcdef @give_to_mu VERSION @give_to_mu.v1 <@GiveToMu.sig> (%v) {
+    %entry:
+        %cok = COMMINST @uvm.native.get_cookie
+        %stab = LOAD <@refstacktable> @cookie_stack_table
+
+        %stab_i = GETIREF <@stacktable> %stab
+        %stab_v = GETVARPARTIREF <@stacktable> %stab_i
+        %myentry_i = SHIFTIREF <@stack @i64> %stab_v %cok
+        %mainstack = LOAD <@stack> %myentry_i
+
+        %ss = SWAPSTACK %mainstack RET_WITH <@void> PASS_VALUE <@i64> %v
+        RETVOID
+}
+
+.funcsig @giver_wrapper.sig = @void (@stack @GiveToMu.fp)
+.funcdef @giver_wrapper VERSION @giver_wrapper.v1 <@giver_wrapper.sig> (%mainstack %cb) {
+    %entry:
+        %giver = LOAD <@giver.fp> @giver.global
+        %cc = CCALL #DEFAULT <@giver.fp @giver.sig> %giver (%cb)
+
+        %exc = NEW <@void>
+        
+        %lastswap = SWAPSTACK %mainstack KILL_OLD THROW_EXC %exc
+}
+
+.funcdef @take_from_mu VERSION @take_from_mu.v1 <@TakeFromMu.sig> (%v) {
+    %entry:
+        %cok = COMMINST @uvm.native.get_cookie
+        %stab = LOAD <@refstacktable> @cookie_stack_table
+
+        %stab_i = GETIREF <@stacktable> %stab
+        %stab_v = GETVARPARTIREF <@stacktable> %stab_i
+        %myentry_i = SHIFTIREF <@stack @i64> %stab_v %cok
+        %mainstack = LOAD <@stack> %myentry_i
+
+        %ss = SWAPSTACK %mainstack RET_WITH <@i32> PASS_VOID
+        RET <@i32> %ss
+}
+
+.funcsig @taker_wrapper.sig = @void (@stack @TakeFromMu.fp)
+.funcdef @taker_wrapper VERSION @taker_wrapper.v1 <@taker_wrapper.sig> (%mainstack %cb) {
+    %entry:
+        %taker = LOAD <@taker.fp> @taker.global
+        %cc = CCALL #DEFAULT <@taker.fp @taker.sig> %taker (%cb)
+        
+        %lastswap = SWAPSTACK %mainstack KILL_OLD PASS_VALUE <@i32> %cc
 }
