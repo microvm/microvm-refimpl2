@@ -151,6 +151,8 @@
 }
 
 .const @I64_42 <@i64> = 42
+.const @I64_84 <@i64> = 84
+.const @I64_126 <@i64> = 126
 
 .expose @square.exposed = @square #DEFAULT @I64_42
 
@@ -161,6 +163,32 @@
         %fp = LOAD <@one_level.fp> @one_level.global
         %pretrap = TRAP <@void> KEEPALIVE (%fp)
         %rv = CCALL #DEFAULT <@one_level.fp @one_level.sig> %fp (@D_3 @square.exposed)
+
+        %trap = TRAP <@void> KEEPALIVE (%fp %rv)
+        COMMINST @uvm.thread_exit
+}
+
+.funcdef @one_level_test2 VERSION @one_level_test2.v1 <@noparamsnoret> () {
+    %entry:
+        %fp = LOAD <@one_level.fp> @one_level.global
+        %cb1 = COMMINST @uvm.native.expose [#DEFAULT] <[@DoubleToDouble.sig]> (@square @I64_84)
+        %cb2 = COMMINST @uvm.native.expose [#DEFAULT] <[@DoubleToDouble.sig]> (@square @I64_126)
+        %pretrap = TRAP <@void> KEEPALIVE (%fp %cb1 %cb2)
+        %rv1 = CCALL #DEFAULT <@one_level.fp @one_level.sig> %fp (@D_3 %cb1)
+        %rv2 = CCALL #DEFAULT <@one_level.fp @one_level.sig> %fp (@D_3 %cb2)
+        COMMINST @uvm.native.unexpose [#DEFAULT] (%cb1)
+        COMMINST @uvm.native.unexpose [#DEFAULT] (%cb2)
+
+        %trap = TRAP <@void> KEEPALIVE (%fp %rv1 %rv2 %cb1 %cb2)
+        COMMINST @uvm.thread_exit
+}
+
+.funcsig @one_level_test3.sig = @void (@DoubleToDouble.fp)
+.funcdef @one_level_test3 VERSION @one_level_test3.v1 <@one_level_test3.sig> (%cb) {
+    %entry:
+        %fp = LOAD <@one_level.fp> @one_level.global
+        %pretrap = TRAP <@void> KEEPALIVE (%fp %cb)
+        %rv = CCALL #DEFAULT <@one_level.fp @one_level.sig> %fp (@D_3 %cb)
 
         %trap = TRAP <@void> KEEPALIVE (%fp %rv)
         COMMINST @uvm.thread_exit

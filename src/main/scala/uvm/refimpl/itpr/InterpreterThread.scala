@@ -1131,11 +1131,32 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
           }
 
           case "@uvm.native.expose" => {
-            ???
+            val Seq(callConv) = flagList
+            val Seq(sig) = sigList
+            val Seq(func, cookie) = argList
+            
+            val f = boxOf(func).asInstanceOf[BoxFunc].func.getOrElse {
+              throw new UvmRuntimeException(ctx + "Attempt to expose NULL Mu function")
+            }
+            
+            val c = boxOf(cookie).asInstanceOf[BoxInt].value.toLong
+            
+            val addr = microVM.nativeCallHelper.exposeFunc(f, c, true)           
+            
+            boxOf(i).asInstanceOf[BoxPointer].addr = addr
+            
+            continueNormally()
           }
 
           case "@uvm.native.unexpose" => {
-            ???
+            val Seq(callConv) = flagList
+            val Seq(addr) = argList
+            
+            val a = boxOf(addr).asInstanceOf[BoxPointer].addr
+            
+            microVM.nativeCallHelper.unexposeFunc(a)
+
+            continueNormally()
           }
 
           case "@uvm.native.get_cookie" => {

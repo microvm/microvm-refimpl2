@@ -10,6 +10,7 @@ import uvm.ssavariables.AtomicRMWOptr._
 import uvm.refimpl.mem._
 import uvm.ssavariables.HasKeepAliveClause
 import scala.collection.mutable.ArrayBuffer
+import uvm.ssavariables.Flag
 
 case class Handle(ty: Type, vb: ValueBox)
 
@@ -554,6 +555,23 @@ class ClientAgent(mutator: Mutator)(
       case TypeIRef(t) => (t, handle.vb.asInstanceOf[BoxIRef].objRef)
     }
     unpin(objRef)
+  }
+  
+  def expose(func: Handle, callConv: Flag, cookie: Handle): Handle = {
+    val TypeFunc(sig) = func.ty
+    val f = func.vb.asInstanceOf[BoxFunc].func.getOrElse {
+      throw new UvmRuntimeException("Attempt to expose NULL Mu function")
+    }
+    
+    val c = cookie.vb.asInstanceOf[BoxInt].value.toLong
+    
+    val addr = microVM.nativeCallHelper.exposeFunc(f,c,true)
+    newHandle(InternalTypePool.funcPtrOf(sig), BoxPointer(addr))
+  }
+  
+  def unexpose(callConv: Flag, addr: Handle): Unit = {
+    val a = addr.vb.asInstanceOf[BoxPointer].addr
+    microVM.nativeCallHelper.unexposeFunc(a)
   }
 
   // Internal methods for the micro VM
