@@ -36,10 +36,7 @@ case class ConstPointer(var constTy: Type, var addr: Long) extends Constant
 
 case class GlobalCell(var cellTy: Type) extends GlobalVariable
 
-case class ExposedFunc(var func: Function, var callConv: Flag, var cookie: ConstInt) extends GlobalVariable {
-  /** This value will be supplied when the function is actually exposed. */
-  var addr: Long = 0L
-}
+case class ExposedFunc(var func: Function, var callConv: Flag, var cookie: ConstInt) extends GlobalVariable
 
 // Local variables: Parameters and Instructions
 

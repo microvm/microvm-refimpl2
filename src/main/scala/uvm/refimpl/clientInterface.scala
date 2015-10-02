@@ -131,7 +131,7 @@ class ClientAgent(mutator: Mutator)(
   def putExpFunc(id: Int): Handle = {
     val ef = microVM.globalBundle.expFuncNs(id)
     val t = InternalTypePool.funcPtrOf(ef.func.sig)
-    val box = BoxPointer(ef.addr)
+    val box = BoxPointer(microVM.nativeCallHelper.getStaticExpFuncAddr(ef))
     newHandle(t, box)
   }
 
@@ -565,7 +565,7 @@ class ClientAgent(mutator: Mutator)(
     
     val c = cookie.vb.asInstanceOf[BoxInt].value.toLong
     
-    val addr = microVM.nativeCallHelper.exposeFunc(f,c,true)
+    val addr = microVM.nativeCallHelper.exposeFuncDynamic(f,c)
     newHandle(InternalTypePool.funcPtrOf(sig), BoxPointer(addr))
   }
   

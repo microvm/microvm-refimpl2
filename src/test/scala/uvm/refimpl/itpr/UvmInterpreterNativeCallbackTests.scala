@@ -133,8 +133,8 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
           val cb2Ptr = ca.toPointer(cb2)
           cb1Ptr should not equal cb2Ptr
 
-          val cb1Rec = microVM.nativeCallHelper.exposedFuncs(cb1Ptr)
-          val cb2Rec = microVM.nativeCallHelper.exposedFuncs(cb2Ptr)
+          val cb1Rec = microVM.nativeCallHelper.addrToRec(cb1Ptr)
+          val cb2Rec = microVM.nativeCallHelper.addrToRec(cb2Ptr)
 
           cb1Rec.muFunc shouldBe microVM.globalBundle.funcNs("@square")
           cb2Rec.muFunc shouldBe microVM.globalBundle.funcNs("@square")
@@ -154,8 +154,8 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
           val cb1Ptr = ca.toPointer(cb1)
           val cb2Ptr = ca.toPointer(cb2)
 
-          microVM.nativeCallHelper.exposedFuncs should not contain cb1Ptr
-          microVM.nativeCallHelper.exposedFuncs should not contain cb2Ptr
+          microVM.nativeCallHelper.addrToRec should not contain cb1Ptr
+          microVM.nativeCallHelper.addrToRec should not contain cb2Ptr
 
           TrapRebindPassVoid(st)
         }
@@ -228,7 +228,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
     callbackCalled shouldBe 2
 
     ca.unexpose(Flag("#DEFAULT"), hCB)
-    microVM.nativeCallHelper.exposedFuncs should not contain hCBAddr
+    microVM.nativeCallHelper.addrToRec should not contain hCBAddr
 
     ca.close()
   }

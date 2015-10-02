@@ -1141,7 +1141,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
             
             val c = boxOf(cookie).asInstanceOf[BoxInt].value.toLong
             
-            val addr = microVM.nativeCallHelper.exposeFunc(f, c, true)           
+            val addr = microVM.nativeCallHelper.exposeFuncDynamic(f, c)           
             
             boxOf(i).asInstanceOf[BoxPointer].addr = addr
             

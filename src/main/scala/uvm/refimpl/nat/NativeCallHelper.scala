@@ -2,26 +2,26 @@ package uvm.refimpl.nat
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import scala.collection.mutable.HashMap
 import org.slf4j.LoggerFactory
 import com.kenai.jffi.{ Type => JType, Struct => JStruct, Function => JFunction, HeapInvocationBuffer, Invoker }
+import com.kenai.jffi.CallingConvention
+import com.kenai.jffi.Closure
 import com.typesafe.scalalogging.Logger
 import uvm.FuncSig
+import uvm.{ Function => MFunc }
 import uvm.refimpl.UvmRefImplException
+import uvm.refimpl.UvmRuntimeException
 import uvm.refimpl.itpr._
 import uvm.refimpl.itpr.ValueBox
 import uvm.refimpl.mem.TypeSizes
 import uvm.refimpl.mem.TypeSizes.Word
-import uvm.{ Function => MFunc }
+import uvm.ssavariables.ExposedFunc
 import uvm.types._
 import uvm.types.{ Type => MType }
-import uvm.utils.LazyPool
 import uvm.utils.HexDump
-import scala.collection.mutable.HashMap
-import com.kenai.jffi.Closure
-import com.kenai.jffi.ClosureManager
-import com.kenai.jffi.CallingConvention
-import uvm.refimpl.UvmRuntimeException
-import uvm.refimpl.MicroVM
+import uvm.utils.LazyPool
+import uvm.refimpl.UvmRefImplException
 
 object NativeCallHelper {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
@@ -73,12 +73,24 @@ class NativeCallHelper {
    * @param isDynamic true if it is exposed via the "@uvm.native.expose" instruction or the equivalent API call. false
    * if it is exposed by the ".expose" top-level definintion of the Mu IR.
    */
-  class DynExpFunc(val muFunc: MFunc, val cookie: Long, val closure: MuCallbackClosure, val closureHandle: Closure.Handle, val isDynamic: Boolean)
+  class ExpFuncRec(val muFunc: MFunc, val cookie: Long, val closure: MuCallbackClosure, val closureHandle: Closure.Handle, val isDynamic: Boolean)
 
   /**
    * Map each address of closure handle to the DynExpFunc record so that the closure handle can be disposed.
    */
-  val exposedFuncs = new HashMap[Word, DynExpFunc]()
+  val addrToRec = new HashMap[Word, ExpFuncRec]()
+
+  /**
+   * Map each uvm.ssavariables.ExpFunc instance to the DynExpFunc record.
+   */
+  val expFuncToRec = new HashMap[ExposedFunc, ExpFuncRec]()
+
+  /**
+   * Get the address to the statically exposed function (.expose) by the ExposedFunc instance.
+   */
+  def getStaticExpFuncAddr(expFunc: ExposedFunc): Word = {
+    expFuncToRec(expFunc).closureHandle.getAddress()
+  }
 
   /**
    * The current NativeStackKeeper instance that makes the native call.
@@ -209,13 +221,24 @@ class NativeCallHelper {
       case _: AbstractPointerType => vb.asInstanceOf[BoxPointer].addr = buf.getLong(off)
     }
   }
-
+  
+  def exposeFuncStatic(expFunc: ExposedFunc): Word = {
+    val efr = exposeFunc(expFunc.func, expFunc.cookie.num.toLong, false)
+    expFuncToRec(expFunc) = efr
+    efr.closureHandle.getAddress
+  }
+  
+  def exposeFuncDynamic(muFunc: MFunc, cookie: Long): Word = {
+    val efr = exposeFunc(muFunc, cookie, true)
+    efr.closureHandle.getAddress
+  }
+  
   /**
    * Expose a Mu function.
    *
    * @return the address of the exposed function (i.e. of the closure handle)
    */
-  def exposeFunc(muFunc: MFunc, cookie: Long, isDynamic: Boolean): Word = {
+  private def exposeFunc(muFunc: MFunc, cookie: Long, isDynamic: Boolean): ExpFuncRec = {
     val sig = muFunc.sig
     val jParamTypes = sig.paramTy.map(jffiTypePool.apply)
     val jRetTy = jffiTypePool(sig.retTy)
@@ -224,25 +247,25 @@ class NativeCallHelper {
     val handle = NativeSupport.closureManager.newClosure(clos, jRetTy, jParamTypes.toArray, CallingConvention.DEFAULT)
     val addr = handle.getAddress
 
-    val dynExpFunc = new DynExpFunc(muFunc, cookie, clos, handle, isDynamic)
+    val efr = new ExpFuncRec(muFunc, cookie, clos, handle, isDynamic)
 
-    exposedFuncs(addr) = dynExpFunc
+    addrToRec(addr) = efr
 
-    addr
+    efr
   }
 
   def unexposeFunc(addr: Word): Unit = {
-    val dynExpFunc = exposedFuncs.get(addr).getOrElse {
+    val efr = addrToRec.get(addr).getOrElse {
       throw new UvmRuntimeException("Attempt to unexpose function %d (0x%x) which has not been exposed.".format(addr, addr))
     }
 
-    if (!dynExpFunc.isDynamic) {
+    if (!efr.isDynamic) {
       throw new UvmRuntimeException("Attempt to unexpose a function %d (0x%x) exposed via the '.expose' top-level definition.".format(addr, addr))
     }
 
-    exposedFuncs.remove(addr)
+    addrToRec.remove(addr)
 
-    dynExpFunc.closureHandle.dispose()
+    efr.closureHandle.dispose()
   }
 
   /** Handles calling back from C */
