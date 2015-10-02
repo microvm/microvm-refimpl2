@@ -3,7 +3,7 @@ lazy val root = (project in file(".")).settings(
 
     name := "microvm-refimpl2",
     
-    version := "2.0.0",
+    version := "2.1.0",
 
     description := "The second reference implementation of Mu, the micro virtual machine",
 

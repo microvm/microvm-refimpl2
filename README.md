@@ -4,11 +4,8 @@ Mu Reference Implementation version 2
 This project is the current reference implementation of Mu, the micro virtual
 machine designed by [The Micro Virtual Machine Project](http://microvm.org).
 
-Version 2.0.x implements the [Mu Specification version
-2](https://github.com/microvm/microvm-spec/wiki) revision
-``92da59004e9c8d89bbafdc6b2039fb51c212ebfb``. You will need to clone the Wiki
-and view it locally. [This fork of Restview](https://github.com/wks/restview)
-can read the Wiki locally with ease.
+Version 2.1.x implements the latest revision of the [Mu Specification version
+2](https://github.com/microvm/microvm-spec/wiki).
 
 This project is based on the previous works of
 [simplest-microvm-project](https://github.com/microvm/simplest-microvm-project).
