@@ -2,11 +2,15 @@ Mu Reference Implementation version 2
 =====================================
 
 This project is the current reference implementation of Mu, the micro virtual
-machine designed by [The Micro Virtual Machine Project](http://microvm.org). It
-implements the [Mu Specification version
-2](https://github.com/microvm/microvm-spec/wiki)
+machine designed by [The Micro Virtual Machine Project](http://microvm.org).
 
-This project is based on the
+Version 2.0.x implements the [Mu Specification version
+2](https://github.com/microvm/microvm-spec/wiki) revision
+``92da59004e9c8d89bbafdc6b2039fb51c212ebfb``. You will need to clone the Wiki
+and view it locally. [This fork of Restview](https://github.com/wks/restview)
+can read the Wiki locally with ease.
+
+This project is based on the previous works of
 [simplest-microvm-project](https://github.com/microvm/simplest-microvm-project).
 [microvm-refimpl](https://github.com/microvm-project/microvm-refimpl) is the
 previous reference implementation.
@@ -21,7 +25,7 @@ How to compile
   `brew install scala`.
 * Install [sbt](http://www.scala-sbt.org/) 0.13. If you use Mac and Homebrew,
   `brew install sbt`.
-* Install [Scala IDE](http://scala-ide.org/) 4.0 (Eclipse with pre-installed
+* Install [Scala IDE](http://scala-ide.org/) 4.x (Eclipse with pre-installed
   plugins for Scala).
 * Clone this repository:
 
@@ -50,15 +54,14 @@ yum, pacman, etc. for GNU/Linux distributions and Homebrew for Mac OS X).
 To download all dependencies from the Maven central repository, invoke `sbt
 update`.
 
-To generate the Mu IR parser from its Antlr grammar, invoke `sbt
-antlr4:antlr4Generate`. The generated sources will be in
-`target/scala-2.11/src_managed`. Make sure your IDE can see those generated
-sources.
-
-To compile, invoke `sbt compile` or do this in your favourite IDE.
+To compile, invoke `sbt compile` or do this in your favourite IDE. This will
+also generate the Mu IR parser from the Antlr grammar. The generated sources
+will be in the `target/scala-2.11/src_managed` directory.
 
 To generate an Eclipse project, install the [sbt-eclipse
-plugin](https://github.com/typesafehub/sbteclipse) and invoke `sbt eclipse`.
+plugin](https://github.com/typesafehub/sbteclipse) and invoke `sbt eclipse`. By
+default, it should automatically put the managed source directory to the source
+paths, too.
 
 IntelliJ IDEA has plugins for Scala and SBT. Make sure you don't commit `.idea`
 or generated project files into the repository.
