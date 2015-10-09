@@ -15,17 +15,17 @@
 
 .funcsig @sig_fs = @void (@i32)
 
-.typedef @sig_t = func<@sig_fs>
+.typedef @sig_t = funcref<@sig_fs>
 
 .funcsig @signal_sig = @sig_t (@i32 @sig_t)
 .funcdecl @signal <@signal_sig>
 
 .const @zero <@i32> = 0
 
-.funcdef @main VERSION @main_v1 <@baz> (%argc %argv) {
-    %entry:
+.funcdef @main VERSION %v1 <@baz> {
+    %entry(<@i32> %argc <@iii8> %argv):
         %add = ADD <@i32> %argc @zero
-        RET <@i32> @zero
+        RET @zero
 }
 
 .const @zero64 <@i64> = 0

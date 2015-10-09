@@ -22,24 +22,24 @@
 .typedef @iii8 = iref<@ii8>
 
 .funcsig @npnr_sig  = @void ()
-.typedef @npnr_func = func<@npnr_sig>
+.typedef @npnr_func = funcref<@npnr_sig>
 
 .funcsig @iii_sig  = @i64 (@i64 @i64)
-.typedef @iii_func = func<@iii_sig>
+.typedef @iii_func = funcref<@iii_sig>
 
-.typedef @thread    = thread
-.typedef @stack     = stack
+.typedef @thread    = threadref
+.typedef @stack     = stackref
 .typedef @tagref64  = tagref64
 
 .typedef @4xfloat   = vector <@float 4>
 .typedef @4xi32     = vector <@i32 4>
 .typedef @2xdouble  = vector <@double 2>
 
-.typedef @pv    = ptr<@void>
-.typedef @pi32  = ptr<@i32>
-.typedef @pi64  = ptr<@i64>
-.typedef @npnr_fp = funcptr<@npnr_sig>
-.typedef @iii_fp  = funcptr<@iii_sig>
+.typedef @pv    = uptr<@void>
+.typedef @pi32  = uptr<@i32>
+.typedef @pi64  = uptr<@i64>
+.typedef @npnr_fp = ufuncptr<@npnr_sig>
+.typedef @iii_fp  = ufuncptr<@iii_sig>
 
 .const @I8_0    <@i8>       = 0
 .const @I16_0   <@i16>      = 0
@@ -65,9 +65,11 @@
 
 .const @NULLREF <@rv> = NULL
 
-.funcsig @intBinOpTest_sig = @void (@i32 @i32)
-.funcdef @intBinOpTest VERSION @intBinOpTest_v1 <@intBinOpTest_sig> (%p0 %p1) {
-    %entry:
+.const @VOID <@void> = NULL
+
+.funcsig @intBinOpTest.sig = @void (@i32 @i32)
+.funcdef @intBinOpTest VERSION %v1 <@intBinOpTest.sig> {
+    %entry(<@i32> %p0 <@i32> %p1):
         %add  = ADD  <@i32> %p0 %p1
         %sub  = SUB  <@i32> %p0 %p1
         %mul  = MUL  <@i32> %p0 %p1
@@ -82,24 +84,24 @@
         %or   = OR   <@i32> %p0 %p1
         %xor  = XOR  <@i32> %p0 %p1
         
-        RETVOID
+        RET @VOID
 }
 
-.funcsig @fpBinOpTest_sig = @void (@double @double)
-.funcdef @fpBinOpTest VERSION @fpBinOpTest_v1 <@fpBinOpTest_sig> (%p0 %p1) {
-    %entry:
+.funcsig @fpBinOpTest.sig = @void (@double @double)
+.funcdef @fpBinOpTest VERSION %v1 <@fpBinOpTest.sig> {
+    %entry(<@double> %p0 <@double> %p1):
         %fadd = FADD <@double> %p0 %p1
         %fsub = FSUB <@double> %p0 %p1
         %fmul = FMUL <@double> %p0 %p1
         %fdiv = FDIV <@double> %p0 %p1
         %frem = FREM <@double> %p0 %p1
         
-        RETVOID
+        RET @VOID
 }
 
-.funcsig @intCmpTest_sig = @void (@i64 @i64)
-.funcdef @intCmpTest VERSION @intCmpTest_v1 <@intCmpTest_sig> (%p0 %p1) {
-    %entry:
+.funcsig @intCmpTest.sig = @void (@i64 @i64)
+.funcdef @intCmpTest VERSION %v1 <@intCmpTest.sig> {
+    %entry(<@i64> %p0 <@i64> %p1):
         %eq  = EQ  <@i64> %p0 %p1
         %ne  = NE  <@i64> %p0 %p1
         %ult = ULT <@i64> %p0 %p1
@@ -111,12 +113,12 @@
         %sgt = SGT <@i64> %p0 %p1
         %sge = SGE <@i64> %p0 %p1
         
-        RETVOID
+        RET @VOID
 }
 
-.funcsig @fpCmpTest_sig = @void (@float @float)
-.funcdef @fpCmpTest VERSION @fpCmpTest_v1 <@fpCmpTest_sig> (%p0 %p1) {
-    %entry:
+.funcsig @fpCmpTest.sig = @void (@float @float)
+.funcdef @fpCmpTest VERSION %v1 <@fpCmpTest.sig> {
+    %entry(<@float> %p0 <@float> %p1):
         %ftrue  = FTRUE  <@float> %p0 %p1
         %ffalse = FFALSE <@float> %p0 %p1
         %ford = FORD <@float> %p0 %p1
@@ -134,12 +136,12 @@
         %fugt = FUGT <@float> %p0 %p1
         %fuge = FUGE <@float> %p0 %p1
         
-        RETVOID
+        RET @VOID
 }
 
-.funcsig @convTest_sig = @void (@i32 @i64 @float @double)
-.funcdef @convTest VERSION @convTest_v1 <@convTest_sig> (%p0 %p1 %p2 %p3) {
-    %entry:
+.funcsig @convTest.sig = @void (@i32 @i64 @float @double)
+.funcdef @convTest VERSION %v1 <@convTest.sig> {
+    %entry(<@i32> %p0 <@i64> %p1 <@float> %p2 <@double> %p3):
         %trunc  = TRUNC <@i64 @i32> %p1
         %zext   = ZEXT  <@i32 @i64> %p0
         %sext   = SEXT  <@i32 @i64> %p0
@@ -157,318 +159,317 @@
         %bitcast2 = BITCAST <@float @i32>  %p2
         %bitcast3 = BITCAST <@double @i64> %p3
 
-        RETVOID
+        RET @VOID
 }
 
-.funcsig @refCastTest_sig = @void (@rv @irv @npnr_func)
-.funcdef @refCastTest VERSION @refCastTest_v1 <@refCastTest_sig> (%p0 %p1 %p2) {
-    %entry:
+.funcsig @refCastTest.sig = @void (@rv @irv @npnr_func)
+.funcdef @refCastTest VERSION %v1 <@refCastTest.sig> {
+    %entry(<@rv> %p0 <@irv> %p1 <@npnr_func> %p2):
         %refcast  = REFCAST <@rv @ri32> %p0
         %irefcast = REFCAST <@irv @ii64> %p1
         %funccast = REFCAST <@npnr_func @iii_func> %p2
         
-        RETVOID
+        RET @VOID
 }
 
-.funcsig @ptrCastTest_sig = @void (@i64)
-.funcdef @ptrCastTest VERSION @ptrCastTest_v1 <@ptrCastTest_sig> (%p0) {
-    %entry:
+.funcsig @ptrCastTest.sig = @void (@i64)
+.funcdef @ptrCastTest VERSION %v1 <@ptrCastTest.sig> {
+    %entry(<@i64> %p0):
         %ptrcast = PTRCAST <@i64 @pi64> %p0
         
-        RETVOID
+        RET @VOID
 }
 
-.funcsig @select_sig = @void ()
-.funcdef @select VERSION @select_v1 <@select_sig> () {
-    %entry:
+.funcsig @select.sig = @void ()
+.funcdef @select VERSION %v1 <@select.sig> {
+    %entry():
         %select  = SELECT <@i1 @i32> @TRUE @I32_0 @I32_1
 
-        RETVOID
+        RET @VOID
 }
 
-.funcsig @ctrlFlow_sig = @void (@i32)
-.funcdef @ctrlFlow VERSION @ctrlFlow_v1 <@ctrlFlow_sig> (%p0) {
-    %entry:
-        %br1 = BRANCH %head
+.funcsig @ctrlFlow.sig = @void (@i32)
+.funcdef @ctrlFlow VERSION %v1 <@ctrlFlow.sig> {
+    %entry(<@i32> %p0):
+        %br1 = BRANCH %head(%p0)
     
-    %head:
-        %phi  = PHI <@i32> { %entry: @I32_0; %next: %i2; }
-        %zero = EQ <@i32> %p0 @I32_0
-        %br2 = BRANCH2 %zero %body %exit
+    %head(<@i32> %x):
+        %zero = EQ <@i32> %x @I32_0
+        %br2 = BRANCH2 %zero %body(%x) %exit()
         
-    %body:
-        %switch = SWITCH <@i32> %phi %other { @I32_1: %one; @I32_2: %two; }
-    %one:
-        %br3 = BRANCH %next
-    %two:
-        %br4 = BRANCH %next
-    %other:
-        %br5 = BRANCH %next
-    %next:
-        %i2 = SUB <@i32> %phi @I32_1
-        %br6 = BRANCH %head
+    %body(<@i32> %x):
+        %switch = SWITCH <@i32> %x %other(%x) { @I32_1 %one(%x) @I32_2 %two(%x) }
+    %one(<@i32> %x):
+        %br3 = BRANCH %next(%x)
+    %two(<@i32> %x):
+        %br4 = BRANCH %next(%x)
+    %other(<@i32> %x):
+        %br5 = BRANCH %next(%x)
+    %next(<@i32> %x):
+        %i2 = SUB <@i32> %x @I32_1
+        %br6 = BRANCH %head(%i2)
         
-    %exit:
-        RETVOID
+    %exit():
+        RET @VOID
 }
 
 
 .funcdecl @callee1 <@npnr_sig>
 
-.funcdef @callee2 VERSION @callee2_v1 <@iii_sig> (%p0 %p1) {
-    %entry:
+.funcdef @callee2 VERSION %v1 <@iii_sig> {
+    %entry(<@i64> %p0 <@i64> %p1):
         %rv = ADD <@i64> %p0 %p1
-        %ret = RET <@i64> %rv
+        %ret = RET %rv
 }
 
-.funcdef @callee3 VERSION @callee3_v1 <@iii_sig> (%p0 %p1) {
-    %entry:
+.funcdef @callee3 VERSION %v1 <@iii_sig> {
+    %entry(<@i64> %p0 <@i64> %p1):
         %exc = NEW <@double>
         %throw = THROW %exc
 }
 
-.funcdef @caller1 VERSION @caller1_v1 <@npnr_sig> () {
-    %entry:
+.funcdef @caller1 VERSION %v1 <@npnr_sig> {
+    %entry():
         %v1 = CALL <@npnr_sig> @callee1 ()
         %v2 = CALL <@iii_sig> @callee2 (@I64_1 @I64_2)
-        %v3 = CALL <@iii_sig> @callee3 (@I64_1 @I64_2) EXC(%cont %catch)
+        %v3 = CALL <@iii_sig> @callee3 (@I64_1 @I64_2) EXC(%cont(%v2 %v3) %catch())
 
-    %cont:
+    %cont(<@i64> %v2 <@i64> %v3):
         %v4 = CALL <@npnr_sig> @callee1 () KEEPALIVE(%v2 %v3)
-        %v5 = CALL <@iii_sig> @callee3 (%v3 %v3) EXC(%cont2 %catch) KEEPALIVE(%v2)
+        %v5 = CALL <@iii_sig> @callee3 (%v3 %v3) EXC(%cont2() %catch()) KEEPALIVE(%v2)
 
-    %cont2:
-        %retv = RETVOID
+    %cont2():
+        %retv = RET @VOID
 
-    %catch:
-        %exc = LANDINGPAD
-        RETVOID
+    %catch() [%exc]:
+        RET @VOID
 }
 
-.funcdef @caller2 VERSION @caller2_v1 <@iii_sig> (%p0 %p1) {
-    %entry:
+.funcdef @caller2 VERSION %v1 <@iii_sig> {
+    %entry(<@i64> %p0 <@i64> %p1):
         %tc = TAILCALL <@iii_sig> @callee2 (%p0 %p1)
 }
 
-.typedef @sid = struct <@i64 @double>
-.typedef @rsid = ref<@sid>
-.const @sid1 <@sid> = {@I64_1 @D_1}
-
-.const @v1 <@4xfloat> = VEC {@F_0 @F_0 @F_0 @F_0}
-.const @v2 <@4xfloat> = VEC {@F_1 @F_1 @F_1 @F_1}
-
-.const @I32_4 <@i32> = 4
-.const @I32_6 <@i32> = 6
-.const @vshf <@4xi32> = VEC {@I32_0 @I32_2 @I32_4 @I32_6}
-
-.funcdef @aggregate VERSION @aggregate_v1 <@npnr_sig> () {
-    %entry:
-        %e0 = EXTRACTVALUE <@sid 0> @sid1
-        %e1 = EXTRACTVALUE <@sid 1> @sid1
-        %i0 = INSERTVALUE  <@sid 0> @sid1 @I64_0
-        %i1 = INSERTVALUE  <@sid 1> @sid1 @D_0
-        %ee0 = EXTRACTELEMENT <@4xfloat @i32> @v1 @I32_0
-        %ie0 = INSERTELEMENT  <@4xfloat @i32> @v1 @I32_1 @F_1
-        %sv0 = SHUFFLEVECTOR  <@4xfloat @4xi32> @v1 @v2 @vshf
-    
-        RETVOID
-}
-
-.typedef @al = array <@i64 10>
-.typedef @ral = ref<@al>
-.typedef @hic = hybrid <@i64 @i8>
-.typedef @rhic = ref<@hic>
-
-.funcsig @memops_sig = @void (@i64 @i64)
-.funcdef @memops VERSION @memops_v1 <@memops_sig> (%p0 %p1) {
-    %entry:
-        %new            = NEW <@i64>
-        %newhybrid      = NEWHYBRID <@hic @i64> %p0
-        %alloca         = ALLOCA <@i64 >
-        %allocahybrid   = ALLOCAHYBRID <@hic @i64> %p0
-
-        %new_s          = NEW <@i64> EXC(%bb2 %handler)
-    %bb2:
-        %newhybrid_s    = NEWHYBRID <@hic @i64> %p0 EXC(%bb3 %handler)
-    %bb3:
-        %alloca_s       = ALLOCA <@i64 > EXC(%bb4 %handler)
-    %bb4:
-        %allocahybrid_s = ALLOCAHYBRID <@hic @i64> %p0 EXC(%bb5 %handler)
-
-    %bb5:
-        %new2           = NEW <@sid>
-        %alloca2        = ALLOCA <@al>
-        
-        %getiref        = GETIREF <@sid> %new2
-        
-        %getfieldiref   = GETFIELDIREF <@sid 0> %getiref
-        %getelemiref    = GETELEMIREF <@al @i64> %alloca2 %p1
-        
-        %getfixedpartiref   = GETFIXEDPARTIREF <@hic> %allocahybrid
-        %getvarpartiref     = GETVARPARTIREF <@hic> %allocahybrid
-        
-        %shiftiref      = SHIFTIREF <@i8 @i64> %getvarpartiref %p1
-        
-        %load       = LOAD  <@i64> %alloca
-        %store      = STORE <@i64> %alloca @I64_42
-        %cmpxchg    = CMPXCHG SEQ_CST SEQ_CST <@i64> %alloca @I64_42 @I64_0
-        %cmpxchg_w  = CMPXCHG WEAK SEQ_CST SEQ_CST <@i64> %alloca @I64_42 @I64_0
-        %atomicrmw  = ATOMICRMW SEQ_CST ADD <@i64> %alloca @I64_43
-
-        %load_s     = LOAD  <@i64> %alloca EXC(%bb6 %handler)
-    %bb6:
-        %store_s    = STORE <@i64> %alloca @I64_42 EXC(%bb7 %handler)
-    %bb7:
-        %cmpxchg_s  = CMPXCHG SEQ_CST SEQ_CST <@i64> %alloca @I64_42 @I64_0 EXC(%bb8 %handler)
-    %bb8:
-        %atomicrmw_s= ATOMICRMW SEQ_CST ADD <@i64> %alloca @I64_43 EXC(%bb9 %handler)
-
-    %bb9:
-        %fence = FENCE SEQ_CST
-        
-        RETVOID
-
-    %handler:
-        RETVOID
-}
-
-.funcsig @memops_ptr_sig = @void (@i64 @i64)
-.funcdef @memops_ptr VERSION @memops_ptr_v1 <@memops_ptr_sig> (%p0 %p1) {
-    %entry:
-        %new            = NEW <@i64>
-        %newhybrid      = NEWHYBRID <@hic @i64> %p0
-        %new2           = NEW <@sid>
-        %new3           = NEW <@al>
-
-        %p              = COMMINST @uvm.native.pin <@ri64> (%new)
-        %ph             = COMMINST @uvm.native.pin <@rhic> (%newhybrid)
-        %p2             = COMMINST @uvm.native.pin <@rsid> (%new2)
-        %p3             = COMMINST @uvm.native.pin <@ral>  (%new3)
-        
-        %getfieldiref   = GETFIELDIREF PTR <@sid 0>   %p2
-        %getelemiref    = GETELEMIREF  PTR <@al @i64> %p3 %p1
-        
-        %getfixedpartiref   = GETFIXEDPARTIREF PTR <@hic> %ph
-        %getvarpartiref     = GETVARPARTIREF   PTR <@hic> %ph
-        
-        %shiftiref      = SHIFTIREF PTR <@i8 @i64> %getvarpartiref %p1
-        
-        %load       = LOAD  PTR <@i64> %p
-        %store      = STORE PTR <@i64> %p @I64_42
-        %cmpxchg    = CMPXCHG PTR SEQ_CST SEQ_CST <@i64> %p @I64_42 @I64_0
-        %atomicrmw  = ATOMICRMW PTR SEQ_CST ADD <@i64> %p @I64_43
-        
-        RETVOID
-}
-
-
-.funcsig @memorder_sig = @void (@ii64)
-.funcdef @memorder VERSION @memorder_v1 <@memorder_sig> (%p0) {
-    %entry:
-        %l0 = LOAD NOT_ATOMIC   <@i64> %p0
-        %l1 = LOAD RELAXED      <@i64> %p0
-        %l2 = LOAD CONSUME      <@i64> %p0
-        %l3 = LOAD ACQUIRE      <@i64> %p0
-        %s4 = STORE RELEASE     <@i64> %p0 @I64_42
-        %c5 = CMPXCHG ACQ_REL ACQUIRE   <@i64> %p0 @I64_42 @I64_43
-        %l6 = LOAD SEQ_CST      <@i64> %p0
-
-        RETVOID
-}
-
-.funcsig @atomicrmwops_sig = @void (@ii64 @i64)
-.funcdef @atomicrmwops VERSION @atomicrmwops_v1 <@atomicrmwops_sig> (%p0 %p1) {
-    %entry:
-        %old0 = ATOMICRMW ACQ_REL XCHG  <@i64> %p0 %p1
-        %old1 = ATOMICRMW ACQ_REL ADD   <@i64> %p0 %p1
-        %old2 = ATOMICRMW ACQ_REL SUB   <@i64> %p0 %p1
-        %old3 = ATOMICRMW ACQ_REL AND   <@i64> %p0 %p1
-        %old4 = ATOMICRMW ACQ_REL NAND  <@i64> %p0 %p1
-        %old5 = ATOMICRMW ACQ_REL OR    <@i64> %p0 %p1
-        %old6 = ATOMICRMW ACQ_REL XOR   <@i64> %p0 %p1
-        %old7 = ATOMICRMW ACQ_REL MAX   <@i64> %p0 %p1
-        %old8 = ATOMICRMW ACQ_REL MIN   <@i64> %p0 %p1
-        %old9 = ATOMICRMW ACQ_REL UMAX  <@i64> %p0 %p1
-        %olda = ATOMICRMW ACQ_REL UMIN  <@i64> %p0 %p1
-
-        RETVOID
-}
-
-.funcdef @traps VERSION @traps_v1 <@npnr_sig> () {
-    %entry:
-        %a  = ADD <@i64> @I64_42 @I64_43
-        %b  = SUB <@i64> @I64_42 @I64_43
-        %c  = MUL <@i64> @I64_42 @I64_43
-
-        %tp     = TRAP <@i32> KEEPALIVE(%a)
-        %tp_s   = TRAP <@i64> EXC(%tp_s_cont %tp_s_exc) KEEPALIVE(%b)
-
-    %tp_s_cont:
-        %wp     = WATCHPOINT 1 <@float> %wp_dis_cont %wp_ena_cont KEEPALIVE(%a)
-    
-    %wp_dis_cont:
-        %wp_s   = WATCHPOINT 2 <@double> %wp_s_dis_cont %wp_s_ena_cont WPEXC(%wp_s_exc) KEEPALIVE(%b)
-
-    %wp_ena_cont:
-        RETVOID
-
-    %wp_s_dis_cont:
-        RETVOID
-
-    %wp_s_ena_cont:
-        RETVOID
-    
-    %tp_s_exc:
-        %exc = LANDINGPAD
-        THROW %exc
-        
-    %wp_s_exc:
-        %exc2 = LANDINGPAD
-        THROW %exc2
-}
-
-.funcsig @ccall_callee_sig = @void (@double)
-.typedef @ccall_callee_fp = funcptr<@ccall_callee_sig>
-
-.funcsig @ccall_sig = @void (@ccall_callee_fp)
-.funcdef @ccall VERSION @ccall_v1 <@ccall_sig> (%p0) {
-    %entry:
-        %rv = CCALL #DEFAULT <@ccall_callee_fp @ccall_callee_sig> %p0 (@D_1)
-        
-        RETVOID
-}
-
-.funcsig @gen_sig = @void (@stack)
-.funcdef @gen VERSION @gen_v1 <@npnr_sig> (%main) {
-    %entry:
-        %ss1 = SWAPSTACK %main RET_WITH <@void> PASS_VALUE <@i64> @I64_0
-        %ss2 = SWAPSTACK %main KILL_OLD THROW_EXC @NULLREF
-        THROW @NULLREF // unreachable
-}
-
-.funcdef @swapstack VERSION @swapstack_v1 <@npnr_sig> () {
-    %entry:
-        %curstack = COMMINST @uvm.current_stack
-        %coro = NEWSTACK <@iii_sig> @callee2 (%curstack) EXC(%cont %exc)
-        
-    %cont:
-        %ss1 = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID KEEPALIVE(%curstack)
-        %ss2 = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID EXC(%nor %exc)
-
-    %nor:
-        RETVOID
-    %exc:
-        RETVOID
-}
-
-.funcdef @comminst VERSION @comminst_v1 <@npnr_sig> () {
-    %entry:
-        %curstack = COMMINST @uvm.current_stack
-        %sta = NEWSTACK <@iii_sig> @callee2 (%curstack)
-        %thr = COMMINST @uvm.new_thread (%sta)
-
-        %ex = COMMINST @uvm.native.expose [#DEFAULT] <[@npnr_sig]> (@swapstack)
-
-        %th_ex = COMMINST @uvm.thread_exit
-        RETVOID
-}
+// .typedef @sid = struct <@i64 @double>
+// .typedef @rsid = ref<@sid>
+// .const @sid1 <@sid> = {@I64_1 @D_1}
+// 
+// .const @v1 <@4xfloat> = VEC {@F_0 @F_0 @F_0 @F_0}
+// .const @v2 <@4xfloat> = VEC {@F_1 @F_1 @F_1 @F_1}
+// 
+// .const @I32_4 <@i32> = 4
+// .const @I32_6 <@i32> = 6
+// .const @vshf <@4xi32> = VEC {@I32_0 @I32_2 @I32_4 @I32_6}
+// 
+// .funcdef @aggregate VERSION %v1 <@npnr_sig> () {
+//     %entry:
+//         %e0 = EXTRACTVALUE <@sid 0> @sid1
+//         %e1 = EXTRACTVALUE <@sid 1> @sid1
+//         %i0 = INSERTVALUE  <@sid 0> @sid1 @I64_0
+//         %i1 = INSERTVALUE  <@sid 1> @sid1 @D_0
+//         %ee0 = EXTRACTELEMENT <@4xfloat @i32> @v1 @I32_0
+//         %ie0 = INSERTELEMENT  <@4xfloat @i32> @v1 @I32_1 @F_1
+//         %sv0 = SHUFFLEVECTOR  <@4xfloat @4xi32> @v1 @v2 @vshf
+//     
+//         RET @VOID
+// }
+// 
+// .typedef @al = array <@i64 10>
+// .typedef @ral = ref<@al>
+// .typedef @hic = hybrid <@i64 @i8>
+// .typedef @rhic = ref<@hic>
+// 
+// .funcsig @memops.sig = @void (@i64 @i64)
+// .funcdef @memops VERSION %v1 <@memops.sig> (%p0 %p1) {
+//     %entry:
+//         %new            = NEW <@i64>
+//         %newhybrid      = NEWHYBRID <@hic @i64> %p0
+//         %alloca         = ALLOCA <@i64 >
+//         %allocahybrid   = ALLOCAHYBRID <@hic @i64> %p0
+// 
+//         %new_s          = NEW <@i64> EXC(%bb2 %handler)
+//     %bb2:
+//         %newhybrid_s    = NEWHYBRID <@hic @i64> %p0 EXC(%bb3 %handler)
+//     %bb3:
+//         %alloca_s       = ALLOCA <@i64 > EXC(%bb4 %handler)
+//     %bb4:
+//         %allocahybrid_s = ALLOCAHYBRID <@hic @i64> %p0 EXC(%bb5 %handler)
+// 
+//     %bb5:
+//         %new2           = NEW <@sid>
+//         %alloca2        = ALLOCA <@al>
+//         
+//         %getiref        = GETIREF <@sid> %new2
+//         
+//         %getfieldiref   = GETFIELDIREF <@sid 0> %getiref
+//         %getelemiref    = GETELEMIREF <@al @i64> %alloca2 %p1
+//         
+//         %getfixedpartiref   = GETFIXEDPARTIREF <@hic> %allocahybrid
+//         %getvarpartiref     = GETVARPARTIREF <@hic> %allocahybrid
+//         
+//         %shiftiref      = SHIFTIREF <@i8 @i64> %getvarpartiref %p1
+//         
+//         %load       = LOAD  <@i64> %alloca
+//         %store      = STORE <@i64> %alloca @I64_42
+//         %cmpxchg    = CMPXCHG SEQ_CST SEQ_CST <@i64> %alloca @I64_42 @I64_0
+//         %cmpxchg_w  = CMPXCHG WEAK SEQ_CST SEQ_CST <@i64> %alloca @I64_42 @I64_0
+//         %atomicrmw  = ATOMICRMW SEQ_CST ADD <@i64> %alloca @I64_43
+// 
+//         %load_s     = LOAD  <@i64> %alloca EXC(%bb6 %handler)
+//     %bb6:
+//         %store_s    = STORE <@i64> %alloca @I64_42 EXC(%bb7 %handler)
+//     %bb7:
+//         %cmpxchg_s  = CMPXCHG SEQ_CST SEQ_CST <@i64> %alloca @I64_42 @I64_0 EXC(%bb8 %handler)
+//     %bb8:
+//         %atomicrmw_s= ATOMICRMW SEQ_CST ADD <@i64> %alloca @I64_43 EXC(%bb9 %handler)
+// 
+//     %bb9:
+//         %fence = FENCE SEQ_CST
+//         
+//         RET @VOID
+// 
+//     %handler:
+//         RET @VOID
+// }
+// 
+// .funcsig @memops_ptr.sig = @void (@i64 @i64)
+// .funcdef @memops_ptr VERSION %v1 <@memops_ptr.sig> (%p0 %p1) {
+//     %entry:
+//         %new            = NEW <@i64>
+//         %newhybrid      = NEWHYBRID <@hic @i64> %p0
+//         %new2           = NEW <@sid>
+//         %new3           = NEW <@al>
+// 
+//         %p              = COMMINST @uvm.native.pin <@ri64> (%new)
+//         %ph             = COMMINST @uvm.native.pin <@rhic> (%newhybrid)
+//         %p2             = COMMINST @uvm.native.pin <@rsid> (%new2)
+//         %p3             = COMMINST @uvm.native.pin <@ral>  (%new3)
+//         
+//         %getfieldiref   = GETFIELDIREF PTR <@sid 0>   %p2
+//         %getelemiref    = GETELEMIREF  PTR <@al @i64> %p3 %p1
+//         
+//         %getfixedpartiref   = GETFIXEDPARTIREF PTR <@hic> %ph
+//         %getvarpartiref     = GETVARPARTIREF   PTR <@hic> %ph
+//         
+//         %shiftiref      = SHIFTIREF PTR <@i8 @i64> %getvarpartiref %p1
+//         
+//         %load       = LOAD  PTR <@i64> %p
+//         %store      = STORE PTR <@i64> %p @I64_42
+//         %cmpxchg    = CMPXCHG PTR SEQ_CST SEQ_CST <@i64> %p @I64_42 @I64_0
+//         %atomicrmw  = ATOMICRMW PTR SEQ_CST ADD <@i64> %p @I64_43
+//         
+//         RET @VOID
+// }
+// 
+// 
+// .funcsig @memorder.sig = @void (@ii64)
+// .funcdef @memorder VERSION %v1 <@memorder.sig> (%p0) {
+//     %entry:
+//         %l0 = LOAD NOT_ATOMIC   <@i64> %p0
+//         %l1 = LOAD RELAXED      <@i64> %p0
+//         %l2 = LOAD CONSUME      <@i64> %p0
+//         %l3 = LOAD ACQUIRE      <@i64> %p0
+//         %s4 = STORE RELEASE     <@i64> %p0 @I64_42
+//         %c5 = CMPXCHG ACQ_REL ACQUIRE   <@i64> %p0 @I64_42 @I64_43
+//         %l6 = LOAD SEQ_CST      <@i64> %p0
+// 
+//         RET @VOID
+// }
+// 
+// .funcsig @atomicrmwops.sig = @void (@ii64 @i64)
+// .funcdef @atomicrmwops VERSION %v1 <@atomicrmwops.sig> (%p0 %p1) {
+//     %entry:
+//         %old0 = ATOMICRMW ACQ_REL XCHG  <@i64> %p0 %p1
+//         %old1 = ATOMICRMW ACQ_REL ADD   <@i64> %p0 %p1
+//         %old2 = ATOMICRMW ACQ_REL SUB   <@i64> %p0 %p1
+//         %old3 = ATOMICRMW ACQ_REL AND   <@i64> %p0 %p1
+//         %old4 = ATOMICRMW ACQ_REL NAND  <@i64> %p0 %p1
+//         %old5 = ATOMICRMW ACQ_REL OR    <@i64> %p0 %p1
+//         %old6 = ATOMICRMW ACQ_REL XOR   <@i64> %p0 %p1
+//         %old7 = ATOMICRMW ACQ_REL MAX   <@i64> %p0 %p1
+//         %old8 = ATOMICRMW ACQ_REL MIN   <@i64> %p0 %p1
+//         %old9 = ATOMICRMW ACQ_REL UMAX  <@i64> %p0 %p1
+//         %olda = ATOMICRMW ACQ_REL UMIN  <@i64> %p0 %p1
+// 
+//         RET @VOID
+// }
+// 
+// .funcdef @traps VERSION %v1 <@npnr_sig> () {
+//     %entry:
+//         %a  = ADD <@i64> @I64_42 @I64_43
+//         %b  = SUB <@i64> @I64_42 @I64_43
+//         %c  = MUL <@i64> @I64_42 @I64_43
+// 
+//         %tp     = TRAP <@i32> KEEPALIVE(%a)
+//         %tp_s   = TRAP <@i64> EXC(%tp_s_cont %tp_s_exc) KEEPALIVE(%b)
+// 
+//     %tp_s_cont:
+//         %wp     = WATCHPOINT 1 <@float> %wp_dis_cont %wp_ena_cont KEEPALIVE(%a)
+//     
+//     %wp_dis_cont:
+//         %wp_s   = WATCHPOINT 2 <@double> %wp_s_dis_cont %wp_s_ena_cont WPEXC(%wp_s_exc) KEEPALIVE(%b)
+// 
+//     %wp_ena_cont:
+//         RET @VOID
+// 
+//     %wp_s_dis_cont:
+//         RET @VOID
+// 
+//     %wp_s_ena_cont:
+//         RET @VOID
+//     
+//     %tp_s_exc:
+//         %exc = LANDINGPAD
+//         THROW %exc
+//         
+//     %wp_s_exc:
+//         %exc2 = LANDINGPAD
+//         THROW %exc2
+// }
+// 
+// .funcsig @ccall_callee.sig = @void (@double)
+// .typedef @ccall_callee_fp = funcptr<@ccall_callee.sig>
+// 
+// .funcsig @ccall.sig = @void (@ccall_callee_fp)
+// .funcdef @ccall VERSION %v1 <@ccall.sig> (%p0) {
+//     %entry:
+//         %rv = CCALL #DEFAULT <@ccall_callee_fp @ccall_callee.sig> %p0 (@D_1)
+//         
+//         RET @VOID
+// }
+// 
+// .funcsig @gen.sig = @void (@stack)
+// .funcdef @gen VERSION %v1 <@npnr_sig> (%main) {
+//     %entry:
+//         %ss1 = SWAPSTACK %main RET_WITH <@void> PASS_VALUE <@i64> @I64_0
+//         %ss2 = SWAPSTACK %main KILL_OLD THROW_EXC @NULLREF
+//         THROW @NULLREF // unreachable
+// }
+// 
+// .funcdef @swapstack VERSION %v1 <@npnr_sig> () {
+//     %entry:
+//         %curstack = COMMINST @uvm.current_stack
+//         %coro = NEWSTACK <@iii_sig> @callee2 (%curstack) EXC(%cont %exc)
+//         
+//     %cont:
+//         %ss1 = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID KEEPALIVE(%curstack)
+//         %ss2 = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID EXC(%nor %exc)
+// 
+//     %nor:
+//         RET @VOID
+//     %exc:
+//         RET @VOID
+// }
+// 
+// .funcdef @comminst VERSION %v1 <@npnr_sig> () {
+//     %entry:
+//         %curstack = COMMINST @uvm.current_stack
+//         %sta = NEWSTACK <@iii_sig> @callee2 (%curstack)
+//         %thr = COMMINST @uvm.new_thread (%sta)
+// 
+//         %ex = COMMINST @uvm.native.expose [#DEFAULT] <[@npnr_sig]> (@swapstack)
+// 
+//         %th_ex = COMMINST @uvm.thread_exit
+//         RET @VOID
+// }
+// */

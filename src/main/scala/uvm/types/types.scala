@@ -30,17 +30,17 @@ case class TypeDouble() extends FPType
 case class TypeRef(var ty: Type) extends AbstractRefType
 case class TypeIRef(var ty: Type) extends AbstractRefType
 case class TypeWeakRef(var ty: Type) extends AbstractRefType
-case class TypeStruct(var fieldTy: Seq[Type]) extends Type
+case class TypeStruct(var fieldTys: Seq[Type]) extends Type
 case class TypeArray(var elemTy: Type, var len: Long) extends AbstractSeqType
 case class TypeHybrid(var fixedTy: Type, var varTy: Type) extends Type
 case class TypeVoid() extends Type
-case class TypeFunc(var sig: FuncSig) extends Type
-case class TypeThread() extends Type
-case class TypeStack() extends Type
+case class TypeFuncRef(var sig: FuncSig) extends Type
+case class TypeThreadRef() extends Type
+case class TypeStackRef() extends Type
 case class TypeTagRef64() extends Type
 case class TypeVector(var elemTy: Type, var len: Long) extends AbstractSeqType
-case class TypePtr(var ty: Type) extends AbstractPointerType
-case class TypeFuncPtr(var sig: FuncSig) extends AbstractPointerType
+case class TypeUPtr(var ty: Type) extends AbstractPointerType
+case class TypeUFuncPtr(var sig: FuncSig) extends AbstractPointerType
 
 object Type {
   def prettyPrint(ty: Type): String = ty match {
@@ -54,27 +54,13 @@ object Type {
     case TypeArray(elemTy, len)         => "array<%s %d>".format(elemTy.repr, len)
     case TypeHybrid(fixedPart, varPart) => "hybrid<%s %s>".format(fixedPart.repr, varPart.repr)
     case TypeVoid()                     => "void"
-    case TypeFunc(sig)                  => "func<%s>".format(FuncSig.prettyPrint(sig))
-    case TypeThread()                   => "thread"
-    case TypeStack()                    => "stack"
+    case TypeFuncRef(sig)               => "funcref<%s>".format(sig.repr)
+    case TypeThreadRef()                => "threadref"
+    case TypeStackRef()                 => "stackref"
     case TypeTagRef64()                 => "tagref64"
     case TypeVector(elemTy, len)        => "vector<%s %d>".format(elemTy.repr, len)
-    case TypePtr(ty)                    => "ptr<%s>".format(ty.repr)
-    case TypeFuncPtr(sig)               => "funcptr<%s>".format(FuncSig.prettyPrint(sig))
+    case TypeUPtr(ty)                   => "uptr<%s>".format(ty.repr)
+    case TypeUFuncPtr(sig)              => "ufuncptr<%s>".format(sig.repr)
     case _                              => "unknown type " + ty.getClass.getName
   }
-}
-
-object CommonTypes {
-  val I1 = TypeInt(1)
-  val I8 = TypeInt(8)
-  val I16 = TypeInt(16)
-  val I32 = TypeInt(32)
-  val I64 = TypeInt(64)
-  val FLOAT = TypeFloat()
-  val DOUBLE = TypeDouble()
-  val VOID = TypeVoid()
-  val REFVOID = TypeRef(VOID)
-  val THREAD = TypeThread()
-  val STACK = TypeStack()
 }

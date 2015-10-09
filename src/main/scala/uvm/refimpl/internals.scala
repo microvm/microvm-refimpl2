@@ -35,17 +35,17 @@ object InternalTypes {
 
   val REF_VOID = TypeRef(VOID) := internal("ref_void")
 
-  val STACK = TypeStack() := internal("stack")
-  val THREAD = TypeThread() := internal("thread")
+  val STACK = TypeStackRef() := internal("stack")
+  val THREAD = TypeThreadRef() := internal("thread")
   val TAGREF64 = TypeTagRef64() := internal("tagref64")
 }
 
 object InternalTypePool {
   val refOf = LazyPool(TypeRef)
   val irefOf = LazyPool(TypeIRef)
-  val ptrOf = LazyPool(TypePtr)
-  val funcOf = LazyPool(TypeFunc)
-  val funcPtrOf = LazyPool(TypeFuncPtr)
+  val ptrOf = LazyPool(TypeUPtr)
+  val funcOf = LazyPool(TypeFuncRef)
+  val funcPtrOf = LazyPool(TypeUFuncPtr)
   val vecOf = LazyPool[(Type, Long), TypeVector] { case (t, l) => TypeVector(t, l) }
   def unmarkedOf(t: Type): Type = t match {
     case TypeWeakRef(r) => refOf(r)
@@ -83,7 +83,7 @@ object TypeInferer {
     case i: InstRetVoid => VOID
     case i: InstThrow => VOID
     case i: InstLandingPad => REF_VOID
-    case i: InstExtractValue => i.strTy.fieldTy(i.index)
+    case i: InstExtractValue => i.strTy.fieldTys(i.index)
     case i: InstInsertValue => i.strTy
     case i: InstExtractElement => i.vecTy.elemTy
     case i: InstInsertElement => i.vecTy
@@ -93,7 +93,7 @@ object TypeInferer {
     case i: InstAlloca => irefOf(i.allocTy)
     case i: InstAllocaHybrid => irefOf(i.allocTy)
     case i: InstGetIRef => irefOf(i.referentTy)
-    case i: InstGetFieldIRef => ptrOrIRefOf(i.ptr, i.referentTy.fieldTy(i.index))
+    case i: InstGetFieldIRef => ptrOrIRefOf(i.ptr, i.referentTy.fieldTys(i.index))
     case i: InstGetElemIRef => ptrOrIRefOf(i.ptr, i.referentTy.elemTy)
     case i: InstShiftIRef => ptrOrIRefOf(i.ptr, i.referentTy)
     case i: InstGetFixedPartIRef => ptrOrIRefOf(i.ptr, i.referentTy.fixedTy)

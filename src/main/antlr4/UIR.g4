@@ -11,7 +11,7 @@ topLevelDef
     |   globalDef
     |   funcDecl
     |   funcDef
-    |   exposeDef
+    |   funcExpDef
     ;
 
 typeDef
@@ -35,44 +35,43 @@ funcDecl
     ;
     
 funcDef
-    :   '.funcdef' nam=GLOBAL_NAME 'VERSION' ver=GLOBAL_NAME '<' sig=funcSig '>' params=paramList body=funcBody
+    :   '.funcdef' nam=GLOBAL_NAME 'VERSION' ver=name '<' sig=funcSig '>' body=funcBody
     ;
     
-exposeDef
+funcExpDef
     :   '.expose' nam=GLOBAL_NAME '=' funcName=GLOBAL_NAME callConv=flag cookie=GLOBAL_NAME
     ;
 
 typeConstructor
-    :   'int' '<' length=intLiteral '>'                         # TypeInt
+    :   'int'    	'<' length=intLiteral '>'                	# TypeInt
     |   'float'                                                 # TypeFloat
     |   'double'                                                # TypeDouble
-    |   'ref' '<' type '>'                                      # TypeRef
-    |   'iref' '<' type '>'                                     # TypeIRef
-    |   'weakref' '<' type '>'                                  # TypeWeakRef
-    |   'struct' '<' type+ '>'                                  # TypeStruct
-    |   'array' '<' type length=intLiteral '>'                  # TypeArray
-    |   'hybrid' '<' fixedTy=type varTy=type '>'                # TypeHybrid
+    |   'ref'	 	'<' ty=type '>'                             # TypeRef
+    |   'iref' 		'<' ty=type '>'                             # TypeIRef
+    |   'weakref' 	'<' ty=type '>'                             # TypeWeakRef
+    |   'struct' 	'<' fieldTys+=type+ '>'                     # TypeStruct
+    |   'array' 	'<' ty=type length=intLiteral '>'           # TypeArray
+    |   'hybrid' 	'<' fixedTy=type varTy=type '>'             # TypeHybrid
     |   'void'                                                  # TypeVoid
-    |   'func' '<' funcSig '>'                                  # TypeFunc
-    |   'thread'                                                # TypeThread
-    |   'stack'                                                 # TypeStack
+    |   'funcref' 	'<' funcSig '>'                             # TypeFuncRef
+    |   'threadref'                                             # TypeThreadRef
+    |   'stackref'                                              # TypeStackRef
     |   'tagref64'                                              # TypeTagRef64
-    |   'vector' '<' type length=intLiteral '>'                 # TypeVector
-    |   'ptr' '<' type '>'                                      # TypePtr
-    |   'funcptr' '<' funcSig '>'                               # TypeFuncPtr
+    |   'vector' 	'<' ty=type length=intLiteral '>'           # TypeVector
+    |   'uptr' 		'<' ty=type '>'                             # TypeUPtr
+    |   'ufuncptr' 	'<' funcSig '>'                             # TypeUFuncPtr
     ;
 
 funcSigConstructor
-    :   retTy=type '(' (paramTy+=type*) ')'
+    :   retTy=type '(' (paramTys+=type*) ')'
     ;
 
 constConstructor
-    :   intLiteral                  # ConstInt
-    |   floatLiteral                # ConstFloat
-    |   doubleLiteral               # ConstDouble
-    |   '{' GLOBAL_NAME* '}'        # ConstStruct
-    |   'NULL'                      # ConstNull
-    |   'VEC' '{' constant* '}'     # ConstVector
+    :   intLiteral                  # CtorInt
+    |   floatLiteral                # CtorFloat
+    |   doubleLiteral               # CtorDouble
+    |   '{' GLOBAL_NAME* '}'        # CtorList
+    |   'NULL'                      # CtorNull
     ;
 
 type
@@ -100,8 +99,16 @@ basicBlock
     ;
 
 label
-    :   name ':'
+    :   name '(' bbParam* ')' excParam? ':'
     ;
+	
+bbParam
+	: 	'<' type '>' name
+	;
+	
+excParam
+	: 	'[' name ']'
+	;
 
 inst
     :   (name '=')? instBody
@@ -121,28 +128,24 @@ instBody
     |   'SELECT' '<' condTy=type resTy=type '>' cond=value ifTrue=value ifFalse=value       # InstSelect
 
     // Intra-function Control Flow
-    |   'BRANCH' bbName                                                 # InstBranch
-    |   'BRANCH2' cond=value ifTrue=bbName ifFalse=bbName               # InstBranch2
-    |   'SWITCH' '<' type '>' opnd=value defDest=bbName '{'
-            (caseVal+=value ':' caseDest+=bbName ';')* '}'              # InstSwitch
-    |   'PHI' '<' type '>' '{'
-            (caseSrc+=bbName ':' caseVal+=value ';')* '}'               # InstPhi
+    |   'BRANCH' dest=destClause                                        # InstBranch
+    |   'BRANCH2' cond=value ifTrue=destClause ifFalse=destClause       # InstBranch2
+    |   'SWITCH' '<' type '>' opnd=value defDest=destClause '{'
+            (caseVal+=value caseDest+=destClause )* '}'                 # InstSwitch
 
     // Inter-function Control Flow
     |   'CALL' funcCallBody excClause keepAliveClause                   # InstCall
     |   'TAILCALL' funcCallBody                     # InstTailCall
 
-    |   'RET' '<' type '>' retVal=value             # InstRet
-    |   'RETVOID'                                   # InstRetVoid
+    |   'RET' retVal=value                          # InstRet
     |   'THROW' exc=value                           # InstThrow
-    |   'LANDINGPAD'                                # InstLandingPad
 
     // Aggregate Operations
-    |   'EXTRACTVALUE' '<' type intLiteral '>' opnd=value               # InstExtractValue
-    |   'INSERTVALUE' '<' type intLiteral '>' opnd=value newVal=value   # InstInsertValue
-    |   'EXTRACTELEMENT' '<' vecTy=type indTy=type '>' opnd=value index=value                           # InstExtractElement
-    |   'INSERTELEMENT' '<' vecTy=type indTy=type '>' opnd=value index=value newVal=value               # InstInsertElement
-    |   'SHUFFLEVECTOR' '<' vecTy=type maskTy=type '>' vec1=value vec2=value mask=value                 # InstShuffleVector
+    |   'EXTRACTVALUE' 		'<' ty=type intLiteral '>' 		opnd=value               				# InstExtractValue
+    |   'INSERTVALUE' 		'<' ty=type intLiteral '>' 		opnd=value newVal=value   				# InstInsertValue
+    |   'EXTRACTELEMENT' 	'<' seqTy=type indTy=type '>' 	opnd=value index=value                  # InstExtractElement
+    |   'INSERTELEMENT' 	'<' seqTy=type indTy=type '>' 	opnd=value index=value newVal=value     # InstInsertElement
+    |   'SHUFFLEVECTOR' 	'<' vecTy=type maskTy=type '>' 	vec1=value vec2=value  mask=value       # InstShuffleVector
 
     // Memory Operations
     |   'NEW'           '<' allocTy=type '>' excClause                              # InstNew
@@ -169,7 +172,7 @@ instBody
     // Trap
     |   'TRAP' '<' type '>' excClause keepAliveClause                               # InstTrap
     |   'WATCHPOINT' wpid=intLiteral '<' type '>'
-            dis=bbName ena=bbName ('WPEXC' '(' wpExc=bbName ')')? keepAliveClause   # InstWatchPoint
+            dis=destClause ena=destClause ('WPEXC' '(' wpExc=destClause ')')? keepAliveClause    # InstWatchPoint
 
     // Foreign Function Interface
     |   'CCALL' callConv=flag '<' funcTy=type funcSig '>' callee=value argList keepAliveClause   # InstCCall
@@ -182,9 +185,13 @@ instBody
     |   'COMMINST' nam=GLOBAL_NAME flagList? typeList? funcSigList? argList? excClause keepAliveClause     # InstCommInst
     ;
 
-bbName
-    :   name
+destClause
+    :   bb argList
     ;
+    
+bb
+	:	name
+	;
 
 value
     :   name
@@ -195,7 +202,7 @@ funcCallBody
     ;
 
 excClause
-    :   ('EXC' '(' nor=bbName exc=bbName ')')?
+    :   ('EXC' '(' nor=destClause exc=destClause ')')?
     ;
 
 keepAliveClause
@@ -225,7 +232,6 @@ curStackClause
 
 newStackClause
     :   'PASS_VALUE' '<' type '>' value     # NewStackPassValue
-    |   'PASS_VOID'                         # NewStackPassVoid
     |   'THROW_EXC' exc=value               # NewStackThrowExc
     ;
 

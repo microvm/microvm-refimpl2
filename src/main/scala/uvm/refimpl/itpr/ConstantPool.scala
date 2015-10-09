@@ -27,9 +27,9 @@ class ConstantPool(implicit microVM: MicroVM) {
     case ConstNull(ty) => ty match {
       case _:TypeRef => BoxRef(0L)
       case _:TypeIRef => BoxIRef(0L, 0L)
-      case _:TypeFunc => BoxFunc(None)
-      case _:TypeThread => BoxThread(None)
-      case _:TypeStack => BoxStack(None)
+      case _:TypeFuncRef => BoxFunc(None)
+      case _:TypeThreadRef => BoxThread(None)
+      case _:TypeStackRef => BoxStack(None)
     }
     case ConstVector(ty, elems) => BoxVector(elems.map(maybeMakeBox))
     case ConstPointer(ty, addr) => BoxPointer(addr)

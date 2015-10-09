@@ -35,6 +35,7 @@ class UIRTextReaderSpec extends  FlatSpec with Matchers
     val b = parseFile("tests/uvm-parsing-test/instructions.uir", EMPTY_BUNDLE)
     validateInstructions(b)
   }
+  /*
   it should "handle loading of multiple bundles" in {
     val idf = new IDFactory()
     val gb = parseFile("tests/uvm-parsing-test/redef-base.uir", EMPTY_BUNDLE, Some(idf))
@@ -44,5 +45,6 @@ class UIRTextReaderSpec extends  FlatSpec with Matchers
     gb.merge(b)
     validateRedefAfterMerge(gb, b)
   }
+  */
 
 }

@@ -272,14 +272,14 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
 
         def doScalar(scalarTy: Type, b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
           scalarTy match {
-            case TypeInt(l)   => doInt(l, b1, b2, br)
-            case TypeFloat()  => doFloat(b1, b2, br)
-            case TypeDouble() => doDouble(b1, b2, br)
-            case TypeRef(_)   => doRef(b1, b2, br)
-            case TypeIRef(_)  => doIRef(b1, b2, br)
-            case TypeFunc(_)  => doFunc(b1, b2, br)
-            case TypeStack()  => doStack(b1, b2, br)
-            case _            => throw new UvmRuntimeException(ctx + "Comparison not suitable for type %s".format(opndTy))
+            case TypeInt(l)     => doInt(l, b1, b2, br)
+            case TypeFloat()    => doFloat(b1, b2, br)
+            case TypeDouble()   => doDouble(b1, b2, br)
+            case TypeRef(_)     => doRef(b1, b2, br)
+            case TypeIRef(_)    => doIRef(b1, b2, br)
+            case TypeFuncRef(_) => doFunc(b1, b2, br)
+            case TypeStackRef() => doStack(b1, b2, br)
+            case _              => throw new UvmRuntimeException(ctx + "Comparison not suitable for type %s".format(opndTy))
           }
         }
 
@@ -369,9 +369,9 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
           }
 
           def refcast(): Unit = (scalarFromTy, scalarToTy) match {
-            case (TypeRef(_), TypeRef(_))   => br.copyFrom(bOpnd)
-            case (TypeIRef(_), TypeIRef(_)) => br.copyFrom(bOpnd)
-            case (TypeFunc(_), TypeFunc(_)) => br.copyFrom(bOpnd)
+            case (TypeRef(_), TypeRef(_))         => br.copyFrom(bOpnd)
+            case (TypeIRef(_), TypeIRef(_))       => br.copyFrom(bOpnd)
+            case (TypeFuncRef(_), TypeFuncRef(_)) => br.copyFrom(bOpnd)
             case _ => throw new UvmRuntimeException(ctx +
               "REFCAST can only convert between two types both of which are ref, iref, or func. Found %s and %s.".format(scalarFromTy, scalarToTy))
           }
@@ -1134,26 +1134,26 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
             val Seq(callConv) = flagList
             val Seq(sig) = sigList
             val Seq(func, cookie) = argList
-            
+
             val f = boxOf(func).asInstanceOf[BoxFunc].func.getOrElse {
               throw new UvmRuntimeException(ctx + "Attempt to expose NULL Mu function")
             }
-            
+
             val c = boxOf(cookie).asInstanceOf[BoxInt].value.toLong
-            
-            val addr = microVM.nativeCallHelper.exposeFuncDynamic(f, c)           
-            
+
+            val addr = microVM.nativeCallHelper.exposeFuncDynamic(f, c)
+
             boxOf(i).asInstanceOf[BoxPointer].addr = addr
-            
+
             continueNormally()
           }
 
           case "@uvm.native.unexpose" => {
             val Seq(callConv) = flagList
             val Seq(addr) = argList
-            
+
             val a = boxOf(addr).asInstanceOf[BoxPointer].addr
-            
+
             microVM.nativeCallHelper.unexposeFunc(a)
 
             continueNormally()

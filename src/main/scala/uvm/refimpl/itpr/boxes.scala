@@ -101,12 +101,12 @@ object ValueBox {
     case _: TypeArray => throw new UvmRefImplException("array cannot be an SSA variable type")
     case _: TypeHybrid => throw new UvmRefImplException("hybrid cannot be an SSA variable type")
     case _: TypeVoid => BoxVoid()
-    case _: TypeFunc => BoxFunc(None)
-    case _: TypeStack => BoxStack(None)
-    case _: TypeThread => BoxThread(None)
+    case _: TypeFuncRef => BoxFunc(None)
+    case _: TypeStackRef => BoxStack(None)
+    case _: TypeThreadRef => BoxThread(None)
     case _: TypeTagRef64 => BoxTagRef64(0L)
-    case _: TypePtr => BoxPointer(0L)
-    case _: TypeFuncPtr => BoxPointer(0L)
+    case _: TypeUPtr => BoxPointer(0L)
+    case _: TypeUFuncPtr => BoxPointer(0L)
   }
 
 }

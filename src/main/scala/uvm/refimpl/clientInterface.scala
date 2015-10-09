@@ -178,7 +178,7 @@ class ClientAgent(mutator: Mutator)(
   def extractValue(str: Handle, index: Int): Handle = {
     val st = str.ty.asInstanceOf[TypeStruct]
     val sb = str.vb.asInstanceOf[BoxStruct]
-    val et = st.fieldTy(index)
+    val et = st.fieldTys(index)
     val eb = sb.values(index)
     newHandle(et, eb)
   }
@@ -223,7 +223,7 @@ class ClientAgent(mutator: Mutator)(
   def getFieldIRef(handle: Handle, index: Int): Handle = {
     val t = handle.ty.asInstanceOf[TypeIRef]
     val st = t.ty.asInstanceOf[TypeStruct]
-    val ft = st.fieldTy(index)
+    val ft = st.fieldTys(index)
     val nt = InternalTypePool.irefOf(ft)
     val ob = handle.vb.asInstanceOf[BoxIRef]
     val nb = BoxIRef(ob.objRef, ob.offset + TypeSizes.fieldOffsetOf(st, index))
@@ -275,7 +275,7 @@ class ClientAgent(mutator: Mutator)(
   def load(ord: MemoryOrder, loc: Handle): Handle = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypePtr(t)  => (true, t)
+      case TypeUPtr(t)  => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
@@ -289,7 +289,7 @@ class ClientAgent(mutator: Mutator)(
   def store(ord: MemoryOrder, loc: Handle, newVal: Handle): Unit = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypePtr(t)  => (true, t)
+      case TypeUPtr(t)  => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
@@ -302,7 +302,7 @@ class ClientAgent(mutator: Mutator)(
   def cmpXchg(ordSucc: MemoryOrder, ordFail: MemoryOrder, weak: Boolean, loc: Handle, expected: Handle, desired: Handle): (Boolean, Handle) = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypePtr(t)  => (true, t)
+      case TypeUPtr(t)  => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
@@ -316,7 +316,7 @@ class ClientAgent(mutator: Mutator)(
   def atomicRMW(ord: MemoryOrder, op: AtomicRMWOptr, loc: Handle, opnd: Handle): Handle = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypePtr(t)  => (true, t)
+      case TypeUPtr(t)  => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
@@ -558,7 +558,7 @@ class ClientAgent(mutator: Mutator)(
   }
   
   def expose(func: Handle, callConv: Flag, cookie: Handle): Handle = {
-    val TypeFunc(sig) = func.ty
+    val TypeFuncRef(sig) = func.ty
     val f = func.vb.asInstanceOf[BoxFunc].func.getOrElse {
       throw new UvmRuntimeException("Attempt to expose NULL Mu function")
     }

@@ -2,7 +2,6 @@ package uvm.utils
 
 import jnr.ffi.Pointer
 import jnr.ffi.Runtime
-import uvm.refimpl.mem.TypeSizes._
 import scala.annotation.elidable
 import scala.annotation.elidable.ASSERTION
 import java.nio.ByteBuffer
@@ -33,6 +32,14 @@ object HexDump {
       hd.addByte(b)
     }
     hd.finish()
+  }
+  
+  def alignUp(n: Long, alignment: Long): Long = {
+    return ((n - 1) & ~(alignment - 1)) + alignment;
+  }
+
+  def alignDown(n: Long, alignment: Long): Long = {
+    return n & ~(alignment - 1);
   }
 }
 

@@ -44,3 +44,14 @@ class SimpleNamespace[T <: Identified] extends Namespace[T] {
   
   def all = idMap.values
 }
+
+class NestedNamespace[T <: Identified](val maybeParent: Option[NestedNamespace[_ >: T]]) extends SimpleNamespace[T] {
+  override def add(obj: T): Unit = {
+    super.add(obj)
+    maybeParent.foreach(_.add(obj))
+  }
+  
+  def makeSubSpace[U <: T](): NestedNamespace[U] = {
+    new NestedNamespace[U](Some(this))
+  }
+}

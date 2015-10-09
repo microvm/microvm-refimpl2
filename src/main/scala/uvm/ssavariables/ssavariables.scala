@@ -10,6 +10,7 @@ abstract class SSAVariable extends IdentifiedSettable {
     case v: AnyRef => this eq v
     case _         => false
   }
+  override def toString = "%s%s".format(this.getClass.getSimpleName, this.repr)
 }
 
 // Global variables: Constants, Global Cells and Functions (Function is defined in controlFlow.scala)
@@ -28,6 +29,8 @@ case class ConstDouble(var constTy: Type, var num: Double) extends Constant
 
 case class ConstStruct(var constTy: Type, var fields: Seq[GlobalVariable]) extends Constant
 
+case class ConstArray(var constTy: Type, var elems: Seq[GlobalVariable]) extends Constant
+
 case class ConstNull(var constTy: Type) extends Constant
 
 case class ConstVector(var constTy: Type, var elems: Seq[Constant]) extends Constant
@@ -42,7 +45,9 @@ case class ExposedFunc(var func: Function, var callConv: Flag, var cookie: Const
 
 abstract class LocalVariable extends SSAVariable
 
-case class Parameter(var funcVer: FuncVer, var index: Int) extends LocalVariable
+abstract class Parameter extends LocalVariable
+case class NorParam(ty: Type) extends Parameter
+case class ExcParam() extends Parameter
 
 // Instructions
 
@@ -103,7 +108,9 @@ trait CallLike extends HasArgList {
   var callee: SSAVariable
 }
 
-case class ExcClause(val nor: BasicBlock, val exc: BasicBlock)
+case class DestClause(val bb: BasicBlock, val args: Seq[SSAVariable])
+
+case class ExcClause(val nor: DestClause, val exc: DestClause)
 
 trait HasExcClause extends Instruction {
   var excClause: Option[ExcClause]
@@ -150,12 +157,6 @@ case class PassVoid() extends NewStackAction
 case class ThrowExc(var exc: SSAVariable) extends NewStackAction
 
 /**
- * An EdgeAssigned instruction is evaluated at control flow edges rather than sequentially when the PC
- * reaches that instruction. Currently PHI and LANDINGPAD are the only two such instructions.
- */
-trait EdgeAssigned extends Instruction
-
-/**
  * Flags are used in common instructions.
  */
 case class Flag(name: String)
@@ -171,36 +172,32 @@ case class InstConv(var op: ConvOptr, var fromTy: Type, var toTy: Type, var opnd
 case class InstSelect(var condTy: Type, var opndTy: Type,
                       var cond: SSAVariable, var ifTrue: SSAVariable, var ifFalse: SSAVariable) extends Instruction
 
-case class InstBranch(var dest: BasicBlock) extends Instruction
+case class InstBranch(var dest: DestClause) extends Instruction
 
-case class InstBranch2(var cond: SSAVariable, var ifTrue: BasicBlock, var ifFalse: BasicBlock) extends Instruction
+case class InstBranch2(var cond: SSAVariable, var ifTrue: DestClause, var ifFalse: DestClause) extends Instruction
 
-case class InstSwitch(var opndTy: Type, var opnd: SSAVariable, var defDest: BasicBlock,
-                      var cases: Seq[(SSAVariable, BasicBlock)]) extends Instruction
-
-case class InstPhi(var opndTy: Type, var cases: Seq[(BasicBlock, SSAVariable)]) extends Instruction with EdgeAssigned
+case class InstSwitch(var opndTy: Type, var opnd: SSAVariable, var defDest: DestClause,
+                      var cases: Seq[(SSAVariable, DestClause)]) extends Instruction
 
 case class InstCall(var sig: FuncSig, var callee: SSAVariable, var argList: Seq[SSAVariable],
                     var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable]) extends AbstractCall with HasExcClause with HasKeepAliveClause
 
 case class InstTailCall(var sig: FuncSig, var callee: SSAVariable, var argList: Seq[SSAVariable]) extends AbstractCall
 
-case class InstRet(var retTy: Type, var retVal: SSAVariable) extends AbstractRet
+case class InstRet(val funcVer: FuncVer, var retVal: SSAVariable) extends AbstractRet
 
 case class InstRetVoid() extends AbstractRet
 
 case class InstThrow(var excVal: SSAVariable) extends Instruction
 
-case class InstLandingPad() extends Instruction with EdgeAssigned
-
 case class InstExtractValue(var strTy: TypeStruct, var index: Int, var opnd: SSAVariable) extends Instruction
 
 case class InstInsertValue(var strTy: TypeStruct, var index: Int, var opnd: SSAVariable, var newVal: SSAVariable) extends Instruction
 
-case class InstExtractElement(var vecTy: TypeVector, var indTy: TypeInt,
+case class InstExtractElement(var seqTy: AbstractSeqType, var indTy: TypeInt,
                               var opnd: SSAVariable, var index: SSAVariable) extends Instruction
 
-case class InstInsertElement(var vecTy: TypeVector, var indTy: TypeInt,
+case class InstInsertElement(var seqTy: AbstractSeqType, var indTy: TypeInt,
                              var opnd: SSAVariable, var index: SSAVariable, var newVal: SSAVariable) extends Instruction
 
 case class InstShuffleVector(var vecTy: TypeVector, var maskTy: TypeVector,
@@ -243,7 +240,7 @@ case class InstFence(var ord: MemoryOrder) extends Instruction
 case class InstTrap(var retTy: Type, var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable]) extends AbstractTrap with HasExcClause
 
 case class InstWatchPoint(var wpID: Int, var retTy: Type,
-                          var dis: BasicBlock, var ena: BasicBlock, var exc: Option[BasicBlock],
+                          var dis: DestClause, var ena: DestClause, var exc: Option[DestClause],
                           var keepAlives: Seq[LocalVariable]) extends AbstractTrap
 
 case class InstCCall(var callConv: Flag, var funcTy: Type,

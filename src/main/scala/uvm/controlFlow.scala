@@ -3,7 +3,14 @@ package uvm
 import uvm.types._
 import uvm.ssavariables._
 
-case class FuncSig(var retTy: Type, var paramTy: Seq[Type]) extends IdentifiedSettable
+case class FuncSig(var retTy: Type, var paramTy: Seq[Type]) extends IdentifiedSettable {
+  override final def toString: String = FuncSig.prettyPrint(this)
+  override def hashCode(): Int = System.identityHashCode(this)
+  override def equals(that: Any): Boolean = that match {
+    case v: AnyRef => this eq v
+    case _         => false
+  }
+}
 
 object FuncSig {
   def prettyPrint(sig: FuncSig): String =
@@ -22,14 +29,16 @@ class FuncVer extends IdentifiedSettable {
   var func: Function = null
   var bbs: Seq[BasicBlock] = null
   var entry: BasicBlock = null
-  var params: Seq[Parameter] = null
 
-  val bbNs: Namespace[BasicBlock] = new SimpleNamespace[BasicBlock]()
-  val localVarNs: Namespace[LocalVariable] = new SimpleNamespace[LocalVariable]()
-  
   def sig: FuncSig = func.sig
+
+  val bbNs = new SimpleNamespace[BasicBlock]
 }
 
 class BasicBlock extends IdentifiedSettable {
+  var norParams: Seq[NorParam] = null
+  var excParam: Option[ExcParam] = null
   var insts: Seq[Instruction] = null
+
+  val localVarNs = new SimpleNamespace[LocalVariable]
 }
