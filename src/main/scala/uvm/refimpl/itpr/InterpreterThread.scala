@@ -100,10 +100,10 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
   private def boxOf(v: SSAVariable): ValueBox = boxOf(curStack, v)
 
   /** Get the edge-assigned value box of an edge-assigned instruction in a stack. */
-  private def edgeAssignedBoxOf(s: InterpreterStack, ea: EdgeAssigned): ValueBox = topMu.edgeAssignedBoxes(ea)
+  private def edgeAssignedBoxOf(s: InterpreterStack, p: Parameter): ValueBox = topMu.edgeAssignedBoxes(p)
 
   /** Get the edge-assigned value box of an edge-assigned instruction in the current stack. */
-  private def edgeAssignedBoxOf(ea: EdgeAssigned): ValueBox = edgeAssignedBoxOf(curStack, ea)
+  private def edgeAssignedBoxOf(p: Parameter): ValueBox = edgeAssignedBoxOf(curStack, p)
 
   // Context printing for debugging
 
@@ -191,7 +191,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
           case e: UvmDivisionByZeroException => excClause match {
             case None => throw e
             case Some(ec) => {
-              branchAndMovePC(ec.exc)
+              branchAndAssignParameters(ec.exc)
             }
           }
         }
@@ -465,13 +465,13 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
       }
 
       case i @ InstBranch(dest) => {
-        branchAndMovePC(dest)
+        branchAndAssignParameters(dest)
       }
 
       case i @ InstBranch2(cond, ifTrue, ifFalse) => {
         val cv = boxOf(cond).asInstanceOf[BoxInt].value
         val dest = if (cv == 1) ifTrue else ifFalse
-        branchAndMovePC(dest)
+        branchAndAssignParameters(dest)
       }
 
       case i @ InstSwitch(opndTy, opnd, defDest, cases) => {
@@ -479,14 +479,11 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
           case TypeInt(l) => {
             val ov = boxOf(opnd).asInstanceOf[BoxInt].value
             val dest = cases.find(pair => boxOf(pair._1).asInstanceOf[BoxInt].value == ov).map(_._2).getOrElse(defDest)
-            branchAndMovePC(dest)
+            branchAndAssignParameters(dest)
           }
           case _ => throw new UvmRefImplException(ctx + "Operand type must be integer. %s found.".format(opndTy))
         }
       }
-
-      case i @ InstPhi(_, _) => throw new UvmRefImplException(ctx + "PHI instructions reached in normal execution, " +
-        "but PHI must only appear in the beginning of basic blocks and not in the entry block.")
 
       case i @ InstCall(sig, callee, argList, excClause, keepAlives) => {
         val calleeFunc = boxOf(callee).asInstanceOf[BoxFunc].func.getOrElse {
@@ -534,31 +531,11 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
         }
       }
 
-      case i @ InstRetVoid() => {
-        curStack.popFrame()
-        top match {
-          case f: MuFrame => {
-            finishHalfExecutedInst()
-          }
-          case f: NativeFrame => {
-            // Now the top is a native frame, and it must be calling back to Mu.
-            // Since Mu returns void, we don't need to assign the return value.
-            // Return to native, and keep an eye on the result, in case it calls back again.
-            val result = curStack.returnToNativeOnStack()
-            // Handle the control flow according to how the native function respond
-            handleNativeCallResult(result)
-          }
-        }
-      }
-
       case i @ InstThrow(excVal) => {
         val exc = boxOf(excVal).asInstanceOf[BoxRef].objRef
         curStack.popFrame()
         catchException(exc)
       }
-
-      case i @ InstLandingPad() => throw new UvmRefImplException(ctx + "LANDINGPAD instructions reached in normal execution, " +
-        "but LANDINGPAD must only appear in the beginning of basic blocks and not in the entry block.")
 
       case i @ InstExtractValue(strTy, index, opnd) => {
         val ob = boxOf(opnd).asInstanceOf[BoxStruct]
@@ -801,7 +778,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
         if (isEnabled) {
           doTrap(retTy, wpID)
         } else {
-          branchAndMovePC(dis)
+          branchAndAssignParameters(dis)
         }
       }
 
@@ -860,9 +837,6 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
           case PassValue(argTy, arg) => {
             val argBox = boxOf(oldStack, arg)
             rebindPassValue(newStack, argBox)
-          }
-          case PassVoid() => {
-            rebindPassVoid(newStack)
           }
           case ThrowExc(exc) => {
             val excBox = boxOf(oldStack, exc)
@@ -1188,49 +1162,51 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
   // Control flow helpers
 
   /** Branch to a basic block and execute starter instructions (PHI and LANDINGPAD). */
-  private def branchAndMovePC(dest: BasicBlock, excAddr: Word = 0L): Unit = {
+  private def branchAndAssignParameters(destClause: DestClause, maybeExcAddr: Option[Word] = None): Unit = {
     val curBB = this.curBB
-    var cont = true
-    var i = 0
+    val dest = destClause.bb
+    val norArgs = destClause.args
 
-    // Determine the value of edge-assigned instructions (phis and landingpads), but keep them in their temporary boxes.
-    while (cont) {
-      dest.insts(i) match {
-        case phi @ InstPhi(opndTy, cases) => {
-          val caseVal = cases.find(_._1 == curBB).map(_._2).getOrElse {
-            throw new UvmRuntimeException(s"Phi node ${phi.repr} does not include the case for source basic block ${curBB.repr}")
-          }
-          val vb = boxOf(caseVal)
-          val db = edgeAssignedBoxOf(phi)
-          db.copyFrom(vb)
-          i += 1
+    // Copy to edge-assigned boxes, first.
+    assert(norArgs.length == dest.norParams.length)
+    for ((arg, np) <- norArgs zip dest.norParams) {
+      val argBox = boxOf(arg)
+      val npEdgeBox = edgeAssignedBoxOf(np)
+      npEdgeBox.copyFrom(argBox)
+    }
+
+    for (ep <- dest.excParam) {
+      maybeExcAddr match {
+        case None => throw new UvmRefImplException(ctx + "Branching normally to a basic block with ExcParam: %s".format(dest.repr))
+        case Some(excAddr) => {
+          val epEdgeBox = edgeAssignedBoxOf(ep).asInstanceOf[BoxRef]
+          epEdgeBox.setObjRef(excAddr)
         }
-        case lp: InstLandingPad => {
-          val db = edgeAssignedBoxOf(lp).asInstanceOf[BoxRef]
-          db.objRef = excAddr
-          i += 1
-        }
-        case _ => cont = false
       }
     }
 
-    // Copy the values of edge-assigned instructions (phis and landingpads) to their canonical boxes.
-    for (j <- 0 until i) {
-      val destInst = dest.insts(j)
-      val sb = edgeAssignedBoxOf(destInst.asInstanceOf[EdgeAssigned])
-      val db = boxOf(destInst)
-      db.copyFrom(sb)
+    // Copy from edge-assigned boxes to their canonical boxes.
+    for (np <- dest.norParams) {
+      val npEdgeBox = edgeAssignedBoxOf(np)
+      val npBox = boxOf(np)
+      npBox.copyFrom(npEdgeBox)
+    }
+
+    for (ep <- dest.excParam) {
+      val epEdgeBox = edgeAssignedBoxOf(ep)
+      val epBox = boxOf(ep)
+      epBox.copyFrom(epEdgeBox)
     }
 
     // Continue execution
-    jump(dest, i)
+    jump(dest, 0)
   }
 
   /** Continue normally. Work for all instructions. */
   private def continueNormally(): Unit = {
     curInst match {
       case wp: InstWatchPoint => {
-        branchAndMovePC(wp.ena)
+        branchAndAssignParameters(wp.ena)
         // NOTE: WatchPoint only "continue normally" when the current stack is rebound with value or void.
         // This includes executing a watch point. In any case, this watch point must have been enabled. If the watch
         // point is disabled during the course the stack is unbound, this watch point should still continue from the
@@ -1239,7 +1215,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
       case h: HasExcClause => h.excClause match {
         case None => incPC()
         case Some(ec) => {
-          branchAndMovePC(ec.nor)
+          branchAndAssignParameters(ec.nor)
         }
       }
       case _ => incPC()
@@ -1264,9 +1240,9 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
    */
   private def catchException(exc: Word): Unit = {
     @tailrec
-    def unwindUntilCatchable(frame: InterpreterFrame): (InterpreterFrame, BasicBlock) = frame match {
+    def unwindUntilCatchable(frame: InterpreterFrame): (InterpreterFrame, DestClause) = frame match {
       case f: MuFrame => maybeFindExceptionHandler(f.curInst) match {
-        case Some(bb) => (f, bb)
+        case Some(dc) => (f, dc)
         case None => f.prev match {
           case None       => throw new UvmRuntimeException(ctx + "Exception is thrown out of the bottom frame.")
           case Some(prev) => unwindUntilCatchable(prev)
@@ -1280,30 +1256,30 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
 
     val s = curStack
     val f = s.top
-    val (newFrame, newBB) = unwindUntilCatchable(f)
+    val (newFrame, dc) = unwindUntilCatchable(f)
     s.unwindTo(newFrame)
 
-    branchAndMovePC(newBB, exc)
+    branchAndAssignParameters(dc, Some(exc))
     curInstHalfExecuted = false
   }
 
   /**
    * Test if the current frame with i as the current instruction can catch an exception that unwinds the stack.
    *
-   * @return Return Some(h) if i can catch the exception and h is the basic block for the exception. Return None if i
+   * @return Return Some(dc) if i can catch the exception and d is the destination clause for the exception. Return None if i
    * cannot catch exceptions.
    *
    * @throw Throw UvmRefimplException if a frame stops at an unexpected instruction. Normally the top frame can be
    * executing TRAP, WATCHPOINT, SWAPSTACK or CALL and all other frames must be executing CALL.
    */
-  private def maybeFindExceptionHandler(inst: Instruction): Option[BasicBlock] = {
+  private def maybeFindExceptionHandler(inst: Instruction): Option[DestClause] = {
     inst match {
       case i: InstCall       => i.excClause.map(_.exc)
       case i: InstTrap       => i.excClause.map(_.exc)
       case i: InstWatchPoint => i.exc
       case i: InstSwapStack  => i.excClause.map(_.exc)
       case _ => {
-        throw new UvmRefImplException(ctx + "Instruction %s (%s) is in a stack frame when an exception is thrown.".format(inst.repr, inst.getClass.getName))
+        throw new UvmRefImplException(ctx + "Non-OSR point instruction %s (%s) is in a stack frame when an exception is thrown.".format(inst.repr, inst.getClass.getName))
       }
     }
   }
@@ -1349,9 +1325,6 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
 
   private def addressOf(ptr: Boolean, v: SSAVariable): Word = {
     MemoryOperations.addressOf(ptr, boxOf(v))
-  }
-
-  def incrementBoxPointer(src: BoxPointer, dst: BoxPointer, addrIncr: Word): Unit = {
   }
 
   // Thread termination
@@ -1486,7 +1459,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
   private def branchToExcDestOr(excClause: Option[ExcClause])(f: => Unit): Unit = {
     excClause match {
       case None                      => f
-      case Some(ExcClause(_, excBB)) => branchAndMovePC(excBB, 0L)
+      case Some(ExcClause(_, excBB)) => branchAndAssignParameters(excBB)
     }
   }
 

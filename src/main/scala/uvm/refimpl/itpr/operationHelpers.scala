@@ -292,7 +292,7 @@ object MemoryOperations {
       lb.objRef + lb.offset
     }
   }
-  
+
   def noAccessViaPointer(ptr: Boolean, ty: Type) {
     if (ptr) {
       throw new UvmIllegalMemoryAccessException("Cannot access type %s via pointer".format(ty.repr))
@@ -325,17 +325,17 @@ object MemoryOperations {
         val base = memorySupport.loadLong(loc)
         val offset = memorySupport.loadLong(loc + WORD_SIZE_BYTES)
         br.asInstanceOf[BoxIRef].oo = (base, offset)
-      case _: TypeFunc =>
+      case _: TypeFuncRef =>
         noAccessViaPointer(ptr, ty)
         val fid = memorySupport.loadLong(loc).toInt
         val func = microVM.globalBundle.funcNs.get(fid)
         br.asInstanceOf[BoxFunc].func = func
-      case _: TypeThread =>
+      case _: TypeThreadRef =>
         noAccessViaPointer(ptr, ty)
         val tid = memorySupport.loadLong(loc).toInt
         val thr = microVM.threadStackManager.getThreadByID(tid)
         br.asInstanceOf[BoxThread].thread = thr
-      case _: TypeStack =>
+      case _: TypeStackRef =>
         noAccessViaPointer(ptr, ty)
         val sid = memorySupport.loadLong(loc).toInt
         val sta = microVM.threadStackManager.getStackByID(sid)
@@ -344,7 +344,7 @@ object MemoryOperations {
         noAccessViaPointer(ptr, ty)
         val raw = memorySupport.loadLong(loc)
         br.asInstanceOf[BoxTagRef64].raw = raw
-      case _: TypePtr | _: TypeFuncPtr =>
+      case _: TypeUPtr | _: TypeUFuncPtr =>
         val addr = memorySupport.loadLong(loc, !ptr)
         br.asInstanceOf[BoxPointer].addr = addr
       case _ => throw new UnimplementedOprationException("Loading of type %s is not supporing".format(ty.getClass.getName))
@@ -387,15 +387,15 @@ object MemoryOperations {
         val BoxIRef(base, offset) = nvb.asInstanceOf[BoxIRef]
         memorySupport.storeLong(loc, base)
         memorySupport.storeLong(loc + WORD_SIZE_BYTES, offset)
-      case _: TypeFunc =>
+      case _: TypeFuncRef =>
         noAccessViaPointer(ptr, ty)
         val fid = nvb.asInstanceOf[BoxFunc].func.map(_.id).getOrElse(0)
         memorySupport.storeLong(loc, fid.toLong & 0xFFFFFFFFL)
-      case _: TypeThread =>
+      case _: TypeThreadRef =>
         noAccessViaPointer(ptr, ty)
         val tid = nvb.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0)
         memorySupport.storeLong(loc, tid.toLong & 0xFFFFFFFFL)
-      case _: TypeStack =>
+      case _: TypeStackRef =>
         noAccessViaPointer(ptr, ty)
         val sid = nvb.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0)
         memorySupport.storeLong(loc, sid.toLong & 0xFFFFFFFFL)
@@ -403,7 +403,7 @@ object MemoryOperations {
         noAccessViaPointer(ptr, ty)
         val raw = nvb.asInstanceOf[BoxTagRef64].raw
         memorySupport.storeLong(loc, raw)
-      case _: TypePtr | _: TypeFuncPtr =>
+      case _: TypeUPtr | _: TypeUFuncPtr =>
         val addr = nvb.asInstanceOf[BoxPointer].addr
         memorySupport.storeLong(loc, addr, !ptr)
       case _ => throw new UnimplementedOprationException("Storing of type %s is not supporing".format(ty.getClass.getName))
@@ -456,7 +456,7 @@ object MemoryOperations {
         val (succ, (rl, rh)) = memorySupport.cmpXchgI128(loc, (el, eh), (dl, dh))
         br.asInstanceOf[BoxIRef].oo = (rl, rh)
         succ
-      case _: TypeFunc =>
+      case _: TypeFuncRef =>
         noAccessViaPointer(ptr, ty)
         val el = eb.asInstanceOf[BoxFunc].func.map(_.id).getOrElse(0).toLong
         val dl = db.asInstanceOf[BoxFunc].func.map(_.id).getOrElse(0).toLong
@@ -464,7 +464,7 @@ object MemoryOperations {
         val rf = microVM.globalBundle.funcNs.get(rl.toInt)
         br.asInstanceOf[BoxFunc].func = rf
         succ
-      case _: TypeThread =>
+      case _: TypeThreadRef =>
         noAccessViaPointer(ptr, ty)
         val el = eb.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0).toLong
         val dl = db.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0).toLong
@@ -472,7 +472,7 @@ object MemoryOperations {
         val rt = microVM.threadStackManager.getThreadByID(rl.toInt)
         br.asInstanceOf[BoxThread].thread = rt
         succ
-      case _: TypeStack =>
+      case _: TypeStackRef =>
         noAccessViaPointer(ptr, ty)
         val el = eb.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0).toLong
         val dl = db.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0).toLong
@@ -480,7 +480,7 @@ object MemoryOperations {
         val rs = microVM.threadStackManager.getStackByID(rl.toInt)
         br.asInstanceOf[BoxStack].stack = rs
         succ
-      case _: TypePtr | _: TypeFuncPtr =>
+      case _: TypeUPtr | _: TypeUFuncPtr =>
         val el = eb.asInstanceOf[BoxPointer].addr
         val dl = db.asInstanceOf[BoxPointer].addr
         val (succ, rl) = memorySupport.cmpXchgLong(loc, el, dl, !ptr)
@@ -515,19 +515,19 @@ object MemoryOperations {
               val BoxIRef(ol, oh) = ob.asInstanceOf[BoxIRef]
               val (rl, rh) = memorySupport.xchgI128(loc, (ol, oh))
               br.asInstanceOf[BoxIRef].oo = (rl, rh)
-            case _: TypeFunc =>
+            case _: TypeFuncRef =>
               noAccessViaPointer(ptr, ty)
               val ol = ob.asInstanceOf[BoxFunc].func.map(_.id).getOrElse(0).toLong
               val rl = memorySupport.atomicRMWLong(op, loc, ol)
               val rf = microVM.globalBundle.funcNs.get(rl.toInt)
               br.asInstanceOf[BoxFunc].func = rf
-            case _: TypeThread =>
+            case _: TypeThreadRef =>
               noAccessViaPointer(ptr, ty)
               val ol = ob.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0).toLong
               val rl = memorySupport.atomicRMWLong(op, loc, ol)
               val rt = microVM.threadStackManager.getThreadByID(rl.toInt)
               br.asInstanceOf[BoxThread].thread = rt
-            case _: TypeStack =>
+            case _: TypeStackRef =>
               noAccessViaPointer(ptr, ty)
               val ol = ob.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0).toLong
               val rl = memorySupport.atomicRMWLong(op, loc, ol)
@@ -538,7 +538,7 @@ object MemoryOperations {
               val ol = ob.asInstanceOf[BoxTagRef64].raw
               val rl = memorySupport.atomicRMWLong(op, loc, ol)
               br.asInstanceOf[BoxTagRef64].raw = rl
-            case _: TypePtr | _: TypeFuncPtr =>
+            case _: TypeUPtr | _: TypeUFuncPtr =>
               val ol = ob.asInstanceOf[BoxPointer].addr
               val rl = memorySupport.atomicRMWLong(op, loc, ol, !ptr)
               br.asInstanceOf[BoxPointer].addr = rl

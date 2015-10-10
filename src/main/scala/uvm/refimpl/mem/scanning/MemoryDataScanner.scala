@@ -62,7 +62,7 @@ object MemoryDataScanner extends StrictLogging {
       }
       case t: TypeStruct => {
         var fieldAddr = iRef
-        for (fieldTy <- t.fieldTy) {
+        for (fieldTy <- t.fieldTys) {
           val fieldAlign = TypeSizes.alignOf(fieldTy)
           fieldAddr = TypeSizes.alignUp(fieldAddr, fieldAlign)
           scanField(fieldTy, objRef, fieldAddr, handler)
@@ -96,7 +96,7 @@ object MemoryDataScanner extends StrictLogging {
           curAddr = TypeSizes.alignUp(curAddr + varSize, varAlign)
         }
       }
-      case t: TypeStack => {
+      case t: TypeStackRef => {
         val toStackID = memorySupport.loadLong(iRef)
         val maybeToStack = if (toStackID == 0) {
           None

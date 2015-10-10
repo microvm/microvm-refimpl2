@@ -68,17 +68,17 @@ object TypeSizes {
     case _: TypeRef            => WORD_SIZE_BYTES
     case _: TypeIRef           => 2L * WORD_SIZE_BYTES
     case _: TypeWeakRef        => WORD_SIZE_BYTES
-    case t @ TypeStruct(ftys)  => structPrefixSizeOf(t, ftys.size)
+    case t @ TypeStruct(ftys)  => structPrefixSizeOf(t, ftys.size)
     case t @ TypeArray(et, l)  => seqPrefixSizeOf(t, l)
     case _: TypeHybrid         => throw new IllegalArgumentException("Hybrid should use hybridSizeOf to probe size")
     case _: TypeVoid           => 0L
-    case _: TypeFunc           => WORD_SIZE_BYTES
-    case _: TypeThread         => WORD_SIZE_BYTES
-    case _: TypeStack          => WORD_SIZE_BYTES
+    case _: TypeFuncRef        => WORD_SIZE_BYTES
+    case _: TypeThreadRef      => WORD_SIZE_BYTES
+    case _: TypeStackRef       => WORD_SIZE_BYTES
     case _: TypeTagRef64       => 8L
     case t @ TypeVector(et, l) => seqPrefixSizeOf(t, l)
-    case _: TypePtr            => WORD_SIZE_BYTES
-    case _: TypeFuncPtr        => WORD_SIZE_BYTES
+    case _: TypeUPtr           => WORD_SIZE_BYTES
+    case _: TypeUFuncPtr       => WORD_SIZE_BYTES
   }
 
   def alignOf(ty: Type): Word = ty match {
@@ -105,9 +105,9 @@ object TypeSizes {
   }
 
   def fieldOffsetOf(ty: TypeStruct, index: Int): Word = {
-    val fieldType = ty.fieldTy(index)
+    val fieldType = ty.fieldTys(index)
     val fieldAlign = alignOf(fieldType)
-    val prefixSize = structPrefixSizeOf(ty, index)
+    val prefixSize = structPrefixSizeOf(ty, index)
     val offset = alignUp(prefixSize, fieldAlign)
     return offset
   }
@@ -126,8 +126,8 @@ object TypeSizes {
     return alignUp(sizeOf(ty.fixedTy), alignOf(ty.varTy))
   }
 
-  def structPrefixSizeOf(ty: TypeStruct, prefixLen: Int): Word = {
-    val sz = ty.fieldTy.take(prefixLen).foldLeft(0L) { (oldSz, nextTy) =>
+  def structPrefixSizeOf(ty: TypeStruct, prefixLen: Int): Word = {
+    val sz = ty.fieldTys.take(prefixLen).foldLeft(0L) { (oldSz, nextTy) =>
       alignUp(oldSz, alignOf(nextTy)) + sizeOf(nextTy)
     }
     return sz

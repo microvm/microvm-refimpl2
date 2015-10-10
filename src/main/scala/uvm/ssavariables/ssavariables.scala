@@ -185,8 +185,6 @@ case class InstTailCall(var sig: FuncSig, var callee: SSAVariable, var argList: 
 
 case class InstRet(val funcVer: FuncVer, var retVal: SSAVariable) extends AbstractRet
 
-case class InstRetVoid() extends AbstractRet
-
 case class InstThrow(var excVal: SSAVariable) extends Instruction
 
 case class InstExtractValue(var strTy: TypeStruct, var index: Int, var opnd: SSAVariable) extends Instruction

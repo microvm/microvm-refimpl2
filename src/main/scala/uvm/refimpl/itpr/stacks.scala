@@ -58,7 +58,7 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
     top = newFrame
     top.savedStackPointer = stackMemory.top
   }
-  
+
   def pushMuFrameForCallBack(funcVer: FuncVer, cookie: Long, args: Seq[ValueBox]): Unit = {
     val newFrame = InterpreterFrame.forMuFunc(funcVer, cookie, args, Some(top))
     top = newFrame
@@ -146,7 +146,7 @@ object InterpreterFrame {
   def forMuFunc(funcVer: FuncVer, cookie: Long, args: Seq[ValueBox], prev: Option[InterpreterFrame]): MuFrame = {
     val frm = new MuFrame(funcVer, cookie, prev) // Bottom frame
 
-    for ((p, a) <- (funcVer.params zip args)) {
+    for ((p, a) <- (funcVer.entry.norParams zip args)) {
       frm.boxes(p).copyFrom(a)
     }
 
@@ -161,14 +161,14 @@ object InterpreterFrame {
 
 /**
  * A Mu frame
- * 
+ *
  * @param cookie: The cookie in the native interface. When called by another Mu function, cookie can be any value.
  */
 class MuFrame(val funcVer: FuncVer, val cookie: Long, prev: Option[InterpreterFrame]) extends InterpreterFrame(prev) {
   val boxes = new HashMap[LocalVariable, ValueBox]()
 
   /** Edge-assigned instructions take values determined at look backedges */
-  val edgeAssignedBoxes = new HashMap[EdgeAssigned, ValueBox]()
+  val edgeAssignedBoxes = new HashMap[Parameter, ValueBox]()
 
   /** Current basic block */
   var curBB: BasicBlock = funcVer.entry
@@ -201,19 +201,25 @@ class MuFrame(val funcVer: FuncVer, val cookie: Long, prev: Option[InterpreterFr
   makeBoxes()
 
   private def makeBoxes() {
-    for (param <- funcVer.params) {
-      putBox(param)
-    }
-    for (bb <- funcVer.bbs; inst <- bb.insts) {
-      putBox(inst)
+    for (bb <- funcVer.bbs) {
+      for (p <- bb.norParams) {
+        putBox(p)
+      }
+      for (p <- bb.excParam) {
+        putBox(p)
+      }
+
+      for (inst <- bb.insts) {
+        putBox(inst)
+      }
     }
   }
 
   private def putBox(lv: LocalVariable) {
     val ty = TypeInferer.inferType(lv)
     boxes.put(lv, ValueBox.makeBoxForType(ty))
-    if (lv.isInstanceOf[EdgeAssigned]) {
-      edgeAssignedBoxes.put(lv.asInstanceOf[EdgeAssigned], ValueBox.makeBoxForType(ty))
+    if (lv.isInstanceOf[Parameter]) {
+      edgeAssignedBoxes.put(lv.asInstanceOf[Parameter], ValueBox.makeBoxForType(ty))
     }
   }
 

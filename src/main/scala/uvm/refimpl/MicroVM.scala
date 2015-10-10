@@ -22,7 +22,7 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
   // implicitly injected resources
   private implicit val microVM = this
 
-  val globalBundle = new Bundle()
+  val globalBundle = new GlobalBundle()
   val constantPool = new ConstantPool()
   val memoryManager = new MemoryManager(heapSize, globalSize, stackSize)
 
@@ -50,7 +50,7 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
   /**
    * Add things from a bundle to the Micro VM.
    */
-  def addBundle(bundle: Bundle) {
+  def addBundle(bundle: TrantientBundle) {
     globalBundle.merge(bundle);
 
     for (gc <- bundle.globalCellNs.all) {
