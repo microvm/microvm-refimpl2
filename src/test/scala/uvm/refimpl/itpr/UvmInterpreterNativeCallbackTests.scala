@@ -48,7 +48,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
     testFunc(ca, muFunc, Seq()) { (ca, th, st, wp) =>
       ca.nameOf(ca.currentInstruction(st, 0)) match {
-        case "@square.v1.trap" => {
+        case "@square.v1.entry.trap" => {
           val Seq(value, cok) = ca.dumpKeepalives(st, 0)
 
           ca.toDouble(value) shouldBe (callbackCalled match {
@@ -62,14 +62,14 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
           TrapRebindPassVoid(st)
         }
-        case "@one_level_test.v1.pretrap" => {
+        case "@one_level_test.v1.entry.pretrap" => {
           val Seq(fp) = ca.dumpKeepalives(st, 0)
 
           ca.toPointer(fp) shouldEqual nativeFuncAddr
 
           TrapRebindPassVoid(st)
         }
-        case "@one_level_test.v1.trap" => {
+        case "@one_level_test.v1.entry.trap" => {
           val Seq(fp, rv) = ca.dumpKeepalives(st, 0)
 
           ca.toPointer(fp) shouldEqual nativeFuncAddr
@@ -103,7 +103,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
     testFunc(ca, muFunc, Seq()) { (ca, th, st, wp) =>
       ca.nameOf(ca.currentInstruction(st, 0)) match {
-        case "@square.v1.trap" => {
+        case "@square.v1.entry.trap" => {
           val Seq(value, cok) = ca.dumpKeepalives(st, 0)
 
           ca.toDouble(value) shouldBe (callbackCalled match {
@@ -124,7 +124,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
           TrapRebindPassVoid(st)
         }
-        case "@one_level_test2.v1.pretrap" => {
+        case "@one_level_test2.v1.entry.pretrap" => {
           val Seq(fp, cb1, cb2) = ca.dumpKeepalives(st, 0)
 
           ca.toPointer(fp) shouldEqual nativeFuncAddr
@@ -144,7 +144,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
           TrapRebindPassVoid(st)
         }
-        case "@one_level_test2.v1.trap" => {
+        case "@one_level_test2.v1.entry.trap" => {
           val Seq(fp, rv1, rv2, cb1, cb2) = ca.dumpKeepalives(st, 0)
 
           ca.toPointer(fp) shouldEqual nativeFuncAddr
@@ -191,7 +191,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
     testFunc(ca, muFunc, Seq(hCB)) { (ca, th, st, wp) =>
       ca.nameOf(ca.currentInstruction(st, 0)) match {
-        case "@square.v1.trap" => {
+        case "@square.v1.entry.trap" => {
           val Seq(value, cok) = ca.dumpKeepalives(st, 0)
 
           ca.toDouble(value) shouldBe (callbackCalled match {
@@ -205,7 +205,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
           TrapRebindPassVoid(st)
         }
-        case "@one_level_test3.v1.pretrap" => {
+        case "@one_level_test3.v1.entry.pretrap" => {
           val Seq(fp, cb) = ca.dumpKeepalives(st, 0)
 
           ca.toPointer(fp) shouldEqual nativeFuncAddr
@@ -213,7 +213,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
           TrapRebindPassVoid(st)
         }
-        case "@one_level_test3.v1.trap" => {
+        case "@one_level_test3.v1.entry.trap" => {
           val Seq(fp, rv) = ca.dumpKeepalives(st, 0)
 
           ca.toPointer(fp) shouldEqual nativeFuncAddr
@@ -254,7 +254,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
     testFunc(ca, hPongTest, Seq(initialV, hPingFP)) { (ca, th, st, wp) =>
       ca.nameOf(ca.currentInstruction(st, 0)) match {
-        case "@pong.v1.entrytrap" => {
+        case "@pong.v1.entry.entrytrap" => {
           val Seq(v, peer) = ca.dumpKeepalives(st, 0)
           val vInt = ca.toInt(v).toInt
           val peerAddr = ca.toPointer(peer)
@@ -276,7 +276,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
           TrapRebindPassVoid(st)
         }
-        case "@pong.v1.resptrap" => {
+        case "@pong.v1.not_zero.resptrap" => {
           val Seq(v, resp) = ca.dumpKeepalives(st, 0)
           val vInt = ca.toInt(v).toInt
           val respInt = ca.toInt(resp).toInt
@@ -291,7 +291,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
           TrapRebindPassVoid(st)
         }
-        case "@pong_test.v1.entrytrap" => {
+        case "@pong_test.v1.entry.entrytrap" => {
           val Seq(v, peer) = ca.dumpKeepalives(st, 0)
 
           ca.toInt(v).toInt shouldEqual 10
@@ -299,7 +299,7 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
           TrapRebindPassVoid(st)
         }
-        case "@pong_test.v1.exittrap" => {
+        case "@pong_test.v1.entry.exittrap" => {
           val Seq(rv) = ca.dumpKeepalives(st, 0)
 
           ca.toInt(rv).toInt shouldEqual 3628800
@@ -337,7 +337,21 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
     testFunc(ca, muFunc, Seq()) { (ca, th, st, wp) =>
       ca.nameOf(ca.currentInstruction(st, 0)) match {
-        case "@native_sched_test.v1.exittrap" => {
+        case "@native_sched_test.v1.body.inspect" => {
+          val Seq(rv) = ca.dumpKeepalives(st, 0)
+          val rvInt = ca.toInt(rv)
+          printf("@native_sched_test: rv = %d\n", rvInt)
+          
+          TrapRebindPassVoid(st)
+        }
+        case "@take_from_mu.v1.entry.inspect" => {
+          val Seq(ss) = ca.dumpKeepalives(st, 0)
+          val rvInt = ca.toInt(ss)
+          printf("@take_from_mu: ss = %d\n", rvInt)
+          
+          TrapRebindPassVoid(st)
+        }
+        case "@native_sched_test.v1.exit.exittrap" => {
           try {
             val Seq(rvTaker) = ca.dumpKeepalives(st, 0)
 

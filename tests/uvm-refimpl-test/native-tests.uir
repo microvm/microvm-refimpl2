@@ -12,10 +12,10 @@
 
 .funcsig @noparamsnoret = @void ()
 
-.typedef @funcdumb = func<@noparamsnoret>
+.typedef @funcdumb = funcref<@noparamsnoret>
 
-.typedef @thread = thread
-.typedef @stack = stack
+.typedef @thread = threadref
+.typedef @stack = stackref
 .typedef @tagref64 = tagref64
 
 .const @TRUE <@i64> = 1
@@ -61,14 +61,14 @@
 .typedef @4xi32    = vector <@i32 4>
 .typedef @2xdouble = vector <@double 2>
 
-.const @4xI32_V1 <@4xi32> = VEC {@I32_0 @I32_1 @I32_2 @I32_3}
-.const @4xI32_V2 <@4xi32> = VEC {@I32_4 @I32_5 @I32_6 @I32_7}
+.const @4xI32_V1 <@4xi32> = {@I32_0 @I32_1 @I32_2 @I32_3}
+.const @4xI32_V2 <@4xi32> = {@I32_4 @I32_5 @I32_6 @I32_7}
 
-.const @4xF_V1 <@4xfloat> = VEC {@F_0 @F_1 @F_2 @F_3}
-.const @4xF_V2 <@4xfloat> = VEC {@F_4 @F_5 @F_6 @F_7}
+.const @4xF_V1 <@4xfloat> = {@F_0 @F_1 @F_2 @F_3}
+.const @4xF_V2 <@4xfloat> = {@F_4 @F_5 @F_6 @F_7}
 
-.const @2xD_V1 <@2xdouble> = VEC {@D_0 @D_1}
-.const @2xD_V2 <@2xdouble> = VEC {@D_2 @D_3}
+.const @2xD_V1 <@2xdouble> = {@D_0 @D_1}
+.const @2xD_V2 <@2xdouble> = {@D_2 @D_3}
 
 .funcsig @i_i = @i64 (@i64)
 .funcsig @i_ii = @i64 (@i64 @i64)
@@ -96,28 +96,28 @@
 .const @NULLREF_I64  <@refi64>  = NULL
 .const @NULLIREF_I64 <@irefi64> = NULL
 
-.typedef @ptrvoid   = ptr<@void>
-.typedef @ptri8     = ptr<@i8>
-.typedef @ptri16    = ptr<@i16>
-.typedef @ptri32    = ptr<@i32>
-.typedef @ptri64    = ptr<@i64>
-.typedef @ptrfloat  = ptr<@float>
-.typedef @ptrdouble = ptr<@double>
-.typedef @ptrptrvoid = ptr<@ptrvoid>
-.typedef @ptrfpnoparamsnoret = ptr<@fpnoparamsnoret>
-.typedef @ptrfpi_i  = ptr<@fpi_i>
+.typedef @ptrvoid               = uptr<@void>
+.typedef @ptri8                 = uptr<@i8>
+.typedef @ptri16                = uptr<@i16>
+.typedef @ptri32                = uptr<@i32>
+.typedef @ptri64                = uptr<@i64>
+.typedef @ptrfloat              = uptr<@float>
+.typedef @ptrdouble             = uptr<@double>
+.typedef @ptrptrvoid            = uptr<@ptrvoid>
+.typedef @ptrfpnoparamsnoret    = uptr<@fpnoparamsnoret>
+.typedef @ptrfpi_i              = uptr<@fpi_i>
 
-.typedef @fpnoparamsnoret = funcptr<@noparamsnoret>
-.typedef @fpi_i = funcptr<@i_i>
-.typedef @fpi_ii = funcptr<@i_ii>
+.typedef @fpnoparamsnoret   = ufuncptr<@noparamsnoret>
+.typedef @fpi_i             = ufuncptr<@i_i>
+.typedef @fpi_ii            = ufuncptr<@i_ii>
 
 .funcsig @v_a = @void (@i64)
 
 .funcsig @getpid_sig = @i32 ()
-.typedef @getpid_fp  = funcptr<@getpid_sig>
+.typedef @getpid_fp  = ufuncptr<@getpid_sig>
 
-.funcdef @getpidtest VERSION @getpidtest_v1 <@v_a> (%p0) {
-    %entry:
+.funcdef @getpidtest VERSION @getpidtest_v1 <@v_a> {
+    %entry(<@i64> %p0):
         %fp = PTRCAST <@i64 @getpid_fp> %p0
         %rv = CCALL #DEFAULT <@getpid_fp @getpid_sig> %fp ()
 
@@ -127,7 +127,7 @@
 
 .typedef @size_t = int<64>
 .funcsig @write_sig = @size_t (@i32 @ptrvoid @size_t)
-.typedef @write_fp  = funcptr<@write_sig>
+.typedef @write_fp  = ufuncptr<@write_sig>
 
 .typedef @CharBuf = hybrid<@i64 @i8>
 .const @I8_H  <@i8> = 0x48
@@ -137,8 +137,8 @@
 .const @I8_NL <@i8> = 0x0a
 
 .funcsig @writetest_sig = @void (@write_fp)
-.funcdef @writetest VERSION @writetest_v1 <@writetest_sig> (%fp) {
-    %entry:
+.funcdef @writetest VERSION @writetest_v1 <@writetest_sig> {
+    %entry(<@write_fp> %fp):
         %buf = NEWHYBRID <@CharBuf @i64> @I64_6
         %buf_i = GETIREF <@CharBuf> %buf
         %buf_v0 = GETVARPARTIREF <@CharBuf> %buf_i
@@ -166,12 +166,12 @@
 }
 
 .funcsig @memcpy_sig = @ptrvoid (@ptrvoid @ptrvoid @size_t)
-.typedef @memcpy_fp  = funcptr<@write_sig>
+.typedef @memcpy_fp  = ufuncptr<@write_sig>
 
 .global @FP_MEMCPY <@memcpy_fp>
 
-.funcdef @memcpytest VERSION @memcpytest_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @memcpytest VERSION @memcpytest_v1 <@noparamsnoret> {
+    %entry():
         %fp = LOAD <@memcpy_fp> @FP_MEMCPY
 
         %buf = NEWHYBRID <@CharBuf @i64> @I64_6
@@ -225,14 +225,14 @@
 .typedef @struct_baz = struct<@struct_baz1 @double>
 
 .typedef @irefstruct_baz = iref<@struct_baz>
-.typedef @ptrstruct_baz = ptr<@struct_baz>
+.typedef @ptrstruct_baz = uptr<@struct_baz>
 
 .funcsig @foo_func_sig = @void (@struct_foo @ptri64 @ptri32 @ptri16 @ptri8)
 .funcsig @bar_func_sig = @void (@struct_bar @ptrptrvoid @ptrfpnoparamsnoret)
 .funcsig @baz_func_sig = @struct_baz (@struct_baz @ptrfloat @ptri32 @ptrdouble @ptrstruct_baz)
-.typedef @foo_func_fp = funcptr<@foo_func_sig>
-.typedef @bar_func_fp = funcptr<@bar_func_sig>
-.typedef @baz_func_fp = funcptr<@baz_func_sig>
+.typedef @foo_func_fp = ufuncptr<@foo_func_sig>
+.typedef @bar_func_fp = ufuncptr<@bar_func_sig>
+.typedef @baz_func_fp = ufuncptr<@baz_func_sig>
 
 .const @I64BIG <@i64> = 0x55aa55aa55aa55aa
 .const @I32BIG <@i32> = 0x5a5a5a5a
@@ -241,8 +241,8 @@
 
 .const @o_foo <@struct_foo> = {@I64BIG @I32BIG @I16BIG @I8BIG}
 
-.funcdef @foo_func_test VERSION @foo_func_test_v1 <@v_a> (%p0) {
-    %entry:
+.funcdef @foo_func_test VERSION @foo_func_test_v1 <@v_a> {
+    %entry(<@i64> %p0):
         %fp = PTRCAST <@i64 @foo_func_fp> %p0
 
         %aa = ALLOCA <@i64>
@@ -276,8 +276,8 @@
 .typedef @irefptrvoid = iref<@ptrvoid>
 .typedef @ireffpnoparamsnoret = iref<@fpnoparamsnoret>
 
-.funcdef @bar_func_test VERSION @bar_func_test_v1 <@v_a> (%p0) {
-    %entry:
+.funcdef @bar_func_test VERSION @bar_func_test_v1 <@v_a> {
+    %entry(<@i64> %p0):
         %fp = PTRCAST <@i64 @bar_func_fp> %p0
 
         %aa = ALLOCA <@ptrvoid>
@@ -300,8 +300,8 @@
 .const @o_baz_a <@struct_baz1> = {@F_1 @I32_2}
 .const @o_baz <@struct_baz> = {@o_baz_a @D_3}
 
-.funcdef @baz_func_test VERSION @baz_func_test_v1 <@v_a> (%p0) {
-    %entry:
+.funcdef @baz_func_test VERSION @baz_func_test_v1 <@v_a> {
+    %entry(<@i64> %p0):
         %fp = PTRCAST <@i64 @baz_func_fp> %p0
 
         %aa = ALLOCA <@float>

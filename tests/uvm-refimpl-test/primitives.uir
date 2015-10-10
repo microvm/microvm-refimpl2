@@ -22,6 +22,8 @@
 .typedef @refvoid = ref<@void>
 .const @NULLREF <@refvoid> = NULL
 
+.const @VOID <@void> = NULL
+
 .typedef @refi64 = ref<@i64>
 .typedef @irefi64 = iref<@i64>
 .typedef @weakrefi64 = weakref<@i64>

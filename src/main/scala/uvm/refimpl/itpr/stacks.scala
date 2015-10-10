@@ -177,6 +177,10 @@ class MuFrame(val funcVer: FuncVer, val cookie: Long, prev: Option[InterpreterFr
 
   /** Current instruction index within the current basic block */
   var curInstIndex: Int = 0
+  
+  /** true if the frame is just created (push_frame or new_stack). Binding a thread to the stack or executing an
+   *  instruction will make it false. */
+  var justCreated: Boolean = true
 
   /**
    * curInstHalfExecuted is true if the current instruction is partially executed and may continue when resumed.

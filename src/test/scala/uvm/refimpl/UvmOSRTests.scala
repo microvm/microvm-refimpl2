@@ -33,20 +33,20 @@ class UvmOSRTests extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq(arg0)) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@intro_rec_v1.trap_rec" => {
+        case "@intro_rec_v1.zero.trap_rec" => {
           val Seq(n0) = ca.dumpKeepalives(st, 0)
           ca.toInt(n0) shouldBe 0
 
           for (i <- 1 to 3) {
-            nameOf(ca.currentInstruction(st, i)) shouldBe "@intro_rec_v1.rv"
+            nameOf(ca.currentInstruction(st, i)) shouldBe "@intro_rec_v1.nz.rv"
             val Seq(ni, nm1i) = ca.dumpKeepalives(st, i)
             ca.toInt(ni) shouldBe i
             ca.toInt(nm1i) shouldBe (i - 1)
           }
 
-          nameOf(ca.currentInstruction(st, 4)) shouldBe "@intro_test_base_v1.rv"
+          nameOf(ca.currentInstruction(st, 4)) shouldBe "@intro_test_base_v1.entry.rv"
 
-          TrapRebindPassVoid(st)
+          TrapRebindPassValue(st, n0)
         }
       }
     }
@@ -63,7 +63,7 @@ class UvmOSRTests extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq(arg0)) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@osr_test_base_v1.trap_base_exit" => {
+        case "@osr_test_base_v1.entry.trap_base_exit" => {
           val Seq(rv) = ca.dumpKeepalives(st, 0)
           ca.toInt(rv) shouldBe 6
 
@@ -84,7 +84,7 @@ class UvmOSRTests extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq(arg0)) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@sum_v1.trap_opt" => {
+        case "@sum_v1.opt.trap_opt" => {
           val Seq(n, i, s) = ca.dumpKeepalives(st, 0)
           
           ca.toInt(s) shouldBe 10
@@ -108,7 +108,7 @@ class UvmOSRTests extends UvmBundleTesterBase {
           // Continue
           TrapRebindPassVoid(st)
         }
-        case "@osr_test_base_v1.trap_base_exit" => {
+        case "@osr_test_base_v1.entry.trap_base_exit" => {
           val Seq(rv) = ca.dumpKeepalives(st, 0)
           ca.toInt(rv) shouldBe 28
 
@@ -121,7 +121,7 @@ class UvmOSRTests extends UvmBundleTesterBase {
     // and OSR should be unnecessary.
     testFunc(ca, func, Seq(arg0)) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@osr_test_base_v1.trap_base_exit" => {
+        case "@osr_test_base_v1.entry.trap_base_exit" => {
           val Seq(rv) = ca.dumpKeepalives(st, 0)
           ca.toInt(rv) shouldBe 28
 

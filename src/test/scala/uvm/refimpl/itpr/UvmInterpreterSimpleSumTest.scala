@@ -38,11 +38,11 @@ class UvmInterpreterSimpleSumTest extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq(hFrom, hTo)) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@simplesum_v1.starttrap" => {
+        case "@simplesum_v1.entry.starttrap" => {
           t1 = System.currentTimeMillis()
           TrapRebindPassVoid(st)
         }
-        case "@simplesum_v1.exittrap" => {
+        case "@simplesum_v1.exit.exittrap" => {
           t2 = System.currentTimeMillis()
 
           val Seq(sum) = ca.dumpKeepalives(st, 0)

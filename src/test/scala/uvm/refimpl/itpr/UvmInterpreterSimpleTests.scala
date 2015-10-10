@@ -50,7 +50,7 @@ class UvmInterpreterSimpleTests extends UvmBundleTesterBase {
       val trapName = nameOf(ca.currentInstruction(st, 0))
 
       trapName match {
-        case "@fibonacci_mat_v1.watch" => {
+        case "@fibonacci_mat_v1.head.watch" => {
           if (watch) {
             val vhs = ca.dumpKeepalives(st, 0)
             val vs = vhs.map(_.vb.asInt)
@@ -58,7 +58,7 @@ class UvmInterpreterSimpleTests extends UvmBundleTesterBase {
           }
           TrapRebindPassVoid(st)
         }
-        case "@test_fib_v1.checktrap" => {
+        case "@test_fib_v1.entry.checktrap" => {
           val Seq(r1, r2) = ca.dumpKeepalives(st, 0)
 
           r1.vb.asInt shouldEqual 55
@@ -82,14 +82,14 @@ class UvmInterpreterSimpleTests extends UvmBundleTesterBase {
       val trapName = nameOf(ca.currentInstruction(st, 0))
 
       trapName match {
-        case "@test_coroutine_v1.trap_body" => {
+        case "@test_coroutine_v1.body.trap_body" => {
           val Seq(v) = ca.dumpKeepalives(st, 0)
 
           println(v.vb.asSInt(64))
 
           TrapRebindPassVoid(st)
         }
-        case "@test_coroutine_v1.trap_exit" => {
+        case "@test_coroutine_v1.exit.trap_exit" => {
           val Seq(exc) = ca.dumpKeepalives(st, 0)
 
           val hsi = ca.putGlobal("@StopIteration")
@@ -115,7 +115,7 @@ class UvmInterpreterSimpleTests extends UvmBundleTesterBase {
       val trapName = nameOf(ca.currentInstruction(st, 0))
 
       trapName match {
-        case "@test_multithreading_v1.trap_result" => {
+        case "@test_multithreading_v1.getresult.trap_result" => {
           val Seq(v) = ca.dumpKeepalives(st, 0)
 
           v.vb.asSInt(64) shouldEqual 4950

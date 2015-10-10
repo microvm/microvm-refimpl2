@@ -15,6 +15,8 @@ import uvm.refimpl.nat.NativeCallResult
 
 object InterpreterThread {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+
+  val BOX_VOID = new BoxVoid()
 }
 
 class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator: Mutator)(
@@ -40,7 +42,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
 
   // Initialisation
 
-  rebindPassVoid(initialStack)
+  rebindPassValue(initialStack, BOX_VOID)
 
   // Public interface
 
@@ -48,6 +50,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
   def step(): Unit = {
     if (!isRunning) throw new UvmRefImplException(ctx + "Attempt to run thread after it has reached exit.")
     if (isFutexWaiting) throw new UvmRefImplException(ctx + "Attempt to run thread when it is waiting on a futex.")
+    topMu.justCreated = false
     interpretCurrentInstruction()
   }
 
@@ -1168,11 +1171,11 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
     val norArgs = destClause.args
 
     // Copy to edge-assigned boxes, first.
-    if(norArgs.length != dest.norParams.length) {
+    if (norArgs.length != dest.norParams.length) {
       throw new UvmRefImplException(ctx + "Wrong number of arguments. Basic block: %s, expected: %d, actual: %d".format(
-          dest.repr, dest.norParams.length, norArgs.length))
+        dest.repr, dest.norParams.length, norArgs.length))
     }
-    
+
     for ((arg, np) <- norArgs zip dest.norParams) {
       val argBox = boxOf(arg)
       val npEdgeBox = edgeAssignedBoxOf(np)
@@ -1353,32 +1356,41 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
     stack = None
   }
 
-  /** Rebind to a stack. */
-  private def rebind(newStack: InterpreterStack): Unit = {
+  /**
+   *  Rebind to a stack.
+   *  @return Return the old state.
+   *
+   */
+  private def rebind(newStack: InterpreterStack): StackState = {
     stack = Some(newStack)
+    val oldState = curStack.state
     curStack.rebindToThread()
+    oldState
   }
 
   /** Rebind to a stack and pass a value. */
   private def rebindPassValue(newStack: InterpreterStack, value: ValueBox): Unit = {
-    rebind(newStack)
+    val oldState = rebind(newStack)
 
-    try {
-      boxOf(curInst).copyFrom(value)
-    } catch {
-      case e: Exception => {
-        throw new UvmRuntimeException(ctx + "Error during rebinding while assigning the value passed to a stack " +
-          "to the instruction waiting for rebinding. This is usually caused by the mismatching between the type of " +
-          "READY<T> and the actual value type. The passed value box is a %s.".format(value.getClass.getName), e)
+    top match {
+      case mf: MuFrame => {
+        if (mf.justCreated) {
+          mf.justCreated = false
+        } else {
+          try {
+            boxOf(curInst).copyFrom(value)
+          } catch {
+            case e: Exception => {
+              throw new UvmRuntimeException(ctx + "Error passing value while rebinding. " +
+                "The new stack is in state %s, the passed value box is a %s.".format(oldState, value.getClass.getName), e)
+            }
+          }
+        }
+      }
+      case nf: NativeFrame => {
+        ???
       }
     }
-
-    finishHalfExecutedInst()
-  }
-
-  /** Rebind to a stack and pass void. */
-  private def rebindPassVoid(newStack: InterpreterStack): Unit = {
-    rebind(newStack)
 
     finishHalfExecutedInst()
   }
@@ -1422,7 +1434,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
       }
       case TrapRebindPassVoid(newStack) => {
         val ns = getStackNotNull(newStack)
-        rebindPassVoid(ns)
+        rebindPassValue(ns, BOX_VOID)
       }
       case TrapRebindThrowExc(newStack, exc) => {
         val ns = getStackNotNull(newStack)
