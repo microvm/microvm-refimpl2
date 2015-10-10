@@ -38,11 +38,11 @@
 .typedef @iii8 = iref<@ii8>
 .funcsig @sig1 = @i32 (@i32 @iii8)
 
-.typedef @f0 = func <@sig0>
-.typedef @f1 = func <@sig1>
+.typedef @f0 = funcref<@sig0>
+.typedef @f1 = funcref<@sig1>
 
-.typedef @th = thread
-.typedef @st = stack
+.typedef @th = threadref
+.typedef @st = stackref
 .typedef @tr64 = tagref64
 
 .typedef @i6 = int<6>

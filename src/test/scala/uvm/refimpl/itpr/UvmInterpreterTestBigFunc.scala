@@ -41,15 +41,15 @@ class UvmInterpreterTestBigFunc extends UvmBundleTesterBase {
   "The Micro VM" should "sustain frequent bundle loading" in {
     val ca = microVM.newClientAgent()
     
-    for(i <- 0 until 100) {
+    for(i <- 0 until 1000) {
       val miniBundle = s".global @h${i} <@i64>"
       ca.loadBundle(miniBundle)
     }
     
     val sb = new StringBuilder()
-    sb ++= ".funcdef @bigger VERSION @bigger.v1 <@big.sig> (%p) {\n"
-    sb ++= "     %entry:\n"
-    for(i <- 0 until 100) {
+    sb ++= ".funcdef @bigger VERSION @bigger.v1 <@big.sig> {\n"
+    sb ++= "     %entry(<@i64> %p):\n"
+    for(i <- 0 until 1000) {
       sb ++= s"        %r${i} = STORE <@i64> @h${i} %p\n"
     }
     sb ++= "        TRAP <@void>\n"

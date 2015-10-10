@@ -106,8 +106,8 @@
 
 
 .funcsig @big.sig = @void (@i64)
-.funcdef @big VERSION @big_v1 <@big.sig> (%p) {
-    %entry:
+.funcdef @big VERSION @big_v1 <@big.sig> {
+    %entry(<@i64> %p):
         %i0 = ADD <@i64> %p @I64_1
         %i1 = ADD <@i64> %i0 @I64_1
         %i2 = ADD <@i64> %i1 @I64_1

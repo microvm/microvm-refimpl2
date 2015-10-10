@@ -50,7 +50,7 @@ class UvmInterpreterStackGCTests extends UvmBundleTesterBase {
     val func = ca.putFunction("@stackcollecttest")
     testFunc(ca, func, Seq(nStacks)) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@stackcollecttest_v1.trap" => {
+        case "@stackcollecttest_v1.endloop.trap" => {
           gc()
           TrapRebindPassVoid(st)
         }
