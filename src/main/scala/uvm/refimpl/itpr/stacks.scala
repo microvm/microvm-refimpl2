@@ -11,6 +11,8 @@ import scala.collection.AbstractIterator
 import uvm.refimpl.nat.NativeStackKeeper
 import uvm.refimpl.nat.NativeCallResult
 import uvm.refimpl.nat.NativeCallHelper
+import org.slf4j.LoggerFactory
+import com.typesafe.scalalogging.Logger
 
 abstract class StackState
 
@@ -216,8 +218,16 @@ class MuFrame(val funcVer: FuncVer, val cookie: Long, prev: Option[InterpreterFr
   }
 
   private def putBox(lv: LocalVariable) {
+    import MuFrame.logger
     val ty = TypeInferer.inferType(lv)
-    boxes.put(lv, ValueBox.makeBoxForType(ty))
+    try {
+      boxes.put(lv, ValueBox.makeBoxForType(ty))
+    } catch {
+      case e: UvmRefImplException => {
+        logger.error("Having problem creating box for lv: %s".format(lv))
+        throw e
+      }
+    }
     if (lv.isInstanceOf[Parameter]) {
       edgeAssignedBoxes.put(lv.asInstanceOf[Parameter], ValueBox.makeBoxForType(ty))
     }
@@ -254,6 +264,10 @@ class MuFrame(val funcVer: FuncVer, val cookie: Long, prev: Option[InterpreterFr
       case i => throw new UvmRefImplException("Instruction does not have keepalives: " + i.repr)
     }
   }
+}
+
+object MuFrame {
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
 class NativeFrame(val func: Word, prev: Option[InterpreterFrame]) extends InterpreterFrame(prev) {

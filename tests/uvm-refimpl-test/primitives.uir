@@ -9,8 +9,8 @@
 
 .funcsig @noparamsnoret = @void ()
 
-.typedef @thread = thread
-.typedef @stack = stack
+.typedef @thread = threadref
+.typedef @stack = stackref
 .typedef @tagref64 = tagref64
 
 .const @TRUE <@i64> = 1

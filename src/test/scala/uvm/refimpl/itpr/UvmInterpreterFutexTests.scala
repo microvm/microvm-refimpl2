@@ -33,7 +33,7 @@ class UvmInterpreterFutexTests extends UvmBundleTesterBase {
       val trapName = nameOf(ca.currentInstruction(st, 0))
 
       trapName match {
-        case "@futex_waiter_v1.trap_waiter" => {
+        case "@futex_waiter_v1.entry.trap_waiter" => {
           val Seq(rv, sv) = ca.dumpKeepalives(st, 0)
 
           ca.toInt(rv, signExt = true) shouldBe 0
@@ -43,7 +43,7 @@ class UvmInterpreterFutexTests extends UvmBundleTesterBase {
 
           TrapRebindPassVoid(st)
         }
-        case "@futex_setter_v1.trap_setter" => {
+        case "@futex_setter_v1.wait_exit.trap_setter" => {
           trapSetterReached = true
 
           TrapRebindPassVoid(st)
@@ -69,7 +69,7 @@ class UvmInterpreterFutexTests extends UvmBundleTesterBase {
       val trapName = nameOf(ca.currentInstruction(st, 0))
 
       trapName match {
-        case "@futex_delayer_v1.trap_delayer" => {
+        case "@futex_delayer_v1.entry.trap_delayer" => {
           val Seq(rv) = ca.dumpKeepalives(st, 0)
 
           ca.toInt(rv, signExt = true) shouldBe -3
@@ -98,7 +98,7 @@ class UvmInterpreterFutexTests extends UvmBundleTesterBase {
       val trapName = nameOf(ca.currentInstruction(st, 0))
 
       trapName match {
-        case "@futex_no_sleep_v1.trap_no_sleep" => {
+        case "@futex_no_sleep_v1.entry.trap_no_sleep" => {
           val Seq(rv) = ca.dumpKeepalives(st, 0)
 
           ca.toInt(rv, signExt = true) shouldBe -1
@@ -128,7 +128,7 @@ class UvmInterpreterFutexTests extends UvmBundleTesterBase {
       val trapName = nameOf(ca.currentInstruction(st, 0))
 
       trapName match {
-        case "@futex_requeue_waiter_v1.trap_requeue_waiter" => {
+        case "@futex_requeue_waiter_v1.entry.trap_requeue_waiter" => {
           val Seq(rv) = ca.dumpKeepalives(st, 0)
 
           ca.toInt(rv, signExt = true) shouldBe 0
@@ -137,7 +137,7 @@ class UvmInterpreterFutexTests extends UvmBundleTesterBase {
 
           TrapRebindPassVoid(st)
         }
-        case "@futex_requeue_test_v1.trap_wait" => {
+        case "@futex_requeue_test_v1.wait_body.trap_wait" => {
           val Seq(nt, nt2) = ca.dumpKeepalives(st, 0)
 
           val nthr = nt.vb.asThread.get
@@ -151,7 +151,7 @@ class UvmInterpreterFutexTests extends UvmBundleTesterBase {
             TrapRebindPassValue(st, zero)
           }
         }
-        case "@futex_requeue_test_v1.trap_setter" => {
+        case "@futex_requeue_test_v1.wait_exit.trap_setter" => {
           val Seq(nwakes, nwakes2) = ca.dumpKeepalives(st, 0)
 
           ca.toInt(nwakes, signExt = true) shouldBe 1
@@ -198,7 +198,7 @@ class UvmInterpreterFutexTests extends UvmBundleTesterBase {
         val trapName = nameOf(ca.currentInstruction(st, 0))
 
         trapName match {
-          case "@futex_gc_waiter_v1.trap_gc_waiter" => {
+          case "@futex_gc_waiter_v1.entry.trap_gc_waiter" => {
             val Seq(rv) = ca.dumpKeepalives(st, 0)
 
             ca.toInt(rv, signExt = true) shouldBe 0
@@ -207,7 +207,7 @@ class UvmInterpreterFutexTests extends UvmBundleTesterBase {
 
             TrapRebindPassVoid(st)
           }
-          case "@futex_with_gc_v1.trap_wait" => {
+          case "@futex_with_gc_v1.wait_body.trap_wait" => {
             val Seq(nt) = ca.dumpKeepalives(st, 0)
 
             val nthr = nt.vb.asThread.get
@@ -220,12 +220,12 @@ class UvmInterpreterFutexTests extends UvmBundleTesterBase {
               TrapRebindPassValue(st, zero)
             }
           }
-          case "@futex_with_gc_v1.trap_gc" => {
+          case "@futex_with_gc_v1.wait_exit.trap_gc" => {
             gc()
 
             TrapRebindPassVoid(st)
           }
-          case "@futex_with_gc_v1.trap_exit" => {
+          case "@futex_with_gc_v1.wait_exit.trap_exit" => {
             val Seq(nwakes) = ca.dumpKeepalives(st, 0)
 
             ca.toInt(nwakes, signExt = true) shouldBe 1

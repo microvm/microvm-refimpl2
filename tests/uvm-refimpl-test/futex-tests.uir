@@ -8,8 +8,8 @@
 .const @I32_0 <@i32> = 0
 .const @I32_1 <@i32> = 1
 
-.funcdef @futex_waiter VERSION @futex_waiter_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @futex_waiter VERSION @futex_waiter_v1 <@noparamsnoret> {
+    %entry():
         %rv = COMMINST @uvm.futex.wait <@i32> (@the_futex @I32_0)
         %sv = LOAD <@i64> @shared_value1
 
@@ -17,8 +17,8 @@
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @futex_setter VERSION @futex_setter_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @futex_setter VERSION @futex_setter_v1 <@noparamsnoret> {
+    %entry():
         STORE <@i64> @shared_value1 @I64_0
         STORE <@i64> @shared_value2 @I64_0
         STORE <@i32> @the_futex @I32_0
@@ -28,30 +28,30 @@
 
         STORE <@i64> @shared_value1 @I64_42
 
-        BRANCH %wait_body
+        BRANCH %wait_body()
 
-    %wait_body:
+    %wait_body():
         %nwakes = COMMINST @uvm.futex.wake <@i32> (@the_futex @I32_1)
         %is_1 = EQ <@i32> %nwakes @I32_1
-        BRANCH2 %is_1 %wait_exit %wait_body
+        BRANCH2 %is_1 %wait_exit() %wait_body()
 
-    %wait_exit:
+    %wait_exit():
         %trap_setter = TRAP <@void>
         COMMINST @uvm.thread_exit
 }
 
 .const @I64_ONE_SECOND <@i64> = 1000000000
 
-.funcdef @futex_delayer VERSION @futex_delayer_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @futex_delayer VERSION @futex_delayer_v1 <@noparamsnoret> {
+    %entry():
         STORE <@i32> @the_futex @I32_0
         %rv = COMMINST @uvm.futex.wait_timeout <@i32> (@the_futex @I32_0 @I64_ONE_SECOND)
         %trap_delayer = TRAP <@void> KEEPALIVE(%rv)
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @futex_no_sleep VERSION @futex_no_sleep_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @futex_no_sleep VERSION @futex_no_sleep_v1 <@noparamsnoret> {
+    %entry():
         STORE <@i32> @the_futex @I32_0
         %rv = COMMINST @uvm.futex.wait <@i32> (@the_futex @I32_1)
         %trap_no_sleep = TRAP <@void> KEEPALIVE(%rv)
@@ -60,15 +60,15 @@
 
 .global @the_other_futex <@i32>
 
-.funcdef @futex_requeue_waiter VERSION @futex_requeue_waiter_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @futex_requeue_waiter VERSION @futex_requeue_waiter_v1 <@noparamsnoret> {
+    %entry():
         %rv = COMMINST @uvm.futex.wait <@i32> (@the_futex @I32_0)
         %trap_requeue_waiter = TRAP <@void> KEEPALIVE(%rv)
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @futex_requeue_test VERSION @futex_requeue_test_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @futex_requeue_test VERSION @futex_requeue_test_v1 <@noparamsnoret> {
+    %entry():
         STORE <@i32> @the_futex @I32_0
         STORE <@i32> @the_other_futex @I32_0
 
@@ -78,14 +78,14 @@
         %ns2 = NEWSTACK <@noparamsnoret> @futex_requeue_waiter ()
         %nt2 = COMMINST @uvm.new_thread (%ns2)
 
-        BRANCH %wait_body
+        BRANCH %wait_body(%nt %nt2)
 
-    %wait_body:
+    %wait_body(<@thread> %nt <@thread> %nt2):
         %trap_wait = TRAP <@i32> KEEPALIVE (%nt %nt2)
         %is_1 = EQ <@i32> %trap_wait @I32_1
-        BRANCH2 %is_1 %wait_exit %wait_body
+        BRANCH2 %is_1 %wait_exit() %wait_body()
 
-    %wait_exit:
+    %wait_exit():
         %nwakes = COMMINST @uvm.futex.cmp_requeue <@i32> (@the_futex @the_other_futex @I32_0 @I32_1)
         %nwakes2 = COMMINST @uvm.futex.wake <@i32> (@the_other_futex @I32_1)
         %trap_setter = TRAP <@void> KEEPALIVE (%nwakes %nwakes2)
@@ -96,16 +96,16 @@
 .typedef @irefi32 = iref<@i32>
 
 .funcsig @futex_gc_waiter_sig = @void (@refi32)
-.funcdef @futex_gc_waiter VERSION @futex_gc_waiter_v1 <@futex_gc_waiter_sig> (%ref) {
-    %entry:
+.funcdef @futex_gc_waiter VERSION @futex_gc_waiter_v1 <@futex_gc_waiter_sig> {
+    %entry(<@refi32> %ref):
         %ir = GETIREF <@i32> %ref
         %rv = COMMINST @uvm.futex.wait <@i32> (%ir @I32_0)
         %trap_gc_waiter = TRAP <@void> KEEPALIVE(%rv)
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @futex_with_gc VERSION @futex_with_gc_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @futex_with_gc VERSION @futex_with_gc_v1 <@noparamsnoret> {
+    %entry():
         %obj = NEW <@i64>
         %ir = GETIREF <@i64> %obj
         STORE <@i32> %ir @I32_0
@@ -113,14 +113,14 @@
         %ns = NEWSTACK <@noparamsnoret> @futex_gc_waiter (%obj)
         %nt = COMMINST @uvm.new_thread (%ns)
 
-        BRANCH %wait_body
+        BRANCH %wait_body(%ir %nt)
 
-    %wait_body:
+    %wait_body(<@irefi64> %ir <@thread> %nt):
         %trap_wait = TRAP <@i32> KEEPALIVE (%nt)
         %is_1 = EQ <@i32> %trap_wait @I32_1
-        BRANCH2 %is_1 %wait_exit %wait_body
+        BRANCH2 %is_1 %wait_exit(%ir) %wait_body(%ir %nt)
 
-    %wait_exit:
+    %wait_exit(<@irefi64> %ir):
         %trap_gc = TRAP<@void>
 
         %nwakes = COMMINST @uvm.futex.wake <@i32> (%ir @I32_1)

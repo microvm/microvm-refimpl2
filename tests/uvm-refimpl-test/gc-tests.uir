@@ -9,10 +9,10 @@
 
 .funcsig @noparamsnoret = @void ()
 
-.typedef @funcdumb = func<@noparamsnoret>
+.typedef @funcdumb = funcref<@noparamsnoret>
 
-.typedef @thread = thread
-.typedef @stack = stack
+.typedef @thread = threadref
+.typedef @stack = stackref
 .typedef @tagref64 = tagref64
 
 .const @TRUE <@i64> = 1
@@ -64,6 +64,8 @@
 .typedef @weakrefvoid = weakref<@void>
 .const @NULLREF <@refvoid> = NULL
 
+.const @VOID <@void> = NULL
+
 .typedef @StructFoo = struct <@i32 @i64 @float @double>
 
 .const @STRUCT_FOO <@StructFoo> = {@I32_1 @I64_2 @F_3 @D_4}
@@ -106,8 +108,8 @@
 
 .global @g_refi64 <@refi64>
 
-.funcdef @keepglobal VERSION @keepglobal_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @keepglobal VERSION @keepglobal_v1 <@noparamsnoret> {
+    %entry():
         CALL <@noparamsnoret> @storeglobal ()
         
         %gctrap = TRAP <@void>
@@ -122,68 +124,67 @@
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @storeglobal VERSION @storeglobal_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @storeglobal VERSION @storeglobal_v1 <@noparamsnoret> {
+    %entry():
         %obj = NEW <@i64>
         STORE <@refi64> @g_refi64 %obj
         %iref = GETIREF <@i64> %obj
         STORE <@i64> %iref @I64_42
-        RETVOID
+        RET @VOID
 }
 
-.funcdef @nokeepalloca VERSION @nokeepalloca_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @nokeepalloca VERSION @nokeepalloca_v1 <@noparamsnoret> {
+    %entry():
         CALL <@noparamsnoret> @allocatest ()
         
         %gctrap = TRAP <@void>
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @allocatest VERSION @allocatest_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @allocatest VERSION @allocatest_v1 <@noparamsnoret> {
+    %entry():
         %alloca = ALLOCA <@refi64>
         
         CALL <@allocasettersig> @allocasetter (%alloca)
         
         %gctrap = TRAP <@void>
-        RETVOID
+        RET @VOID
 }
 
 .funcsig @allocasettersig = @void (@irefi64)
 
-.funcdef @allocasetter VERSION @allocasetter_v1 <@allocasettersig> (%ir) {
-    %entry:
+.funcdef @allocasetter VERSION @allocasetter_v1 <@allocasettersig> {
+    %entry(<@irefi64> %ir):
         %obj = NEW <@i64>
         %iref = GETIREF <@i64> %obj
         STORE <@i64> %iref @I64_42
 
         STORE <@refi64> %ir %obj
         
-        RETVOID
+        RET @VOID
 }
 
 .const @CRAZY_ALLOC_COUNT <@i64> = 1000
 
-.funcdef @crazy_allocator VERSION @crazy_allocator_v1 <@noparamsnoret> () {
-    %entry:
-        BRANCH %head
+.funcdef @crazy_allocator VERSION @crazy_allocator_v1 <@noparamsnoret> {
+    %entry():
+        BRANCH %head(@CRAZY_ALLOC_COUNT)
         
-    %head:
-        %togo = PHI <@i64> { %entry: @CRAZY_ALLOC_COUNT; %body: %togo2; }
+    %head(<@i64> %togo):
         %nz = NE <@i64> %togo @I64_0
-        BRANCH2 %nz %body %exit
+        BRANCH2 %nz %body(%togo) %exit()
 
-    %body:
+    %body(<@i64> %togo):
         NEWHYBRID <@hCharArray @i64> @I64_30000
         %togo2 = SUB <@i64> %togo @I64_1
-        BRANCH %head
+        BRANCH %head(%togo2)
 
-    %exit:
-        RETVOID
+    %exit():
+        RET @VOID
 }
 
-.funcdef @crazy_allocation_test VERSION @crazy_allocation_test_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @crazy_allocation_test VERSION @crazy_allocation_test_v1 <@noparamsnoret> {
+    %entry():
         CALL <@noparamsnoret> @crazy_allocator ()
         COMMINST @uvm.thread_exit
 }
@@ -195,38 +196,35 @@
 .const @NALLOCS <@i64> = 1000000
 
 // Retain one object per @REM_SZ objects. Testing defragmentation
-.funcdef @breadcrumbs VERSION @breadcrumbs_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @breadcrumbs VERSION @breadcrumbs_v1 <@noparamsnoret> {
+    %entry():
         %remember = NEWHYBRID <@refi64array @i64> @REM_SZ
         %rememberiref = GETIREF <@refi64array> %remember
         %remv = GETVARPARTIREF <@refi64array> %rememberiref
         
-        BRANCH %head
+        BRANCH %head(@I64_0 @I64_0 %remv)
         
-    %head:
-        %i = PHI <@i64> { %entry: @I64_0; %next: %i2; }
-        %nrem = PHI <@i64> { %entry: @I64_0; %next: %nrem3; }
+    %head(<@i64> %i <@i64> %nrem <@irefi64> %remv):
         %enough = SLT <@i64> %i @NALLOCS
-        BRANCH2 %enough %body %exit
+        BRANCH2 %enough %body(%i %nrem %remv) %exit()
 
-    %body:
+    %body(<@i64> %i <@i64> %nrem <@irefi64> %remv):
         %obj = NEW <@i64>
         %rem = SREM <@i64> %i @REM_PER_ALLOC
         %z = EQ <@i64> %rem @I64_0
-        BRANCH2 %z %body2 %next
+        BRANCH2 %z %body2(%i %nrem %remv %obj) %next(%i %nrem %remv)
 
-    %body2:
+    %body2(<@i64> %i <@i64> %nrem <@irefi64> %remv <@refi64> %obj):
         %loc = SHIFTIREF <@refi64 @i64> %remv %nrem
         STORE <@refi64> %loc %obj
         %nrem2 = ADD <@i64> %nrem @I64_1
-        BRANCH %next
+        BRANCH %next(%i %nrem2 %remv)
         
-    %next:
-        %nrem3 = PHI <@i64> { %body: %nrem; %body2: %nrem2; }
+    %next(<@i64> %i <@i64> %nrem <@irefi64> %remv):
         %i2 = ADD <@i64> %i @I64_1
-        BRANCH %head
+        BRANCH %head(%i2 %nrem %remv)
 
-    %exit:
+    %exit():
         COMMINST @uvm.thread_exit
 }
 
@@ -234,24 +232,24 @@
 
 .funcsig @makestorewri64sig = @void (@WRI64Cell)
 
-.funcdef @makestorewri64 VERSION @makestorewri64_v1 <@makestorewri64sig> (%cell) {
-    %entry:
+.funcdef @makestorewri64 VERSION @makestorewri64_v1 <@makestorewri64sig> {
+    %entry(<@WRI64Cell> %cell):
         %ri64 = NEW <@i64>
         %iri64 = GETIREF <@i64> %ri64
         STORE <@i64> %iri64 @I64_42
         STORE <@weakrefi64> %cell %ri64
-        RETVOID
+        RET @VOID
 }
 
-.funcdef @peekweakref VERSION @peekweakref_v1 <@makestorewri64sig> (%cell) {
-    %entry:
+.funcdef @peekweakref VERSION @peekweakref_v1 <@makestorewri64sig> {
+    %entry(<@WRI64Cell> %cell):
         %refval = LOAD <@weakrefi64> %cell
         %checknztrap = TRAP <@void> KEEPALIVE (%refval)
-        RETVOID
+        RET @VOID
 }
 
-.funcdef @testweakref VERSION @testweakref_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @testweakref VERSION @testweakref_v1 <@noparamsnoret> {
+    %entry():
         %irwr = ALLOCA <@weakrefi64>
         CALL <@makestorewri64sig> @makestorewri64 (%irwr)
         CALL <@makestorewri64sig> @peekweakref (%irwr)
@@ -270,18 +268,18 @@
 
 .funcsig @maketr64intref_sig = @tagref64 ()
 
-.funcdef @maketr64intref VERSION @maketr64intref_v1 <@maketr64intref_sig> () {
-    %entry:
+.funcdef @maketr64intref VERSION @maketr64intref_v1 <@maketr64intref_sig> {
+    %entry():
         %refi64 = NEW <@i64>
         %irefi64 = GETIREF <@i64> %refi64
         STORE <@i64> %irefi64 @I64_42
         %refv = REFCAST <@refi64 @refvoid> %refi64
         %tr = COMMINST @uvm.tr64.from_ref (%refv @I6_13)
-        RET <@tagref64> %tr
+        RET %tr
 }
 
-.funcdef @testtagrefgc VERSION @testtagrefgc_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @testtagrefgc VERSION @testtagrefgc_v1 <@noparamsnoret> {
+    %entry():
         %tr = CALL <@maketr64intref_sig> @maketr64intref ()
 
         %gctrap = TRAP <@void>
@@ -301,8 +299,8 @@
 .typedef @ireftr64 = iref<@tagref64>
 
 .funcsig @settr64intref_sig = @void (@ireftr64)
-.funcdef @settr64intref VERSION @settr64intref_v1 <@settr64intref_sig> (%ireftr64) {
-    %entry:
+.funcdef @settr64intref VERSION @settr64intref_v1 <@settr64intref_sig> {
+    %entry(<@ireftr64> %ireftr64):
         %refi64 = NEW <@i64>
         %irefi64 = GETIREF <@i64> %refi64
         STORE <@i64> %irefi64 @I64_42
@@ -310,11 +308,11 @@
         %tr = COMMINST @uvm.tr64.from_ref (%refv @I6_13)
         
         STORE <@tagref64> %ireftr64 %tr
-        RETVOID
+        RET @VOID
 }
 
-.funcdef @testtagrefgcmem VERSION @testtagrefgcmem_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @testtagrefgcmem VERSION @testtagrefgcmem_v1 <@noparamsnoret> {
+    %entry():
         %ireftr64 = ALLOCA <@tagref64>
         CALL <@settr64intref_sig> @settr64intref (%ireftr64)
         %gctrap = TRAP <@void>
@@ -333,64 +331,60 @@
 
 .typedef @tr64array = hybrid <@void @tagref64>
 
-.funcdef @breadcrumbstr64 VERSION @breadcrumbstr64_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @breadcrumbstr64 VERSION @breadcrumbstr64_v1 <@noparamsnoret> {
+    %entry():
         %remember = NEWHYBRID <@tr64array @i64> @REM_SZ
         %rememberiref = GETIREF <@tr64array> %remember
         %remv = GETVARPARTIREF <@tr64array> %rememberiref
         
-        BRANCH %head
+        BRANCH %head(@I64_0 @I64_0 %remv)
         
-    %head:
-        %i = PHI <@i64> { %entry: @I64_0; %next: %i2; }
-        %nrem = PHI <@i64> { %entry: @I64_0; %next: %nrem3; }
+    %head(<@i64> %i <@i64> %nrem <@irefi64> %remv):
         %enough = SLT <@i64> %i @NALLOCS
-        BRANCH2 %enough %body %exit
+        BRANCH2 %enough %body(%i %nrem %remv) %exit()
 
-    %body:
+    %body(<@i64> %i <@i64> %nrem <@irefi64> %remv):
         %obj = NEW <@i64>
         %rem = SREM <@i64> %i @REM_PER_ALLOC
         %z = EQ <@i64> %rem @I64_0
-        BRANCH2 %z %body2 %next
+        BRANCH2 %z %body2(%i %nrem %remv %obj) %next(%i %nrem %remv)
 
-    %body2:
+    %body2(<@i64> %i <@i64> %nrem <@irefi64> %remv <@refi64> %obj):
         %loc = SHIFTIREF <@tagref64 @i64> %remv %nrem
         %objv = REFCAST <@refi64 @refvoid> %obj
         %tr = COMMINST @uvm.tr64.from_ref(%objv @I6_13)
         STORE <@tagref64> %loc %tr
         %nrem2 = ADD <@i64> %nrem @I64_1
-        BRANCH %next
+        BRANCH %next(%i %nrem2 %remv)
         
-    %next:
-        %nrem3 = PHI <@i64> { %body: %nrem; %body2: %nrem2; }
+    %next(<@i64> %i <@i64> %nrem <@irefi64> %remv):
         %i2 = ADD <@i64> %i @I64_1
-        BRANCH %head
+        BRANCH %head(%i2 %nrem %remv)
 
-    %exit:
+    %exit():
         COMMINST @uvm.thread_exit()
 }
 
-.funcdef @emptystack VERSION @emptystack_v1 <@noparamsnoret> () {
-    %entry:
-        RETVOID
+.funcdef @emptystack VERSION @emptystack_v1 <@noparamsnoret> {
+    %entry():
+        RET @VOID
 }
 
 .funcsig @stackcollecttest_sig = @void (@i64)
-.funcdef @stackcollecttest VERSION @stackcollecttest_v1 <@stackcollecttest_sig> (%nstacks) {
-    %entry:
-        BRANCH %head
+.funcdef @stackcollecttest VERSION @stackcollecttest_v1 <@stackcollecttest_sig> {
+    %entry(<@i64> %nstacks):
+        BRANCH %head(%nstacks @I64_0)
 
-    %head:
-        %i = PHI <@i64> { %entry: @I64_0; %body: %i2; }
+    %head(<@i64> %nstacks <@i64> %i):
         %lt = SLT <@i64> %i %nstacks
-        BRANCH2 %lt %body %endloop
+        BRANCH2 %lt %body(%nstacks %i) %endloop()
 
-    %body:
+    %body(<@i64> %nstacks <@i64> %i):
         %st = NEWSTACK <@noparamsnoret> @emptystack ()
         %i2 = ADD <@i64> %i @I64_1
-        BRANCH %head
+        BRANCH %head(%nstacks %i2)
 
-    %endloop:
+    %endloop():
         %trap = TRAP <@void>
         COMMINST @uvm.thread_exit()
 }
