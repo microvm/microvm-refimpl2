@@ -178,19 +178,19 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     val zero = ca.putInt("@i64", 0)
 
     testFunc(ca, func, Seq(a, zero, one, one, one)) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) shouldBe "@binops64_div0_v1.trapexc"
+      nameOf(ca.currentInstruction(st, 0)) shouldBe "@binops64_div0_v1.exc.trapexc"
       TrapRebindPassVoid(st)
     }
     testFunc(ca, func, Seq(a, one, zero, one, one)) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) shouldBe "@binops64_div0_v1.trapexc"
+      nameOf(ca.currentInstruction(st, 0)) shouldBe "@binops64_div0_v1.exc.trapexc"
       TrapRebindPassVoid(st)
     }
     testFunc(ca, func, Seq(a, one, one, zero, one)) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) shouldBe "@binops64_div0_v1.trapexc"
+      nameOf(ca.currentInstruction(st, 0)) shouldBe "@binops64_div0_v1.exc.trapexc"
       TrapRebindPassVoid(st)
     }
     testFunc(ca, func, Seq(a, one, one, one, zero)) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) shouldBe "@binops64_div0_v1.trapexc"
+      nameOf(ca.currentInstruction(st, 0)) shouldBe "@binops64_div0_v1.exc.trapexc"
       TrapRebindPassVoid(st)
     }
 
@@ -763,22 +763,22 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     val a1 = ca.putInt("@i64", 1)
 
     testFunc(ca, func, Seq(a0)) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) shouldBe "@branch_v1.traptrue"
+      nameOf(ca.currentInstruction(st, 0)) shouldBe "@branch_v1.iftrue.traptrue"
       TrapRebindPassVoid(st)
     }
 
     testFunc(ca, func, Seq(a1)) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) shouldBe "@branch_v1.trapfalse"
+      nameOf(ca.currentInstruction(st, 0)) shouldBe "@branch_v1.iffalse.trapfalse"
       TrapRebindPassVoid(st)
     }
 
     ca.close()
   }
 
-  "SWTICH and PHI" should "work" in {
+  "SWTICH" should "work" in {
     val ca = microVM.newClientAgent()
 
-    val func = ca.putFunction("@switch_phi")
+    val func = ca.putFunction("@switch")
 
     val a0 = ca.putInt("@i64", 0)
     val a1 = ca.putInt("@i64", 1)
@@ -789,27 +789,27 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
       val M = midTrapName
       nameOf(ca.currentInstruction(st, 0)) match {
         case M => {}
-        case "@switch_phi_v1.trapend" => {
-          val Seq(phi) = ca.dumpKeepalives(st, 0)
-          phi.vb.asSInt(64) shouldBe phiValue
+        case "@switch.v1.exit.trapend" => {
+          val Seq(v) = ca.dumpKeepalives(st, 0)
+          v.vb.asSInt(64) shouldBe phiValue
         }
         case trapName => fail("Trap %s should not be reached. Should reach %s.".format(trapName))
       }
       TrapRebindPassVoid(st)
     }
 
-    testFunc(ca, func, Seq(a0))(expectFlow("@switch_phi_v1.trapdef", 4))
-    testFunc(ca, func, Seq(a1))(expectFlow("@switch_phi_v1.trapone", 5))
-    testFunc(ca, func, Seq(a2))(expectFlow("@switch_phi_v1.traptwo", 6))
-    testFunc(ca, func, Seq(a3))(expectFlow("@switch_phi_v1.trapthree", 7))
+    testFunc(ca, func, Seq(a0))(expectFlow("@switch.v1.def.trapdef", 4))
+    testFunc(ca, func, Seq(a1))(expectFlow("@switch.v1.one.trapone", 5))
+    testFunc(ca, func, Seq(a2))(expectFlow("@switch.v1.two.traptwo", 6))
+    testFunc(ca, func, Seq(a3))(expectFlow("@switch.v1.three.trapthree", 7))
 
     ca.close()
   }
 
-  "PHI instructions in a basic block" should "be assigned at the same time in CFG edges" in {
+  "Parameters of a basic block" should "be assigned at the same time in CFG edges" in {
     val ca = microVM.newClientAgent()
 
-    val func = ca.putFunction("@phi_cyclic_dep_test")
+    val func = ca.putFunction("@edge_asgn_test")
 
     testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
       val Seq(x, y) = ca.dumpKeepalives(st, 0)
@@ -841,7 +841,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     ca.close()
   }
 
-  "CALL, THROW and LANDINGPAD" should "handle exceptions" in {
+  "CALL, THROW and the exception parameter" should "handle exceptions" in {
     val ca = microVM.newClientAgent()
 
     val func = ca.putFunction("@call_throw")
@@ -850,11 +850,11 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq(a0)) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@call_throw_v1.trapnor" => {
+        case "@call_throw_v1.nor.trapnor" => {
           val Seq(rv) = ca.dumpKeepalives(st, 0)
           rv.vb.asInt shouldEqual 3
         }
-        case "@call_throw_v1.trapexc" => {
+        case "@call_throw_v1.exctrapexc" => {
           fail("Should not receive exception")
         }
       }
@@ -866,12 +866,12 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq(a1)) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@call_throw_v1.trapnor" => {
+        case "@call_throw_v1.nor.trapnor" => {
           fail("Should not return normally")
         }
-        case "@call_throw_v1.trapexc" => {
-          val Seq(lp) = ca.dumpKeepalives(st, 0)
-          lp.vb.asRef shouldEqual 0L
+        case "@call_throw_v1.exc.trapexc" => {
+          val Seq(theExc) = ca.dumpKeepalives(st, 0)
+          theExc.vb.asRef shouldEqual 0L
         }
       }
 
@@ -897,17 +897,19 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     ca.close()
   }
 
-  "EXTRACTELEMENT and INSERTELEMENT" should "work on vectors" in {
+  "EXTRACTELEMENT and INSERTELEMENT" should "work on vectors and arrays" in {
     val ca = microVM.newClientAgent()
 
-    val func = ca.putFunction("@aggregate_vector")
+    val func = ca.putFunction("@aggregate_seq")
 
     testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      val Seq(ee0, ie0, sv0) = ca.dumpKeepalives(st, 0)
+      val Seq(ee0, ie0, sv0, ee1, ie1) = ca.dumpKeepalives(st, 0)
 
       ee0.vb.asFloat shouldEqual 0.0f
       ie0.vb.asVec.map(_.asFloat) shouldEqual Seq(0.0f, 6.0f, 2.0f, 3.0f)
       sv0.vb.asVec.map(_.asFloat) shouldEqual Seq(0.0f, 2.0f, 4.0f, 6.0f)
+      ee1.vb.asInt shouldEqual 7
+      ie1.vb.asSeq.map(_.asInt) shouldEqual Seq(0,2,4,6,7,1)
 
       TrapRebindPassVoid(st)
     }
@@ -1161,7 +1163,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@memAccessingNull_v1.trap_exit" => TrapRebindPassVoid(st)
+        case "@memAccessingNull_v1.exit.trap_exit" => TrapRebindPassVoid(st)
         case n                                => fail("Unexpected trap " + n)
       }
     }
@@ -1180,16 +1182,16 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@traptest_v1.t1" => {
+        case "@traptest_v1.entry.t1" => {
           TrapRebindPassValue(st, fortyTwo)
         }
-        case "@traptest_v1.t2" => {
+        case "@traptest_v1.entry.t2" => {
           TrapRebindPassValue(st, fortyTwoPointZero)
         }
-        case "@traptest_v1.t3" => {
+        case "@traptest_v1.bb2.t3" => {
           TrapRebindThrowExc(st, exc)
         }
-        case "@traptest_v1.trap_exit" => {
+        case "@traptest_v1.exit.trap_exit" => {
           val Seq(t1, t2, lp) = ca.dumpKeepalives(st, 0)
 
           t1.vb.asSInt(64) shouldBe 42L
@@ -1213,7 +1215,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@wptest_v1.trap_dis" => {
+        case "@wptest_v1.dis.trap_dis" => {
           TrapRebindPassVoid(st)
         }
         case n => fail("Unexpected trap " + n)
@@ -1236,19 +1238,19 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@wptest_v1.w1" => {
+        case "@wptest_v1.entry.w1" => {
           wp shouldBe 1
           TrapRebindPassValue(st, fortyTwo)
         }
-        case "@wptest_v1.w2" => {
+        case "@wptest_v1.bb2.w2" => {
           wp shouldBe 1
           TrapRebindPassValue(st, fortyTwoPointZero)
         }
-        case "@wptest_v1.w3" => {
+        case "@wptest_v1.bb3.w3" => {
           wp shouldBe 1
           TrapRebindThrowExc(st, exc)
         }
-        case "@wptest_v1.trap_exit" => {
+        case "@wptest_v1.exit.trap_exit" => {
           wp shouldBe 0
           val Seq(w1, w2, lp) = ca.dumpKeepalives(st, 0)
 
@@ -1276,14 +1278,14 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@trapThrow_v1.t" => {
+        case "@trapThrow_v1.entry.t" => {
           TrapRebindThrowExc(st, exc1)
         }
-        case "@wpThrow_v1.w" => {
+        case "@wpThrow_v1.entry.w" => {
           wp shouldBe 2
           TrapRebindThrowExc(st, exc2)
         }
-        case "@trapExc_v1.trap_exit" => {
+        case "@trapExc_v1.exit.trap_exit" => {
           val Seq(lp1, lp2) = ca.dumpKeepalives(st, 0)
 
           lp1.vb.asRef shouldBe exc1.vb.asRef
@@ -1310,7 +1312,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
       nameOf(ca.currentInstruction(st, 0)) match {
-        case "@corostackfunc_v1.trap_coro1" => {
+        case "@corostackfunc_v1.entry.trap_coro1" => {
           val Seq(fromSta, p) = ca.dumpKeepalives(st, 0)
 
           fromSta.vb.asStack.get.top.asInstanceOf[MuFrame].funcVer shouldBe microVM.globalBundle.funcVerNs("@testswapstack_v1")
@@ -1319,7 +1321,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
           coro1Reached = true
           TrapRebindPassVoid(st)
         }
-        case "@corostackfunc_v1.trap_coro2" => {
+        case "@corostackfunc_v1.entry.trap_coro2" => {
           val Seq(css1) = ca.dumpKeepalives(st, 0)
 
           css1.vb.asDouble shouldBe 3.0d
@@ -1327,7 +1329,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
           coro2Reached = true
           TrapRebindPassVoid(st)
         }
-        case "@testswapstack_v1.trap_main1" => {
+        case "@testswapstack_v1.entry.trap_main1" => {
           val Seq(mss1) = ca.dumpKeepalives(st, 0)
 
           mss1.vb.asSInt(64) shouldBe 3L
@@ -1335,7 +1337,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
           main1Reached = true
           TrapRebindPassVoid(st)
         }
-        case "@testswapstack_v1.trap_main2" => {
+        case "@testswapstack_v1.exit.trap_main2" => {
           val Seq(excVal) = ca.dumpKeepalives(st, 0)
 
           excVal.vb.asSInt(64) shouldBe 7L

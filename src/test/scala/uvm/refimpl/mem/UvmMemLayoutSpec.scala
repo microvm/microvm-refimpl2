@@ -19,9 +19,9 @@ class UvmMemLayoutSpec extends FlatSpec with Matchers with BeforeAndAfter {
     sizeOf(TypeIRef(TypeVoid())) shouldBe 16
     sizeOf(TypeWeakRef(TypeVoid())) shouldBe 8
     sizeOf(TypeVoid()) shouldBe 0
-    sizeOf(TypeFunc(FuncSig(TypeVoid(), Seq()))) shouldBe 8
-    sizeOf(TypeThread()) shouldBe 8
-    sizeOf(TypeStack()) shouldBe 8
+    sizeOf(TypeFuncRef(FuncSig(TypeVoid(), Seq()))) shouldBe 8
+    sizeOf(TypeThreadRef()) shouldBe 8
+    sizeOf(TypeStackRef()) shouldBe 8
     sizeOf(TypeTagRef64()) shouldBe 8
   }
 
@@ -36,9 +36,9 @@ class UvmMemLayoutSpec extends FlatSpec with Matchers with BeforeAndAfter {
     alignOf(TypeIRef(TypeVoid())) shouldBe 16
     alignOf(TypeWeakRef(TypeVoid())) shouldBe 8
     alignOf(TypeVoid()) shouldBe 1
-    alignOf(TypeFunc(FuncSig(TypeVoid(), Seq()))) shouldBe 8
-    alignOf(TypeThread()) shouldBe 8
-    alignOf(TypeStack()) shouldBe 8
+    alignOf(TypeFuncRef(FuncSig(TypeVoid(), Seq()))) shouldBe 8
+    alignOf(TypeThreadRef()) shouldBe 8
+    alignOf(TypeStackRef()) shouldBe 8
     alignOf(TypeTagRef64()) shouldBe 8
   }
 

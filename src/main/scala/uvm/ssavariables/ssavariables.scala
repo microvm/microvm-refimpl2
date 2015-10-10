@@ -29,11 +29,9 @@ case class ConstDouble(var constTy: Type, var num: Double) extends Constant
 
 case class ConstStruct(var constTy: Type, var fields: Seq[GlobalVariable]) extends Constant
 
-case class ConstArray(var constTy: Type, var elems: Seq[GlobalVariable]) extends Constant
-
 case class ConstNull(var constTy: Type) extends Constant
 
-case class ConstVector(var constTy: Type, var elems: Seq[Constant]) extends Constant
+case class ConstSeq(var constTy: Type, var elems: Seq[GlobalVariable]) extends Constant
 
 case class ConstPointer(var constTy: Type, var addr: Long) extends Constant
 

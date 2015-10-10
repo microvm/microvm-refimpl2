@@ -12,10 +12,10 @@
 
 .funcsig @noparamsnoret = @void ()
 
-.typedef @funcdumb = func<@noparamsnoret>
+.typedef @funcdumb = funcref<@noparamsnoret>
 
-.typedef @thread = thread
-.typedef @stack = stack
+.typedef @thread = threadref
+.typedef @stack = stackref
 .typedef @tagref64 = tagref64
 
 .const @TRUE <@i64> = 1
@@ -61,17 +61,21 @@
 .typedef @4xi32    = vector <@i32 4>
 .typedef @2xdouble = vector <@double 2>
 
-.const @4xI32_V1 <@4xi32> = VEC {@I32_0 @I32_1 @I32_2 @I32_3}
-.const @4xI32_V2 <@4xi32> = VEC {@I32_4 @I32_5 @I32_6 @I32_7}
+.const @4xI32_V1 <@4xi32> = {@I32_0 @I32_1 @I32_2 @I32_3}
+.const @4xI32_V2 <@4xi32> = {@I32_4 @I32_5 @I32_6 @I32_7}
 
-.const @4xF_V1 <@4xfloat> = VEC {@F_0 @F_1 @F_2 @F_3}
-.const @4xF_V2 <@4xfloat> = VEC {@F_4 @F_5 @F_6 @F_7}
+.const @4xF_V1 <@4xfloat> = {@F_0 @F_1 @F_2 @F_3}
+.const @4xF_V2 <@4xfloat> = {@F_4 @F_5 @F_6 @F_7}
 
-.const @2xD_V1 <@2xdouble> = VEC {@D_0 @D_1}
-.const @2xD_V2 <@2xdouble> = VEC {@D_2 @D_3}
+.const @2xD_V1 <@2xdouble> = {@D_0 @D_1}
+.const @2xD_V2 <@2xdouble> = {@D_2 @D_3}
 
 .funcsig @i_i = @i64 (@i64)
 .funcsig @i_ii = @i64 (@i64 @i64)
+
+.typedef @refi64 = ref<@i64>
+.typedef @irefi64 = iref<@i64>
+.typedef @weakrefi64 = weakref<@i64>
 
 .typedef @refvoid = ref<@void>
 .typedef @irefvoid = iref<@void>
@@ -84,23 +88,25 @@
 .const @NULLREF_I64  <@refi64>  = NULL
 .const @NULLIREF_I64 <@irefi64> = NULL
 
-.typedef @ptrvoid   = ptr<@void>
-.typedef @ptri8     = ptr<@i8>
-.typedef @ptri16    = ptr<@i16>
-.typedef @ptri32    = ptr<@i32>
-.typedef @ptri64    = ptr<@i64>
-.typedef @ptrfloat  = ptr<@float>
-.typedef @ptrdouble = ptr<@double>
-.typedef @ptrptrvoid = ptr<@ptrvoid>
-.typedef @ptrfpi_i  = ptr<@fpi_i>
+.const @VOID <@void> = NULL
 
-.typedef @fpnoparamsnoret = funcptr<@noparamsnoret>
-.typedef @fpi_i = funcptr<@i_i>
-.typedef @fpi_ii = funcptr<@i_ii>
+.typedef @ptrvoid    = uptr<@void>
+.typedef @ptri8      = uptr<@i8>
+.typedef @ptri16     = uptr<@i16>
+.typedef @ptri32     = uptr<@i32>
+.typedef @ptri64     = uptr<@i64>
+.typedef @ptrfloat   = uptr<@float>
+.typedef @ptrdouble  = uptr<@double>
+.typedef @ptrptrvoid = uptr<@ptrvoid>
+.typedef @ptrfpi_i   = uptr<@fpi_i>
+
+.typedef @fpnoparamsnoret   = ufuncptr<@noparamsnoret>
+.typedef @fpi_i             = ufuncptr<@i_i>
+.typedef @fpi_ii            = ufuncptr<@i_ii>
 
 .funcsig @binops32_sig = @void (@i32 @i32)
-.funcdef @binops32 VERSION @binops32_v1 <@binops32_sig> (%p0 %p1) {
-    %entry:
+.funcdef @binops32 VERSION @binops32_v1 <@binops32_sig> {
+    %entry(<@i32> %p0 <@i32> %p1):
         %add  = ADD  <@i32> %p0 %p1
         %sub  = SUB  <@i32> %p0 %p1
         %mul  = MUL  <@i32> %p0 %p1
@@ -124,8 +130,8 @@
 }
 
 .funcsig @binops64_sig = @void (@i64 @i64)
-.funcdef @binops64 VERSION @binops64_v1 <@binops64_sig> (%p0 %p1) {
-    %entry:
+.funcdef @binops64 VERSION @binops64_v1 <@binops64_sig> {
+    %entry(<@i64> %p0 <@i64> %p1):
         %add  = ADD  <@i64> %p0 %p1
         %sub  = SUB  <@i64> %p0 %p1
         %mul  = MUL  <@i64> %p0 %p1
@@ -149,28 +155,28 @@
 }
 
 .funcsig @binops64_div0_sig = @void (@i64 @i64 @i64 @i64 @i64)
-.funcdef @binops64_div0 VERSION @binops64_div0_v1 <@binops64_div0_sig> (%p0 %p1 %p2 %p3 %p4) {
-    %entry:
-        %udiv = UDIV <@i64> %p0 %p1 EXC(%bb2 %exc)
-    %bb2:
-        %sdiv = SDIV <@i64> %p0 %p2 EXC(%bb3 %exc)
-    %bb3:
-        %urem = UREM <@i64> %p0 %p3 EXC(%bb4 %exc)
-    %bb4:
-        %srem = SREM <@i64> %p0 %p4 EXC(%nor %exc)
+.funcdef @binops64_div0 VERSION @binops64_div0_v1 <@binops64_div0_sig> {
+    %entry(<@i64> %p0 <@i64> %p1 <@i64> %p2 <@i64> %p3 <@i64> %p4):
+        %udiv = UDIV <@i64> %p0 %p1 EXC(%bb2(%p0 %p1 %p2 %p3 %p4) %exc())
+    %bb2(<@i64> %p0 <@i64> %p1 <@i64> %p2 <@i64> %p3 <@i64> %p4):
+        %sdiv = SDIV <@i64> %p0 %p2 EXC(%bb3(%p0 %p1 %p2 %p3 %p4) %exc())
+    %bb3(<@i64> %p0 <@i64> %p1 <@i64> %p2 <@i64> %p3 <@i64> %p4):
+        %urem = UREM <@i64> %p0 %p3 EXC(%bb4(%p0 %p1 %p2 %p3 %p4) %exc())
+    %bb4(<@i64> %p0 <@i64> %p1 <@i64> %p2 <@i64> %p3 <@i64> %p4):
+        %srem = SREM <@i64> %p0 %p4 EXC(%nor() %exc())
 
-    %nor:
+    %nor():
         %trapnor = TRAP <@void>
         COMMINST @uvm.thread_exit
 
-    %exc:
+    %exc():
         %trapexc = TRAP <@void>
         COMMINST @uvm.thread_exit
 }
 
 .funcsig @binops_f_sig = @void (@float @float)
-.funcdef @binops_f VERSION @binops_f_v1 <@binops_f_sig> (%p0 %p1) {
-    %entry:
+.funcdef @binops_f VERSION @binops_f_v1 <@binops_f_sig> {
+    %entry(<@float> %p0 <@float> %p1):
         %fadd = FADD <@float> %p0 %p1
         %fsub = FSUB <@float> %p0 %p1
         %fmul = FMUL <@float> %p0 %p1
@@ -184,8 +190,8 @@
 }
 
 .funcsig @binops_d_sig = @void (@double @double)
-.funcdef @binops_d VERSION @binops_d_v1 <@binops_d_sig> (%p0 %p1) {
-    %entry:
+.funcdef @binops_d VERSION @binops_d_v1 <@binops_d_sig> {
+    %entry(<@double> %p0 <@double> %p1):
         %fadd = FADD <@double> %p0 %p1
         %fsub = FSUB <@double> %p0 %p1
         %fmul = FMUL <@double> %p0 %p1
@@ -199,8 +205,8 @@
 }
 
 .funcsig @binops_vec_sig = @void (@4xi32 @4xi32 @4xfloat @4xfloat @2xdouble @2xdouble)
-.funcdef @binops_vec VERSION @binops_vec_v1 <@binops_vec_sig> (%p0 %p1 %p2 %p3 %p4 %p5) {
-    %entry:
+.funcdef @binops_vec VERSION @binops_vec_v1 <@binops_vec_sig> {
+    %entry(<@4xi32> %p0 <@4xi32> %p1 <@4xfloat> %p2 <@4xfloat> %p3 <@2xdouble> %p4 <@2xdouble> %p5):
         %addi = ADD  <@4xi32>    %p0 %p1
         %subi = SUB  <@4xi32>    %p0 %p1
         %addf = FADD <@4xfloat>  %p2 %p3
@@ -216,8 +222,8 @@
 }
 
 .funcsig @cmp64_sig = @void (@i64 @i64)
-.funcdef @cmp64 VERSION @cmp64_v1 <@cmp64_sig> (%p0 %p1) {
-    %entry:
+.funcdef @cmp64 VERSION @cmp64_v1 <@cmp64_sig> {
+    %entry(<@i64> %p0 <@i64> %p1):
         %eq  = EQ  <@i64> %p0 %p1
         %ne  = NE  <@i64> %p0 %p1
         %ult = ULT <@i64> %p0 %p1
@@ -236,8 +242,8 @@
 }
 
 .funcsig @cmp_f_sig = @void (@float @float)
-.funcdef @cmp_f VERSION @cmp_f_v1 <@cmp_f_sig> (%p0 %p1) {
-    %entry:
+.funcdef @cmp_f VERSION @cmp_f_v1 <@cmp_f_sig> {
+    %entry(<@float> %p0 <@float> %p1):
         %ftrue  = FTRUE  <@float> %p0 %p1
         %ffalse = FFALSE <@float> %p0 %p1
         %ford   = FORD   <@float> %p0 %p1
@@ -263,8 +269,8 @@
 }
 
 .funcsig @cmp_d_sig = @void (@double @double)
-.funcdef @cmp_d VERSION @cmp_d_v1 <@cmp_d_sig> (%p0 %p1) {
-    %entry:
+.funcdef @cmp_d VERSION @cmp_d_v1 <@cmp_d_sig> {
+    %entry(<@double> %p0 <@double> %p1):
         %ftrue  = FTRUE  <@double> %p0 %p1
         %ffalse = FFALSE <@double> %p0 %p1
         %ford   = FORD   <@double> %p0 %p1
@@ -290,8 +296,8 @@
 }
 
 .funcsig @cmp_vec_sig = @void (@4xi32 @4xi32 @4xfloat @4xfloat @2xdouble @2xdouble)
-.funcdef @cmp_vec VERSION @cmp_vec_v1 <@cmp_vec_sig> (%p0 %p1 %p2 %p3 %p4 %p5) {
-    %entry:
+.funcdef @cmp_vec VERSION @cmp_vec_v1 <@cmp_vec_sig> {
+    %entry(<@4xi32> %p0 <@4xi32> %p1 <@4xfloat> %p2 <@4xfloat> %p3 <@2xdouble> %p4 <@2xdouble> %p5):
         %eq      = EQ   <@4xi32>    %p0 %p1
         %slt     = SLT  <@4xi32>    %p0 %p1
         %foeqf   = FOEQ <@4xfloat>  %p2 %p3
@@ -309,14 +315,15 @@
 .global @dummy_global2 <@i64>
 
 .funcdecl @dummy_func1 <@noparamsnoret>
-.funcdef @dummy_func2 VERSION @dummy_func2.v1 <@noparamsnoret> () {
-    %entry:
-        RETVOID
+.funcdef @dummy_func2 VERSION @dummy_func2.v1 <@noparamsnoret> {
+    %entry():
+        RET @VOID
 }
 
 .funcsig @cmp_ref_sig = @void (@refi64 @refi64 @irefi64 @irefi64 @funcdumb @funcdumb @stack @stack)
-.funcdef @cmp_ref VERSION @cmp_ref_v1 <@cmp_ref_sig> (%p0 %p1 %p2 %p3 %p4 %p5 %p6 %p7) {
-    %entry:
+.funcdef @cmp_ref VERSION @cmp_ref_v1 <@cmp_ref_sig> {
+    %entry(<@refi64> %p0 <@refi64> %p1 <@irefi64> %p2 <@irefi64> %p3
+           <@funcdumb> %p4 <@funcdumb> %p5 <@stack> %p6 <@stack> %p7):
         %req     = EQ   <@refi64>   %p0 %p1
         %rne     = NE   <@refi64>   %p0 %p1
         %ieq     = EQ   <@irefi64>  %p2 %p3
@@ -336,8 +343,8 @@
 .const @FPI_I_DUMMY2   <@fpi_i>   = 0x55aa55aa5a5a5a5a
 
 .funcsig @conv_sig = @void (@i32 @i64 @float @double)
-.funcdef @conv VERSION @conv_v1 <@conv_sig> (%p0 %p1 %p2 %p3) {
-    %entry:
+.funcdef @conv VERSION @conv_v1 <@conv_sig> {
+    %entry(<@i32> %p0 <@i64> %p1 <@float> %p2 <@double> %p3):
         %trunc = TRUNC <@i64 @i32> %p1
         %zext  = ZEXT  <@i32 @i64> %p0
         %sext  = SEXT  <@i32 @i64> %p0
@@ -381,8 +388,8 @@
 .typedef @2xfloat  = vector <@float 2>
 
 .funcsig @conv_vec_sig = @void (@4xi32 @4xfloat @2xdouble)
-.funcdef @conv_vec VERSION @conv_vec_v1 <@conv_vec_sig> (%p0 %p1 %p2) {
-    %entry:
+.funcdef @conv_vec VERSION @conv_vec_v1 <@conv_vec_sig> {
+    %entry(<@4xi32> %p0 <@4xfloat> %p1 <@2xdouble> %p2):
         %trunc = TRUNC <@4xi32 @4xi16> %p0
         %zext  = ZEXT  <@4xi32 @4xi64> %p0
         %sext  = SEXT  <@4xi32 @4xi64> %p0
@@ -399,10 +406,10 @@
 
 .typedef @4xi1 = vector <@i1 4>
 
-.const @4xI1_COND <@4xi1> = VEC {@TRUE @FALSE @FALSE @TRUE}
+.const @4xI1_COND <@4xi1> = {@TRUE @FALSE @FALSE @TRUE}
 
-.funcdef @select VERSION @select_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @select VERSION @select_v1 <@noparamsnoret> {
+    %entry():
         %sel1 = SELECT <@i1 @i64> @TRUE  @I64_2 @I64_3
         %sel2 = SELECT <@i1 @i64> @FALSE @I64_2 @I64_3
 
@@ -418,107 +425,97 @@
 }
 
 .funcsig @branch_sig = @void (@i64)
-.funcdef @branch VERSION @branch_v1 <@branch_sig> (%p0) {
-    %entry:
-        BRANCH %head
+.funcdef @branch VERSION @branch_v1 <@branch_sig> {
+    %entry(<@i64> %p0):
+        BRANCH %head(%p0)
 
-    %head:
+    %head(<@i64> %p0):
         %cmpz = EQ <@i64> %p0 @I64_0
-        BRANCH2 %cmpz %iftrue %iffalse
+        BRANCH2 %cmpz %iftrue() %iffalse()
         
-    %iftrue:
+    %iftrue():
         %traptrue = TRAP <@void>
         COMMINST @uvm.thread_exit
         
-    %iffalse:
+    %iffalse():
         %trapfalse = TRAP <@void>
         COMMINST @uvm.thread_exit
 }
 
 
-.funcsig @switch_phi_sig = @void (@i64)
-.funcdef @switch_phi VERSION @switch_phi_v1 <@switch_phi_sig> (%p0) {
-    %entry:
-        SWITCH <@i64> %p0 %def {
-            @I64_1: %one;
-            @I64_2: %two;
-            @I64_3: %three;
+.funcsig @switch_sig = @void (@i64)
+.funcdef @switch VERSION %v1 <@switch_sig> {
+    %entry(<@i64> %p0):
+        SWITCH <@i64> %p0 %def() {
+            @I64_1 %one()
+            @I64_2 %two()
+            @I64_3 %three()
         }
         
-    %def:
-        %trapdef   = TRAP <@void> EXC(%exit %exit)
+    %def():
+        %trapdef   = TRAP <@void> EXC(%exit(@I64_4) %exit(@I64_4))
+                                                                 
+    %one():                                                      
+        %trapone   = TRAP <@void> EXC(%exit(@I64_5) %exit(@I64_5))
+                                                                 
+    %two():                                                      
+        %traptwo   = TRAP <@void> EXC(%exit(@I64_6) %exit(@I64_6))
+                                                                 
+    %three():                                                    
+        %trapthree = TRAP <@void> EXC(%exit(@I64_7) %exit(@I64_7))
         
-    %one:
-        %trapone   = TRAP <@void> EXC(%exit %exit)
-        
-    %two:
-        %traptwo   = TRAP <@void> EXC(%exit %exit)
-        
-    %three:
-        %trapthree = TRAP <@void> EXC(%exit %exit)
-        
-    %exit:
-        %phi = PHI <@i64> {
-            %def:   @I64_4;
-            %one:   @I64_5;
-            %two:   @I64_6;
-            %three: @I64_7;
-        }
-        %trapend = TRAP <@void> KEEPALIVE (%phi)
+    %exit(<@i64> %v):
+        %trapend = TRAP <@void> KEEPALIVE (%v)
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @phi_cyclic_dep_test VERSION @phi_cyclic_dep_test_v1 <@noparamsnoret> () {
-    %entry:
-        BRANCH %head
+.funcdef @edge_asgn_test VERSION %v1 <@noparamsnoret> {
+    %entry():
+        BRANCH %head(@I64_1 @I64_2 @I64_0)
 
-    %head:
-        %x = PHI <@i64> { %entry: @I64_1; %head: %y; }
-        %y = PHI <@i64> { %entry: @I64_2; %head: %x; }
-        %i = PHI <@i64> { %entry: @I64_0; %head: %i2; }
+    %head(<@i64> %x <@i64> %y <@i64> %i):
         %i2 = ADD <@i64> %i @I64_1
         %lt = SLT <@i64> %i @I64_1
-        BRANCH2 %lt %head %end
+        BRANCH2 %lt %head(%y %x %i2) %end(%x %y)
 
-    %end:
+    %end(<@i64> %x <@i64> %y):
         %trap = TRAP <@void> KEEPALIVE (%x %y)
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @square_sum VERSION @square_sum_v1 <@i_ii> (%a %b) {
-    %entry:
+.funcdef @square_sum VERSION @square_sum_v1 <@i_ii> {
+    %entry (<@i64> %a <@i64> %b):
         %a2 = MUL <@i64> %a %a
         %b2 = MUL <@i64> %b %b
         %s  = ADD <@i64> %a2 %b2
-        RET <@i64> %s
+        RET %s
 }
 
-.funcdef @call_ret VERSION @call_ret_v1 <@i_ii> (%a %b) {
-    %entry:
+.funcdef @call_ret VERSION @call_ret_v1 <@i_ii> {
+    %entry(<@i64> %a <@i64> %b):
         %ss = CALL <@i_ii> @square_sum (%a %b)
         %trap = TRAP <@void> KEEPALIVE (%ss)
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @thrower VERSION @thrower_v1 <@i_i> (%p0) {
-    %entry:
+.funcdef @thrower VERSION @thrower_v1 <@i_i> {
+    %entry(<@i64> %p0):
         %n0 = NE <@i64> %p0 @I64_0
-        BRANCH2 %n0 %nz %z
-    %nz:
-        RET <@i64> %p0
-    %z:
+        BRANCH2 %n0 %nz(%p0) %z()
+    %nz(<@i64> %p0):
+        RET %p0
+    %z():
         THROW @NULLREF
 }
 
-.funcdef @call_throw VERSION @call_throw_v1 <@i_i> (%p0) {
-    %entry:
-        %rv = CALL <@i_i> @thrower (%p0) EXC(%nor %exc)
-    %nor:
-        %trapnor = TRAP <@void> EXC(%exit %exit) KEEPALIVE (%rv)
-    %exc:
-        %lp = LANDINGPAD
-        %trapexc = TRAP <@void> EXC(%exit %exit) KEEPALIVE (%lp)
-    %exit:
+.funcdef @call_throw VERSION @call_throw_v1 <@i_i> {
+    %entry(<@i64> %p0):
+        %rv = CALL <@i_i> @thrower (%p0) EXC(%nor(%rv) %exc())
+    %nor(<@i64> %rv):
+        %trapnor = TRAP <@void> EXC(%exit() %exit()) KEEPALIVE (%rv)
+    %exc() [%the_exc]:
+        %trapexc = TRAP <@void> EXC(%exit() %exit()) KEEPALIVE (%the_exc)
+    %exit():
         COMMINST @uvm.thread_exit
 }
 
@@ -528,8 +525,8 @@
 
 .const @STRUCT_FOO <@StructFoo> = {@I32_1 @I64_2 @F_3 @D_4}
 
-.funcdef @aggregate_struct VERSION @aggregate_struct_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @aggregate_struct VERSION @aggregate_struct_v1 <@noparamsnoret> {
+    %entry():
         %f1  = EXTRACTVALUE <@StructFoo 1> @STRUCT_FOO
         %s2  = INSERTVALUE  <@StructFoo 1> @STRUCT_FOO @I64_7
         %f12 = EXTRACTVALUE <@StructFoo 1> %s2
@@ -538,23 +535,26 @@
         COMMINST @uvm.thread_exit
 }
 
-.const @v1 <@4xfloat> = VEC {@F_0 @F_1 @F_2 @F_3}
-.const @v2 <@4xfloat> = VEC {@F_4 @F_5 @F_6 @F_7}
-.const @vshf <@4xi32> = VEC {@I32_0 @I32_2 @I32_4 @I32_6}
+.const @v1 <@4xfloat> = {@F_0 @F_1 @F_2 @F_3}
+.const @v2 <@4xfloat> = {@F_4 @F_5 @F_6 @F_7}
+.const @vshf <@4xi32> = {@I32_0 @I32_2 @I32_4 @I32_6}
 
-.funcdef @aggregate_vector VERSION @aggregate_vector_v1 <@noparamsnoret> () {
-    %entry:
+.typedef @6xi32_ary = array<@i32 6>
+.const @a1 <@6xi32_ary> = {@I32_0 @I32_2 @I32_4 @I32_6 @I32_7 @I32_3}
+
+.funcdef @aggregate_seq VERSION %v1 <@noparamsnoret> {
+    %entry():
         %ee0 = EXTRACTELEMENT <@4xfloat @i32> @4xF_V1 @I32_0
         %ie0 = INSERTELEMENT  <@4xfloat @i32> @4xF_V1 @I32_1 @F_6
         %sv0 = SHUFFLEVECTOR  <@4xfloat @4xi32> @4xF_V1 @4xF_V2 @vshf
 
-        %trapnor = TRAP <@void> KEEPALIVE (%ee0 %ie0 %sv0)
+        %ee1 = EXTRACTELEMENT <@6xi32_ary @i64> @a1 @I64_4
+        %ie1 = INSERTELEMENT  <@6xi32_ary @i64> @a1 @I64_5 @I32_1
+
+        %trapnor = TRAP <@void> KEEPALIVE (%ee0 %ie0 %sv0 %ee1 %ie1)
         COMMINST @uvm.thread_exit
 }
 
-.typedef @refi64 = ref<@i64>
-.typedef @irefi64 = iref<@i64>
-.typedef @weakrefi64 = weakref<@i64>
 
 .typedef @StructBar = struct <
     @i64 @i32 @i16 @i8 @float @double
@@ -563,13 +563,13 @@
 
 .typedef @refBar = ref<@StructBar>
 .typedef @irefBar = iref<@StructBar>
-.typedef @ptrBar = ptr<@StructBar>
+.typedef @ptrBar = uptr<@StructBar>
 
 .typedef @hCharArray = hybrid<@i64 @i8>
 
 .funcsig @allocs_sig = @void (@i64)
-.funcdef @allocs VERSION @allocs_v1 <@allocs_sig> (%sz) {
-    %entry:
+.funcdef @allocs VERSION @allocs_v1 <@allocs_sig> {
+    %entry(<@i64> %sz):
         %new = NEW <@StructBar>
         %newhybrid = NEWHYBRID <@hCharArray @i64> %sz
         %alloca = ALLOCA <@StructBar>
@@ -580,15 +580,15 @@
 }
 
 .typedef @ArrayBaz = array <@i16 1024>
-.typedef @ptrBaz = ptr<@ArrayBaz>
+.typedef @ptrBaz = uptr<@ArrayBaz>
 
 .typedef @JavaLikeByteArray = hybrid <@i32 @i8>
-.typedef @ptrJA = ptr<@JavaLikeByteArray>
+.typedef @ptrJA = uptr<@JavaLikeByteArray>
 
 .const @I64_1024 <@i64> = 1024
 
-.funcdef @memAddressing VERSION @memAddressing_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @memAddressing VERSION @memAddressing_v1 <@noparamsnoret> {
+    %entry():
         %bar_ref  = NEW <@StructBar>
         %bar_iref = GETIREF <@StructBar> %bar_ref
         %bar_3    = GETFIELDIREF <@StructBar 3> %bar_iref
@@ -607,8 +607,8 @@
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @memAddressingPtr VERSION @memAddressingPtr_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @memAddressingPtr VERSION @memAddressingPtr_v1 <@noparamsnoret> {
+    %entry():
         %bar_ptr  = PTRCAST <@i64 @ptrBar> @I64_1024
         %baz_ptr  = PTRCAST <@i64 @ptrBaz> @I64_1024
         %ja_ptr   = PTRCAST <@i64 @ptrJA> @I64_1024
@@ -653,8 +653,8 @@
 .const @F_45   <@float>  = 45.0f
 .const @D_46   <@double> = 46.0d
 
-.funcdef @memAccessing VERSION @memAccessing_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @memAccessing VERSION @memAccessing_v1 <@noparamsnoret> {
+    %entry():
         STORE <@i8>     @g_i8   @I8_41
         STORE <@i16>    @g_i16  @I16_42
         STORE <@i32>    @g_i32  @I32_43
@@ -689,11 +689,20 @@
         COMMINST @uvm.thread_exit
 }
 
+.const @I64_0x55ab              <@i64> = 0x55ab
+.const @I64_0x5a5a              <@i64> = 0x5a5a
+.const @I64_0x5000              <@i64> = 0x5000
+.const @I64_0x55aa              <@i64> = 0x55aa
+.const @I64_N0x7fffffffffffffde <@i64> = -0x7fffffffffffffde
+.const @I64_42                  <@i64> = 42
+.const @I64_11                  <@i64> = 11
+.const @I64_0xffffffffffffffde  <@i64> = 0xffffffffffffffde
+
 .funcsig @memAccessingPtr_sig = @void (@ptri8 @ptri16 @ptri32 @ptri64
                 @ptrfloat @ptrdouble @ptrptrvoid @ptrfpi_i)
-.funcdef @memAccessingPtr VERSION @memAccessingPtr_v1 <@memAccessingPtr_sig> (
-                %p0 %p1 %p2 %p3 %p4 %p5 %p6 %p7) {
-    %entry:
+.funcdef @memAccessingPtr VERSION @memAccessingPtr_v1 <@memAccessingPtr_sig> {
+    %entry(<@ptri8> %p0 <@ptri16> %p1 <@ptri32> %p2 <@ptri64> %p3
+           <@ptrfloat> %p4 <@ptrdouble> %p5 <@ptrptrvoid> %p6 <@ptrfpi_i> %p7):
         STORE PTR <@i8>     %p0  @I8_41
         STORE PTR <@i16>    %p1  @I16_42
         STORE PTR <@i32>    %p2  @I32_43
@@ -722,17 +731,8 @@
         COMMINST @uvm.thread_exit
 }
 
-.const @I64_0x55ab              <@i64> = 0x55ab
-.const @I64_0x5a5a              <@i64> = 0x5a5a
-.const @I64_0x5000              <@i64> = 0x5000
-.const @I64_0x55aa              <@i64> = 0x55aa
-.const @I64_N0x7fffffffffffffde <@i64> = -0x7fffffffffffffde
-.const @I64_42                  <@i64> = 42
-.const @I64_11                  <@i64> = 11
-.const @I64_0xffffffffffffffde  <@i64> = 0xffffffffffffffde
-
-.funcdef @memAccessingAtomic VERSION @memAccessingAtomic_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @memAccessingAtomic VERSION @memAccessingAtomic_v1 <@noparamsnoret> {
+    %entry():
         STORE SEQ_CST <@i32> @g_i32 @I32_43
         STORE SEQ_CST <@i64> @g_i64 @I64_44
 
@@ -779,9 +779,9 @@
 
 .funcsig @memAccessingAtomicPtr_sig = @void (@ptri8 @ptri16 @ptri32 @ptri64
                 @ptrfloat @ptrdouble @ptrptrvoid @ptrfpi_i)
-.funcdef @memAccessingAtomicPtr VERSION @memAccessingAtomicPtr_v1 <@memAccessingAtomicPtr_sig> (
-                %p0 %p1 %p2 %p3 %p4 %p5 %p6 %p7) {
-    %entry:
+.funcdef @memAccessingAtomicPtr VERSION @memAccessingAtomicPtr_v1 <@memAccessingAtomicPtr_sig> {
+    %entry(<@ptri8> %p0 <@ptri16> %p1 <@ptri32> %p2 <@ptri64> %p3
+           <@ptrfloat> %p4 <@ptrdouble> %p5 <@ptrptrvoid> %p6 <@ptrfpi_i> %p7):
         STORE PTR SEQ_CST <@i32> %p2 @I32_43
         STORE PTR SEQ_CST <@i64> %p3 @I64_44
 
@@ -833,111 +833,107 @@
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @memAccessingNull VERSION @memAccessingNull_v1 <@noparamsnoret> () {
-    %entry:
-        %l = LOAD <@i64> @NULLIREF_I64 EXC(%unreachable %bb2)
+.funcdef @memAccessingNull VERSION @memAccessingNull_v1 <@noparamsnoret> {
+    %entry():
+        %l = LOAD <@i64> @NULLIREF_I64 EXC(%unreachable() %bb2())
 
-    %bb2:
-        %s = STORE <@i64> @NULLIREF_I64 @I64_0 EXC(%unreachable %bb3)
+    %bb2():
+        %s = STORE <@i64> @NULLIREF_I64 @I64_0 EXC(%unreachable() %bb3())
 
-    %bb3:
-        %c = CMPXCHG SEQ_CST RELAXED <@i64> @NULLIREF_I64 @I64_0 @I64_1 EXC(%unreachable %bb4)
+    %bb3():
+        %c = CMPXCHG SEQ_CST RELAXED <@i64> @NULLIREF_I64 @I64_0 @I64_1 EXC(%unreachable() %bb4())
 
-    %bb4:
-        %a = ATOMICRMW SEQ_CST XCHG <@i64> @NULLIREF_I64 @I64_0 EXC(%unreachable %exit)
+    %bb4():
+        %a = ATOMICRMW SEQ_CST XCHG <@i64> @NULLIREF_I64 @I64_0 EXC(%unreachable() %exit())
 
-    %exit:
+    %exit():
         %trap_exit = TRAP <@void>
         COMMINST @uvm.thread_exit
 
-    %unreachable:
+    %unreachable():
         %trap_unreachable = TRAP <@void>
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @traptest VERSION @traptest_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @traptest VERSION @traptest_v1 <@noparamsnoret> {
+    %entry():
         %t1 = TRAP <@i64>
-        %t2 = TRAP <@double> EXC(%bb2 %unreachable)
+        %t2 = TRAP <@double> EXC(%bb2(%t1 %t2) %unreachable())
 
-    %bb2:
-        %t3 = TRAP <@void> EXC(%unreachable %exit)
+    %bb2(<@i64> %t1 <@double> %t2):
+        %t3 = TRAP <@void> EXC(%unreachable() %exit(%t1 %t2))
 
-    %exit:
-        %lp = LANDINGPAD
-        %trap_exit = TRAP <@void> KEEPALIVE (%t1 %t2 %lp)
+    %exit(<@i64> %t1 <@double> %t2) [%exc]:
+        %trap_exit = TRAP <@void> KEEPALIVE (%t1 %t2 %exc)
         COMMINST @uvm.thread_exit
 
-    %unreachable:
+    %unreachable():
         %trap_unreachable = TRAP <@void>
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @wptest VERSION @wptest_v1 <@noparamsnoret> () {
-    %entry:
-        %w1 = WATCHPOINT 1 <@i64> %dis %bb2
+.funcdef @wptest VERSION @wptest_v1 <@noparamsnoret> {
+    %entry():
+        %w1 = WATCHPOINT 1 <@i64> %dis() %bb2(%w1)
 
-    %bb2:
-        %w2 = WATCHPOINT 1 <@double> %dis %bb3 WPEXC(%unreachable)
+    %bb2(<@i64> %w1):
+        %w2 = WATCHPOINT 1 <@double> %dis() %bb3(%w1 %w2) WPEXC(%unreachable())
 
-    %bb3:
-        %w3 = WATCHPOINT 1 <@void> %dis %unreachable WPEXC(%exit)
+    %bb3(<@i64> %w1 <@double> %w2):
+        %w3 = WATCHPOINT 1 <@void> %dis() %unreachable() WPEXC(%exit(%w1 %w2))
 
-    %exit:
-        %lp = LANDINGPAD
-        %trap_exit = TRAP <@void> KEEPALIVE (%w1 %w2 %lp)
+    %exit(<@i64> %w1 <@double> %w2) [%exc]:
+        %trap_exit = TRAP <@void> KEEPALIVE (%w1 %w2 %exc)
         COMMINST @uvm.thread_exit
 
-    %unreachable:
+    %unreachable():
         %trap_unreachable = TRAP <@void>
         COMMINST @uvm.thread_exit
 
-    %dis:
+    %dis():
         %trap_dis = TRAP <@void>
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @trapThrow VERSION @trapThrow_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @trapThrow VERSION @trapThrow_v1 <@noparamsnoret> {
+    %entry():
         %t = TRAP <@void>
         %trap_unreachable = TRAP <@void>
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @wpThrow VERSION @wpThrow_v1 <@noparamsnoret> () {
-    %entry:
-        %w = WATCHPOINT 2 <@void> %dis %ena
+.funcdef @wpThrow VERSION @wpThrow_v1 <@noparamsnoret> {
+    %entry():
+        %w = WATCHPOINT 2 <@void> %dis() %ena()
 
-    %dis:
+    %dis():
         %trap_unreachable = TRAP <@void>
         COMMINST @uvm.thread_exit
 
-    %ena:
+    %ena():
         %trap_unreachable2 = TRAP <@void>
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @trapExc VERSION @trapExc_v1 <@noparamsnoret> () {
-    %entry:
-        CALL <@noparamsnoret> @trapThrow () EXC(%unreachable %bb2)
+.funcdef @trapExc VERSION @trapExc_v1 <@noparamsnoret> {
+    %entry():
+        CALL <@noparamsnoret> @trapThrow () EXC(%unreachable() %bb2())
 
-    %bb2:
-        %lp1 = LANDINGPAD
-        CALL <@noparamsnoret> @wpThrow () EXC(%unreachable %exit)
+    %bb2() [%exc]:
+        CALL <@noparamsnoret> @wpThrow () EXC(%unreachable() %exit(%exc))
 
-    %exit:
-        %lp2 = LANDINGPAD
-        %trap_exit = TRAP <@void> KEEPALIVE (%lp1 %lp2)
+    %exit(<@refvoid> %exc1) [%exc2]:
+        %trap_exit = TRAP <@void> KEEPALIVE (%exc1 %exc2)
         COMMINST @uvm.thread_exit
 
-    %unreachable:
+    %unreachable():
         %trap_unreachable = TRAP <@void>
         COMMINST @uvm.thread_exit
 }
 
 .funcsig @corostackfunc_sig = @void (@stack @i64)
-.funcdef @corostackfunc VERSION @corostackfunc_v1 <@corostackfunc_sig> (%fromsta %p) {
-    %entry:
+.funcdef @corostackfunc VERSION @corostackfunc_v1 <@corostackfunc_sig> {
+    %entry(<@stack> %fromsta <@i64> %p):
         %trap_coro1 = TRAP <@void> KEEPALIVE(%fromsta %p)
 
         %pp1 = ADD <@i64> %p @I64_1
@@ -946,7 +942,7 @@
 
         %trap_coro2 = TRAP <@void> KEEPALIVE(%css1)
 
-        %css2 = SWAPSTACK %fromsta RET_WITH <@void> PASS_VOID KEEPALIVE(%css1)
+        %css2 = SWAPSTACK %fromsta RET_WITH <@void> PASS_VALUE <@void> @VOID KEEPALIVE(%css1)
 
         %excref = NEW <@i64>
         %exciref = GETIREF <@i64> %excref
@@ -955,29 +951,28 @@
         %css3 = SWAPSTACK %fromsta KILL_OLD THROW_EXC %excref
 }
 
-.funcdef @testswapstack VERSION @testswapstack_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @testswapstack VERSION @testswapstack_v1 <@noparamsnoret> {
+    %entry():
         %thisstack = COMMINST @uvm.current_stack ()
         
         %coro = NEWSTACK <@corostackfunc_sig> @corostackfunc (%thisstack @I64_2)
 
-        %mss1 = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID
+        %mss1 = SWAPSTACK %coro RET_WITH <@i64> PASS_VALUE <@void> @VOID
 
         %trap_main1 = TRAP <@void> KEEPALIVE(%mss1)
 
         %mss2 = SWAPSTACK %coro RET_WITH <@void> PASS_VALUE <@double> @D_3
 
-        %mss3 = SWAPSTACK %coro RET_WITH <@void> PASS_VOID EXC(%unreachable %exit)
+        %mss3 = SWAPSTACK %coro RET_WITH <@void> PASS_VALUE <@void> @VOID EXC(%unreachable() %exit())
 
-    %exit:
-        %exc = LANDINGPAD
+    %exit() [%exc]:
         %excref = REFCAST <@refvoid @refi64> %exc
         %exciref = GETIREF <@i64> %excref
         %excval = LOAD <@i64> %exciref
         %trap_main2 = TRAP <@void> KEEPALIVE(%excval)
         COMMINST @uvm.thread_exit
 
-    %unreachable:
+    %unreachable():
         %trap_unreachable = TRAP <@void>
         COMMINST @uvm.thread_exit
 }
@@ -986,8 +981,8 @@
 .const @I52_SAMPLE <@i52> = 0xfedcba9876543
 .const @D_42 <@double> = 42.0d
 
-.funcdef @testtr64 VERSION @testtr64_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @testtr64 VERSION @testtr64_v1 <@noparamsnoret> {
+    %entry():
         %someobj = NEW <@i64>
         %rv = REFCAST <@refi64 @refvoid> %someobj
 
@@ -1015,16 +1010,16 @@
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @testdependency VERSION @testdependency_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @testdependency VERSION @testdependency_v1 <@noparamsnoret> {
+    %entry():
         %a = ADD <@i64> @I64_1 @I64_2
         %b = COMMINST @uvm.kill_dependency <@i64> (%a)
         TRAP <@void> KEEPALIVE (%b)
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @objectpinning VERSION @objectpinning_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @objectpinning VERSION @objectpinning_v1 <@noparamsnoret> {
+    %entry():
         %a = NEW <@i64>
         %b = GETIREF <@i64> %a
 

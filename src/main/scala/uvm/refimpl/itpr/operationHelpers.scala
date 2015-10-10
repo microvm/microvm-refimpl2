@@ -352,7 +352,7 @@ object MemoryOperations {
 
     ty match {
       case TypeVector(ety, len) =>
-        val brs = br.asInstanceOf[BoxVector].values
+        val brs = br.asInstanceOf[BoxSeq].values
         val elemSkip = alignUp(sizeOf(ety), alignOf(ety))
         for ((brElem, i) <- brs.zipWithIndex) {
           loadScalar(ety, loc + elemSkip * i, brElem)
@@ -411,8 +411,8 @@ object MemoryOperations {
 
     ty match {
       case TypeVector(ety, len) =>
-        val nvbs = nvb.asInstanceOf[BoxVector].values
-        val brs = br.asInstanceOf[BoxVector].values
+        val nvbs = nvb.asInstanceOf[BoxSeq].values
+        val brs = br.asInstanceOf[BoxSeq].values
         val elemSkip = alignUp(sizeOf(ety), alignOf(ety))
         for (((brElem, nvbElem), i) <- (brs zip nvbs).zipWithIndex) {
           storeScalar(ety, loc + elemSkip * i, nvbElem, brElem)

@@ -201,7 +201,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     our const "@cth" shouldBeA[ConstNull] { _.constTy shouldBe (our ty "@thread") }
     our const "@cst" shouldBeA[ConstNull] { _.constTy shouldBe (our ty "@stack") }
 
-    our const "@cv4f" shouldBeA[ConstVector] { its =>
+    our const "@cv4f" shouldBeA[ConstSeq] { its =>
       its.constTy shouldBe (our ty "@4xfloat")
       its elems 0 shouldBe (our const "@F_1")
       its elems 1 shouldBe (our const "@F_2")
@@ -209,7 +209,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       its elems 3 shouldBe (our const "@F_4")
     }
     
-    our const "@cv4i" shouldBeA[ConstVector] { its =>
+    our const "@cv4i" shouldBeA[ConstSeq] { its =>
       its.constTy shouldBe (our ty "@4xi32")
       its elems 0 shouldBe (our const "@I32_1")
       its elems 1 shouldBe (our const "@I32_2")
@@ -217,7 +217,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       its elems 3 shouldBe (our const "@I32_4")
     }
  
-    our const "@cv4d" shouldBeA[ConstVector] { its =>
+    our const "@cv4d" shouldBeA[ConstSeq] { its =>
       its.constTy shouldBe (our ty "@2xdouble")
       its elems 0 shouldBe (our const "@D_1")
       its elems 1 shouldBe (our const "@D_2")
@@ -243,7 +243,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       its.addr shouldBe 0xfedcba9876543210L
     }
     
-    our const "@ary1" shouldBeA[ConstArray] { its =>
+    our const "@ary1" shouldBeA[ConstSeq] { its =>
       its.constTy shouldBe (our ty "@i32_3_ary")
       its elems 0 shouldBe (our const "@I32_1")
       its elems 1 shouldBe (our const "@I32_2")

@@ -32,7 +32,7 @@ class FuncVer extends IdentifiedSettable {
 
   def sig: FuncSig = func.sig
 
-  val bbNs = new SimpleNamespace[BasicBlock]
+  var bbNs: NestedNamespace[BasicBlock] = null  // sub-namespace of allNs
 }
 
 class BasicBlock extends IdentifiedSettable {
@@ -40,5 +40,5 @@ class BasicBlock extends IdentifiedSettable {
   var excParam: Option[ExcParam] = null
   var insts: Seq[Instruction] = null
 
-  val localVarNs = new SimpleNamespace[LocalVariable]
+  var localVarNs: NestedNamespace[LocalVariable] = null // sub-namespace of allNs
 }

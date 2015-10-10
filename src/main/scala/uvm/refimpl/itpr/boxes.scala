@@ -31,8 +31,8 @@ case class BoxFloat(var value: Float) extends ValueBox {
 case class BoxDouble(var value: Double) extends ValueBox {
   def copyFrom(other: ValueBox): Unit = { this.value = other.asInstanceOf[BoxDouble].value }
 }
-case class BoxVector(var values: Seq[ValueBox]) extends ValueBox {
-  def copyFrom(other: ValueBox): Unit = { for ((t, o) <- this.values.zip(other.asInstanceOf[BoxVector].values)) t.copyFrom(o) }
+case class BoxSeq(var values: Seq[ValueBox]) extends ValueBox {
+  def copyFrom(other: ValueBox): Unit = { for ((t, o) <- this.values.zip(other.asInstanceOf[BoxSeq].values)) t.copyFrom(o) }
 }
 case class BoxRef(var objRef: Word) extends HasObjRef {
   def copyFrom(other: ValueBox): Unit = { this.objRef = other.asInstanceOf[BoxRef].objRef }
@@ -93,12 +93,12 @@ object ValueBox {
     case _: TypeInt => BoxInt(0)
     case _: TypeFloat => BoxFloat(0.0f)
     case _: TypeDouble => BoxDouble(0.0d)
-    case TypeVector(elemTy, len) => BoxVector(Seq.fill(len.toInt)(makeBoxForType(elemTy)))
+    case TypeVector(elemTy, len) => BoxSeq(Seq.fill(len.toInt)(makeBoxForType(elemTy)))
     case _: TypeRef => BoxRef(0L)
     case _: TypeIRef => BoxIRef(0L, 0L)
     case _: TypeWeakRef => throw new UvmRefImplException("weakref cannot be an SSA variable type")
     case TypeStruct(fieldTys) => BoxStruct(fieldTys.map(makeBoxForType))
-    case _: TypeArray => throw new UvmRefImplException("array cannot be an SSA variable type")
+    case TypeArray(elemTy, len) => BoxSeq(Seq.fill(len.toInt)(makeBoxForType(elemTy)))
     case _: TypeHybrid => throw new UvmRefImplException("hybrid cannot be an SSA variable type")
     case _: TypeVoid => BoxVoid()
     case _: TypeFuncRef => BoxFunc(None)

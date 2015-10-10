@@ -2,22 +2,22 @@ package uvm.refimpl.nat
 
 import org.scalatest.FlatSpec
 import org.scalatest.Matchers
+
 import com.kenai.jffi.CallingConvention
 import com.kenai.jffi.Closure
 import com.kenai.jffi.Closure.Buffer
 import com.kenai.jffi.ClosureManager
 import com.kenai.jffi.{ Type => JType }
-import uvm.{ Function => MFunc }
+
 import uvm.FuncSig
+import uvm.{ Function => MFunc }
+import uvm.ir.textinput.ExtraMatchers
 import uvm.refimpl.itpr.BoxDouble
 import uvm.refimpl.itpr.BoxInt
 import uvm.refimpl.itpr.BoxPointer
 import uvm.types.TypeDouble
-import uvm.types.TypeFuncPtr
 import uvm.types.TypeInt
-import uvm.refimpl.MicroVM
-import uvm.ir.textinput.ExtraMatchers
-import uvm.refimpl.itpr.BoxDouble
+import uvm.types.TypeUFuncPtr
 
 class NativeStackKeeperTest extends FlatSpec with Matchers with ExtraMatchers {
   behavior of "NativeStackKeeper"
@@ -75,7 +75,7 @@ class NativeStackKeeperTest extends FlatSpec with Matchers with ExtraMatchers {
 
       val d = TypeDouble()
       val dtdSig = FuncSig(d, Seq(d))
-      val dtd = TypeFuncPtr(dtdSig)
+      val dtd = TypeUFuncPtr(dtdSig)
       val sig = FuncSig(d, Seq(d, dtd))
 
       val mockMuCallbackFunc = new MFunc()
@@ -139,7 +139,7 @@ class NativeStackKeeperTest extends FlatSpec with Matchers with ExtraMatchers {
 
       val d = TypeDouble()
       val dtdSig = FuncSig(d, Seq(d))
-      val dtd = TypeFuncPtr(dtdSig)
+      val dtd = TypeUFuncPtr(dtdSig)
       val sig = FuncSig(d, Seq(d, dtd))
 
       val clos = new Closure() {

@@ -176,9 +176,9 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
         try {
           opndTy match {
             case TypeVector(scalarTy, sz) => {
-              val op1Bs = boxOf(op1).asInstanceOf[BoxVector].values
-              val op2Bs = boxOf(op2).asInstanceOf[BoxVector].values
-              val rBs = boxOf(i).asInstanceOf[BoxVector].values
+              val op1Bs = boxOf(op1).asInstanceOf[BoxSeq].values
+              val op2Bs = boxOf(op2).asInstanceOf[BoxSeq].values
+              val rBs = boxOf(i).asInstanceOf[BoxSeq].values
 
               for (((b1, b2), br) <- ((op1Bs zip op2Bs) zip rBs)) {
                 doScalar(scalarTy, b1, b2, br)
@@ -285,9 +285,9 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
 
         opndTy match {
           case TypeVector(scalarTy, sz) => {
-            val op1Bs = boxOf(op1).asInstanceOf[BoxVector].values
-            val op2Bs = boxOf(op2).asInstanceOf[BoxVector].values
-            val rBs = boxOf(i).asInstanceOf[BoxVector].values
+            val op1Bs = boxOf(op1).asInstanceOf[BoxSeq].values
+            val op2Bs = boxOf(op2).asInstanceOf[BoxSeq].values
+            val rBs = boxOf(i).asInstanceOf[BoxSeq].values
 
             for (((b1, b2), br) <- ((op1Bs zip op2Bs) zip rBs)) {
               doScalar(scalarTy, b1, b2, br)
@@ -420,8 +420,8 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
           case (TypeVector(scalarFromTy, sz), TypeVector(scalarToTy, sz2)) => {
             if (sz != sz2) throw new UvmRefImplException(ctx + "The source and dest vector types must have the same length")
 
-            val bOpnds = boxOf(opnd).asInstanceOf[BoxVector].values
-            val rBs = boxOf(i).asInstanceOf[BoxVector].values
+            val bOpnds = boxOf(opnd).asInstanceOf[BoxSeq].values
+            val rBs = boxOf(i).asInstanceOf[BoxSeq].values
 
             for ((bOpnd, br) <- (bOpnds zip rBs)) {
               doScalar(scalarFromTy, scalarToTy, bOpnd, br)
@@ -446,10 +446,10 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
 
         condTy match {
           case TypeVector(TypeInt(1), sz) => {
-            val bConds = boxOf(cond).asInstanceOf[BoxVector].values
-            val bTrues = boxOf(ifTrue).asInstanceOf[BoxVector].values
-            val bFalses = boxOf(ifFalse).asInstanceOf[BoxVector].values
-            val bResults = boxOf(i).asInstanceOf[BoxVector].values
+            val bConds = boxOf(cond).asInstanceOf[BoxSeq].values
+            val bTrues = boxOf(ifTrue).asInstanceOf[BoxSeq].values
+            val bFalses = boxOf(ifFalse).asInstanceOf[BoxSeq].values
+            val bResults = boxOf(i).asInstanceOf[BoxSeq].values
 
             for ((((bCond, bTrue), bFalse), br) <- bConds.zip(bTrues).zip(bFalses).zip(bResults)) {
               doScalar(bCond, bTrue, bFalse, br)
@@ -560,7 +560,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
       }
 
       case i @ InstExtractElement(vecTy, indTy, opnd, index) => {
-        val ob = boxOf(opnd).asInstanceOf[BoxVector]
+        val ob = boxOf(opnd).asInstanceOf[BoxSeq]
         val indb = boxOf(index).asInstanceOf[BoxInt]
         val ind = OpHelper.prepareUnsigned(indb.value, indTy.length)
 
@@ -575,7 +575,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
       }
 
       case i @ InstInsertElement(vecTy, indTy, opnd, index, newVal) => {
-        val ob = boxOf(opnd).asInstanceOf[BoxVector]
+        val ob = boxOf(opnd).asInstanceOf[BoxSeq]
 
         val indb = boxOf(index).asInstanceOf[BoxInt]
         val ind = OpHelper.prepareUnsigned(indb.value, indTy.length)
@@ -587,7 +587,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
         val indInt = ind.intValue
 
         val nvb = boxOf(newVal)
-        val ib = boxOf(i).asInstanceOf[BoxVector]
+        val ib = boxOf(i).asInstanceOf[BoxSeq]
 
         for (((oeb, ieb), ind2) <- (ob.values zip ib.values).zipWithIndex) {
           if (ind2 == indInt) {
@@ -602,10 +602,10 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
       case i @ InstShuffleVector(vecTy, maskTy, vec1, vec2, mask) => {
         val vecLen = vecTy.len.toInt
         val maskIntLen = maskTy.elemTy.asInstanceOf[TypeInt].length
-        val vb1 = boxOf(vec1).asInstanceOf[BoxVector]
-        val vb2 = boxOf(vec2).asInstanceOf[BoxVector]
-        val mb = boxOf(mask).asInstanceOf[BoxVector]
-        val ib = boxOf(i).asInstanceOf[BoxVector]
+        val vb1 = boxOf(vec1).asInstanceOf[BoxSeq]
+        val vb2 = boxOf(vec2).asInstanceOf[BoxSeq]
+        val mb = boxOf(mask).asInstanceOf[BoxSeq]
+        val ib = boxOf(i).asInstanceOf[BoxSeq]
 
         for (((meb, ieb), ind) <- (mb.values zip ib.values).zipWithIndex) {
           val me = OpHelper.prepareUnsigned(meb.asInstanceOf[BoxInt].value, maskIntLen)
@@ -1168,7 +1168,11 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
     val norArgs = destClause.args
 
     // Copy to edge-assigned boxes, first.
-    assert(norArgs.length == dest.norParams.length)
+    if(norArgs.length != dest.norParams.length) {
+      throw new UvmRefImplException(ctx + "Wrong number of arguments. Basic block: %s, expected: %d, actual: %d".format(
+          dest.repr, dest.norParams.length, norArgs.length))
+    }
+    
     for ((arg, np) <- norArgs zip dest.norParams) {
       val argBox = boxOf(arg)
       val npEdgeBox = edgeAssignedBoxOf(np)

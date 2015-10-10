@@ -239,7 +239,7 @@ class UIRTextReader(val idFactory: IDFactory) {
         case t: TypeRefContext       => TypeRef(null).later(phase1) { _.ty = t.ty }
         case t: TypeIRefContext      => TypeIRef(null).later(phase1) { _.ty = t.ty }
         case t: TypeWeakRefContext   => TypeWeakRef(null).later(phase1) { _.ty = t.ty }
-        case t: TypeStructContext    => TypeStruct(null).later(phase1) { _.fieldTys = t.fieldTys.map(resTy)}
+        case t: TypeStructContext    => TypeStruct(null).later(phase1) { _.fieldTys = t.fieldTys.map(resTy) }
         case t: TypeArrayContext     => TypeArray(null, t.length.longValue()).later(phase1) { _.elemTy = t.ty }
         case t: TypeHybridContext    => TypeHybrid(null, null).later(phase1) { tt => tt.fixedTy = t.fixedTy; tt.varTy = t.varTy }
         case t: TypeVoidContext      => TypeVoid()
@@ -295,11 +295,8 @@ class UIRTextReader(val idFactory: IDFactory) {
           case _: TypeStruct => ConstStruct(t, null).later(phase2) {
             _.fields = for (gn <- cc.GLOBAL_NAME()) yield resGlobalVar(gn)
           }
-          case _: TypeArray => ConstArray(t, null).later(phase2) {
+          case _: TypeArray | _: TypeVector => ConstSeq(t, null).later(phase2) {
             _.elems = for (gn <- cc.GLOBAL_NAME()) yield resGlobalVar(gn)
-          }
-          case _: TypeVector => ConstVector(t, null).later(phase2) {
-            _.elems = for (c <- cc.GLOBAL_NAME()) yield resConstByName(c)
           }
         }
         case _: CtorNullContext => ConstNull(t)
@@ -388,8 +385,9 @@ class UIRTextReader(val idFactory: IDFactory) {
       ver.func = func
       //func.versions = ver :: func.versions  // Don't override here. Let the MicroVM redefine functions.
 
-      def globalizeBB(name: String): String = globalize(name, verName)
+      ver.bbNs = bundle.allNs.makeSubSpace[BasicBlock]
 
+      def globalizeBB(name: String): String = globalize(name, verName)
 
       // Resolve function version local entities
 
@@ -410,6 +408,8 @@ class UIRTextReader(val idFactory: IDFactory) {
         bb.id = idFactory.getID()
         bb.name = Some(bbName)
         ver.bbNs.add(bb)
+
+        bb.localVarNs = bundle.allNs.makeSubSpace[LocalVariable]
 
         def mkNorParam(ty: Type, name: String): NorParam = {
           val param = NorParam(ty)
@@ -462,7 +462,7 @@ class UIRTextReader(val idFactory: IDFactory) {
           val (sig, callee, argList) = resFuncCallBody(fcb)
           cl.sig = sig; cl.callee = callee; cl.argList = argList
         }
-        
+
         implicit def resDestClause(dc: DestClauseContext): DestClause = {
           DestClause(dc.bb, dc.argList())
         }
@@ -473,7 +473,7 @@ class UIRTextReader(val idFactory: IDFactory) {
           } else {
             Some(ExcClause(ec.nor, ec.exc))
           }
-        
+
         // Make instruction
 
         def mkInst(bb: BasicBlock, instDef: InstContext): Instruction = {

@@ -18,10 +18,10 @@ abstract class Bundle {
    *       + globalCellNs   // Global cells
    *       + funcNs         // Functions
    *       + expFuncNs      // Exposed functions
+   *     + localVarNs       // Local variables (per basic block)
+   *   + bbNs               // Basic blocks (per function version)
    * 
-   * These namespaces are local, i.e. they cannot be directly looked up from a bundle:
-   * + bbNs                 // Basic blocks (per function version)
-   * + localVarNs           // Local variables (per basic block)
+   * bbNs and localVarNs are part of particular FuncVers and BBs.
    */
 
   val allNs = new NestedNamespace[Identified](None)
@@ -64,6 +64,18 @@ class GlobalBundle extends Bundle {
     for (cand <- newNs.all) {
       try {
         oldNs.add(cand)
+        def assertPresent[T <: Identified](ns: NestedNamespace[T], obj: T): Unit = {
+          assert(ns.get(obj.id) == Some(obj))
+          if (obj.id == 65731) {
+            printf("Obj[65731] found in ns " + ns)
+          }
+          ns.maybeParent match {
+            case None =>
+            case Some(ns2) =>
+              assertPresent(ns2, obj)
+          }
+        }
+        assertPresent(oldNs.asInstanceOf[NestedNamespace[T]], cand)
       } catch {
         case e: NameConflictException =>
           throw new IllegalRedefinitionException(
@@ -78,6 +90,15 @@ class GlobalBundle extends Bundle {
       fv.func.versions = fv :: fv.func.versions
     }
   }
+  
+  private def mergeLocalNamespaces(newBundle: TrantientBundle) {
+    for (fv <- newBundle.funcVerNs.all) {
+      fv.bbNs.reparent(allNs)
+      for (bb <- fv.bbs) {
+        bb.localVarNs.reparent(allNs)
+      }
+    }
+  }
 
   def merge(newBundle: TrantientBundle) {
     // Only merge leaves
@@ -90,6 +111,8 @@ class GlobalBundle extends Bundle {
     simpleMerge(expFuncNs, newBundle.expFuncNs)
 
     redefineFunctions(newBundle.funcVerNs)
+    
+    mergeLocalNamespaces(newBundle)
   }
 
 }

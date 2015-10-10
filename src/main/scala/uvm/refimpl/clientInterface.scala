@@ -86,19 +86,19 @@ class ClientAgent(mutator: Mutator)(
     val t = microVM.globalBundle.typeNs(typeID).asInstanceOf[TypeVector]
     val et = t.elemTy.asInstanceOf[TypeInt]
     val preparedVs = for (v <- vs) yield OpHelper.trunc(v, et.length)
-    newHandle(t, BoxVector(preparedVs.map(BoxInt)))
+    newHandle(t, BoxSeq(preparedVs.map(BoxInt)))
   }
 
   def putFloatVec(typeID: Int, vs: Seq[Float]): Handle = {
     val t = microVM.globalBundle.typeNs(typeID).asInstanceOf[TypeVector]
     val et = t.elemTy.asInstanceOf[TypeFloat]
-    newHandle(t, BoxVector(vs.map(BoxFloat)))
+    newHandle(t, BoxSeq(vs.map(BoxFloat)))
   }
 
   def putDoubleVec(typeID: Int, vs: Seq[Double]): Handle = {
     val t = microVM.globalBundle.typeNs(typeID).asInstanceOf[TypeVector]
     val et = t.elemTy.asInstanceOf[TypeDouble]
-    newHandle(t, BoxVector(vs.map(BoxDouble)))
+    newHandle(t, BoxSeq(vs.map(BoxDouble)))
   }
 
   def putPointer(typeID: Int, v: Word): Handle = {
@@ -156,7 +156,7 @@ class ClientAgent(mutator: Mutator)(
   def toIntVec(h: Handle, signExt: Boolean = false): Seq[BigInt] = {
     val t = h.ty.asInstanceOf[TypeVector]
     val et = t.elemTy.asInstanceOf[TypeInt]
-    val bv = h.vb.asInstanceOf[BoxVector]
+    val bv = h.vb.asInstanceOf[BoxSeq]
     for (b <- bv.values) yield {
       val ib = b.asInstanceOf[BoxInt]
       if (signExt) OpHelper.prepareSigned(ib.value, et.length) else OpHelper.prepareUnsigned(ib.value, et.length)
@@ -164,11 +164,11 @@ class ClientAgent(mutator: Mutator)(
   }
 
   def toFloatVec(h: Handle): Seq[Float] = {
-    h.vb.asInstanceOf[BoxVector].values.map(b => b.asInstanceOf[BoxFloat].value)
+    h.vb.asInstanceOf[BoxSeq].values.map(b => b.asInstanceOf[BoxFloat].value)
   }
 
   def toDoubleVec(h: Handle): Seq[Double] = {
-    h.vb.asInstanceOf[BoxVector].values.map(b => b.asInstanceOf[BoxDouble].value)
+    h.vb.asInstanceOf[BoxSeq].values.map(b => b.asInstanceOf[BoxDouble].value)
   }
 
   def toPointer(h: Handle): Word = {

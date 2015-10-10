@@ -25,13 +25,14 @@ class ConstantPool(implicit microVM: MicroVM) {
     case ConstDouble(ty, num) => BoxDouble(num)
     case ConstStruct(ty, flds) => BoxStruct(flds.map(maybeMakeBox))
     case ConstNull(ty) => ty match {
+      case _:TypeVoid => BoxVoid()
       case _:TypeRef => BoxRef(0L)
       case _:TypeIRef => BoxIRef(0L, 0L)
       case _:TypeFuncRef => BoxFunc(None)
       case _:TypeThreadRef => BoxThread(None)
       case _:TypeStackRef => BoxStack(None)
     }
-    case ConstVector(ty, elems) => BoxVector(elems.map(maybeMakeBox))
+    case ConstSeq(ty, elems) => BoxSeq(elems.map(maybeMakeBox))
     case ConstPointer(ty, addr) => BoxPointer(addr)
     case gc:GlobalCell => BoxIRef(0L, microVM.memoryManager.globalMemory.addrForGlobalCell(gc))
     case f:Function => BoxFunc(Some(f))

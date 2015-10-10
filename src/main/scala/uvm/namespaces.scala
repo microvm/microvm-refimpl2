@@ -8,7 +8,7 @@ abstract class Namespace[T <: Identified] {
   def get(name: String): Option[T]
 
   def add(obj: T): Unit
-  
+
   def all: Iterable[T]
 }
 
@@ -37,21 +37,28 @@ class SimpleNamespace[T <: Identified] extends Namespace[T] {
 
     idMap.put(obj.id, obj)
     obj.name match {
-      case None =>
+      case None       =>
       case Some(name) => nameMap.put(name, obj)
     }
   }
-  
+
   def all = idMap.values
 }
 
-class NestedNamespace[T <: Identified](val maybeParent: Option[NestedNamespace[_ >: T]]) extends SimpleNamespace[T] {
+class NestedNamespace[T <: Identified](var maybeParent: Option[NestedNamespace[_ >: T <: Identified]]) extends SimpleNamespace[T] {
   override def add(obj: T): Unit = {
     super.add(obj)
     maybeParent.foreach(_.add(obj))
   }
-  
+
   def makeSubSpace[U <: T](): NestedNamespace[U] = {
     new NestedNamespace[U](Some(this))
+  }
+
+  def reparent[U >: T <: Identified](newParent: NestedNamespace[U]) = {
+    maybeParent = Some(newParent)
+    for (obj <- all) {
+      newParent.add(obj)
+    }
   }
 }
