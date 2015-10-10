@@ -3,10 +3,9 @@ package uvm.ir.textinput
 import org.scalatest._
 
 import uvm._
-import uvm.types._
-import uvm.ssavariables._
 import uvm.comminsts._
-import UIRTextReader.globalize
+import uvm.ssavariables._
+import uvm.types._
 
 trait TestingBundlesValidators extends Matchers with ExtraMatchers {
   
@@ -22,7 +21,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     def funcVer(s: String) = b.funcVerNs(s)
     def expFunc(s: String) = b.expFuncNs(s)
   }
-
+  
   implicit class MagicalThe(c: FuncVer) {
     def globalName(s: String) = UIRTextReader.globalize(s, c.name.get)
     def bb(s: String) = c.bbNs(UIRTextReader.globalize(s, c.name.get))
@@ -35,7 +34,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     def inst(s: String) = d.localVarNs(UIRTextReader.globalize(s, d.name.get))
   }
 
-  def validateTypes(bundle: Bundle) {
+  def validateTypes(bundle: GlobalBundle) {
     val our = bundle
     
     our ty "@i1" shouldBeATypeIntOf(1)
@@ -149,7 +148,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     our anything "@sig0" shouldBe sig0
   }
   
-  def validateConstants(bundle: Bundle) {
+  def validateConstants(bundle: GlobalBundle) {
     val our = bundle
 
     our const "@ci8" shouldBeAConstIntOf (8, 127)
@@ -268,7 +267,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     our anything "@gi64" shouldBe gi64
   }
 
-  def validateFunctions(bundle: Bundle) {
+  def validateFunctions(bundle: GlobalBundle) {
     val our = bundle
     
     our sig "@foo" shouldBeA[FuncSig] { its =>
@@ -359,12 +358,16 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     val ver = func.versions.head
     f(func, ver)
   }
+
+  def in(funcVer: FuncVer)(f: FuncVer => Unit) {
+    f(funcVer)
+  }
   
-  def in(b: BasicBlock)(f: BasicBlock => Unit) {
+   def in(b: BasicBlock)(f: BasicBlock => Unit) {
     f(b)
   }
   
-  def validateInstructions(bundle: Bundle) {
+  def validateInstructions(bundle: GlobalBundle) {
     val our = bundle
     
     in (our func "@intBinOpTest") { (func, the) =>
@@ -725,539 +728,590 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
     }
 
-    /*
     in (our func "@aggregate") { (func, the) =>
-      val my = ver
+      in(the bb "%entry") { my =>
       
-      my inst "%e0" shouldBeA[InstExtractValue] { its =>
-        its.strTy shouldBe (our ty "@sid")
-        its.index shouldBe 0
-        its.opnd shouldBe (our value "@sid1")
-      }
-      
-      my inst "%e1" shouldBeA[InstExtractValue] { its =>
-        its.strTy shouldBe (our ty "@sid")
-        its.index shouldBe 1
-        its.opnd shouldBe (our value "@sid1")
-      }
-      
-      my inst "%i0" shouldBeA[InstInsertValue] { its =>
-        its.strTy shouldBe (our ty "@sid")
-        its.index shouldBe 0
-        its.opnd shouldBe (our value "@sid1")
-        its.newVal shouldBe (our value "@I64_0")
-      }
-      
-      my inst "%i1" shouldBeA[InstInsertValue] { its =>
-        its.strTy shouldBe (our ty "@sid")
-        its.index shouldBe 1
-        its.opnd shouldBe (our value "@sid1")
-        its.newVal shouldBe (our value "@D_0")
-      }
-      
-      my inst "%ee0" shouldBeA[InstExtractElement] { its =>
-        its.vecTy shouldBe (our ty "@4xfloat")
-        its.indTy shouldBe (our ty "@i32")
-        its.opnd shouldBe (our value "@v1")
-        its.index shouldBe (our value "@I32_0")
-      }
-      
-      my inst "%ie0" shouldBeA[InstInsertElement] { its =>
-        its.vecTy shouldBe (our ty "@4xfloat")
-        its.indTy shouldBe (our ty "@i32")
-        its.opnd shouldBe (our value "@v1")
-        its.index shouldBe (our value "@I32_1")
-        its.newVal shouldBe (our value "@F_1")
-      }
-      
-      my inst "%sv0" shouldBeA[InstShuffleVector] { its =>
-        its.vecTy shouldBe (our ty "@4xfloat")
-        its.maskTy shouldBe (our ty "@4xi32")
-        its.vec1 shouldBe (our value "@v1")
-        its.vec2 shouldBe (our value "@v2")
-        its.mask shouldBe (our value "@vshf")
+        my inst "%e0" shouldBeA[InstExtractValue] { its =>
+          its.strTy shouldBe (our ty "@sid")
+          its.index shouldBe 0
+          its.opnd shouldBe (our value "@sid1")
+        }
+        
+        my inst "%e1" shouldBeA[InstExtractValue] { its =>
+          its.strTy shouldBe (our ty "@sid")
+          its.index shouldBe 1
+          its.opnd shouldBe (our value "@sid1")
+        }
+        
+        my inst "%i0" shouldBeA[InstInsertValue] { its =>
+          its.strTy shouldBe (our ty "@sid")
+          its.index shouldBe 0
+          its.opnd shouldBe (our value "@sid1")
+          its.newVal shouldBe (our value "@I64_0")
+        }
+        
+        my inst "%i1" shouldBeA[InstInsertValue] { its =>
+          its.strTy shouldBe (our ty "@sid")
+          its.index shouldBe 1
+          its.opnd shouldBe (our value "@sid1")
+          its.newVal shouldBe (our value "@D_0")
+        }
+        
+        my inst "%ee0" shouldBeA[InstExtractElement] { its =>
+          its.seqTy shouldBe (our ty "@4xfloat")
+          its.indTy shouldBe (our ty "@i32")
+          its.opnd shouldBe (our value "@v1")
+          its.index shouldBe (our value "@I32_0")
+        }
+        
+        my inst "%ie0" shouldBeA[InstInsertElement] { its =>
+          its.seqTy shouldBe (our ty "@4xfloat")
+          its.indTy shouldBe (our ty "@i32")
+          its.opnd shouldBe (our value "@v1")
+          its.index shouldBe (our value "@I32_1")
+          its.newVal shouldBe (our value "@F_1")
+        }
+        
+        my inst "%sv0" shouldBeA[InstShuffleVector] { its =>
+          its.vecTy shouldBe (our ty "@4xfloat")
+          its.maskTy shouldBe (our ty "@4xi32")
+          its.vec1 shouldBe (our value "@v1")
+          its.vec2 shouldBe (our value "@v2")
+          its.mask shouldBe (our value "@vshf")
+        }
       }
     }
 
     in (our func "@memops") { (func, the) =>
-      val my = ver
-      
-      my inst "%new" shouldBeA[InstNew] { its =>
-        its.allocTy shouldBe (our ty "@i64")
-        its.excClause shouldBe None
+      in(the bb "%entry") { my =>
+        
+        my inst "%new" shouldBeA[InstNew] { its =>
+          its.allocTy shouldBe (our ty "@i64")
+          its.excClause shouldBe None
+        }
+        
+        my inst "%newhybrid" shouldBeA[InstNewHybrid] { its =>
+          its.allocTy shouldBe (our ty "@hic")
+          its.lenTy shouldBe (our ty "@i64")
+          its.length shouldBe (my param "%p0")
+          its.excClause shouldBe None
+        }
+        
+        my inst "%alloca" shouldBeA[InstAlloca] { its =>
+          its.allocTy shouldBe (our ty "@i64")
+          its.excClause shouldBe None
+        }
+        
+        my inst "%allocahybrid" shouldBeA[InstAllocaHybrid] { its =>
+          its.allocTy shouldBe (our ty "@hic")
+          its.lenTy shouldBe (our ty "@i64")
+          its.length shouldBe (my param "%p0")
+          its.excClause shouldBe None
+        }
+
+        my inst "%new_s" shouldBeA[InstNew] { its =>
+          its.allocTy shouldBe (our ty "@i64")
+          its.excClause shouldBe Some(ExcClause(
+              DestClause(the bb "%bb2", Seq("%alloca", "%allocahybrid", "%p0", "%p1").map(my.value)),
+              DestClause(the bb "%handler", Seq())))
+        }
       }
-      
-      my inst "%newhybrid" shouldBeA[InstNewHybrid] { its =>
-        its.allocTy shouldBe (our ty "@hic")
-        its.lenTy shouldBe (our ty "@i64")
-        its.length shouldBe (my param "%p0")
-        its.excClause shouldBe None
+      in(the bb "%bb2") { my =>
+        
+        my inst "%newhybrid_s" shouldBeA[InstNewHybrid] { its =>
+          its.allocTy shouldBe (our ty "@hic")
+          its.lenTy shouldBe (our ty "@i64")
+          its.length shouldBe (my param "%p0")
+          its.excClause shouldBe Some(ExcClause(
+              DestClause(the bb "%bb3", Seq("%alloca", "%allocahybrid", "%p0", "%p1").map(my.value)),
+              DestClause(the bb "%handler", Seq())))
+        }
       }
-      
-      my inst "%alloca" shouldBeA[InstAlloca] { its =>
-        its.allocTy shouldBe (our ty "@i64")
-        its.excClause shouldBe None
+      in(the bb "%bb3") { my =>
+        
+        my inst "%alloca_s" shouldBeA[InstAlloca] { its =>
+          its.allocTy shouldBe (our ty "@i64")
+          its.excClause shouldBe Some(ExcClause(
+              DestClause(the bb "%bb4", Seq("%alloca", "%allocahybrid", "%p0", "%p1").map(my.value)),
+              DestClause(the bb "%handler", Seq())))
+        }
       }
-      
-      my inst "%allocahybrid" shouldBeA[InstAllocaHybrid] { its =>
-        its.allocTy shouldBe (our ty "@hic")
-        its.lenTy shouldBe (our ty "@i64")
-        its.length shouldBe (my param "%p0")
-        its.excClause shouldBe None
+      in(the bb "%bb4") { my =>
+        
+        my inst "%allocahybrid_s" shouldBeA[InstAllocaHybrid] { its =>
+          its.allocTy shouldBe (our ty "@hic")
+          its.lenTy shouldBe (our ty "@i64")
+          its.length shouldBe (my param "%p0")
+          its.excClause shouldBe Some(ExcClause(
+              DestClause(the bb "%bb5", Seq("%alloca", "%allocahybrid", "%p1").map(my.value)),
+              DestClause(the bb "%handler", Seq())))
+        }
       }
+      in(the bb "%bb5") { my =>
+  
+        my inst "%new2" shouldBeA[InstNew] { its =>
+          its.allocTy shouldBe (our ty "@sid")
+          its.excClause shouldBe None
+        }
+        
+        my inst "%alloca2" shouldBeA[InstAlloca] { its =>
+          its.allocTy shouldBe (our ty "@al")
+          its.excClause shouldBe None
+        }
+        
+        my inst "%getiref" shouldBeA[InstGetIRef] { its =>
+          its.referentTy shouldBe (our ty "@sid")
+          its.opnd shouldBe (my inst "%new2")
+        }
+        
+        my inst "%getfieldiref" shouldBeA[InstGetFieldIRef] { its =>
+          its.ptr shouldBe false
+          its.referentTy shouldBe (our ty "@sid")
+          its.index shouldBe 0
+          its.opnd shouldBe (my inst "%getiref")
+        }
+        
+        my inst "%getelemiref" shouldBeA[InstGetElemIRef] { its =>
+          its.ptr shouldBe false
+          its.referentTy shouldBe (our ty "@al")
+          its.indTy shouldBe (our ty "@i64")
+          its.opnd shouldBe (my inst "%alloca2")
+          its.index shouldBe (my param "%p1")
+        }
+        
+        my inst "%shiftiref" shouldBeA[InstShiftIRef] { its =>
+          its.ptr shouldBe false
+          its.referentTy shouldBe (our ty "@i8")
+          its.offTy shouldBe (our ty "@i64")
+          its.opnd shouldBe (my inst "%getvarpartiref")
+          its.offset shouldBe (my param "%p1")
+        }
+  
+        my inst "%getfixedpartiref" shouldBeA[InstGetFixedPartIRef] { its =>
+          its.ptr shouldBe false
+          its.referentTy shouldBe (our ty "@hic")
+          its.opnd shouldBe (my inst "%allocahybrid")
+        }
+        
+        my inst "%getvarpartiref" shouldBeA[InstGetVarPartIRef] { its =>
+          its.ptr shouldBe false
+          its.referentTy shouldBe (our ty "@hic")
+          its.opnd shouldBe (my inst "%allocahybrid")
+        }
+        
+        my inst "%load" shouldBeA[InstLoad] { its =>
+          its.ptr shouldBe false
+          its.ord shouldBe MemoryOrder.NOT_ATOMIC
+          its.referentTy shouldBe (our ty "@i64")
+          its.loc shouldBe (my inst "%alloca")
+          its.excClause shouldBe None
+        }
+        
+        my inst "%store" shouldBeA[InstStore] { its =>
+          its.ptr shouldBe false
+          its.ord shouldBe MemoryOrder.NOT_ATOMIC
+          its.referentTy shouldBe (our ty "@i64")
+          its.loc shouldBe (my inst "%alloca")
+          its.newVal shouldBe (our const "@I64_42")
+          its.excClause shouldBe None
+        }
+        
+        my inst "%cmpxchg" shouldBeA[InstCmpXchg] { its =>
+          its.ptr shouldBe false
+          its.ordSucc shouldBe MemoryOrder.SEQ_CST
+          its.ordFail shouldBe MemoryOrder.SEQ_CST
+          its.referentTy shouldBe (our ty "@i64")
+          its.loc shouldBe (my inst "%alloca")
+          its.expected shouldBe (our const "@I64_42")
+          its.desired shouldBe (our const "@I64_0")
+          its.excClause shouldBe None
+        }
+      
+        my inst "%atomicrmw" shouldBeA[InstAtomicRMW] { its =>
+          its.ptr shouldBe false
+          its.ord shouldBe MemoryOrder.SEQ_CST
+          its.op shouldBe AtomicRMWOptr.ADD
+          its.referentTy shouldBe (our ty "@i64")
+          its.loc shouldBe (my inst "%alloca")
+          its.opnd shouldBe (our const "@I64_43")
+          its.excClause shouldBe None
+        }
      
-      my inst "%new_s" shouldBeA[InstNew] { its =>
-        its.allocTy shouldBe (our ty "@i64")
-        its.excClause shouldBe Some(ExcClause((my bb "%bb2"), (my bb "%handler")))
+        my inst "%load_s" shouldBeA[InstLoad] { its =>
+          its.ptr shouldBe false
+          its.ord shouldBe MemoryOrder.NOT_ATOMIC
+          its.referentTy shouldBe (our ty "@i64")
+          its.loc shouldBe (my inst "%alloca")
+          its.excClause shouldBe Some(ExcClause(
+              DestClause(the bb "%bb6", Seq(my value "%alloca")),
+              DestClause(the bb "%handler", Seq())))
+        }
       }
+      in(the bb "%bb6") { my =>
+        
+        my inst "%store_s" shouldBeA[InstStore] { its =>
+          its.ptr shouldBe false
+          its.ord shouldBe MemoryOrder.NOT_ATOMIC
+          its.referentTy shouldBe (our ty "@i64")
+          its.loc shouldBe (my inst "%alloca")
+          its.newVal shouldBe (our const "@I64_42")
+          its.excClause shouldBe Some(ExcClause(
+              DestClause(the bb "%bb7", Seq(my value "%alloca" )),
+              DestClause(the bb "%handler", Seq())))
+        }
+      }
+      in(the bb "%bb7") { my =>
+        
+        my inst "%cmpxchg_s" shouldBeA[InstCmpXchg] { its =>
+          its.ptr shouldBe false
+          its.ordSucc shouldBe MemoryOrder.SEQ_CST
+          its.ordFail shouldBe MemoryOrder.SEQ_CST
+          its.referentTy shouldBe (our ty "@i64")
+          its.loc shouldBe (my inst "%alloca")
+          its.expected shouldBe (our const "@I64_42")
+          its.desired shouldBe (our const "@I64_0")
+          its.excClause shouldBe Some(ExcClause(
+              DestClause(the bb "%bb8", Seq(my value "%alloca")),
+              DestClause(the bb "%handler", Seq())))
+       }
+      }
+      in(the bb "%bb8") { my =>
       
-      my inst "%newhybrid_s" shouldBeA[InstNewHybrid] { its =>
-        its.allocTy shouldBe (our ty "@hic")
-        its.lenTy shouldBe (our ty "@i64")
-        its.length shouldBe (my param "%p0")
-        its.excClause shouldBe Some(ExcClause((my bb "%bb3"), (my bb "%handler")))
+        my inst "%atomicrmw_s" shouldBeA[InstAtomicRMW] { its =>
+          its.ptr shouldBe false
+          its.ord shouldBe MemoryOrder.SEQ_CST
+          its.op shouldBe AtomicRMWOptr.ADD
+          its.referentTy shouldBe (our ty "@i64")
+          its.loc shouldBe (my inst "%alloca")
+          its.opnd shouldBe (our const "@I64_43")
+          its.excClause shouldBe Some(ExcClause(
+              DestClause(the bb "%bb9", Seq()),
+              DestClause(the bb "%handler", Seq())))
+        }
       }
-      
-      my inst "%alloca_s" shouldBeA[InstAlloca] { its =>
-        its.allocTy shouldBe (our ty "@i64")
-        its.excClause shouldBe Some(ExcClause((my bb "%bb4"), (my bb "%handler")))
-      }
-      
-      my inst "%allocahybrid_s" shouldBeA[InstAllocaHybrid] { its =>
-        its.allocTy shouldBe (our ty "@hic")
-        its.lenTy shouldBe (our ty "@i64")
-        its.length shouldBe (my param "%p0")
-        its.excClause shouldBe Some(ExcClause((my bb "%bb5"), (my bb "%handler")))
-      }
-
-      my inst "%new2" shouldBeA[InstNew] { its =>
-        its.allocTy shouldBe (our ty "@sid")
-        its.excClause shouldBe None
-      }
-      
-      my inst "%alloca2" shouldBeA[InstAlloca] { its =>
-        its.allocTy shouldBe (our ty "@al")
-        its.excClause shouldBe None
-      }
-      
-      my inst "%getiref" shouldBeA[InstGetIRef] { its =>
-        its.referentTy shouldBe (our ty "@sid")
-        its.opnd shouldBe (my inst "%new2")
-      }
-      
-      my inst "%getfieldiref" shouldBeA[InstGetFieldIRef] { its =>
-        its.ptr shouldBe false
-        its.referentTy shouldBe (our ty "@sid")
-        its.index shouldBe 0
-        its.opnd shouldBe (my inst "%getiref")
-      }
-      
-      my inst "%getelemiref" shouldBeA[InstGetElemIRef] { its =>
-        its.ptr shouldBe false
-        its.referentTy shouldBe (our ty "@al")
-        its.indTy shouldBe (our ty "@i64")
-        its.opnd shouldBe (my inst "%alloca2")
-        its.index shouldBe (my param "%p1")
-      }
-      
-      my inst "%shiftiref" shouldBeA[InstShiftIRef] { its =>
-        its.ptr shouldBe false
-        its.referentTy shouldBe (our ty "@i8")
-        its.offTy shouldBe (our ty "@i64")
-        its.opnd shouldBe (my inst "%getvarpartiref")
-        its.offset shouldBe (my param "%p1")
-      }
-
-      my inst "%getfixedpartiref" shouldBeA[InstGetFixedPartIRef] { its =>
-        its.ptr shouldBe false
-        its.referentTy shouldBe (our ty "@hic")
-        its.opnd shouldBe (my inst "%allocahybrid")
-      }
-      
-      my inst "%getvarpartiref" shouldBeA[InstGetVarPartIRef] { its =>
-        its.ptr shouldBe false
-        its.referentTy shouldBe (our ty "@hic")
-        its.opnd shouldBe (my inst "%allocahybrid")
-      }
-      
-      my inst "%load" shouldBeA[InstLoad] { its =>
-        its.ptr shouldBe false
-        its.ord shouldBe MemoryOrder.NOT_ATOMIC
-        its.referentTy shouldBe (our ty "@i64")
-        its.loc shouldBe (my inst "%alloca")
-        its.excClause shouldBe None
-      }
-      
-      my inst "%store" shouldBeA[InstStore] { its =>
-        its.ptr shouldBe false
-        its.ord shouldBe MemoryOrder.NOT_ATOMIC
-        its.referentTy shouldBe (our ty "@i64")
-        its.loc shouldBe (my inst "%alloca")
-        its.newVal shouldBe (our const "@I64_42")
-        its.excClause shouldBe None
-      }
-      
-      my inst "%cmpxchg" shouldBeA[InstCmpXchg] { its =>
-        its.ptr shouldBe false
-        its.ordSucc shouldBe MemoryOrder.SEQ_CST
-        its.ordFail shouldBe MemoryOrder.SEQ_CST
-        its.referentTy shouldBe (our ty "@i64")
-        its.loc shouldBe (my inst "%alloca")
-        its.expected shouldBe (our const "@I64_42")
-        its.desired shouldBe (our const "@I64_0")
-        its.excClause shouldBe None
-      }
-    
-      my inst "%atomicrmw" shouldBeA[InstAtomicRMW] { its =>
-        its.ptr shouldBe false
-        its.ord shouldBe MemoryOrder.SEQ_CST
-        its.op shouldBe AtomicRMWOptr.ADD
-        its.referentTy shouldBe (our ty "@i64")
-        its.loc shouldBe (my inst "%alloca")
-        its.opnd shouldBe (our const "@I64_43")
-        its.excClause shouldBe None
-      }
-   
-      my inst "%load_s" shouldBeA[InstLoad] { its =>
-        its.ptr shouldBe false
-        its.ord shouldBe MemoryOrder.NOT_ATOMIC
-        its.referentTy shouldBe (our ty "@i64")
-        its.loc shouldBe (my inst "%alloca")
-        its.excClause shouldBe Some(ExcClause((my bb "%bb6"), (my bb "%handler")))
-      }
-      
-      my inst "%store_s" shouldBeA[InstStore] { its =>
-        its.ptr shouldBe false
-        its.ord shouldBe MemoryOrder.NOT_ATOMIC
-        its.referentTy shouldBe (our ty "@i64")
-        its.loc shouldBe (my inst "%alloca")
-        its.newVal shouldBe (our const "@I64_42")
-        its.excClause shouldBe Some(ExcClause((my bb "%bb7"), (my bb "%handler")))
-      }
-      
-      my inst "%cmpxchg_s" shouldBeA[InstCmpXchg] { its =>
-        its.ptr shouldBe false
-        its.ordSucc shouldBe MemoryOrder.SEQ_CST
-        its.ordFail shouldBe MemoryOrder.SEQ_CST
-        its.referentTy shouldBe (our ty "@i64")
-        its.loc shouldBe (my inst "%alloca")
-        its.expected shouldBe (our const "@I64_42")
-        its.desired shouldBe (our const "@I64_0")
-        its.excClause shouldBe Some(ExcClause((my bb "%bb8"), (my bb "%handler")))
-     }
-    
-      my inst "%atomicrmw_s" shouldBeA[InstAtomicRMW] { its =>
-        its.ptr shouldBe false
-        its.ord shouldBe MemoryOrder.SEQ_CST
-        its.op shouldBe AtomicRMWOptr.ADD
-        its.referentTy shouldBe (our ty "@i64")
-        its.loc shouldBe (my inst "%alloca")
-        its.opnd shouldBe (our const "@I64_43")
-        its.excClause shouldBe Some(ExcClause((my bb "%bb9"), (my bb "%handler")))
-      }
-      
-      my inst "%fence" shouldBeA[InstFence] { its =>
-        its.ord shouldBe (MemoryOrder.SEQ_CST)
+      in(the bb "%bb9") { my =>
+        
+        my inst "%fence" shouldBeA[InstFence] { its =>
+          its.ord shouldBe (MemoryOrder.SEQ_CST)
+        }
       }
     }
 
     in (our func "@memops_ptr") { (func, the) =>
-      val my = ver
+      in(the bb "%entry") { my =>
+        
+        my inst "%p" shouldBeA[InstCommInst] { _.argList(0) shouldBe (my inst "%new")}
+        
+        my inst "%getfieldiref" shouldBeA[InstGetFieldIRef] { its =>
+          its.ptr shouldBe true
+          its.referentTy shouldBe (our ty "@sid")
+          its.index shouldBe 0
+          its.opnd shouldBe (my inst "%p2")
+        }
+        
+        my inst "%getelemiref" shouldBeA[InstGetElemIRef] { its =>
+          its.ptr shouldBe true
+          its.referentTy shouldBe (our ty "@al")
+          its.indTy shouldBe (our ty "@i64")
+          its.opnd shouldBe (my inst "%p3")
+          its.index shouldBe (my param "%p1")
+        }
+        
+        my inst "%shiftiref" shouldBeA[InstShiftIRef] { its =>
+          its.ptr shouldBe true
+          its.referentTy shouldBe (our ty "@i8")
+          its.offTy shouldBe (our ty "@i64")
+          its.opnd shouldBe (my inst "%getvarpartiref")
+          its.offset shouldBe (my param "%p1")
+        }
+  
+        my inst "%getfixedpartiref" shouldBeA[InstGetFixedPartIRef] { its =>
+          its.ptr shouldBe true
+          its.referentTy shouldBe (our ty "@hic")
+          its.opnd shouldBe (my inst "%ph")
+        }
+        
+        my inst "%getvarpartiref" shouldBeA[InstGetVarPartIRef] { its =>
+          its.ptr shouldBe true
+          its.referentTy shouldBe (our ty "@hic")
+          its.opnd shouldBe (my inst "%ph")
+        }
+        
+        my inst "%load" shouldBeA[InstLoad] { its =>
+          its.ptr shouldBe true
+          its.ord shouldBe MemoryOrder.NOT_ATOMIC
+          its.referentTy shouldBe (our ty "@i64")
+          its.loc shouldBe (my inst "%p")
+          its.excClause shouldBe None
+        }
+        
+        my inst "%store" shouldBeA[InstStore] { its =>
+          its.ptr shouldBe true
+          its.ord shouldBe MemoryOrder.NOT_ATOMIC
+          its.referentTy shouldBe (our ty "@i64")
+          its.loc shouldBe (my inst "%p")
+          its.newVal shouldBe (our const "@I64_42")
+          its.excClause shouldBe None
+        }
+        
+        my inst "%cmpxchg" shouldBeA[InstCmpXchg] { its =>
+          its.ptr shouldBe true
+          its.ordSucc shouldBe MemoryOrder.SEQ_CST
+          its.ordFail shouldBe MemoryOrder.SEQ_CST
+          its.referentTy shouldBe (our ty "@i64")
+          its.loc shouldBe (my inst "%p")
+          its.expected shouldBe (our const "@I64_42")
+          its.desired shouldBe (our const "@I64_0")
+          its.excClause shouldBe None
+        }
       
-      my inst "%p" shouldBeA[InstCommInst] { _.argList(0) shouldBe (my inst "%new")}
-      
-      my inst "%getfieldiref" shouldBeA[InstGetFieldIRef] { its =>
-        its.ptr shouldBe true
-        its.referentTy shouldBe (our ty "@sid")
-        its.index shouldBe 0
-        its.opnd shouldBe (my inst "%p2")
+        my inst "%atomicrmw" shouldBeA[InstAtomicRMW] { its =>
+          its.ptr shouldBe true
+          its.ord shouldBe MemoryOrder.SEQ_CST
+          its.op shouldBe AtomicRMWOptr.ADD
+          its.referentTy shouldBe (our ty "@i64")
+          its.loc shouldBe (my inst "%p")
+          its.opnd shouldBe (our const "@I64_43")
+          its.excClause shouldBe None
+        }
       }
-      
-      my inst "%getelemiref" shouldBeA[InstGetElemIRef] { its =>
-        its.ptr shouldBe true
-        its.referentTy shouldBe (our ty "@al")
-        its.indTy shouldBe (our ty "@i64")
-        its.opnd shouldBe (my inst "%p3")
-        its.index shouldBe (my param "%p1")
-      }
-      
-      my inst "%shiftiref" shouldBeA[InstShiftIRef] { its =>
-        its.ptr shouldBe true
-        its.referentTy shouldBe (our ty "@i8")
-        its.offTy shouldBe (our ty "@i64")
-        its.opnd shouldBe (my inst "%getvarpartiref")
-        its.offset shouldBe (my param "%p1")
-      }
-
-      my inst "%getfixedpartiref" shouldBeA[InstGetFixedPartIRef] { its =>
-        its.ptr shouldBe true
-        its.referentTy shouldBe (our ty "@hic")
-        its.opnd shouldBe (my inst "%ph")
-      }
-      
-      my inst "%getvarpartiref" shouldBeA[InstGetVarPartIRef] { its =>
-        its.ptr shouldBe true
-        its.referentTy shouldBe (our ty "@hic")
-        its.opnd shouldBe (my inst "%ph")
-      }
-      
-      my inst "%load" shouldBeA[InstLoad] { its =>
-        its.ptr shouldBe true
-        its.ord shouldBe MemoryOrder.NOT_ATOMIC
-        its.referentTy shouldBe (our ty "@i64")
-        its.loc shouldBe (my inst "%p")
-        its.excClause shouldBe None
-      }
-      
-      my inst "%store" shouldBeA[InstStore] { its =>
-        its.ptr shouldBe true
-        its.ord shouldBe MemoryOrder.NOT_ATOMIC
-        its.referentTy shouldBe (our ty "@i64")
-        its.loc shouldBe (my inst "%p")
-        its.newVal shouldBe (our const "@I64_42")
-        its.excClause shouldBe None
-      }
-      
-      my inst "%cmpxchg" shouldBeA[InstCmpXchg] { its =>
-        its.ptr shouldBe true
-        its.ordSucc shouldBe MemoryOrder.SEQ_CST
-        its.ordFail shouldBe MemoryOrder.SEQ_CST
-        its.referentTy shouldBe (our ty "@i64")
-        its.loc shouldBe (my inst "%p")
-        its.expected shouldBe (our const "@I64_42")
-        its.desired shouldBe (our const "@I64_0")
-        its.excClause shouldBe None
-      }
-    
-      my inst "%atomicrmw" shouldBeA[InstAtomicRMW] { its =>
-        its.ptr shouldBe true
-        its.ord shouldBe MemoryOrder.SEQ_CST
-        its.op shouldBe AtomicRMWOptr.ADD
-        its.referentTy shouldBe (our ty "@i64")
-        its.loc shouldBe (my inst "%p")
-        its.opnd shouldBe (our const "@I64_43")
-        its.excClause shouldBe None
-      }
-   
     }
     
     in (our func "@memorder") { (func, the) =>
-      val my = ver
-      
-      my inst "%l0" shouldBeA[InstLoad] { _.ord shouldBe MemoryOrder.NOT_ATOMIC }
-      my inst "%l1" shouldBeA[InstLoad] { _.ord shouldBe MemoryOrder.RELAXED }
-      my inst "%l2" shouldBeA[InstLoad] { _.ord shouldBe MemoryOrder.CONSUME }
-      my inst "%l3" shouldBeA[InstLoad] { _.ord shouldBe MemoryOrder.ACQUIRE }
-      my inst "%s4" shouldBeA[InstStore] { _.ord shouldBe MemoryOrder.RELEASE }
-      my inst "%c5" shouldBeA[InstCmpXchg] { its =>
-        its.ordSucc shouldBe MemoryOrder.ACQ_REL
-        its.ordFail shouldBe MemoryOrder.ACQUIRE
+      in(the bb "%entry") { my =>
+        
+        my inst "%l0" shouldBeA[InstLoad] { _.ord shouldBe MemoryOrder.NOT_ATOMIC }
+        my inst "%l1" shouldBeA[InstLoad] { _.ord shouldBe MemoryOrder.RELAXED }
+        my inst "%l2" shouldBeA[InstLoad] { _.ord shouldBe MemoryOrder.CONSUME }
+        my inst "%l3" shouldBeA[InstLoad] { _.ord shouldBe MemoryOrder.ACQUIRE }
+        my inst "%s4" shouldBeA[InstStore] { _.ord shouldBe MemoryOrder.RELEASE }
+        my inst "%c5" shouldBeA[InstCmpXchg] { its =>
+          its.ordSucc shouldBe MemoryOrder.ACQ_REL
+          its.ordFail shouldBe MemoryOrder.ACQUIRE
+        }
+        my inst "%l6" shouldBeA[InstLoad] { _.ord shouldBe MemoryOrder.SEQ_CST }
       }
-      my inst "%l6" shouldBeA[InstLoad] { _.ord shouldBe MemoryOrder.SEQ_CST }
     }
     
     in (our func "@atomicrmwops") { (func, the) =>
-      val my = ver
-      
-      my inst "%old0" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.XCHG }
-      my inst "%old1" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.ADD }
-      my inst "%old2" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.SUB }
-      my inst "%old3" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.AND }
-      my inst "%old4" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.NAND }
-      my inst "%old5" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.OR }
-      my inst "%old6" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.XOR }
-      my inst "%old7" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.MAX }
-      my inst "%old8" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.MIN }
-      my inst "%old9" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.UMAX }
-      my inst "%olda" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.UMIN }
+      in(the bb "%entry") { my =>
+        
+        my inst "%old0" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.XCHG }
+        my inst "%old1" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.ADD }
+        my inst "%old2" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.SUB }
+        my inst "%old3" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.AND }
+        my inst "%old4" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.NAND }
+        my inst "%old5" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.OR }
+        my inst "%old6" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.XOR }
+        my inst "%old7" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.MAX }
+        my inst "%old8" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.MIN }
+        my inst "%old9" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.UMAX }
+        my inst "%olda" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.UMIN }
+      }
     }
 
     in (our func "@traps") { (func, the) =>
-      val my = ver
-      
-      my inst "%tp" shouldBeA[InstTrap] { its =>
-        its.retTy shouldBe (our ty "@i32")
-        its.excClause shouldBe None
-        its.keepAlives shouldBe Seq(my inst "%a")
+      in(the bb "%entry") { my =>
+        
+        my inst "%tp" shouldBeA[InstTrap] { its =>
+          its.retTy shouldBe (our ty "@i32")
+          its.excClause shouldBe None
+          its.keepAlives shouldBe Seq(my inst "%a")
+        }
+         
+        my inst "%tp_s" shouldBeA[InstTrap] { its =>
+          its.retTy shouldBe (our ty "@i64")
+          its.excClause shouldBe Some(ExcClause(
+              DestClause(the bb "%tp_s_cont", Seq("%a", "%b").map(my.value)),
+              DestClause(the bb "%tp_s_exc", Seq())))
+          its.keepAlives shouldBe Seq(my inst "%b")
+        }
       }
-       
-      my inst "%tp_s" shouldBeA[InstTrap] { its =>
-        its.retTy shouldBe (our ty "@i64")
-        its.excClause shouldBe Some(ExcClause(my bb "%tp_s_cont", my bb "%tp_s_exc"))
-        its.keepAlives shouldBe Seq(my inst "%b")
+      in(the bb "%tp_s_cont") { my =>
+        
+        my inst "%wp" shouldBeA[InstWatchPoint] { its =>
+          its.wpID shouldBe 1
+          its.retTy shouldBe (our ty "@float")
+          its.dis shouldBe DestClause(the bb "%wp_dis_cont", Seq("%b").map(my.value))
+          its.ena shouldBe DestClause(the bb "%wp_ena_cont", Seq())
+          its.exc shouldBe None
+          its.keepAlives shouldBe Seq(my inst "%a")
+        }
       }
-      
-      my inst "%wp" shouldBeA[InstWatchPoint] { its =>
-        its.wpID shouldBe 1
-        its.retTy shouldBe (our ty "@float")
-        its.dis shouldBe (my bb "%wp_dis_cont")
-        its.ena shouldBe (my bb "%wp_ena_cont")
-        its.exc shouldBe None
-        its.keepAlives shouldBe Seq(my inst "%a")
-      }
-      
-      my inst "%wp_s" shouldBeA[InstWatchPoint] { its =>
-        its.wpID shouldBe 2
-        its.retTy shouldBe (our ty "@double")
-        its.dis shouldBe (my bb "%wp_s_dis_cont")
-        its.ena shouldBe (my bb "%wp_s_ena_cont")
-        its.exc shouldBe Some(my bb "%wp_s_exc")
-        its.keepAlives shouldBe Seq(my inst "%b")
+      in(the bb "%wp_dis_cont") { my =>
+        
+        my inst "%wp_s" shouldBeA[InstWatchPoint] { its =>
+          its.wpID shouldBe 2
+          its.retTy shouldBe (our ty "@double")
+          its.dis shouldBe DestClause(the bb "%wp_s_dis_cont", Seq())
+          its.ena shouldBe DestClause(the bb "%wp_s_ena_cont", Seq())
+          its.exc shouldBe Some(DestClause(the bb "%wp_s_exc", Seq()))
+          its.keepAlives shouldBe Seq(my inst "%b")
+        }
       }
     }
 
     in (our func "@ccall") { (func, the) =>
-      val my = ver
+      in(the bb "%entry") { my =>
       
-      my inst "%rv" shouldBeA[InstCCall] { its =>
-        its.callConv shouldBe Flag("#DEFAULT")
-        its.funcTy shouldBe (our ty "@ccall_callee_fp")
-        its.sig shouldBe (our sig "@ccall_callee_sig")
-        its.callee shouldBe (my param "%p0")
-        its.argList shouldBe Seq(our value "@D_1")
+        my inst "%rv" shouldBeA[InstCCall] { its =>
+          its.callConv shouldBe Flag("#DEFAULT")
+          its.funcTy shouldBe (our ty "@ccall_callee_fp")
+          its.sig shouldBe (our sig "@ccall_callee_sig")
+          its.callee shouldBe (my param "%p0")
+          its.argList shouldBe Seq(our value "@D_1")
+        }
       }
     }
     
     in (our func "@gen") { (func, the) =>
-      val my = ver
-      
-      my inst "%ss1" shouldBeA[InstSwapStack] { its =>
-        its.swappee shouldBe (my value "%main")
-        its.curStackAction shouldBe RetWith(our ty "@void")
-        its.newStackAction shouldBe PassValue(our ty "@i64", our value "@I64_0")
-        its.excClause shouldBe None
-        its.keepAlives shouldBe empty
-      }
-      my inst "%ss2" shouldBeA[InstSwapStack] { its =>
-        its.swappee shouldBe (my value "%main")
-        its.curStackAction shouldBe KillOld()
-        its.newStackAction shouldBe ThrowExc(our value "@NULLREF")
-        its.excClause shouldBe None
-        its.keepAlives shouldBe empty
+      in(the bb "%entry") { my =>
+        
+        my inst "%ss1" shouldBeA[InstSwapStack] { its =>
+          its.swappee shouldBe (my value "%main")
+          its.curStackAction shouldBe RetWith(our ty "@void")
+          its.newStackAction shouldBe PassValue(our ty "@i64", our value "@I64_0")
+          its.excClause shouldBe None
+          its.keepAlives shouldBe empty
+        }
+        my inst "%ss2" shouldBeA[InstSwapStack] { its =>
+          its.swappee shouldBe (my value "%main")
+          its.curStackAction shouldBe KillOld()
+          its.newStackAction shouldBe ThrowExc(our value "@NULLREF")
+          its.excClause shouldBe None
+          its.keepAlives shouldBe empty
+        }
       }
     }
    
     in (our func "@swapstack") { (func, the) =>
-      val my = ver
-      
-      my inst "%curstack" shouldBeA[InstCommInst] { its =>
-        its.inst shouldBe (CommInsts("@uvm.current_stack"))
-        its.typeList shouldBe empty
-        its.argList shouldBe empty
-        its.excClause shouldBe None
-        its.keepAlives shouldBe empty
-      }
-      
-      my inst "%coro" shouldBeA[InstNewStack] { its =>
-        its.sig shouldBe (our sig "@iii_sig")
-        its.callee shouldBe (our value "@callee2")
-        its.argList shouldBe Seq(my value "%curstack")
-        its.excClause shouldBe Some(ExcClause(my bb "%cont", my bb "%exc"))
-      }
-      
-      my inst "%ss1" shouldBeA[InstSwapStack] { its =>
-        its.swappee shouldBe (my value "%coro")
-        its.curStackAction shouldBe RetWith(our ty "@i64")
-        its.newStackAction shouldBe PassVoid()
-        its.excClause shouldBe None
-        its.keepAlives shouldBe Seq(my value "%curstack")
-      }
-      my inst "%ss2" shouldBeA[InstSwapStack] { its =>
-        its.swappee shouldBe (my value "%coro")
-        its.curStackAction shouldBe RetWith(our ty "@i64")
-        its.newStackAction shouldBe PassVoid()
-        its.excClause shouldBe Some(ExcClause(my bb "%nor", my bb "%exc"))
-        its.keepAlives shouldBe empty
+      in(the bb "%entry") { my =>
+        
+        my inst "%curstack" shouldBeA[InstCommInst] { its =>
+          its.inst shouldBe (CommInsts("@uvm.current_stack"))
+          its.typeList shouldBe empty
+          its.argList shouldBe empty
+          its.excClause shouldBe None
+          its.keepAlives shouldBe empty
+        }
+        
+        my inst "%coro" shouldBeA[InstNewStack] { its =>
+          its.sig shouldBe (our sig "@iii_sig")
+          its.callee shouldBe (our value "@callee2")
+          its.argList shouldBe Seq(my value "%curstack")
+          its.excClause shouldBe Some(ExcClause(
+              DestClause(the bb "%cont", Seq("%curstack", "%coro").map(my.value)),
+              DestClause(the bb "%exc", Seq())))
+        }
+      }  
+      in(the bb "%cont") { my =>
+        my inst "%ss1" shouldBeA[InstSwapStack] { its =>
+          its.swappee shouldBe (my value "%coro")
+          its.curStackAction shouldBe RetWith(our ty "@i64")
+          its.newStackAction shouldBe PassValue(our ty "@void", our const "@VOID")
+          its.excClause shouldBe None
+          its.keepAlives shouldBe Seq(my value "%curstack")
+        }
+        my inst "%ss2" shouldBeA[InstSwapStack] { its =>
+          its.swappee shouldBe (my value "%coro")
+          its.curStackAction shouldBe RetWith(our ty "@i64")
+          its.newStackAction shouldBe PassValue(our ty "@void", our const "@VOID")
+          its.excClause shouldBe Some(ExcClause(
+              DestClause(the bb "%nor", Seq()),
+              DestClause(the bb "%exc", Seq())))
+          its.keepAlives shouldBe empty
+        }
       }
     }
     
     in (our func "@comminst") { (func, the) =>
-      val my = ver
+      in(the bb "%entry") { my =>
       
-      my inst "%thr" shouldBeA[InstCommInst] { its =>
-        its.inst shouldBe CommInsts("@uvm.new_thread")
-        its.flagList shouldBe empty
-        its.typeList shouldBe empty
-        its.funcSigList shouldBe empty
-        its.argList shouldBe Seq(my value "%sta")
-        its.excClause shouldBe None
-        its.keepAlives shouldBe empty
-      }
-      
-      my inst "%th_ex" shouldBeA[InstCommInst] { its =>
-        its.inst shouldBe CommInsts("@uvm.thread_exit")
-        its.flagList shouldBe empty
-        its.typeList shouldBe empty
-        its.funcSigList shouldBe empty
-        its.argList shouldBe empty
-        its.excClause shouldBe None
-        its.keepAlives shouldBe empty
-      }
-
-      my inst "%ex" shouldBeA[InstCommInst] { its =>
-        its.inst shouldBe CommInsts("@uvm.native.expose")
-        its.flagList shouldBe Seq(Flag("#DEFAULT"))
-        its.typeList shouldBe empty
-        its.funcSigList shouldBe Seq(our sig "@npnr_sig")
-        its.argList shouldBe Seq(our func "@swapstack")
-        its.excClause shouldBe None
-        its.keepAlives shouldBe empty
+        my inst "%thr" shouldBeA[InstCommInst] { its =>
+          its.inst shouldBe CommInsts("@uvm.new_thread")
+          its.flagList shouldBe empty
+          its.typeList shouldBe empty
+          its.funcSigList shouldBe empty
+          its.argList shouldBe Seq(my value "%sta")
+          its.excClause shouldBe None
+          its.keepAlives shouldBe empty
+        }
+        
+        my inst "%th_ex" shouldBeA[InstCommInst] { its =>
+          its.inst shouldBe CommInsts("@uvm.thread_exit")
+          its.flagList shouldBe empty
+          its.typeList shouldBe empty
+          its.funcSigList shouldBe empty
+          its.argList shouldBe empty
+          its.excClause shouldBe None
+          its.keepAlives shouldBe empty
+        }
+  
+        my inst "%ex" shouldBeA[InstCommInst] { its =>
+          its.inst shouldBe CommInsts("@uvm.native.expose")
+          its.flagList shouldBe Seq(Flag("#DEFAULT"))
+          its.typeList shouldBe empty
+          its.funcSigList shouldBe Seq(our sig "@npnr_sig")
+          its.argList shouldBe Seq(our func "@swapstack")
+          its.excClause shouldBe None
+          its.keepAlives shouldBe empty
+        }
       }
     }
   }
 
-  def validateRedef(globalBundle: Bundle, bundle: Bundle) {
-    val ourOld = globalBundle
-    val ourNew = bundle
+  def validateRedef(globalBundle: GlobalBundle, b1: TrantientBundle, b2: TrantientBundle) {
+    val ourGlobal = globalBundle
+    val ourOld = b1
+    val ourNew = b2
     
-    in (ourOld func "@meaning_of_life") { (func, the) =>
-      val my = ver
+    in (ourGlobal func "@meaning_of_life") { (func, the) =>
+      in (the bb "%entry") { my =>
       
-      my inst "%ret" shouldBeA[InstRet] { its =>
-        its.retTy shouldBe (ourOld ty "@i64")
-        its.retVal shouldBe (ourOld const "@I64_42")
+        my inst "%ret" shouldBeA[InstRet] { its =>
+          its.retVal shouldBe (ourOld const "@I64_42")
+        }
       }
     }
     
-    (ourOld func "@foxsay").versions shouldBe Nil
-    (ourOld func "@meaning_of_life").versions shouldBe Seq(ourOld funcVer "@meaning_of_life_v1")
+    (ourGlobal func "@foxsay").versions shouldBe Nil
+    (ourGlobal func "@meaning_of_life").versions shouldBe Seq(ourGlobal funcVer "@meaning_of_life.v1")
+     
+    ourNew.funcNs.get("@foxsay") shouldBe None
+    ourNew.funcNs.get("@meaning_of_life") shouldBe None
+   
+    (ourNew funcVer "@meaning_of_life.v2").func shouldBe (ourGlobal func "@meaning_of_life")
+    (ourNew funcVer "@foxsay.v1").func shouldEqual (ourGlobal func "@foxsay")
     
-    (ourNew func "@meaning_of_life").id shouldEqual (ourOld func "@meaning_of_life").id
-    (ourNew func "@foxsay").id shouldEqual (ourOld func "@foxsay").id
-    
-    in (ourNew func "@meaning_of_life") { (func, the) =>
-      val my = ver
+    in (ourNew funcVer "@meaning_of_life.v2") { the =>
+      in (the bb "%entry") { my =>
       
-      my inst "%ret" shouldBeA[InstRet] { its =>
-        its.retTy shouldBe (ourOld ty "@i64")
-        its.retVal shouldBe (ourNew const "@I64_43")
+        my inst "%ret" shouldBeA[InstRet] { its =>
+          its.retVal shouldBe (ourNew const "@I64_43")
+        }
       }
     }
     
-    (ourNew func "@foxsay").versions shouldBe Seq(ourNew funcVer "@foxsay_v1")
-    (ourNew func "@meaning_of_life").versions shouldBe Seq(ourNew funcVer "@meaning_of_life_v2")
-    
-    in (ourNew func "@foxsay") { (func, the) =>
-      val my = ver
+    in (ourNew funcVer "@foxsay.v1") {  the =>
+      in (the bb "%entry") { my =>
       
-      my inst "%ret" shouldBeA[InstRet] { its =>
-        its.retTy shouldBe (ourOld ty "@i64")
-        its.retVal shouldBe (ourNew const "@I64_99")
+        my inst "%ret" shouldBeA[InstRet] { its =>
+          its.retVal shouldBe (ourNew const "@I64_99")
+        }
       }
     }
-
-    */
   }
   
   def validateRedefAfterMerge(globalBundle: Bundle, bundle: Bundle) {
     val ourGlobal = globalBundle
     val ourNew = bundle
     
-    (ourGlobal func "@foxsay").versions.head shouldBe (ourNew funcVer "@foxsay_v1")
-    (ourGlobal func "@meaning_of_life").versions.head shouldBe (ourNew funcVer "@meaning_of_life_v2")
+    (ourGlobal func "@foxsay").versions.head shouldBe (ourNew funcVer "@foxsay.v1")
+    (ourGlobal func "@meaning_of_life").versions.head shouldBe (ourNew funcVer "@meaning_of_life.v2")
+    (ourGlobal func "@meaning_of_life").versions.tail.head shouldBe (ourGlobal funcVer "@meaning_of_life.v1")
     
-    (ourGlobal funcVer "@meaning_of_life_v1").func shouldBe (ourGlobal func "@meaning_of_life")
-    (ourGlobal funcVer "@meaning_of_life_v2").func shouldBe (ourGlobal func "@meaning_of_life")
+    (ourGlobal funcVer "@meaning_of_life.v1").func shouldBe (ourGlobal func "@meaning_of_life")
+    (ourGlobal funcVer "@meaning_of_life.v2").func shouldBe (ourGlobal func "@meaning_of_life")
     
     val foxSay = ourGlobal func "@foxsay"
     ourGlobal value "@foxsay" shouldBe foxSay

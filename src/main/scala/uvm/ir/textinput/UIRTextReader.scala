@@ -18,12 +18,12 @@ class UIRTextReader(val idFactory: IDFactory) {
   import UIRTextReader._
   import uvm.ir.textinput.Later.Laterable
 
-  def read(ir: String, globalBundle: Bundle): Bundle = {
+  def read(ir: String, globalBundle: GlobalBundle): TrantientBundle = {
     val input = new ANTLRInputStream(ir)
     read(ir, input, globalBundle)
   }
 
-  def read(ir: java.io.Reader, globalBundle: Bundle): Bundle = {
+  def read(ir: java.io.Reader, globalBundle: GlobalBundle): TrantientBundle = {
     val sb = new StringBuilder()
     val cb = new Array[Char](4096)
 
@@ -57,7 +57,7 @@ class UIRTextReader(val idFactory: IDFactory) {
     def getMessages(): String = buf.mkString("\n")
   }
 
-  def read(source: String, ais: ANTLRInputStream, globalBundle: Bundle): Bundle = {
+  def read(source: String, ais: ANTLRInputStream, globalBundle: GlobalBundle): TrantientBundle = {
     val ea = new AccumulativeAntlrErrorListener(source)
 
     val lexer = new UIRLexer(ais)
@@ -144,8 +144,8 @@ class UIRTextReader(val idFactory: IDFactory) {
     case e: Exception => throw new TextIRParsingException(inCtx(ctx, s), e)
   }
 
-  def read(ir: IrContext, globalBundle: Bundle): Bundle = {
-    val bundle = new Bundle()
+  def read(ir: IrContext, globalBundle: GlobalBundle): TrantientBundle = {
+    val bundle = new TrantientBundle()
 
     // Resolve global entities. (If any resXxxx is not present, that's because it is simply not currently used)
 
@@ -364,6 +364,7 @@ class UIRTextReader(val idFactory: IDFactory) {
       }
       case fdef: FuncDefContext => {
         val func = findOldFunc(fdef.nam).getOrElse(declFunc(fdef.nam, fdef.funcSig))
+        //bundle.defFuncNs.add(func)
         funcDefs += ((func, fdef))
       }
       case edef: FuncExpDefContext => {
@@ -385,7 +386,7 @@ class UIRTextReader(val idFactory: IDFactory) {
       addFuncVer(ver)
 
       ver.func = func
-      func.versions = ver :: func.versions
+      //func.versions = ver :: func.versions  // Don't override here. Let the MicroVM redefine functions.
 
       def globalizeBB(name: String): String = globalize(name, verName)
 

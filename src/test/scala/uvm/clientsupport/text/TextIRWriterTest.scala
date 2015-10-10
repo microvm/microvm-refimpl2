@@ -717,6 +717,6 @@ class TextIRWriterTest extends FlatSpec with Matchers {
     
     println(ir)
     
-    val muBundle = new UIRTextReader(new IDFactory).read(ir, new uvm.Bundle())
+    val muBundle = new UIRTextReader(new IDFactory).read(ir, new uvm.GlobalBundle())
   }
 }

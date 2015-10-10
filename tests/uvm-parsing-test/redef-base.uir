@@ -3,9 +3,9 @@
 
 .funcsig @IntReturner = @i64 ()
 
-.funcdef @meaning_of_life VERSION @meaning_of_life_v1 <@IntReturner> () {
-    %entry:
-        %ret = RET <@i64> @I64_42
+.funcdef @meaning_of_life VERSION %v1 <@IntReturner> {
+    %entry():
+        %ret = RET @I64_42
 }
 
 .funcdecl @foxsay <@IntReturner>

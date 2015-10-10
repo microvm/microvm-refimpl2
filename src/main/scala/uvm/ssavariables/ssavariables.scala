@@ -153,7 +153,6 @@ case class KillOld() extends CurStackAction
 
 abstract class NewStackAction
 case class PassValue(var argTy: Type, var arg: SSAVariable) extends NewStackAction
-case class PassVoid() extends NewStackAction
 case class ThrowExc(var exc: SSAVariable) extends NewStackAction
 
 /**
