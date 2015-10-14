@@ -1,23 +1,44 @@
 package uvm.clientsupport.text
 
-import scala.beans._
-import java.util._
-import DefaultTypes._
+import java.util
 
-/**
- * This object contains common types and helper methods.
- */
-object DefaultTypes {
-  type MuName = String
-  type TypeMuName = MuName
-  type SigMuName = MuName
-  type VarMuName = MuName
-  type BBMuName = MuName
-  type Flag = String
-  type ListType[T] = List[T]
-  type ListImpl[T] = ArrayList[T]
+import scala.collection.JavaConversions
 
-  def makeList[T](): ListType[T] = new ListImpl[T]()
+private[text] object Helpers {
+  def buildMap[K, V](iter: TraversableOnce[(K, V)]): util.Map[K, V] = {
+    val map = new util.LinkedHashMap[K, V]
+    iter foreach { case (k, v) => map.put(k, v) }
+    util.Collections unmodifiableMap map
+  }
+  def buildList[T](iter: TraversableOnce[T]): util.List[T] = {
+    val list = new util.ArrayList[T]
+    iter foreach list.add
+    util.Collections unmodifiableList list
+  }
+}
+
+import Helpers._
+
+sealed trait MuName {
+  def name: String
+}
+sealed trait GlobalName extends MuName {
+  override lazy val toString = "@" + name
+}
+sealed trait LocalName extends MuName {
+  override lazy val toString = "%" + name
+}
+sealed trait VarName extends MuName
+case class TypeName(name: String) extends TypeCtor("@" + name) with GlobalName
+case class FuncSigName(name: String) extends GlobalName
+case class FuncVerName(name: String) extends GlobalName
+case class GlobalVarName(name: String) extends GlobalName with VarName
+case class LocalVarName(name: String) extends LocalName with VarName
+case class LabelName(name: String) extends LocalName
+
+final class Flag(cName: String) {
+  val name = cName.toUpperCase.replaceAll("[^A-Z_]", "")
+  override def toString = "#" + name
 }
 
 /**
@@ -25,519 +46,596 @@ object DefaultTypes {
  * "type definitions" rather than "types". Similarly "function definitions" and "function declarations" are separated
  * rather than contained in each other.
  */
-class Bundle() {
-  @BeanProperty var typeDefs: ListType[TypeDef] = makeList()
-  @BeanProperty var funcSigDefs: ListType[FuncSigDef] = makeList()
-  @BeanProperty var constDefs: ListType[ConstDef] = makeList()
-  @BeanProperty var globalCellDefs: ListType[GlobalCellDef] = makeList()
-  @BeanProperty var funcDefs: ListType[FuncDef] = makeList()
-  @BeanProperty var funcDecls: ListType[FuncDecl] = makeList()
-  @BeanProperty var funcExpDefs: ListType[FuncExpDef] = makeList()
+class Bundle(
+  cTypeDefs: TraversableOnce[(TypeName, TypeCtor)],
+  cFuncSigDefs: TraversableOnce[(FuncSigName, FuncSig)],
+  cConstDefs: TraversableOnce[(GlobalVarName, Const)],
+  cGlobalCellDefs: TraversableOnce[(GlobalVarName, TypeName)],
+  cFuncDecls: TraversableOnce[(GlobalVarName, FuncSigName)],
+  cFuncVers: TraversableOnce[(FuncVerName, FuncVer)],
+  cFuncExpDefs: TraversableOnce[(GlobalVarName, Expose)],
+  cComments: TraversableOnce[(GlobalName, String)]
+) {
+  lazy val typeDefs = buildMap(cTypeDefs)
+  lazy val funcSigDefs = buildMap(cFuncSigDefs)
+  lazy val constDefs = buildMap(cConstDefs)
+  lazy val globalCellDefs = buildMap(cGlobalCellDefs)
+  lazy val funcDecls = buildMap(cFuncDecls)
+  lazy val funcVers = buildMap(cFuncVers)
+  lazy val funcExpDefs = buildMap(cFuncExpDefs)
+  lazy val comments = buildMap(cComments)
+
+  override lazy val toString = {
+    val sb = new StringBuilder
+    def printBlock[N <: GlobalName, V](block: java.util.Map[N, V])(fn: (N, V) => Unit): Unit =
+      if (!block.isEmpty) {
+        import JavaConversions._
+        sb append "\n"
+        block foreach { case (name, value) =>
+          if (comments containsKey name) {
+            comments get name split '\n' map ("// " + _ + "\n") foreach sb.append
+          }
+          fn(name, value)
+        }
+      }
+
+    printBlock(typeDefs)((name, ctor) => sb append s".typedef $name = $ctor\n")
+    printBlock(funcSigDefs)((name, sig) => sb append s".funcsig $name = $sig\n")
+    printBlock(constDefs)((name, const) => sb append s".const $name <${const.ty}> = $const\n")
+    printBlock(globalCellDefs)((name, ty) => sb append s".global $name <$ty>\n")
+    printBlock(funcDecls)((name, sig) => sb append s".funcdecl $name <$sig>\n")
+    printBlock(funcExpDefs)((name, exp) => sb append s".expose $name = $exp\n")
+    printBlock(funcVers)((name, ver) =>
+      sb append s".funcdef ${ver.func} VERSION $name <${ver.sig}> $ver\n\n")
+
+    sb.toString
+  }
 }
 
-/**
- * Anything that has a name. The name may be global (@) or local (%). This includes all top-level definitions as well as
- * parameters, basic blocks and instructions.
- */
-abstract class HasName {
-  @BeanProperty var name: MuName = _
+sealed abstract class TypeCtor(str: => String) {
+  override lazy val toString: String = str
+}
+object TypeCtor {
+  case class Void() extends TypeCtor("void")
+  case class Int(bits: scala.Int) extends TypeCtor(s"int<$bits>")
+  case class Float() extends TypeCtor("float")
+  case class Double() extends TypeCtor("double")
+  case class Thread() extends TypeCtor("thread")
+  case class Stack() extends TypeCtor("stack")
+  case class Ref(ty: TypeCtor) extends TypeCtor(s"ref<$ty>")
+  case class IRef(ty: TypeCtor) extends TypeCtor(s"iref<$ty>")
+  case class WeakRef(ty: TypeCtor) extends TypeCtor(s"weakref<$ty>")
+  case class TagRef64() extends TypeCtor("tagref64")
+  case class Ptr(ty: TypeCtor) extends TypeCtor(s"ptr<$ty>")
+  case class FuncPtr(sig: FuncSigName) extends TypeCtor(s"funcptr<$sig>")
+  case class Array(ty: TypeCtor, len: scala.Long) extends TypeCtor(s"array<$ty $len>")
+  case class Vector(ty: TypeCtor, len: scala.Int) extends TypeCtor(s"vector<$ty $len>")
+  case class Hybrid(fixedTy: TypeCtor, varTy: TypeCtor) extends TypeCtor(s"hybrid<$fixedTy $varTy>")
+  case class Func(sig: FuncSigName) extends TypeCtor(s"func<$sig>")
+  final class Struct(cTypes: Traversable[TypeCtor])
+    extends TypeCtor(s"struct<${cTypes mkString " "}>") {
+    def this(cTypes: java.lang.Iterable[TypeCtor]) =
+      this(JavaConversions iterableAsScalaIterable cTypes)
+    lazy val types = buildList(cTypes)
+  }
 }
 
-/**
- * The base of all top-level definitions.
- */
-abstract class TopLevelDefinition extends HasName
-
-/**
- * A type definition. ".typedef"
- */
-class TypeDef extends TopLevelDefinition
-
-/** The int type. */
-class TypeInt() extends TypeDef {
-  @BeanProperty var len: Int = _
+sealed abstract class Const(str: => String) {
+  def ty: TypeName
+  override def toString = str
+}
+object Const {
+  case class Null(ty: TypeName) extends Const("NULL")
+  case class Int(ty: TypeName, value: scala.Long) extends Const(value.toString)
+  case class Float(ty: TypeName, value: scala.Float)
+    extends Const(s"bitsf(0x${Integer.toHexString(java.lang.Float.floatToRawIntBits(value))})")
+  case class Double(ty: TypeName, value: scala.Double)
+    extends Const(s"bitsd(0x${java.lang.Long.toHexString(java.lang.Double.doubleToRawLongBits(value))})")
+  case class Pointer(ty: TypeName, addr: scala.Long) extends Const(addr.toString)
+  final class Struct(val ty: TypeName, cFields: Traversable[GlobalVarName])
+    extends Const("{" + (cFields mkString " ")  + "}") {
+    def this(ty: TypeName, cFields: java.lang.Iterable[GlobalVarName]) =
+      this(ty, JavaConversions iterableAsScalaIterable cFields)
+    lazy val fields = buildList(cFields)
+  }
+  final class Vector(val ty: TypeName, cElems: Traversable[GlobalVarName])
+    extends Const("VEC{" + (cElems mkString " ")  + "}") {
+    def this(ty: TypeName, cElems: java.lang.Iterable[GlobalVarName]) =
+      this(ty, JavaConversions iterableAsScalaIterable cElems)
+    lazy val fields = buildList(cElems)
+  }
 }
 
-/** The float type. */
-class TypeFloat() extends TypeDef
-/** The double type. */
-class TypeDouble() extends TypeDef
-
-abstract class AbstractRefType extends TypeDef {
-  @BeanProperty var ty: MuName = _
+final class FuncSig(val retTy: TypeName, cParamTy: TraversableOnce[TypeName]) {
+  def this(retTy: TypeName, javaParamTy: java.lang.Iterable[TypeName]) =
+    this(retTy, JavaConversions.iterableAsScalaIterable(javaParamTy))
+  lazy val paramTy = buildList(cParamTy)
+  override def toString =
+    s"$retTy (${JavaConversions.asScalaIterator(paramTy.iterator) mkString " "})"
+  override def equals(other: Any) = other match {
+    case that: FuncSig => paramTy == that.paramTy && retTy == that.retTy
+    case _ => false
+  }
+  override def hashCode() =
+    Seq(paramTy, retTy).map(_.hashCode).foldLeft(0)(31 * _ + _)
 }
 
-/** The ref type. */
-class TypeRef() extends AbstractRefType
-/** The iref type. */
-class TypeIRef() extends AbstractRefType
-/** The weakref type. */
-class TypeWeakRef() extends AbstractRefType
-
-/** The struct type. */
-class TypeStruct() extends TypeDef {
-  @BeanProperty var fieldTy: List[MuName] = makeList()
+final class FuncVer(
+  val func: GlobalVarName,
+  val sig: FuncSigName,
+  cParams: TraversableOnce[LocalVarName],
+  cBbs: TraversableOnce[BasicBlock]
+) {
+  def this(
+    func: GlobalVarName,
+    sig: FuncSigName,
+    cParams: java.lang.Iterable[LocalVarName],
+    cBbs: java.lang.Iterable[BasicBlock]
+  ) = this(
+    func, sig,
+    JavaConversions iterableAsScalaIterable cParams,
+    JavaConversions iterableAsScalaIterable cBbs
+  )
+  lazy val params = buildList(cParams)
+  lazy val bbs = buildList(cBbs)
+  override lazy val toString = {
+    import JavaConversions._
+    "(" + params.mkString(" ") + ") {\n" + bbs.mkString("\n") + "\n}"
+  }
 }
 
-abstract class AbstractSeqType extends TypeDef {
-  @BeanProperty var elemTy: MuName = _
-  @BeanProperty var len: Long = _
+case class Expose(func: GlobalVarName, callConv: Flag, cookie: GlobalVarName) {
+  override def toString = s"$func $callConv $cookie"
 }
 
-/** The array type. */
-class TypeArray() extends AbstractSeqType
-/** The vector type. */
-class TypeVector() extends AbstractSeqType
-
-/** The hybrid type. */
-class TypeHybrid() extends TypeDef {
-  @BeanProperty var fixedTy: MuName = _
-  @BeanProperty var varTy: MuName = _
+final class BasicBlock(label: LabelName, cInsts: TraversableOnce[NameableInst]) {
+  def this(label: LabelName, cInsts: java.lang.Iterable[NameableInst]) =
+    this(label, JavaConversions iterableAsScalaIterable cInsts)
+  lazy val insts = buildList(cInsts)
+  override lazy val toString = s"  $label:\n" +
+    ((JavaConversions collectionAsScalaIterable insts) map ("    " + _) mkString "\n")
 }
 
-/** The void type. */
-class TypeVoid() extends TypeDef
+sealed trait NameableInst {
+  def nameOption: Option[LocalVarName]
+  final def nameOptional: java.util.Optional[LocalVarName] = nameOption match {
+    case Some(n) => java.util.Optional.of(n)
+    case None => java.util.Optional.empty()
+  }
+  def inst: Inst
+}
+sealed abstract class Inst(str: => String) extends NameableInst {
+  override def nameOption = None
+  override def inst = this
+  override def toString = str
+}
+case class NamedInst(name: LocalVarName, inst: Inst) extends NameableInst {
+  override def nameOption = Some(name)
+  override def toString = name + " = " + inst
+}
+object Inst {
+  private def ?(opt: Option[AnyRef]): String = opt map(" " + _) getOrElse ""
+  private def ?(bool: Boolean, str: String) = if (bool) " " + str else ""
 
-/** The func type. */
-class TypeFunc() extends TypeDef {
-  @BeanProperty var sig: MuName = _
+  // Basic Operations
+  // ------------------------------------------------------------
+
+  case class BinOp(
+    op: BinOp.Value,
+    opndTy: TypeName,
+    op1: VarName,
+    op2: VarName,
+    excClause: Option[ExcClause]
+  ) extends Inst(s"$op <$opndTy> $op1 $op2" + ?(excClause)) {
+    def this(op: BinOp.Value, opndTy: TypeName, op1: VarName, op2: VarName) =
+      this(op, opndTy, op1, op2, None)
+    def this(op: BinOp.Value, opndTy: TypeName, op1: VarName, op2: VarName, excClause: ExcClause) =
+      this(op, opndTy, op1, op2, Some(excClause))
+  }
+  object BinOp extends Enumeration {
+    val Add = Value("ADD")
+    val Sub = Value("SUB")
+    val Mul = Value("MUL")
+    val SignDiv = Value("SDIV")
+    val SignRem = Value("SREM")
+    val UnsignDiv = Value("UDIV")
+    val UnsignRem = Value("UREM")
+    val ShiftL = Value("SHL")
+    val LogShiftR = Value("LSHR")
+    val ArithShiftR = Value("ASHR")
+    val And = Value("AND")
+    val Or = Value("OR")
+    val Xor = Value("XOR")
+    val FloatAdd = Value("FADD")
+    val FloatSub = Value("FSUB")
+    val FloatMul = Value("FMUL")
+    val FloatDiv = Value("FDIV")
+    val FloatRem = Value("FREM")
+  }
+
+  case class Cmp(op: Cmp.Value, opndTy: TypeName, op1: VarName, op2: VarName)
+    extends Inst(s"$op <$opndTy> $op1 $op2")
+  object Cmp extends Enumeration {
+    val Eq = Value("EQ")
+    val Ne = Value("NE")
+    val SignGe = Value("SGE")
+    val SignGt = Value("SGT")
+    val SignLe = Value("SLE")
+    val SignLt = Value("SLT")
+    val UnsignGe = Value("UGE")
+    val UnsignGt = Value("UGT")
+    val UnsignLe = Value("ULE")
+    val UnsignLt = Value("ULT")
+    val FloatTrue = Value("FTRUE")
+    val FloatFalse = Value("FFALSE")
+    val FloatUnord = Value("FUNO")
+    val FloatUnordEq = Value("FUEQ")
+    val FloatUnordNe = Value("FUNE")
+    val FloatUnordGt = Value("FUGT")
+    val FloatUnordGe = Value("FUGE")
+    val FloatUnordLt = Value("FULT")
+    val FloatUnordLe = Value("FULE")
+    val FloatOrd = Value("FORD")
+    val FloatOrdEq = Value("FOEQ")
+    val FloatOrdNe = Value("FONE")
+    val FloatOrdGt = Value("FOGT")
+    val FloatOrdGe = Value("FOGE")
+    val FloatOrdLt = Value("FOLT")
+    val FloatOrdLe = Value("FOLE")
+  }
+
+  case class Conv(op: Conv.Value, fromTy: TypeName, toTy: TypeName, opnd: VarName)
+    extends Inst(s"$op <$fromTy $toTy> $opnd")
+  object Conv extends Enumeration {
+    val Trunc = Value("TRUNC")
+    val ZeroExt = Value("ZEXT")
+    val SignExt = Value("SEXT")
+    val FloatTrunc = Value("FPTRUNC")
+    val FloatExt = Value("FPEXT")
+    val FloatToUInt = Value("FPTOUI")
+    val FloatToInt = Value("FPTOSI")
+    val UIntToFloat = Value("UITOFP")
+    val IntToFloat = Value("SITOFP")
+    val BitCast = Value("BITCAST")
+    val RefCast = Value("REFCAST")
+    val PtrCast = Value("PTRCAST")
+  }
+
+  case class Select(condTy: TypeName, opndTy: TypeName, cond: VarName, ifTrue: VarName, ifFalse: VarName)
+    extends Inst(s"SELECT <$condTy $opndTy> $cond $ifTrue $ifFalse")
+
+  // Intra-function Control Flow
+  // ------------------------------------------------------------
+
+  case class Branch(dest: LabelName) extends Inst(s"BRANCH $dest")
+  case class Branch2(cond: VarName, ifTrue: LabelName, ifFalse: LabelName)
+    extends Inst(s"BRANCH2 $cond $ifTrue $ifFalse")
+
+  final class Switch(
+    val opndTy: TypeName,
+    val opnd: VarName,
+    val defDest: LabelName,
+    cCases: Traversable[SwitchCase]
+  ) extends Inst(s"SWITCH <$opndTy> $opnd $defDest { ${cCases mkString " "} }") {
+    def this(
+      opndTy: TypeName, opnd: VarName, defDest: LabelName,
+      cCases: java.lang.Iterable[SwitchCase]
+    ) = this(opndTy, opnd, defDest, JavaConversions iterableAsScalaIterable cCases)
+    lazy val cases = buildList(cCases)
+  }
+
+  final class Phi(val opndTy: TypeName, cCases: Traversable[PhiCase])
+    extends Inst(s"PHI <$opndTy> { ${cCases mkString " "} }") {
+    def this(opndTy: TypeName, cCases: java.lang.Iterable[PhiCase]) =
+      this(opndTy, JavaConversions iterableAsScalaIterable cCases)
+    lazy val cases = buildList(cCases)
+  }
+
+  // Inter-function Control Flow
+  // ------------------------------------------------------------
+
+  final class Call(
+    val sig: FuncSigName,
+    val callee: VarName,
+    cArgList: Traversable[VarName],
+    val excClause: Option[ExcClause],
+    val keepAliveClause: Option[KeepAliveClause]
+  ) extends Inst(s"CALL <$sig> $callee (${cArgList mkString " "})" + ?(excClause) + ?(keepAliveClause)) {
+    def this(sig: FuncSigName, callee: VarName, cArgList: java.lang.Iterable[VarName]) =
+      this(sig, callee, JavaConversions iterableAsScalaIterable cArgList, None, None)
+    def this(
+      sig: FuncSigName,
+      callee: VarName,
+      cArgList: java.lang.Iterable[VarName],
+      excClause: ExcClause
+    ) = this(sig, callee, JavaConversions iterableAsScalaIterable cArgList, Some(excClause), None)
+    def this(
+      sig: FuncSigName,
+      callee: VarName,
+      cArgList: java.lang.Iterable[VarName],
+      keepAliveClause: KeepAliveClause
+    ) = this(sig, callee, JavaConversions iterableAsScalaIterable cArgList, None, Some(keepAliveClause))
+    def this(
+      sig: FuncSigName,
+      callee: VarName,
+      cArgList: java.lang.Iterable[VarName],
+      excClause: ExcClause,
+      keepAliveClause: KeepAliveClause
+    ) = this(sig, callee, JavaConversions iterableAsScalaIterable cArgList, Some(excClause), Some(keepAliveClause))
+    lazy val argList = buildList(cArgList)
+  }
+
+  final class TailCall(val sig: FuncSigName, val callee: VarName, cArgList: Traversable[VarName])
+    extends Inst(s"TAILCALL <$sig> $callee (${cArgList mkString " "})") {
+    def this(sig: FuncSigName, callee: VarName, cArgList: java.lang.Iterable[VarName]) =
+      this(sig, callee, JavaConversions iterableAsScalaIterable cArgList)
+    lazy val argList = buildList(cArgList)
+  }
+
+  case class Ret(opndTy: TypeName, rv: VarName) extends Inst(s"RET <$opndTy> $rv")
+  case class RetVoid() extends Inst("RETVOID")
+  case class Throw(exc: VarName) extends Inst(s"THROW $exc")
+  case class LandingPad() extends Inst("LANDINGPAD")
+
+  // Aggregate Type Operations
+  // ------------------------------------------------------------
+
+  // Struct Operations
+
+  case class ExtractValue(strTy: TypeName, index: Int, opnd: VarName)
+    extends Inst(s"EXTRACTVALUE <$strTy $index> $opnd")
+  case class InsertValue(strTy: TypeName, index: Int, opnd: VarName, newVal: VarName)
+    extends Inst(s"INSERTVALUE <$strTy $index> $opnd $newVal")
+
+  // Vector Operations
+
+  case class ExtractElement(vecTy: TypeName, indTy: TypeName, opnd: VarName, index: VarName)
+    extends Inst(s"EXTRACTELEMENT <$vecTy $indTy> $opnd $index")
+  case class InsertElement(vecTy: TypeName, indTy: TypeName, opnd: VarName, index: VarName, newVal: VarName)
+    extends Inst(s"INSERTELEMENT <$vecTy $indTy> $opnd $index $newVal")
+  case class ShuffleVector(vecTy: TypeName, maskTy: TypeName, vec1: VarName, vec2: VarName, mask: VarName)
+    extends Inst(s"SHUFFLEVECTOR <$vecTy $maskTy> $vec1 $vec2 $mask")
+
+  // Memory Operations
+  // ------------------------------------------------------------
+
+  // Memory Allocation
+
+  case class New(allocTy: TypeName, excClause: Option[ExcClause])
+    extends Inst(s"NEW <$allocTy>" + ?(excClause))
+  case class NewHybrid(
+    allocTy: TypeName, lenTy: TypeName, length: VarName, excClause: Option[ExcClause]
+  ) extends Inst(s"NEWHYBRID <$allocTy $lenTy> $length" + ?(excClause))
+  case class Alloca(allocTy: TypeName, excClause: Option[ExcClause])
+    extends Inst(s"ALLOCA <$allocTy>" + ?(excClause))
+  case class AllocaHybrid(
+    allocTy: TypeName, lenTy: TypeName, length: VarName, excClause: Option[ExcClause]
+  ) extends Inst(s"ALLOCAHYBRID <$allocTy $lenTy> $length" + ?(excClause))
+
+  // Memory Addressing
+
+  case class GetIRef(referentTy: TypeName, opnd: VarName)
+    extends Inst(s"GETIREF <$referentTy> $opnd")
+  case class GetFieldIRef(ptr: Boolean, referentTy: TypeName, index: Int, opnd: VarName)
+    extends Inst(s"GETFIELDIREF${?(ptr, "PTR")} <$referentTy $index> $opnd")
+  case class GetElemIRef(
+    ptr: Boolean, referentTy: TypeName, indexTy: TypeName, opnd: VarName, index: VarName
+  ) extends Inst(s"GETELEMIREF${?(ptr, "PTR")} <$referentTy $indexTy> $opnd $index")
+  case class ShiftIRef(
+    ptr: Boolean, referentTy: TypeName, offsetTy: TypeName, opnd: VarName, offset: VarName
+  ) extends Inst(s"SHIFTIREF${?(ptr, "PTR")} <$referentTy $offsetTy> $opnd $offset")
+  case class GetFixedPartIRef(ptr: Boolean, referentTy: TypeName, opnd: VarName)
+    extends Inst(s"GETFIXEDPARTIREF${?(ptr, "PTR")} <$referentTy> $opnd")
+  case class GetVarPartIRef(ptr: Boolean, referentTy: TypeName, opnd: VarName)
+    extends Inst(s"GETVARPARTIREF${?(ptr, "PTR")} <$referentTy> $opnd")
+
+  case class Load(
+    ptr: Boolean,
+    ord: MemoryOrder.Value,
+    locTy: TypeName,
+    loc: VarName,
+    excClause: Option[ExcClause]
+  ) extends Inst(s"LOAD${?(ptr, "PTR")} $ord <$locTy> $loc" + ?(excClause))
+  case class Store(
+    ptr: Boolean,
+    ord: MemoryOrder.Value,
+    locTy: TypeName,
+    loc: VarName,
+    newVal: VarName,
+    excClause: Option[ExcClause]
+  ) extends Inst(s"STORE${?(ptr, "PTR")} $ord <$locTy> $loc $newVal" + ?(excClause))
+  case class CmpXchg(
+    ptr: Boolean,
+    weak: Boolean,
+    ordSucc: MemoryOrder.Value,
+    ordFail: MemoryOrder.Value,
+    locTy: TypeName,
+    loc: VarName,
+    expected: VarName,
+    desired: VarName,
+    excClause: Option[ExcClause]
+  ) extends Inst(
+    s"CMPXCHG${?(ptr, "PTR")}${?(weak, "WEAK")} $ordSucc $ordFail <$locTy> $loc $expected $desired" + ?(excClause))
+  case class AtomicRMW(
+    ptr: Boolean,
+    ord: MemoryOrder.Value,
+    op: AtomicRMWOptr.Value,
+    locTy: TypeName,
+    loc: VarName,
+    opnd: VarName,
+    excClause: Option[ExcClause]
+  ) extends Inst(
+    s"ATOMICRMW${?(ptr, "PTR")} $ord $op <$locTy> $loc $opnd" + ?(excClause))
+  case class Fence(ord: MemoryOrder.Value) extends Inst(s"FENCE $ord")
+
+  // Traps
+  // ------------------------------------------------------------
+
+  case class Trap(
+    retTy: TypeName,
+    excClause: Option[ExcClause],
+    keepAliveClause: Option[KeepAliveClause]
+  ) extends Inst(s"TRAP <$retTy>" + ?(excClause) + ?(keepAliveClause))
+  case class WatchPoint(
+    wpid: Int,
+    retTy: TypeName,
+    dis: LabelName,
+    ena: LabelName,
+    exc: Option[LabelName],
+    keepAliveClause: Option[KeepAliveClause]
+  ) extends Inst(
+    s"WATCHPOINT $wpid <$retTy> $dis $ena" + ?(exc.map("WPEXC("+_+")")) + ?(keepAliveClause))
+
+  // Unsafe Native Call
+
+  final class CCall(
+    val callConv: Flag,
+    val calleeTy: TypeName,
+    val sig: FuncSigName,
+    val callee: VarName,
+    cArgList: Traversable[VarName],
+    val keepAliveClause: Option[KeepAliveClause]
+  ) extends Inst(
+    s"CCALL $callConv <$calleeTy $sig> $callee (${cArgList mkString " "})" + ?(keepAliveClause)
+  ) {
+    def this(
+      callConv: Flag,
+      calleeTy: TypeName,
+      sig: FuncSigName,
+      callee: VarName,
+      cArgList: java.lang.Iterable[VarName]
+    ) = this(callConv, calleeTy, sig, callee, JavaConversions iterableAsScalaIterable cArgList, None)
+    def this(
+      callConv: Flag,
+      calleeTy: TypeName,
+      sig: FuncSigName,
+      callee: VarName,
+      cArgList: java.lang.Iterable[VarName],
+      keepAliveClause: KeepAliveClause
+    ) = this(callConv, calleeTy, sig, callee, JavaConversions iterableAsScalaIterable cArgList,
+      Some(keepAliveClause))
+    lazy val argList = buildList(cArgList)
+  }
+
+  // Thread and Stack
+  // ------------------------------------------------------------
+
+  final class NewStack(
+    val sig: FuncSigName,
+    val func: VarName,
+    cArgList: Traversable[VarName],
+    val excClause: Option[ExcClause]
+  ) extends Inst(s"NEWSTACK <$sig> $func (${cArgList mkString " "})" + ?(excClause)) {
+    def this(sig: FuncSigName, func: VarName, cArgList: java.lang.Iterable[VarName]) =
+      this(sig, func, JavaConversions iterableAsScalaIterable cArgList, None)
+    def this(
+      sig: FuncSigName,
+      func: VarName,
+      cArgList: java.lang.Iterable[VarName],
+      excClause: ExcClause
+    ) = this(sig, func, JavaConversions iterableAsScalaIterable cArgList, Some(excClause))
+    lazy val argList = buildList(cArgList)
+  }
+
+  case class SwapStack(
+    swappee: VarName,
+    curStackClause: CurStackClause,
+    newStackClause: NewStackClause,
+    excClause: Option[ExcClause],
+    keepAliveClause: Option[KeepAliveClause]
+  ) extends Inst(
+    s"SWAPSTACK $swappee $curStackClause $newStackClause" + ?(excClause) + ?(keepAliveClause)
+  ) {
+    def this(swappee: VarName, curStackClause: CurStackClause, newStackClause: NewStackClause) =
+      this(swappee, curStackClause, newStackClause, None, None)
+  }
+
+  // Common Instructions
+  // ------------------------------------------------------------
+
+  final class CommInst(
+    val instName: GlobalVarName,
+    cFlagList: Option[Traversable[Flag]],
+    cTypeList: Option[Traversable[TypeName]],
+    cFuncSigList: Option[Traversable[FuncSigName]],
+    cArgList: Option[Traversable[VarName]],
+    val excClause: Option[ExcClause],
+    val keepAliveClause: Option[KeepAliveClause]
+  ) extends Inst(
+    s"COMMINST $instName" +
+      ?(cFlagList.map("[" + _.mkString(" ") + "]")) +
+      ?(cTypeList.map("<" + _.mkString(" ") + ">")) +
+      ?(cFuncSigList.map("<[" + _.mkString(" ") + "]>")) +
+      ?(cArgList.map("(" + _.mkString(" ") + ")")) +
+      ?(excClause) + ?(keepAliveClause)
+  ) {
+    // TODO: Java-friendly constructors
+    lazy val flagList = cFlagList map buildList
+    lazy val typeList = cTypeList map buildList
+    lazy val funcSigList = cFuncSigList map buildList
+    lazy val argList = cArgList map buildList
+  }
 }
 
-/** The thread type. */
-class TypeThread() extends TypeDef
-/** The stack type. */
-class TypeStack() extends TypeDef
-/** The tagref64 type. */
-class TypeTagRef64() extends TypeDef
-
-abstract class AbstractPointerType extends TypeDef
-
-/** The ptr type. */
-class TypePtr() extends AbstractPointerType {
-  @BeanProperty var ty: MuName = _
+object MemoryOrder extends Enumeration {
+  val NotAtomic = Value("NOT_ATOMIC")
+  val Relaxed = Value("RELAXED")
+  val Consume = Value("CONSUME")
+  val Acquire = Value("ACQUIRE")
+  val Release = Value("RELEASE")
+  val AcquireRelease = Value("ACQ_REL")
+  val SeqConsistent = Value("SEQ_CST")
 }
 
-/** The funcptr type. */
-class TypeFuncPtr() extends AbstractPointerType {
-  @BeanProperty var sig: MuName = _
+object AtomicRMWOptr extends Enumeration {
+  val Exchange = Value("XCHG")
+  val Add = Value("ADD")
+  val Sub = Value("SUB")
+  val And = Value("AND")
+  val Nand = Value("NAND")
+  val Or = Value("OR")
+  val Xor = Value("XOR")
+  val SignMax = Value("MAX")
+  val SignMin = Value("MIN")
+  val UnsignMax = Value("UMAX")
+  val UnsignMin = Value("UMIN")
 }
 
-/** A function signature. ".funcsig" */
-class FuncSigDef() extends TopLevelDefinition {
-  @BeanProperty var retTy: MuName = _
-  @BeanProperty var paramTy: List[MuName] = makeList()
+final class KeepAliveClause(cVars: TraversableOnce[LocalVarName]) {
+  def this(cVars: java.lang.Iterable[LocalVarName]) =
+    this(JavaConversions iterableAsScalaIterable cVars)
+  lazy val vars = buildList(cVars)
+  override def toString = s"KEEPALIVE(${JavaConversions.asScalaIterator(vars.iterator()) mkString " "})"
+}
+case class ExcClause(nor: LabelName, exc: LabelName) {
+  override def toString = s"EXC($nor $exc)"
+}
+case class SwitchCase(value: VarName, dest: LabelName) {
+  override def toString = s"$value: $dest;"
+}
+case class PhiCase(source: LabelName, value: VarName) {
+  override def toString = s"$source: $value;"
 }
 
-/** A constant. ".const" */
-abstract class ConstDef extends TopLevelDefinition {
-  @BeanProperty var ty: MuName = _
+sealed abstract class CurStackClause
+object CurStackClause {
+  case class RetWith(retTy: TypeName) extends CurStackClause {
+    override def toString = s"RET_WITH <$retTy>"
+  }
+  case class KillOld() extends CurStackClause {
+    override def toString = "KILL_OLD"
+  }
 }
 
-/** An int constant. */
-class ConstInt() extends ConstDef {
-  @BeanProperty var num: Long = _
-}
-
-/** A float constant. */
-class ConstFloat() extends ConstDef {
-  @BeanProperty var num: Float = _
-}
-
-/** A double constant. */
-class ConstDouble() extends ConstDef {
-  @BeanProperty var num: Double = _
-}
-
-/** A struct constant. */
-class ConstStruct() extends ConstDef {
-  @BeanProperty var fields: List[MuName] = makeList()
-}
-
-/** A vector constant. */
-class ConstVector() extends ConstDef {
-  @BeanProperty var elems: List[MuName] = makeList()
-}
-
-/** A NULL constant. */
-class ConstNull() extends ConstDef {
-}
-
-/** A pointer constant. */
-class ConstPointer() extends ConstDef {
-  @BeanProperty var addr: Long = _
-}
-
-/** A global cell definition. ".global" */
-class GlobalCellDef() extends TopLevelDefinition {
-  @BeanProperty var ty: MuName = _
-}
-
-/** A function declaration. ".funcdecl" */
-class FuncDecl() extends TopLevelDefinition {
-  @BeanProperty var sig: MuName = _
-}
-
-/** A function definition. ".funcdef" */
-class FuncDef() extends TopLevelDefinition {
-  @BeanProperty var version: MuName = _
-  @BeanProperty var sig: MuName = _
-  @BeanProperty var params: List[MuName] = makeList()
-  @BeanProperty var bbs: List[BasicBlock] = makeList()
-}
-
-/** A function exposing definition ".expose" */
-class FuncExpDef() extends HasName {
-  @BeanProperty var func: MuName = _
-  @BeanProperty var callConv: Flag = _
-  @BeanProperty var cookie: MuName = _
-}
-
-/** A basic block. "%blahblah:" */
-class BasicBlock() extends HasName {
-  @BeanProperty var insts: List[Instruction] = makeList()
-}
-
-/**
- * An instruction.
- *  <p>
- *  The name is optional in the text form (assign null to name), but it is highly recommended to name all instructions
- *  even if they return void (esp. function calls to functions that return void, in which case Mu can provide stack
- *  information).
- */
-abstract class Instruction() extends HasName
-
-/** An exception clause. */
-case class ExcClause(
-  @BeanProperty var nor: BBMuName,
-  @BeanProperty var exc: BBMuName)
-
-/**
- *  MixIn of all instructions that may have an exception clause.
- */
-trait HasExcClause {
-  /** The exception clause. May be null. */
-  @BeanProperty var excClause: ExcClause = _
-}
-
-/**
- *  MixIn of all instructions that may have keep-alive variables.
- */
-trait HasKeepAlives {
-  /** A list of keep-alive variables. May be empty, but not null. */
-  @BeanProperty var keepAlives: List[VarMuName] = makeList()
-}
-
-/**
- * A call-like instruction has a signature, a callee and an argument list.
- */
-trait CallLike {
-  /** The signature of the callee. */
-  @BeanProperty var sig: SigMuName = _
-  /** The callee. The type depends on the concrete instruction. For CALL, it is func&lt;sig&gt;. */
-  @BeanProperty var callee: VarMuName = _
-  /** The argument list. */
-  @BeanProperty var argList: List[VarMuName] = makeList()
-}
-/** ADD, SUB, MUL, ... */
-class InstBinOp() extends Instruction with HasExcClause {
-  /** The operator (ADD, SUB, MUL, ...). */
-  @BeanProperty var op: String = _ // binOp in spec
-  @BeanProperty var opndTy: TypeMuName = _ // T in spec
-  @BeanProperty var op1: VarMuName = _
-  @BeanProperty var op2: VarMuName = _
-}
-
-/** EQ, NE, ... */
-class InstCmp() extends Instruction {
-  /** The operator (EQ, NE, SLT, SLE, ..., FUEQ, FSEQ, ...). */
-  @BeanProperty var op: String = _ // compOp in spec
-  @BeanProperty var opndTy: TypeMuName = _ // T in spec
-  @BeanProperty var op1: VarMuName = _
-  @BeanProperty var op2: VarMuName = _
-}
-
-/** TRUNC, ZEXT, ... */
-class InstConv() extends Instruction {
-  /** The operator (TRUNC, EXT, ...). */
-  @BeanProperty var op: String = _ // convOp in spec
-  @BeanProperty var fromTy: TypeMuName = _ // T1 in spec
-  @BeanProperty var toTy: TypeMuName = _ // T2 in spec
-  @BeanProperty var opnd: VarMuName = _
-}
-
-/** SELECT */
-class InstSelect() extends Instruction {
-  @BeanProperty var condTy: TypeMuName = _ // S in spec
-  @BeanProperty var opndTy: TypeMuName = _ // T in spec
-  @BeanProperty var cond: VarMuName = _
-  @BeanProperty var ifTrue: VarMuName = _
-  @BeanProperty var ifFalse: VarMuName = _
-}
-
-/** BRANCH */
-class InstBranch() extends Instruction {
-  @BeanProperty var dest: BBMuName = _
-}
-
-/** BRANCH2 */
-class InstBranch2() extends Instruction {
-  @BeanProperty var cond: VarMuName = _
-  @BeanProperty var ifTrue: BBMuName = _
-  @BeanProperty var ifFalse: BBMuName = _
-}
-
-/** A case in the SWITCH instruction. */
-case class SwitchCase(
-  @BeanProperty var value: VarMuName,
-  @BeanProperty var dest: BBMuName)
-
-/** SWITCH */
-class InstSwitch() extends Instruction {
-  @BeanProperty var opndTy: TypeMuName = _
-  @BeanProperty var opnd: VarMuName = _
-  @BeanProperty var defDest: BBMuName = _
-  @BeanProperty var cases: List[SwitchCase] = makeList() // value:dest; pair in spec
-}
-
-/** A case in the PHI instruction. */
-case class PhiCase(
-  @BeanProperty var source: BBMuName,
-  @BeanProperty var value: VarMuName)
-
-/** PHI */
-class InstPhi() extends Instruction {
-  @BeanProperty var opndTy: TypeMuName = _
-  @BeanProperty var cases: List[PhiCase] = makeList() // bb:value; pair in spec
-}
-
-/** CALL */
-class InstCall() extends Instruction with CallLike with HasExcClause with HasKeepAlives
-
-/** TAILCALL */
-class InstTailCall() extends Instruction with CallLike
-
-/** RET */
-class InstRet() extends Instruction {
-  @BeanProperty var retTy: TypeMuName = _ // T in spec
-  @BeanProperty var retVal: VarMuName = _ // rv in spec
-}
-
-/** RETVOID */
-class InstRetVoid() extends Instruction
-
-/** THROW */
-class InstThrow() extends Instruction {
-  @BeanProperty var excVal: VarMuName = _ // exc in spec
-}
-
-/** LANDINGPAD */
-class InstLandingPad() extends Instruction
-
-/** EXTRACTVALUE */
-class InstExtractValue() extends Instruction {
-  @BeanProperty var strTy: TypeMuName = _ // T in spec
-  @BeanProperty var index: Int = _
-  @BeanProperty var opnd: VarMuName = _
-}
-
-/** INSERTVALUE */
-class InstInsertValue() extends Instruction {
-  @BeanProperty var strTy: TypeMuName = _ // T in spec
-  @BeanProperty var index: Int = _
-  @BeanProperty var opnd: VarMuName = _
-  @BeanProperty var newVal: VarMuName = _
-}
-
-/** EXTRACTELEMENT */
-class InstExtractElement() extends Instruction {
-  @BeanProperty var vecTy: TypeMuName = _ // T1 in spec
-  @BeanProperty var indTy: TypeMuName = _ // T2 in spec
-  @BeanProperty var opnd: VarMuName = _
-  @BeanProperty var index: VarMuName = _
-}
-
-/** INSERTELEMENT */
-class InstInsertElement() extends Instruction {
-  @BeanProperty var vecTy: TypeMuName = _ // T1 in spec
-  @BeanProperty var indTy: TypeMuName = _ // T2 in spec
-  @BeanProperty var opnd: VarMuName = _
-  @BeanProperty var index: VarMuName = _
-  @BeanProperty var newVal: VarMuName = _
-}
-
-/** SHUFFLEVECTOR */
-class InstShuffleVector() extends Instruction {
-  @BeanProperty var vecTy: TypeMuName = _ // T1 in spec
-  @BeanProperty var maskTy: TypeMuName = _ // T2 in spec
-  @BeanProperty var vec1: VarMuName = _
-  @BeanProperty var vec2: VarMuName = _
-  @BeanProperty var mask: VarMuName = _
-}
-
-/** MixIn for fixed-size allocation (NEW and ALLOCA) */
-trait FixedAlloc {
-  /** The type to allocate. */
-  @BeanProperty var allocTy: TypeMuName = _ // T1 in spec
-}
-
-/** MixIn for hybrid allocation (NEWHYBRID and ALLOCAHYBRID) */
-trait HybridAlloc {
-  /** The type to allocate. */
-  @BeanProperty var allocTy: TypeMuName = _ // T1 in spec
-  /** The type of the length argument. Must be int. */
-  @BeanProperty var lenTy: TypeMuName = _ // T2 in spec
-  /** The length. */
-  @BeanProperty var length: VarMuName = _
-}
-
-/** NEW */
-class InstNew() extends Instruction with FixedAlloc with HasExcClause
-
-/** NEWHYBRID */
-class InstNewHybrid() extends Instruction with HybridAlloc with HasExcClause
-
-/** ALLOCA */
-class InstAlloca() extends Instruction with FixedAlloc with HasExcClause
-
-/** ALLOCAHYBRID */
-class InstAllocaHybrid() extends Instruction with HybridAlloc with HasExcClause
-
-/** MixIn for memory addressing. All of them has a source type and an operand. */
-trait MemoryAddressing {
-  /** The referent type.  */
-  @BeanProperty var referentTy: TypeMuName = _ // T in spec
-  /** The source reference or pointer. */
-  @BeanProperty var opnd: VarMuName = _
-}
-
-/** GETIREF */
-class InstGetIRef() extends Instruction with MemoryAddressing
-
-/** MixIn for instructions that can work with both irefs and ptrs. */
-trait WorksWithPointer {
-  @BeanProperty var ptr: Boolean = _
-}
-
-/** GETFIXEDPARTIREF */
-class InstGetFieldIRef() extends Instruction with MemoryAddressing with WorksWithPointer {
-  @BeanProperty var index: Int = _
-}
-
-/** GETELEMIREF */
-class InstGetElemIRef() extends Instruction with MemoryAddressing with WorksWithPointer {
-  @BeanProperty var indTy: TypeMuName = _ // T2 in spec
-  @BeanProperty var index: VarMuName = _
-}
-
-/** SHIFTIREF */
-class InstShiftIRef() extends Instruction with MemoryAddressing with WorksWithPointer {
-  @BeanProperty var offTy: TypeMuName = _ // T2 in spec
-  @BeanProperty var offset: VarMuName = _
-}
-
-/** GETFIXEDPARTIREF */
-class InstGetFixedPartIRef() extends Instruction with MemoryAddressing with WorksWithPointer
-
-/** GETVARPARTIREF */
-class InstGetVarPartIRef() extends Instruction with MemoryAddressing with WorksWithPointer
-
-/** MixIn for memory accessing. All of them has a source type and an operand. */
-
-trait MemoryAccessing {
-  /** The referent type.  */
-  @BeanProperty var referentTy: TypeMuName = _ // T in spec
-  /** The memory location/address to access. */
-  @BeanProperty var loc: VarMuName = _
-}
-
-/** LOAD */
-class InstLoad() extends Instruction with WorksWithPointer with MemoryAccessing with HasExcClause {
-  /** The memory order. */
-  @BeanProperty var ord: String = "NOT_ATOMIC"
-}
-
-/** STORE */
-class InstStore() extends Instruction with WorksWithPointer with MemoryAccessing with HasExcClause {
-  /** The memory order. */
-  @BeanProperty var ord: String = "NOT_ATOMIC"
-  @BeanProperty var newVal: VarMuName = _
-}
-
-/** CMPXCHG */
-class InstCmpXchg() extends Instruction with WorksWithPointer with MemoryAccessing with HasExcClause {
-  @BeanProperty var weak: Boolean = false
-  /** The memory order when successful. Must not be null. Cannot be NOT_ATOMIC. */
-  @BeanProperty var ordSucc: String = _
-  /** The memory order when failed. Must not be null. Cannot be NOT_ATOMIC. */
-  @BeanProperty var ordFail: String = _
-  @BeanProperty var expected: VarMuName = _
-  @BeanProperty var desired: VarMuName = _
-}
-
-/** ATOMICRMW */
-class InstAtomicRMW() extends Instruction with WorksWithPointer with MemoryAccessing with HasExcClause {
-  @BeanProperty var ord: String = _
-  @BeanProperty var op: String = _
-  @BeanProperty var opnd: VarMuName = _
-}
-
-class InstFence() extends Instruction {
-  @BeanProperty var ord: String = _
-}
-
-/** TRAP */
-class InstTrap() extends Instruction with HasExcClause with HasKeepAlives {
-  @BeanProperty var retTy: TypeMuName = _ // T in spec
-}
-
-/** WATCHPOINT */
-class InstWatchPoint() extends Instruction with HasKeepAlives {
-  @BeanProperty var wpid: Int = _
-  @BeanProperty var retTy: TypeMuName = _ // T in spec
-  @BeanProperty var dis: BBMuName = _
-  @BeanProperty var ena: BBMuName = _
-  @BeanProperty var exc: BBMuName = _ // may be null
-}
-
-/** CCALL */
-class InstCCall() extends Instruction with CallLike with HasKeepAlives {
-  @BeanProperty var callConv: Flag = _
-  @BeanProperty var calleeTy: TypeMuName = _ // T in spec
-}
-
-/** NEWSTACK */
-class InstNewStack() extends Instruction with CallLike with HasExcClause
-
-abstract class CurStackClause
-/** RET_WITH */
-case class RetWith(
-  @BeanProperty var retTy: TypeMuName /* T1 */ ) extends CurStackClause
-/** KILL_OLD */
-case class KillOld() extends CurStackClause
-
-abstract class NewStackClause
-/** PASS_VALUE */
-case class PassValue(
-  @BeanProperty var argTy: TypeMuName /* T2 */ ,
-  @BeanProperty var arg: VarMuName) extends NewStackClause
-/** PASS_VOID */
-case class PassVoid() extends NewStackClause
-/** THROW_EXC */
-case class ThrowExc(
-  @BeanProperty var exc: VarMuName) extends NewStackClause
-
-/** SWAPSTACK */
-class InstSwapStack() extends Instruction with HasExcClause with HasKeepAlives {
-  @BeanProperty var swappee: VarMuName = _
-  @BeanProperty var curStackClause: CurStackClause = _
-  @BeanProperty var newStackClause: NewStackClause = _
-}
-
-/** COMMINST */
-class InstCommInst() extends Instruction with HasExcClause with HasKeepAlives {
-  @BeanProperty var inst: String = _
-  @BeanProperty var flagList: List[Flag] = makeList()
-  @BeanProperty var typeList: List[TypeMuName] = makeList()
-  @BeanProperty var funcSigList: List[SigMuName] = makeList()
-  @BeanProperty var argList: List[VarMuName] = makeList()
+sealed abstract class NewStackClause
+object NewStackClause {
+  case class PassValue(argTy: TypeName, arg: VarName) extends NewStackClause {
+    override def toString = s"PASS_VALUE <$argTy> $arg"
+  }
+  case class PassVoid() extends NewStackClause {
+    override def toString = "PASS_VOID"
+  }
+  case class ThrowExc(exc: VarName) extends NewStackClause {
+    override def toString = s"THROW_EXC $exc"
+  }
 }
