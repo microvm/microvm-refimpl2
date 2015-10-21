@@ -172,7 +172,8 @@ class BundleBuilder(baseName: String) {
     paramTy: Traversable[TypeName]
   ): FunctionBuilder = {
     val sig = funcSig(retTy, paramTy)
-    val builder = new FunctionBuilder(funcName, sig, versionName, paramTy.toSeq.indices.map("param"+_))
+    val builder = new FunctionBuilderImpl(
+      funcName, sig, versionName, paramTy.toSeq.indices.map("param"+_))
     funcVers.put(versionName, builder)
     builder
   }
@@ -202,7 +203,7 @@ class BundleBuilder(baseName: String) {
     versionName: FuncVerName,
     paramNames: Traversable[String]
   ): FunctionBuilder = {
-    val builder = new FunctionBuilder(funcName, sigName, versionName, paramNames)
+    val builder = new FunctionBuilderImpl(funcName, sigName, versionName, paramNames)
     funcVers.put(versionName, builder)
     builder
   }
@@ -227,22 +228,42 @@ class BundleBuilder(baseName: String) {
   )
 }
 
-class FunctionBuilder(
-  val functionName: GlobalVarName,
-  val functionSignature: FuncSigName,
-  val versionName: FuncVerName,
+trait FunctionBuilder {
+  def functionName: GlobalVarName
+  def functionSignature: FuncSigName
+  def versionName: FuncVerName
+  def paramNames: util.List[LocalVarName]
+  def paramName(index: Int): LocalVarName
+  def newVarName(): LocalVarName
+  def newVarName(name: String): LocalVarName
+  def newLabelName(): LabelName
+  def newLabelName(name: String): LabelName
+  def currentBlockLabel: LabelName
+  def startNewBlock(): LabelName
+  def startNewBlock(label: LabelName): LabelName
+  def inst(inst: NameableInst): LocalVarName
+  def inst(name: LocalVarName, inst: Inst): LocalVarName
+  def build(): FuncVer
+}
+
+private[text] class FunctionBuilderImpl(
+  override val functionName: GlobalVarName,
+  override val functionSignature: FuncSigName,
+  override val versionName: FuncVerName,
   cParamNames: TraversableOnce[String]
-) {
+) extends FunctionBuilder {
+
   type Block = (LabelName, mutable.ArrayBuffer[NameableInst])
+
   val blocks = mutable.ArrayBuffer.empty[Block]
   val usedNames = mutable.Set.empty[String]
   private var nextVarNumber = 0
   private var nextLabelNumber = 0
   private var currentBlock: Block = createBlock(newLabelName("entry"))
 
-  lazy val paramNames = Helpers.buildList(cParamNames map newVarName)
+  override lazy val paramNames = Helpers.buildList(cParamNames map newVarName)
 
-  def paramName(index: Int): LocalVarName = paramNames get index
+  override def paramName(index: Int): LocalVarName = paramNames get index
 
   private def generateName(n: String): String = {
     var n_ = n
@@ -251,7 +272,7 @@ class FunctionBuilder(
     n_
   }
 
-  def newVarName(): LocalVarName = {
+  override def newVarName(): LocalVarName = {
     var nextName: String = null
     do {
       nextName = "var" + nextVarNumber
@@ -260,9 +281,9 @@ class FunctionBuilder(
     newVarName(nextName)
   }
 
-  def newVarName(name: String): LocalVarName = LocalVarName(generateName(name))
+  override def newVarName(name: String): LocalVarName = LocalVarName(generateName(name))
 
-  def newLabelName(): LabelName = {
+  override def newLabelName(): LabelName = {
     var nextName: String = null
     do {
       nextName = "label" + nextLabelNumber
@@ -271,7 +292,7 @@ class FunctionBuilder(
     newLabelName(nextName)
   }
 
-  def newLabelName(name: String): LabelName = LabelName(generateName(name))
+  override def newLabelName(name: String): LabelName = LabelName(generateName(name))
 
   private def createBlock(name: LabelName): Block = {
     val newBlock = (name, mutable.ArrayBuffer.empty[NameableInst])
@@ -279,16 +300,16 @@ class FunctionBuilder(
     newBlock
   }
 
-  def currentBlockLabel: LabelName = currentBlock._1
+  override def currentBlockLabel: LabelName = currentBlock._1
 
-  def startNewBlock(): LabelName = startNewBlock(newLabelName())
+  override def startNewBlock(): LabelName = startNewBlock(newLabelName())
 
-  def startNewBlock(label: LabelName): LabelName = {
+  override def startNewBlock(label: LabelName): LabelName = {
     currentBlock = createBlock(label)
     label
   }
 
-  def inst(inst: NameableInst): LocalVarName = inst match {
+  override def inst(inst: NameableInst): LocalVarName = inst match {
     case NamedInst(name, _) =>
       currentBlock._2 add inst
       name
@@ -298,12 +319,12 @@ class FunctionBuilder(
       name
   }
 
-  def inst(name: LocalVarName, inst: Inst): LocalVarName = {
+  override def inst(name: LocalVarName, inst: Inst): LocalVarName = {
     currentBlock._2 add NamedInst(name, inst)
     name
   }
 
-  def build(): FuncVer = new FuncVer(
+  override def build(): FuncVer = new FuncVer(
     functionName, functionSignature, paramNames,
     blocks map { case (name, insts) => new BasicBlock(name, insts) }
   )
