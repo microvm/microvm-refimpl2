@@ -20,12 +20,13 @@ class BundleBuilder(baseName: String) {
   private var nextSigNumber = 0
   private var nextConstNumber = 0
   private var nextGlobalCellNumber = 0
+  private var typePrefix = baseName
 
   // Name generation
   // ------------------------------------------------------------
 
-  private def generateName(n: String): String = {
-    var n_ = baseName + "." + n
+  private def generateName(prefix: String, n: String): String = {
+    var n_ = prefix + "." + n
     while (usedNames contains n_) n_ += "_"
     usedNames += n_
     n_
@@ -40,7 +41,7 @@ class BundleBuilder(baseName: String) {
     newVarName(nextName)
   }
 
-  def newVarName(name: String) = GlobalVarName(generateName(name))
+  def newVarName(name: String) = GlobalVarName(generateName(baseName, name))
 
   def newTypeName(): TypeName = {
     var nextName: String = null
@@ -51,7 +52,7 @@ class BundleBuilder(baseName: String) {
     newTypeName(nextName)
   }
 
-  def newTypeName(name: String) = TypeName(generateName(name))
+  def newTypeName(name: String) = TypeName(generateName(typePrefix, name))
 
   def newFuncSigName(): FuncSigName = {
     var nextName: String = null
@@ -62,7 +63,7 @@ class BundleBuilder(baseName: String) {
     newFuncSigName(nextName)
   }
 
-  def newFuncSigName(name: String) = FuncSigName(generateName(name))
+  def newFuncSigName(name: String) = FuncSigName(generateName(baseName, name))
 
   def newFuncVerName(function: GlobalVarName): FuncVerName = {
     val nameStr = function.name + "_" + java.util.UUID.randomUUID()
@@ -70,7 +71,9 @@ class BundleBuilder(baseName: String) {
     FuncVerName(nameStr)
   }
 
-  def newFuncVerName(name: String): FuncVerName = FuncVerName(generateName(name))
+  def newFuncVerName(name: String): FuncVerName = FuncVerName(generateName(baseName, name))
+
+  def setTypePrefix(newPrefix: String): Unit = typePrefix = newPrefix
 
   // Code generation
   // ------------------------------------------------------------
@@ -173,7 +176,7 @@ class BundleBuilder(baseName: String) {
   ): FunctionBuilder = {
     val sig = funcSig(retTy, paramTy)
     val builder = new FunctionBuilderImpl(
-      funcName, sig, versionName, paramTy.toSeq.indices.map("param"+_))
+      this, funcName, sig, versionName, paramTy.toSeq.indices.map("param"+_))
     funcVers.put(versionName, builder)
     builder
   }
@@ -203,7 +206,7 @@ class BundleBuilder(baseName: String) {
     versionName: FuncVerName,
     paramNames: Traversable[String]
   ): FunctionBuilder = {
-    val builder = new FunctionBuilderImpl(funcName, sigName, versionName, paramNames)
+    val builder = new FunctionBuilderImpl(this, funcName, sigName, versionName, paramNames)
     funcVers.put(versionName, builder)
     builder
   }
@@ -238,6 +241,7 @@ trait FunctionBuilder {
   def newVarName(name: String): LocalVarName
   def newLabelName(): LabelName
   def newLabelName(name: String): LabelName
+  def typeDef(ctor: TypeCtor): TypeName
   def currentBlockLabel: LabelName
   def startNewBlock(): LabelName
   def startNewBlock(label: LabelName): LabelName
@@ -247,6 +251,7 @@ trait FunctionBuilder {
 }
 
 private[text] class FunctionBuilderImpl(
+  bundleBuilder: BundleBuilder,
   override val functionName: GlobalVarName,
   override val functionSignature: FuncSigName,
   override val versionName: FuncVerName,
@@ -293,6 +298,8 @@ private[text] class FunctionBuilderImpl(
   }
 
   override def newLabelName(name: String): LabelName = LabelName(generateName(name))
+
+  override def typeDef(ctor: TypeCtor): TypeName = bundleBuilder.typeDef(ctor)
 
   private def createBlock(name: LabelName): Block = {
     val newBlock = (name, mutable.ArrayBuffer.empty[NameableInst])
