@@ -6,21 +6,22 @@ import scala.collection.{JavaConversions, mutable}
 import scala.collection.JavaConversions._
 
 class BundleBuilder(baseName: String) {
-  val typeDefs = mutable.AnyRefMap.empty[TypeName, TypeCtor]
-  val funcSigDefs = mutable.AnyRefMap.empty[FuncSigName, FuncSig]
-  val constDefs = mutable.AnyRefMap.empty[GlobalVarName, Const]
-  val globalCellDefs = mutable.AnyRefMap.empty[GlobalVarName, TypeName]
-  val funcDecls = mutable.AnyRefMap.empty[GlobalVarName, FuncSigName]
-  val funcVers = mutable.AnyRefMap.empty[FuncVerName, FunctionBuilder]
-  val funcExpDefs = mutable.AnyRefMap.empty[GlobalVarName, Expose]
-  val comments = mutable.AnyRefMap.empty[GlobalName, String]
+  protected val typeDefs = mutable.AnyRefMap.empty[TypeName, TypeCtor]
+  protected val funcSigDefs = mutable.AnyRefMap.empty[FuncSigName, FuncSig]
+  protected val constDefs = mutable.AnyRefMap.empty[GlobalVarName, Const]
+  protected val globalCellDefs = mutable.AnyRefMap.empty[GlobalVarName, TypeName]
+  protected val funcDecls = mutable.AnyRefMap.empty[GlobalVarName, FuncSigName]
+  protected val funcVers = mutable.AnyRefMap.empty[FuncVerName, FunctionBuilder]
+  protected val funcExpDefs = mutable.AnyRefMap.empty[GlobalVarName, Expose]
+  protected val comments = mutable.AnyRefMap.empty[GlobalName, String]
 
-  val usedNames = mutable.Set.empty[String]
+  protected val usedNames = mutable.Set.empty[String]
   private var nextTypeNumber = 0
   private var nextSigNumber = 0
   private var nextConstNumber = 0
   private var nextGlobalCellNumber = 0
   private var typePrefix = baseName
+  private var constPrefix = baseName
 
   // Name generation
   // ------------------------------------------------------------
@@ -41,7 +42,9 @@ class BundleBuilder(baseName: String) {
     newVarName(nextName)
   }
 
-  def newVarName(name: String) = GlobalVarName(generateName(baseName, name))
+  def newVarName(name: String) = newVarName(name, baseName)
+
+  def newVarName(name: String, prefix: String) = GlobalVarName(generateName(prefix, name))
 
   def newTypeName(): TypeName = {
     var nextName: String = null
@@ -74,6 +77,8 @@ class BundleBuilder(baseName: String) {
   def newFuncVerName(name: String): FuncVerName = FuncVerName(generateName(baseName, name))
 
   def setTypePrefix(newPrefix: String): Unit = typePrefix = newPrefix
+
+  def setConstPrefix(newPrefix: String): Unit = constPrefix = newPrefix
 
   // Code generation
   // ------------------------------------------------------------
@@ -119,17 +124,17 @@ class BundleBuilder(baseName: String) {
   def funcSig(name: FuncSigName, ret: TypeName, args: util.List[TypeName]): FuncSigName =
     funcSig(name, ret, JavaConversions.asScalaBuffer(args))
 
-  def const(c: Const): GlobalVarName =
+  def constDef(c: Const): GlobalVarName =
     constDefs collectFirst { case (name, existing) if c == existing => name } getOrElse {
       var nextName: String = null
       do {
         nextName = "const" + nextConstNumber
         nextConstNumber += 1
       } while (usedNames contains nextName)
-      const(newVarName(nextName), c)
+      constDef(newVarName(nextName, constPrefix), c)
     }
 
-  def const(name: GlobalVarName, c: Const): GlobalVarName = {
+  def constDef(name: GlobalVarName, c: Const): GlobalVarName = {
     constDefs.put(name, c)
     name
   }
@@ -242,6 +247,7 @@ trait FunctionBuilder {
   def newLabelName(): LabelName
   def newLabelName(name: String): LabelName
   def typeDef(ctor: TypeCtor): TypeName
+  def constDef(c: Const): VarName
   def currentBlockLabel: LabelName
   def startNewBlock(): LabelName
   def startNewBlock(label: LabelName): LabelName
@@ -260,8 +266,8 @@ private[text] class FunctionBuilderImpl(
 
   type Block = (LabelName, mutable.ArrayBuffer[NameableInst])
 
-  val blocks = mutable.ArrayBuffer.empty[Block]
-  val usedNames = mutable.Set.empty[String]
+  protected val blocks = mutable.ArrayBuffer.empty[Block]
+  protected val usedNames = mutable.Set.empty[String]
   private var nextVarNumber = 0
   private var nextLabelNumber = 0
   private var currentBlock: Block = createBlock(newLabelName("entry"))
@@ -300,6 +306,8 @@ private[text] class FunctionBuilderImpl(
   override def newLabelName(name: String): LabelName = LabelName(generateName(name))
 
   override def typeDef(ctor: TypeCtor): TypeName = bundleBuilder.typeDef(ctor)
+
+  override def constDef(c: Const): VarName = bundleBuilder.constDef(c)
 
   private def createBlock(name: LabelName): Block = {
     val newBlock = (name, mutable.ArrayBuffer.empty[NameableInst])
