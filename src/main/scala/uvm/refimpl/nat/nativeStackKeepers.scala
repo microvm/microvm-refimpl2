@@ -7,6 +7,7 @@ import uvm.{ Function => MFunc }
 import uvm.refimpl.UvmRuntimeException
 import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
+import scala.annotation.tailrec
 
 object PoorManAgent {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
@@ -31,8 +32,10 @@ trait PoorManAgent[T] {
 
 abstract class NativeCallResult
 object NativeCallResult {
-  case class CallBack(func: MFunc, cookie: Long, args: Seq[ValueBox], maybeRetBox: Option[ValueBox]) extends NativeCallResult
-  case class Return() extends NativeCallResult
+  /** Native calls back to Mu. */
+  case class CallMu(func: MFunc, cookie: Long, args: Seq[ValueBox]) extends NativeCallResult
+  /** Native returns to Mu. maybeRvb holds the return value. */
+  case class ReturnToMu(maybeRvb: Option[ValueBox]) extends NativeCallResult
 }
 
 object NativeStackKeeper {
@@ -64,8 +67,11 @@ class NativeStackKeeper(implicit nativeCallHelper: NativeCallHelper) extends Poo
 
   abstract class ToSlave
   object ToSlave {
-    case class CallNative(sig: FuncSig, func: Word, args: Seq[ValueBox], retBox: ValueBox) extends ToSlave
-    case class ReturnToCallBack() extends ToSlave
+    /** Mu wants to call a native function. */
+    case class CallNative(sig: FuncSig, func: Word, args: Seq[ValueBox]) extends ToSlave
+    /** Mu wants to return to a native function. maybeRvb holds the return value. */
+    case class ReturnToNative(maybeRvb: Option[ValueBox]) extends ToSlave
+    /** Mu wants the slave to stop. */
     case class Stop() extends ToSlave
   }
 
@@ -74,7 +80,8 @@ class NativeStackKeeper(implicit nativeCallHelper: NativeCallHelper) extends Poo
   class Slave extends Runnable with PoorManAgent[ToSlave] {
 
     def run(): Unit = {
-      while (true) {
+      @tailrec
+      def receiving(): Unit = {
         val received = try {
           receive()
         } catch {
@@ -83,12 +90,13 @@ class NativeStackKeeper(implicit nativeCallHelper: NativeCallHelper) extends Poo
             return
         }
         received match {
-          case ToSlave.CallNative(sig, func, args, retBox) => {
-            nativeCallHelper.callNative(master, sig, func, args, retBox)
-            master.send(NativeCallResult.Return())
+          case ToSlave.CallNative(sig, func, args) => {
+            val maybeRvb = nativeCallHelper.callNative(master, sig, func, args)
+            master.send(NativeCallResult.ReturnToMu(maybeRvb))
+            receiving()
           }
 
-          case ToSlave.ReturnToCallBack() => {
+          case ToSlave.ReturnToNative(maybeRvb) => {
             throw new UvmNativeCallException("Attempt to return to native function, but no native function called back before")
           }
 
@@ -98,14 +106,17 @@ class NativeStackKeeper(implicit nativeCallHelper: NativeCallHelper) extends Poo
           }
         }
       }
+
+      receiving()
     }
 
-    def onCallBack(func: MFunc, cookie: Long, args: Seq[ValueBox], maybeRetBox: Option[ValueBox]): Unit = {
+    def onCallBack(func: MFunc, cookie: Long, args: Seq[ValueBox]): Option[ValueBox] = {
       logger.debug("sending master the CallBack message...")
-      master.send(NativeCallResult.CallBack(func, cookie, args, maybeRetBox))
+      master.send(NativeCallResult.CallMu(func, cookie, args))
       logger.debug("msg sent. Waiting for master's reply...")
       try {
-        while (true) {
+        @tailrec
+        def receiving(): Option[ValueBox] = {
           val received = try {
             receive()
           } catch {
@@ -116,13 +127,14 @@ class NativeStackKeeper(implicit nativeCallHelper: NativeCallHelper) extends Poo
               throw e
           }
           received match {
-            case ToSlave.CallNative(sig, func, args, retBox) => {
-              nativeCallHelper.callNative(master, sig, func, args, retBox)
-              master.send(NativeCallResult.Return())
+            case ToSlave.CallNative(sig, func, args) => {
+              val maybeRvb = nativeCallHelper.callNative(master, sig, func, args)
+              master.send(NativeCallResult.ReturnToMu(maybeRvb))
+              receiving()
             }
 
-            case ToSlave.ReturnToCallBack() => {
-              return
+            case ToSlave.ReturnToNative(maybeRvb) => {
+              maybeRvb
             }
 
             case ToSlave.Stop() => {
@@ -132,15 +144,15 @@ class NativeStackKeeper(implicit nativeCallHelper: NativeCallHelper) extends Poo
               throw new UvmNativeCallException(msg)
             }
           }
+
         }
+        receiving()
       } catch {
         case e: Throwable =>
           logger.debug("Exception occured in the slave thread when there are native threads alive. " +
             "Prepare for undefined behaviours in native frames (or JVM frames if the native calls back again).", e)
           throw e
       }
-
-      logger.debug("returning...")
     }
   }
 
@@ -148,14 +160,14 @@ class NativeStackKeeper(implicit nativeCallHelper: NativeCallHelper) extends Poo
   val slaveThread = new Thread(slave)
   slaveThread.start()
 
-  def callNative(sig: FuncSig, func: Word, args: Seq[ValueBox], retBox: ValueBox): NativeCallResult = {
-    slave.send(ToSlave.CallNative(sig, func, args, retBox))
+  def callNative(sig: FuncSig, func: Word, args: Seq[ValueBox]): NativeCallResult = {
+    slave.send(ToSlave.CallNative(sig, func, args))
     val result = receive()
     result
   }
 
-  def returnToCallBack(): NativeCallResult = {
-    slave.send(ToSlave.ReturnToCallBack())
+  def returnToNative(maybeRvBox: Option[ValueBox]): NativeCallResult = {
+    slave.send(ToSlave.ReturnToNative(maybeRvBox))
     val result = receive()
     result
   }

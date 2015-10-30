@@ -16,8 +16,7 @@ case class Handle(ty: Type, vb: ValueBox)
 
 abstract class TrapHandlerResult
 case class TrapExit() extends TrapHandlerResult
-case class TrapRebindPassValue(newStack: Handle, value: Handle) extends TrapHandlerResult
-case class TrapRebindPassVoid(newStack: Handle) extends TrapHandlerResult
+case class TrapRebindPassValues(newStack: Handle, values: Seq[Handle]) extends TrapHandlerResult
 case class TrapRebindThrowExc(newStack: Handle, exc: Handle) extends TrapHandlerResult
 
 trait TrapHandler {
@@ -264,7 +263,7 @@ class ClientAgent(mutator: Mutator)(
   def load(ord: MemoryOrder, loc: Handle): Handle = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypeUPtr(t)  => (true, t)
+      case TypeUPtr(t) => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
@@ -278,7 +277,7 @@ class ClientAgent(mutator: Mutator)(
   def store(ord: MemoryOrder, loc: Handle, newVal: Handle): Unit = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypeUPtr(t)  => (true, t)
+      case TypeUPtr(t) => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
@@ -291,7 +290,7 @@ class ClientAgent(mutator: Mutator)(
   def cmpXchg(ordSucc: MemoryOrder, ordFail: MemoryOrder, weak: Boolean, loc: Handle, expected: Handle, desired: Handle): (Boolean, Handle) = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypeUPtr(t)  => (true, t)
+      case TypeUPtr(t) => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
@@ -305,7 +304,7 @@ class ClientAgent(mutator: Mutator)(
   def atomicRMW(ord: MemoryOrder, op: AtomicRMWOptr, loc: Handle, opnd: Handle): Handle = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypeUPtr(t)  => (true, t)
+      case TypeUPtr(t) => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
@@ -318,18 +317,12 @@ class ClientAgent(mutator: Mutator)(
   def fence(ord: MemoryOrder): Unit = {
   }
 
-  def newStack(func: Handle, args: Seq[Handle]): Handle = {
+  def newStack(func: Handle): Handle = {
     val funcVal = func.vb.asInstanceOf[BoxFunc].func.getOrElse {
       throw new UvmRuntimeException("Stack-bottom function must not be NULL")
     }
 
-    val funcVer = funcVal.versions.headOption.getOrElse {
-      throw new UvmRuntimeException("Stack-bottom function %s is not defined.".format(funcVal.repr))
-    }
-
-    val argBoxes = args.map(_.vb)
-
-    val sta = microVM.threadStackManager.newStack(funcVer, argBoxes, mutator)
+    val sta = microVM.threadStackManager.newStack(funcVal, mutator)
 
     val nb = BoxStack(Some(sta))
     newHandle(InternalTypes.STACK, nb)
@@ -377,8 +370,9 @@ class ClientAgent(mutator: Mutator)(
     val sv = getStackNotNull(stack)
     val fr = nthFrame(sv, frame)
     fr match {
-      case f: NativeFrame => 0
-      case f: MuFrame     => f.funcVer.id
+      case f: NativeFrame      => 0
+      case f: UndefinedMuFrame => 0
+      case f: DefinedMuFrame   => f.funcVer.id
     }
   }
 
@@ -386,8 +380,9 @@ class ClientAgent(mutator: Mutator)(
     val sv = getStackNotNull(stack)
     val fr = nthFrame(sv, frame)
     fr match {
-      case f: NativeFrame => 0
-      case f: MuFrame     => f.curInst.id
+      case f: NativeFrame      => 0
+      case f: UndefinedMuFrame => 0
+      case f: DefinedMuFrame   => f.curInst.id
     }
   }
 
@@ -398,7 +393,12 @@ class ClientAgent(mutator: Mutator)(
       case f: NativeFrame => {
         throw new UvmRefImplException("Attempt to dump keepalive variables for a native frame for native funciton 0x%x".format(f.func))
       }
-      case f: MuFrame => {
+      case f: UndefinedMuFrame => {
+        for ((ty,box) <- f.func.sig.paramTys zip f.boxes) yield {
+          newHandle(ty, box)
+        }
+      }
+      case f: DefinedMuFrame => {
         val i = f.curInst
         i match {
           case hkac: HasKeepAliveClause => {
@@ -429,7 +429,7 @@ class ClientAgent(mutator: Mutator)(
     }
   }
 
-  def pushFrame(stack: Handle, func: Handle, argList: Seq[Handle]): Unit = {
+  def pushFrame(stack: Handle, func: Handle): Unit = {
     val sta = stack.vb.asInstanceOf[BoxStack].stack.getOrElse {
       throw new UvmRuntimeException("Stack must not be NULL")
     }
@@ -438,13 +438,7 @@ class ClientAgent(mutator: Mutator)(
       throw new UvmRuntimeException("Stack-bottom function must not be NULL")
     }
 
-    val funcVer = funcVal.versions.headOption.getOrElse {
-      throw new UvmRuntimeException("Stack-bottom function %s is not defined.".format(funcVal.repr))
-    }
-
-    val argBoxes = argList.map(_.vb)
-
-    sta.pushMuFrame(funcVer, argBoxes)
+    sta.pushFrame(funcVal)
   }
 
   def tr64IsFp(handle: Handle): Boolean = {
@@ -545,19 +539,19 @@ class ClientAgent(mutator: Mutator)(
     }
     unpin(objRef)
   }
-  
+
   def expose(func: Handle, callConv: Flag, cookie: Handle): Handle = {
     val TypeFuncRef(sig) = func.ty
     val f = func.vb.asInstanceOf[BoxFunc].func.getOrElse {
       throw new UvmRuntimeException("Attempt to expose NULL Mu function")
     }
-    
+
     val c = cookie.vb.asInstanceOf[BoxInt].value.toLong
-    
-    val addr = microVM.nativeCallHelper.exposeFuncDynamic(f,c)
+
+    val addr = microVM.nativeCallHelper.exposeFuncDynamic(f, c)
     newHandle(InternalTypePool.funcPtrOf(sig), BoxPointer(addr))
   }
-  
+
   def unexpose(callConv: Flag, addr: Handle): Unit = {
     val a = addr.vb.asInstanceOf[BoxPointer].addr
     microVM.nativeCallHelper.unexposeFunc(a)

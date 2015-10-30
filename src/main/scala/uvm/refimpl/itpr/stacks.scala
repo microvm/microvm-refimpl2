@@ -14,28 +14,37 @@ import uvm.refimpl.nat.NativeCallHelper
 import org.slf4j.LoggerFactory
 import com.typesafe.scalalogging.Logger
 
-abstract class StackState
+/** The state of a frame. */
+abstract class FrameState
 
-object StackState {
-  case class Ready(t: Type) extends uvm.refimpl.itpr.StackState
-  case object Running extends StackState
-  case object Dead extends StackState
+object FrameState {
+  /** If values of ts are given, it is ready to resume. */
+  case class Ready(ts: Seq[Type]) extends FrameState
+  /** A thread is executing it. */
+  case object Running extends FrameState
+  /** Killed. */
+  case object Dead extends FrameState
 }
 
-class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFunc: FuncVer, args: Seq[ValueBox])(
+/**
+ * Implements a Mu Stack. Contains both Mu frames and native frames.
+ */
+class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFunc: Function)(
     implicit nativeCallHelper: NativeCallHelper) {
   var gcMark: Boolean = false // Mark for GC.
 
-  private var _state: StackState = StackState.Ready(InternalTypes.VOID) // Initial state is READY<void>
-  def state = _state
-  private def state_=(s: StackState) = _state = s
-
-  private var _top: InterpreterFrame = InterpreterFrame.forMuFunc(stackBottomFunc, 0L, args, None)
+  private var _top: InterpreterFrame = InterpreterFrame.forMuFunc(stackMemory.top, stackBottomFunc, 0L, None)
+  /** The top frame */
   def top = _top
   private def top_=(f: InterpreterFrame) = _top = f
 
+  /** The state of the stack (i.e. state of the top frame) */
+  def state = top.state
+
+  /** A lazily created native stack keeper. */
   var maybeNSK: Option[NativeStackKeeper] = None
 
+  /** Lazily create the nsk. */
   private def ensureNSK(): Unit = {
     if (maybeNSK == None) {
       val nsk = new NativeStackKeeper()
@@ -43,6 +52,7 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
     }
   }
 
+  /** Iterate through all frames. */
   def frames: Iterator[InterpreterFrame] = new AbstractIterator[InterpreterFrame] {
     var curFrame: Option[InterpreterFrame] = Some(top)
     def hasNext = curFrame.isDefined
@@ -53,121 +63,322 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
     }
   }
 
+  /** Iterate through Mu frames only. */
   def muFrames: Iterator[MuFrame] = frames.filter(_.isInstanceOf[MuFrame]).map(_.asInstanceOf[MuFrame])
 
-  def pushMuFrame(funcVer: FuncVer, args: Seq[ValueBox]): Unit = {
-    val newFrame = InterpreterFrame.forMuFunc(funcVer, 0L, args, Some(top))
+  ///////// frame manipulations
+
+  /** Create a new Mu frame, usually for Mu calling Mu, or OSR. */
+  private def pushMuFrame(func: Function): Unit = {
+    assert(top.isInstanceOf[MuFrame])
+    val newFrame = InterpreterFrame.forMuFunc(stackMemory.top, func, 0L, Some(top))
     top = newFrame
-    top.savedStackPointer = stackMemory.top
   }
 
-  def pushMuFrameForCallBack(funcVer: FuncVer, cookie: Long, args: Seq[ValueBox]): Unit = {
-    val newFrame = InterpreterFrame.forMuFunc(funcVer, cookie, args, Some(top))
+  /** Create a new Mu frame for calling from native. */
+  private def pushMuFrameForCallBack(func: Function, cookie: Long): Unit = {
+    assert(top.isInstanceOf[NativeFrame])
+    val newFrame = InterpreterFrame.forMuFunc(stackMemory.top, func, cookie, Some(top))
     top = newFrame
-    top.savedStackPointer = stackMemory.top
   }
 
-  def replaceTopMuFrame(funcVer: FuncVer, args: Seq[ValueBox]): Unit = {
-    val newFrame = InterpreterFrame.forMuFunc(funcVer, 0L, args, top.prev)
-    stackMemory.rewind(top.savedStackPointer)
+  /** Replace the top Mu frame with a frame of a different function. Usually used by tailcall. */
+  private def replaceTopMuFrame(func: Function): Unit = {
+    assert(top.isInstanceOf[MuFrame])
+    if (top.isInstanceOf[DefinedMuFrame]) {
+      stackMemory.rewind(top.asInstanceOf[DefinedMuFrame].savedStackPointer)
+    }
+    val newFrame = InterpreterFrame.forMuFunc(stackMemory.top, func, 0L, top.prev)
     top = newFrame
-    top.savedStackPointer = stackMemory.top
   }
 
-  private def pushNativeFrame(func: Word): Unit = {
+  /** Push a (conceptual) native frame. The "real native frame" is held by the NSK slave, of course. */
+  private def pushNativeFrame(sig: FuncSig, func: Word): Unit = {
+    assert(top.isInstanceOf[MuFrame])
     val newFrame = InterpreterFrame.forNativeFunc(func, Some(top))
     top = newFrame
-    top.savedStackPointer = stackMemory.top
   }
 
-  def callNativeOnStack(sig: FuncSig, func: Word, args: Seq[ValueBox], retBox: ValueBox): NativeCallResult = {
-    assert(top.isInstanceOf[MuFrame])
-    ensureNSK()
-    pushNativeFrame(func)
-    val result = maybeNSK.get.callNative(sig, func, args, retBox)
-    handleNativeCallResult(result)
-    result
-  }
-
-  def returnToNativeOnStack(): NativeCallResult = {
-    assert(top.isInstanceOf[NativeFrame])
-    val result = maybeNSK.get.returnToCallBack()
-    handleNativeCallResult(result)
-    result
-  }
-
-  private def handleNativeCallResult(nsr: NativeCallResult): Unit = nsr match {
-    case r: NativeCallResult.Return   => popNativeFrame()
-    case r: NativeCallResult.CallBack => top.asInstanceOf[NativeFrame].maybeCallback = Some(r)
-  }
-
-  def popFrame(): Unit = {
-    stackMemory.rewind(top.savedStackPointer)
+  /** Pop a Mu frame or a native frame. Throw error when popping the bottom frame. */
+  private def _popFrame(): Unit = {
     top = top.prev.getOrElse {
       throw new UvmRuntimeException("Attemting to pop the last frame of a stack. Stack ID: %d.".format(id))
     }
   }
 
+  /** Pop a Mu frame */
+  private def popMuFrame(): Unit = {
+    assert(top.isInstanceOf[MuFrame])
+    if (top.isInstanceOf[DefinedMuFrame]) {
+      stackMemory.rewind(top.asInstanceOf[DefinedMuFrame].savedStackPointer)
+    }
+    _popFrame()
+  }
+
+  /** Pop a native frame */
   private def popNativeFrame(): Unit = {
     assert(top.isInstanceOf[NativeFrame])
-    popFrame()
+    _popFrame()
   }
 
+  /**
+   * Return from a Mu frame to a native frame. This will eventually resume in Mu.
+   * @return true if the interpreter needs to increment the PC.
+   */
+  private def returnToNative(maybeRvb: Option[ValueBox]): Boolean = {
+    assert(top.isInstanceOf[NativeFrame])
+    val result = maybeNSK.get.returnToNative(maybeRvb)
+    handleNativeCallResult(result)
+  }
+
+  /**
+   * Handle native call result. This will eventually resume in Mu.
+   * @return true if the interpreter needs to increment the PC.
+   */
+  private def handleNativeCallResult(ncr: NativeCallResult): Boolean = {
+    ncr match {
+      case r @ NativeCallResult.ReturnToMu(maybeRvb) => {
+        assert(top.isInstanceOf[NativeFrame])
+        popNativeFrame()
+        assert(top.isInstanceOf[MuFrame])
+        top.asInstanceOf[MuFrame].resumeNormally(maybeRvb.toSeq)
+      }
+      case r @ NativeCallResult.CallMu(func, cookie, args) => {
+        assert(top.isInstanceOf[NativeFrame])
+        pushMuFrameForCallBack(func, cookie)
+        top.asInstanceOf[MuFrame].resumeNormally(args.toSeq)
+      }
+    }
+  }
+
+  ///////// interpreter/client-visible stack state transitions
+
+  /**
+   * Mu calling a Mu function.
+   */
+  def callMu(func: Function, args: Seq[ValueBox]): Boolean = {
+    assert(top.isInstanceOf[MuFrame])
+    top.state = FrameState.Ready(func.sig.retTys)
+    pushMuFrame(func)
+    top.asInstanceOf[MuFrame].resumeNormally(args)
+  }
+
+  /** Mu tail-calling a Mu function. */
+  def tailCallMu(func: Function, args: Seq[ValueBox]): Boolean = {
+    assert(top.isInstanceOf[MuFrame])
+    replaceTopMuFrame(func)
+    top.asInstanceOf[MuFrame].resumeNormally(args)
+  }
+
+  /** Returning from a Mu frame. Will eventually resume in Mu.*/
+  def retFromMu(rvs: Seq[ValueBox]): Boolean = {
+    assert(top.isInstanceOf[MuFrame])
+    popMuFrame()
+
+    top match {
+      case f: MuFrame => {
+        f.resumeNormally(rvs)
+      }
+      case f: NativeFrame => {
+        val maybeRvb = rvs match {
+          case Seq()  => None
+          case Seq(b) => Some(b)
+          case bs => throw new UvmRefImplException(
+            "Cannot return multiple values to native functions. Native func: 0x%x".format(f.func))
+        }
+
+        returnToNative(maybeRvb)
+      }
+    }
+  }
+
+  /** Mu calling a native function. */
+  def callNative(sig: FuncSig, func: Word, args: Seq[ValueBox]): Boolean = {
+    assert(top.isInstanceOf[MuFrame])
+    ensureNSK()
+    pushNativeFrame(sig, func)
+    val result = maybeNSK.get.callNative(sig, func, args)
+    handleNativeCallResult(result)
+  }
+
+  /** Unwind to a Mu frame. The interpreter will handle the resumption. */
   def unwindTo(f: InterpreterFrame): Unit = {
     top = f
-    stackMemory.rewind(top.savedStackPointer)
+    top match {
+      case mf: DefinedMuFrame => {
+        stackMemory.rewind(mf.savedStackPointer)
+        top.state = FrameState.Running
+      }
+      case mf: UndefinedMuFrame => {
+        throw new UvmRefImplException("Unwound to a frame for undefined Mu function %s. Stack ID: %d.".format(mf.func.repr, id))
+      }
+      case nf: NativeFrame => {
+        throw new UnimplementedOprationException("Cannot unwind to native frames. Stack ID: %d.".format(id))
+      }
+    }
   }
 
-  def unbindFromThread(retTy: Type): Unit = {
-    state = StackState.Ready(retTy)
+  /** Unbind the stack from a thread, returning with values. */
+  def unbindRetWith(retTys: Seq[Type]): Unit = {
+    assert(top.isInstanceOf[MuFrame])
+    top.state = FrameState.Ready(retTys)
   }
 
-  def rebindToThread(): Unit = {
-    state = StackState.Running
+  /**
+   * Rebind to this stack, passing values.
+   * @return true if the interpreter should increment the PC by continueNormally().
+   */
+  def rebindPassValues(args: Seq[ValueBox]): Boolean = {
+    top match {
+      case mf: MuFrame => {
+        mf.resumeNormally(args)
+      }
+      case nf: NativeFrame => {
+        val maybeRvb = args match {
+          case Seq()   => None
+          case Seq(vb) => Some(vb)
+          case bs => throw new UvmRuntimeException("Attempted to return multiple values to a native frame. " +
+            "Stack ID: %d, Native function: 0x%x".format(id, nf.func))
+        }
+        returnToNative(maybeRvb)
+      }
+    }
   }
 
+  /** Kill the stack */
   def kill(): Unit = {
-    state = StackState.Dead
+    for (f <- frames) {
+      f.state = FrameState.Dead
+    }
     maybeNSK.foreach { nsk =>
       nsk.close()
     }
+  }
+
+  /** Pop a frame. Part of the API. Also used by THROW */
+  def popFrame(): Unit = {
+    _popFrame()
+  }
+
+  /** Push a Mu frame. Part of the API. */
+  def pushFrame(func: Function) {
+    pushMuFrame(func)
   }
 }
 
 abstract class InterpreterFrame(val prev: Option[InterpreterFrame]) {
   /**
-   * The stack pointer to restore to when unwinding THE CURRENT FRAME. In other word, this value is the stackMemory.top
-   * of the stack when the current frame is pushed.
-   * <p>
-   * Native frames do not really use this. They use their own stacks.
+   * The state of the frame. Must be set when creating the frame.
    */
-  var savedStackPointer: Word = 0
+  var state: FrameState = _
 }
 
 object InterpreterFrame {
-  def forMuFunc(funcVer: FuncVer, cookie: Long, args: Seq[ValueBox], prev: Option[InterpreterFrame]): MuFrame = {
-    val frm = new MuFrame(funcVer, cookie, prev) // Bottom frame
-
-    for ((p, a) <- (funcVer.entry.norParams zip args)) {
-      frm.boxes(p).copyFrom(a)
+  def forMuFunc(savedStackPointer: Word, func: Function, cookie: Long, prev: Option[InterpreterFrame]): MuFrame = {
+    val frm = func.versions.headOption match {
+      case None          => new UndefinedMuFrame(func, prev)
+      case Some(funcVer) => new DefinedMuFrame(savedStackPointer, funcVer, cookie, prev)
     }
+
+    frm.state = FrameState.Ready(func.sig.retTys)
 
     frm
   }
 
   def forNativeFunc(func: Word, prev: Option[InterpreterFrame]): NativeFrame = {
     val frm = new NativeFrame(func, prev)
+
+    // A white lie. A native frame cannot be created until actualy calling a native function.
+    frm.state = FrameState.Running
+
     frm
   }
 }
 
+class NativeFrame(val func: Word, prev: Option[InterpreterFrame]) extends InterpreterFrame(prev)
+
+abstract class MuFrame(val func: Function, prev: Option[InterpreterFrame]) extends InterpreterFrame(prev) {
+  /**
+   * Resume a Mu frame.
+   * @return true if the interpreter should increment the PC
+   */
+  def resumeNormally(args: Seq[ValueBox]): Boolean
+
+  /**
+   * true if the frame is just created (push_frame or new_stack). Binding a thread to the stack or executing an
+   *  instruction will make it false.
+   */
+  var justCreated: Boolean = true
+
+  /**
+   * Traverse over all local variable boxes. For GC.
+   */
+  def scannableBoxes: TraversableOnce[ValueBox]
+}
+
+object UndefinedMuFrame {
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+}
+
 /**
- * A Mu frame
+ * A Mu frame for undefined Mu frames. Such frames can still be resumed, but will trap as soon as being executed.
+ */
+class UndefinedMuFrame(func: Function, prev: Option[InterpreterFrame]) extends MuFrame(func, prev) {
+  import UndefinedMuFrame._
+
+  val boxes = func.sig.paramTys.map { ty =>
+    try {
+      ValueBox.makeBoxForType(ty)
+    } catch {
+      case e: UvmRefImplException => {
+        logger.error("Having problem creating box for parameter type: %s".format(ty))
+        throw e
+      }
+    }
+  }
+
+  override def scannableBoxes = boxes
+
+  def resumeNormally(args: Seq[ValueBox]): Boolean = {
+    if (justCreated) {
+      if (boxes.length != args.length) {
+        throw new UvmRefImplException("Function %s (not undefined yet) expects %d params, got %d args.".format(
+          func.repr, boxes.length, args.length))
+      }
+
+      for ((dst, src) <- boxes zip args) {
+        dst.copyFrom(src)
+      }
+
+      justCreated = false
+      state = FrameState.Running
+      
+      false
+    } else {
+      throw new UvmRefImplException("Undefined frame for function %s is already executed. Could be double binding.".format(func.repr))
+    }
+  }
+
+}
+
+object DefinedMuFrame {
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+}
+/**
+ * A Mu frame for defined Mu frames.
  *
+ * @param savedStackPointer: The stack pointer to restore to when unwinding THE CURRENT FRAME. In other word, this value is the stackMemory.top
+ * of the stack when the current frame is pushed.
  * @param cookie: The cookie in the native interface. When called by another Mu function, cookie can be any value.
  */
-class MuFrame(val funcVer: FuncVer, val cookie: Long, prev: Option[InterpreterFrame]) extends InterpreterFrame(prev) {
+class DefinedMuFrame(val savedStackPointer: Word, val funcVer: FuncVer, val cookie: Long, prev: Option[InterpreterFrame])
+    extends MuFrame(funcVer.func, prev) {
+  import DefinedMuFrame._
+
+  /** Boxes for all local variables. */
   val boxes = new HashMap[LocalVariable, ValueBox]()
+
+  override def scannableBoxes = boxes.values
 
   /** Edge-assigned instructions take values determined at look backedges */
   val edgeAssignedBoxes = new HashMap[Parameter, ValueBox]()
@@ -177,32 +388,6 @@ class MuFrame(val funcVer: FuncVer, val cookie: Long, prev: Option[InterpreterFr
 
   /** Current instruction index within the current basic block */
   var curInstIndex: Int = 0
-  
-  /** true if the frame is just created (push_frame or new_stack). Binding a thread to the stack or executing an
-   *  instruction will make it false. */
-  var justCreated: Boolean = true
-
-  /**
-   * curInstHalfExecuted is true if the current instruction is partially executed and may continue when resumed.
-   * <p>
-   * Examples include:
-   * <ul>
-   * <li>CALL: When executing CALL, the interpretation continues with the new fame. At this time, the CALL is partially
-   * executed. When returning, the CALL is exposed to the InterpreterThread again and the other half is executed --
-   * assigning the return value to the ValueBox of the CALL instruction.
-   * <li>SWAPSTACK: The first half is swapping away from the stack. The second half is when swapping back, the
-   * interpreter will assign the return value and decide where to continue (normally or exceptionally).
-   * <li>TRAP/WATCHPOINT: The current stack becomes unbound on entering the client. When returning from the client,
-   * there is a stack re-binding. The same thing happens as SWAPSTACK.
-   * </ul>
-   * The CCALL instruction does not use this flag, because the control flow is deterministic. Unlike swapstack, CCALL
-   * must return from the only source -- the native program.
-   * </p>
-   * This flag is set when executing CALL, SWAPSTACK, TRAP or WATCHPOINT. It is cleared when executing
-   * InterpreterThread.finishHalfExecutedInst or InterpreterThread.catchException. Particularly, the RET, RETVOID,
-   * THROW, TRAP, WATCHPOINT and SWAPSTACK instruction will call those two functions.
-   */
-  var curInstHalfExecuted: Boolean = false
 
   makeBoxes()
 
@@ -222,7 +407,6 @@ class MuFrame(val funcVer: FuncVer, val cookie: Long, prev: Option[InterpreterFr
   }
 
   private def putBox(lv: LocalVariable) {
-    import MuFrame.logger
     val ty = TypeInferer.inferType(lv)
     try {
       boxes.put(lv, ValueBox.makeBoxForType(ty))
@@ -268,16 +452,46 @@ class MuFrame(val funcVer: FuncVer, val cookie: Long, prev: Option[InterpreterFr
       case i => throw new UvmRefImplException("Instruction does not have keepalives: " + i.repr)
     }
   }
+
+  /** Resume with values. May be used by any OSR point, including call, tailcall, ret, trap, wp, swapstack */
+  def resumeNormally(args: Seq[ValueBox]): Boolean = {
+    val destBoxes = if (justCreated) {
+      // Just created. args go to the arguments of the entry block.
+      // May be extended to resume from any basic block.
+      val bb = curBB
+      val norParams = bb.norParams
+
+      if (norParams.length != args.length) {
+        throw new UvmRefImplException("Basic block %s expects %d params, got %d args.".format(
+          bb.repr, norParams.length, args.length))
+      }
+
+      norParams.map(np => boxes(np))
+
+    } else {
+      // Resuming to an instruction. args go to the results of the current instruction.
+      val inst = curInst
+      val results = inst.results
+
+      if (results.length != args.length) {
+        throw new UvmRefImplException("Instruction %s expects %d params, got %d args.".format(
+          inst.repr, results.length, args.length))
+      }
+
+      results.map(r => boxes(r))
+    }
+
+    for ((dst, src) <- destBoxes zip args) {
+      dst.copyFrom(src)
+    }
+
+    val wasJustCreated = justCreated
+    
+    justCreated = false
+    state = FrameState.Running
+    
+    !wasJustCreated
+  }
+
 }
 
-object MuFrame {
-  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
-}
-
-class NativeFrame(val func: Word, prev: Option[InterpreterFrame]) extends InterpreterFrame(prev) {
-  /**
-   * When calling back from native, maybeCallback is set to the CallBack object.
-   * Useful when returning value to the native.
-   */
-  var maybeCallback: Option[NativeCallResult.CallBack] = None
-}

@@ -22,9 +22,123 @@ import uvm.types.{ Type => MType }
 import uvm.utils.HexDump
 import uvm.utils.LazyPool
 import uvm.refimpl.UvmRefImplException
+import jnr.ffi.Pointer
 
 object NativeCallHelper {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+
+  private def storeBoxToPtr(ptr: Pointer, off: Int, mty: MType, vb: ValueBox): Unit = {
+    mty match {
+      case TypeInt(8)   => ptr.putByte(off, vb.asInstanceOf[BoxInt].value.toByte)
+      case TypeInt(16)  => ptr.putShort(off, vb.asInstanceOf[BoxInt].value.toShort)
+      case TypeInt(32)  => ptr.putInt(off, vb.asInstanceOf[BoxInt].value.toInt)
+      case TypeInt(64)  => ptr.putLong(off, vb.asInstanceOf[BoxInt].value.toLong)
+      case TypeFloat()  => ptr.putFloat(off, vb.asInstanceOf[BoxFloat].value)
+      case TypeDouble() => ptr.putDouble(off, vb.asInstanceOf[BoxDouble].value)
+      case s @ TypeStruct(flds) => {
+        val fldvbs = vb.asInstanceOf[BoxStruct].values
+        for (((fty, fvb), i) <- (flds zip fldvbs).zipWithIndex) {
+          val off2 = TypeSizes.fieldOffsetOf(s, i)
+          storeBoxToPtr(ptr, off + off2.toInt, fty, fvb)
+        }
+      }
+      case _: AbstractPointerType => ptr.putLong(off, vb.asInstanceOf[BoxPointer].addr)
+    }
+  }
+
+  private def loadBoxFromPtr(ptr: Pointer, off: Long, mty: MType, vb: ValueBox): Unit = {
+    mty match {
+      case TypeInt(8)   => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(ptr.getByte(off), 8)
+      case TypeInt(16)  => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(ptr.getShort(off), 16)
+      case TypeInt(32)  => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(ptr.getInt(off), 32)
+      case TypeInt(64)  => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(ptr.getLong(off), 64)
+      case TypeFloat()  => vb.asInstanceOf[BoxFloat].value = ptr.getFloat(off)
+      case TypeDouble() => vb.asInstanceOf[BoxDouble].value = ptr.getDouble(off)
+      case s @ TypeStruct(flds) => {
+        val fldvbs = vb.asInstanceOf[BoxStruct].values
+        for (((fty, fvb), i) <- (flds zip fldvbs).zipWithIndex) {
+          val off2 = TypeSizes.fieldOffsetOf(s, i)
+          loadBoxFromPtr(ptr, off + off2, fty, fvb)
+        }
+      }
+      case _: AbstractPointerType => vb.asInstanceOf[BoxPointer].addr = ptr.getAddress(off)
+    }
+  }
+
+  private def makeBoxFromPtr(ptr: Pointer, off: Long, mty: MType): ValueBox = mty match {
+    case TypeInt(8)   => BoxInt(OpHelper.trunc(ptr.getByte(off), 8))
+    case TypeInt(16)  => BoxInt(OpHelper.trunc(ptr.getShort(off), 16))
+    case TypeInt(32)  => BoxInt(OpHelper.trunc(ptr.getInt(off), 32))
+    case TypeInt(64)  => BoxInt(OpHelper.trunc(ptr.getLong(off), 64))
+    case TypeFloat()  => BoxFloat(ptr.getFloat(off))
+    case TypeDouble() => BoxDouble(ptr.getDouble(off))
+    case s @ TypeStruct(flds) => {
+      val fldvbs = for ((fty, i) <- flds.zipWithIndex) yield {
+        val off2 = TypeSizes.fieldOffsetOf(s, i)
+        makeBoxFromPtr(ptr, off + off2, fty)
+      }
+      BoxStruct(fldvbs)
+    }
+    case _: AbstractPointerType => BoxPointer(ptr.getAddress(off))
+  }
+
+  private val FORCE_ALIGN_UP = 16L
+
+  private def putArg(hib: HeapInvocationBuffer, mty: MType, vb: ValueBox): Unit = {
+    mty match {
+      case TypeInt(8)   => hib.putByte(vb.asInstanceOf[BoxInt].value.toByte)
+      case TypeInt(16)  => hib.putShort(vb.asInstanceOf[BoxInt].value.toShort)
+      case TypeInt(32)  => hib.putInt(vb.asInstanceOf[BoxInt].value.toInt)
+      case TypeInt(64)  => hib.putLong(vb.asInstanceOf[BoxInt].value.toLong)
+      case TypeFloat()  => hib.putFloat(vb.asInstanceOf[BoxFloat].value)
+      case TypeDouble() => hib.putDouble(vb.asInstanceOf[BoxDouble].value)
+      case TypeStruct(flds) => {
+        // Always allocate more space so that C may access the word that contains the byte instead of just the byte.
+        val sz = TypeSizes.alignUp(TypeSizes.sizeOf(mty), FORCE_ALIGN_UP).intValue()
+        val buf = ByteBuffer.allocate(sz).order(ByteOrder.LITTLE_ENDIAN)
+        val ptr = Pointer.wrap(NativeSupport.jnrRuntime, buf)
+        storeBoxToPtr(ptr, 0, mty, vb)
+        logger.debug("Hexdump:\n" + HexDump.dumpByteBuffer(buf))
+        hib.putStruct(buf.array(), buf.arrayOffset())
+      }
+      case _: AbstractPointerType => hib.putAddress(vb.asInstanceOf[BoxPointer].addr)
+    }
+  }
+
+  def makeBoxFromClosureBufParam(cbuf: Closure.Buffer, index: Int, mty: MType): ValueBox = mty match {
+    case TypeVoid()   => BoxVoid()
+    case TypeInt(8)   => BoxInt(OpHelper.trunc(cbuf.getByte(index), 8))
+    case TypeInt(16)  => BoxInt(OpHelper.trunc(cbuf.getShort(index), 16))
+    case TypeInt(32)  => BoxInt(OpHelper.trunc(cbuf.getInt(index), 32))
+    case TypeInt(64)  => BoxInt(OpHelper.trunc(cbuf.getLong(index), 64))
+    case TypeFloat()  => BoxFloat(cbuf.getFloat(index))
+    case TypeDouble() => BoxDouble(cbuf.getDouble(index))
+    case s @ TypeStruct(flds) => {
+      val mem = cbuf.getStruct(index)
+      makeBoxFromPtr(NativeSupport.theMemory, mem, mty)
+    }
+    case _: AbstractPointerType => BoxPointer(cbuf.getAddress(index))
+  }
+
+  def putBoxToClosureBufRv(cbuf: Closure.Buffer, mty: MType, vb: ValueBox): Unit = mty match {
+    case TypeInt(8)   => cbuf.setByteReturn(vb.asInstanceOf[BoxInt].value.toByte)
+    case TypeInt(16)  => cbuf.setShortReturn(vb.asInstanceOf[BoxInt].value.toShort)
+    case TypeInt(32)  => cbuf.setIntReturn(vb.asInstanceOf[BoxInt].value.toInt)
+    case TypeInt(64)  => cbuf.setLongReturn(vb.asInstanceOf[BoxInt].value.toLong)
+    case TypeFloat()  => cbuf.setFloatReturn(vb.asInstanceOf[BoxFloat].value)
+    case TypeDouble() => cbuf.setDoubleReturn(vb.asInstanceOf[BoxDouble].value)
+    case s @ TypeStruct(flds) => {
+      // Always allocate more space so that C may access the word that contains the byte instead of just the byte.
+      val sz = TypeSizes.alignUp(TypeSizes.sizeOf(mty), FORCE_ALIGN_UP).intValue()
+      val buf = ByteBuffer.allocate(sz).order(ByteOrder.LITTLE_ENDIAN)
+      val ptr = Pointer.wrap(NativeSupport.jnrRuntime, buf)
+      storeBoxToPtr(ptr, 0, mty, vb)
+      logger.debug("Hexdump:\n" + HexDump.dumpByteBuffer(buf))
+      cbuf.setStructReturn(buf.array(), buf.arrayOffset())
+    }
+    case _: AbstractPointerType => cbuf.setAddressReturn(vb.asInstanceOf[BoxPointer].addr)
+  }
+
 }
 
 /**
@@ -114,7 +228,9 @@ class NativeCallHelper {
   /**
    * Call a native function. Must be called by a NativeStackKeeper.Slave thread.
    */
-  def callNative(nsk: NativeStackKeeper, sig: FuncSig, func: Word, args: Seq[ValueBox], retBox: ValueBox): Unit = {
+  def callNative(nsk: NativeStackKeeper, sig: FuncSig, func: Word, args: Seq[ValueBox]): Option[ValueBox] = {
+    assert(Thread.currentThread() == nsk.slaveThread)
+
     val jFunc = jffiFuncPool((sig, func))
 
     val hib = new HeapInvocationBuffer(jFunc)
@@ -128,108 +244,55 @@ class NativeCallHelper {
 
     val inv = Invoker.getInstance
 
-    sig.retTys match {
+    val maybeRvb = sig.retTys match {
       case Seq() => {
         inv.invokeLong(jFunc, hib)
+        None
       }
-      case Seq(t) => t match {
-        case TypeInt(8) => {
-          val rv = inv.invokeInt(jFunc, hib).toByte
-          retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 8)
+      case Seq(t) => {
+        val b = t match {
+          case TypeInt(8) => {
+            val rv = inv.invokeInt(jFunc, hib).toByte
+            BoxInt(OpHelper.trunc(BigInt(rv), 8))
+          }
+          case TypeInt(16) => {
+            val rv = inv.invokeInt(jFunc, hib).toShort
+            BoxInt(OpHelper.trunc(BigInt(rv), 16))
+          }
+          case TypeInt(32) => {
+            val rv = inv.invokeInt(jFunc, hib)
+            BoxInt(OpHelper.trunc(BigInt(rv), 32))
+          }
+          case TypeInt(64) => {
+            val rv = inv.invokeLong(jFunc, hib)
+            BoxInt(OpHelper.trunc(BigInt(rv), 64))
+          }
+          case TypeFloat() => {
+            val rv = inv.invokeFloat(jFunc, hib)
+            BoxFloat(rv)
+          }
+          case TypeDouble() => {
+            val rv = inv.invokeDouble(jFunc, hib)
+            BoxDouble(rv)
+          }
+          case TypeStruct(flds) => {
+            val rv = inv.invokeStruct(jFunc, hib)
+            val buf = ByteBuffer.wrap(rv).order(ByteOrder.LITTLE_ENDIAN)
+            logger.debug("Hexdump:\n" + HexDump.dumpByteBuffer(buf))
+            val ptr = Pointer.wrap(NativeSupport.jnrRuntime, buf)
+            makeBoxFromPtr(ptr, 0, t)
+          }
+          case _: AbstractPointerType => {
+            val rv = inv.invokeAddress(jFunc, hib)
+            BoxPointer(rv)
+          }
         }
-        case TypeInt(16) => {
-          val rv = inv.invokeInt(jFunc, hib).toShort
-          retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 16)
-        }
-        case TypeInt(32) => {
-          val rv = inv.invokeInt(jFunc, hib)
-          retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 32)
-        }
-        case TypeInt(64) => {
-          val rv = inv.invokeLong(jFunc, hib)
-          retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 64)
-        }
-        case TypeFloat() => {
-          val rv = inv.invokeFloat(jFunc, hib)
-          retBox.asInstanceOf[BoxFloat].value = rv
-        }
-        case TypeDouble() => {
-          val rv = inv.invokeDouble(jFunc, hib)
-          retBox.asInstanceOf[BoxDouble].value = rv
-        }
-        case TypeStruct(flds) => {
-          val rv = inv.invokeStruct(jFunc, hib)
-          val buf = ByteBuffer.wrap(rv).order(ByteOrder.LITTLE_ENDIAN)
-          logger.debug("Hexdump:\n" + HexDump.dumpByteBuffer(buf))
-          getArgFromBuf(buf, 0, t, retBox)
-        }
-        case _: AbstractPointerType => {
-          val rv = inv.invokeAddress(jFunc, hib)
-          retBox.asInstanceOf[BoxPointer].addr = rv
-        }
+        Some(b)
       }
     }
     currentNativeStackKeeper.remove()
-  }
 
-  private def putArgToBuf(buf: ByteBuffer, off: Int, mty: MType, vb: ValueBox): Unit = {
-    mty match {
-      case TypeInt(8)   => buf.put(off, vb.asInstanceOf[BoxInt].value.toByte)
-      case TypeInt(16)  => buf.putShort(off, vb.asInstanceOf[BoxInt].value.toShort)
-      case TypeInt(32)  => buf.putInt(off, vb.asInstanceOf[BoxInt].value.toInt)
-      case TypeInt(64)  => buf.putLong(off, vb.asInstanceOf[BoxInt].value.toLong)
-      case TypeFloat()  => buf.putFloat(off, vb.asInstanceOf[BoxFloat].value)
-      case TypeDouble() => buf.putDouble(off, vb.asInstanceOf[BoxDouble].value)
-      case s @ TypeStruct(flds) => {
-        val fldvbs = vb.asInstanceOf[BoxStruct].values
-        for (((fty, fvb), i) <- (flds zip fldvbs).zipWithIndex) {
-          val off2 = TypeSizes.fieldOffsetOf(s, i)
-          putArgToBuf(buf, off + off2.toInt, fty, fvb)
-        }
-      }
-      case _: AbstractPointerType => buf.putLong(off, vb.asInstanceOf[BoxPointer].addr)
-    }
-  }
-
-  private val FORCE_ALIGN_UP = 16L
-
-  private def putArg(hib: HeapInvocationBuffer, mty: MType, vb: ValueBox): Unit = {
-    mty match {
-      case TypeInt(8)   => hib.putByte(vb.asInstanceOf[BoxInt].value.toByte)
-      case TypeInt(16)  => hib.putShort(vb.asInstanceOf[BoxInt].value.toShort)
-      case TypeInt(32)  => hib.putInt(vb.asInstanceOf[BoxInt].value.toInt)
-      case TypeInt(64)  => hib.putLong(vb.asInstanceOf[BoxInt].value.toLong)
-      case TypeFloat()  => hib.putFloat(vb.asInstanceOf[BoxFloat].value)
-      case TypeDouble() => hib.putDouble(vb.asInstanceOf[BoxDouble].value)
-      case TypeStruct(flds) => {
-        // Always allocate more space so that C may access the word that contains the byte instead of just the byte.
-        val buf = ByteBuffer.allocate(TypeSizes.alignUp(TypeSizes.sizeOf(mty), FORCE_ALIGN_UP).intValue())
-        buf.order(ByteOrder.LITTLE_ENDIAN)
-        putArgToBuf(buf, 0, mty, vb)
-        logger.debug("Hexdump:\n" + HexDump.dumpByteBuffer(buf))
-        hib.putStruct(buf.array(), buf.arrayOffset())
-      }
-      case _: AbstractPointerType => hib.putAddress(vb.asInstanceOf[BoxPointer].addr)
-    }
-  }
-
-  private def getArgFromBuf(buf: ByteBuffer, off: Int, mty: MType, vb: ValueBox): Unit = {
-    mty match {
-      case TypeInt(8)   => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(buf.get(off), 8)
-      case TypeInt(16)  => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(buf.getShort(off), 16)
-      case TypeInt(32)  => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(buf.getInt(off), 32)
-      case TypeInt(64)  => vb.asInstanceOf[BoxInt].value = OpHelper.trunc(buf.getLong(off), 64)
-      case TypeFloat()  => vb.asInstanceOf[BoxFloat].value = buf.getFloat(off)
-      case TypeDouble() => vb.asInstanceOf[BoxDouble].value = buf.getDouble(off)
-      case s @ TypeStruct(flds) => {
-        val fldvbs = vb.asInstanceOf[BoxStruct].values
-        for (((fty, fvb), i) <- (flds zip fldvbs).zipWithIndex) {
-          val off2 = TypeSizes.fieldOffsetOf(s, i)
-          getArgFromBuf(buf, off + off2.toInt, fty, fvb)
-        }
-      }
-      case _: AbstractPointerType => vb.asInstanceOf[BoxPointer].addr = buf.getLong(off)
-    }
+    maybeRvb
   }
 
   def exposeFuncStatic(expFunc: ExposedFunc): Word = {
@@ -284,33 +347,37 @@ class NativeCallHelper {
       try {
         val nsk = currentNativeStackKeeper.get()
         logger.debug("Called back. nsk = %s, currentThread = %s, muFunc = %s".format(nsk, Thread.currentThread(), muFunc.repr))
-        assert(nsk != null)
+        assert(nsk != null, s"Native calls Mu function ${muFunc.repr} with cookie ${cookie}, but Mu did not call native.")
+        assert(Thread.currentThread() == nsk.slaveThread)
         currentNativeStackKeeper.remove()
-
-        if (nsk == null) {
-          throw new UvmNativeCallException(s"Native calls Mu function ${muFunc.repr} with cookie ${cookie}, but Mu did not call native.")
-        }
 
         val sig = muFunc.sig
 
         val paramBoxes = for ((paramTy, i) <- sig.paramTys.zipWithIndex) yield {
-          makeBoxForParam(buf, paramTy, i)
+          makeBoxFromClosureBufParam(buf, i, paramTy)
         }
 
-        val maybeRvBox = sig.retTys match {
-          case Seq() => None
-          case Seq(t) => Some(ValueBox.makeBoxForType(t))
-          case ts => throw new UvmRefImplException("Multiple return types %s cannot be used in native calls.".format(ts.map(_.repr).mkString(" ")))
+        val maybeRetTy = sig.retTys match {
+          case Seq()  => None
+          case Seq(t) => Some(t)
+          case ts     => throw new UvmRefImplException("Multiple return types %s cannot be used in native calls.".format(ts.map(_.repr).mkString(" ")))
         }
+
+        val maybeRetBox = maybeRetTy.map(ValueBox.makeBoxForType)
 
         logger.debug("Calling to Mu nsk.slave...")
 
-        nsk.slave.onCallBack(muFunc, cookie, paramBoxes, maybeRvBox)
+        val maybeRvb = nsk.slave.onCallBack(muFunc, cookie, paramBoxes)
+
+        (maybeRetBox, maybeRvb) match {
+          case (None, None)           =>
+          case (Some(dst), Some(src)) => dst.copyFrom(src)
+        }
 
         logger.debug("Back from nsk.slave. Returning to native...")
 
-        maybeRvBox.foreach { rvBox => 
-          putRvToBuf(buf, sig.retTys(0), rvBox)
+        maybeRetBox.foreach { rvBox =>
+          putBoxToClosureBufRv(buf, maybeRetTy.get, rvBox)
         }
 
         currentNativeStackKeeper.set(nsk)
@@ -321,56 +388,6 @@ class NativeCallHelper {
           throw e
 
       }
-    }
-
-    def makeBoxForParam(buf: Closure.Buffer, ty: MType, index: Int): ValueBox = ty match {
-      case TypeVoid()   => BoxVoid()
-      case TypeInt(8)   => BoxInt(OpHelper.trunc(buf.getByte(index), 8))
-      case TypeInt(16)  => BoxInt(OpHelper.trunc(buf.getShort(index), 16))
-      case TypeInt(32)  => BoxInt(OpHelper.trunc(buf.getInt(index), 32))
-      case TypeInt(64)  => BoxInt(OpHelper.trunc(buf.getLong(index), 64))
-      case TypeFloat()  => BoxFloat(buf.getFloat(index))
-      case TypeDouble() => BoxDouble(buf.getDouble(index))
-      case s @ TypeStruct(flds) => {
-        val mem = buf.getStruct(index)
-        makeBoxFromMemory(ty, mem)
-      }
-      case _: AbstractPointerType => BoxPointer(buf.getAddress(index))
-    }
-
-    def makeBoxFromMemory(ty: MType, addr: Word): ValueBox = ty match {
-      case TypeInt(8)   => BoxInt(OpHelper.trunc(NativeSupport.theMemory.getByte(addr), 8))
-      case TypeInt(16)  => BoxInt(OpHelper.trunc(NativeSupport.theMemory.getShort(addr), 16))
-      case TypeInt(32)  => BoxInt(OpHelper.trunc(NativeSupport.theMemory.getInt(addr), 32))
-      case TypeInt(64)  => BoxInt(OpHelper.trunc(NativeSupport.theMemory.getLong(addr), 64))
-      case TypeFloat()  => BoxFloat(NativeSupport.theMemory.getFloat(addr))
-      case TypeDouble() => BoxDouble(NativeSupport.theMemory.getDouble(addr))
-      case s @ TypeStruct(flds) => {
-        val fldvbs = for ((fty, i) <- flds.zipWithIndex) yield {
-          val off = TypeSizes.fieldOffsetOf(s, i)
-          makeBoxFromMemory(fty, addr + off.toInt)
-        }
-        BoxStruct(fldvbs)
-      }
-      case _: AbstractPointerType => BoxPointer(NativeSupport.theMemory.getAddress(addr))
-    }
-
-    def putRvToBuf(buf: Closure.Buffer, ty: MType, vb: ValueBox): Unit = ty match {
-      case TypeInt(8)   => buf.setByteReturn(vb.asInstanceOf[BoxInt].value.toByte)
-      case TypeInt(16)  => buf.setShortReturn(vb.asInstanceOf[BoxInt].value.toShort)
-      case TypeInt(32)  => buf.setIntReturn(vb.asInstanceOf[BoxInt].value.toInt)
-      case TypeInt(64)  => buf.setLongReturn(vb.asInstanceOf[BoxInt].value.toLong)
-      case TypeFloat()  => buf.setFloatReturn(vb.asInstanceOf[BoxFloat].value)
-      case TypeDouble() => buf.setDoubleReturn(vb.asInstanceOf[BoxDouble].value)
-      case s @ TypeStruct(flds) => {
-        // Always allocate more space so that C may access the word that contains the byte instead of just the byte.
-        val bbuf = ByteBuffer.allocate(TypeSizes.alignUp(TypeSizes.sizeOf(ty), FORCE_ALIGN_UP).intValue())
-        bbuf.order(ByteOrder.LITTLE_ENDIAN)
-        putArgToBuf(bbuf, 0, ty, vb)
-        logger.debug("Hexdump:\n" + HexDump.dumpByteBuffer(bbuf))
-        buf.setStructReturn(bbuf.array(), bbuf.arrayOffset())
-      }
-      case _: AbstractPointerType => buf.setAddressReturn(vb.asInstanceOf[BoxPointer].addr)
     }
   }
 }

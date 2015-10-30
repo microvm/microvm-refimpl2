@@ -361,8 +361,8 @@ object MemoryOperations {
     }
   }
 
-  def store(ptr: Boolean, ty: Type, loc: Word, nvb: ValueBox, br: ValueBox)(implicit memorySupport: MemorySupport): Unit = {
-    def storeScalar(ty: Type, loc: Word, nvb: ValueBox, br: ValueBox): Unit = ty match {
+  def store(ptr: Boolean, ty: Type, loc: Word, nvb: ValueBox)(implicit memorySupport: MemorySupport): Unit = {
+    def storeScalar(ty: Type, loc: Word, nvb: ValueBox): Unit = ty match {
       case TypeInt(l) =>
         val bi = nvb.asInstanceOf[BoxInt].value
         l match {
@@ -412,12 +412,11 @@ object MemoryOperations {
     ty match {
       case TypeVector(ety, len) =>
         val nvbs = nvb.asInstanceOf[BoxSeq].values
-        val brs = br.asInstanceOf[BoxSeq].values
         val elemSkip = alignUp(sizeOf(ety), alignOf(ety))
-        for (((brElem, nvbElem), i) <- (brs zip nvbs).zipWithIndex) {
-          storeScalar(ety, loc + elemSkip * i, nvbElem, brElem)
+        for ((nvbElem, i) <- nvbs.zipWithIndex) {
+          storeScalar(ety, loc + elemSkip * i, nvbElem)
         }
-      case sty => storeScalar(sty, loc, nvb, br)
+      case sty => storeScalar(sty, loc, nvb)
     }
   }
 

@@ -1,6 +1,6 @@
 package uvm.refimpl.itpr
 
-import uvm.FuncVer
+import uvm.Function
 import uvm.refimpl.MicroVM
 import uvm.refimpl.mem._
 import scala.collection.mutable.HashMap
@@ -28,7 +28,7 @@ class ThreadStackManager(implicit microVM: MicroVM, nativeCallHelper: NativeCall
 
   def getThreadByID(id: Int): Option[InterpreterThread] = threadRegistry.get(id)
 
-  def iterateAllLiveStacks: Iterable[InterpreterStack] = stackRegistry.values.filter(_.state != StackState.Dead)
+  def iterateAllLiveStacks: Iterable[InterpreterStack] = stackRegistry.values.filter(_.state != FrameState.Dead)
 
   def iterateAllLiveThreads: Iterable[InterpreterThread] = threadRegistry.values.filter(_.isRunning)
 
@@ -55,10 +55,10 @@ class ThreadStackManager(implicit microVM: MicroVM, nativeCallHelper: NativeCall
    * via the "new_stack" message or micro VM threads (the InterpreterThread class) which can execute the NEWSTACK
    * instruction.
    */
-  def newStack(funcVer: FuncVer, args: Seq[ValueBox], mutator: Mutator): InterpreterStack = {
+  def newStack(func: Function, mutator: Mutator): InterpreterStack = {
     val stackMemory = microVM.memoryManager.makeStackMemory(mutator)
     val id = makeStackID()
-    val sta = new InterpreterStack(id, stackMemory, funcVer, args)
+    val sta = new InterpreterStack(id, stackMemory, func)
     stackRegistry.put(id, sta)
     sta
   }

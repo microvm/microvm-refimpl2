@@ -185,7 +185,7 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
   }
 
   private def maybeMarkStack(stack: InterpreterStack): Option[InterpreterStack] = {
-    if (stack.state != StackState.Dead) {
+    if (stack.state != FrameState.Dead) {
       if (!stack.gcMark) {
         stack.gcMark = true
         Some(stack)

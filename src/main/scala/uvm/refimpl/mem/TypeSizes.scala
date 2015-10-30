@@ -104,7 +104,7 @@ object TypeSizes {
     return align
   }
 
-  def fieldOffsetOf(ty: TypeStruct, index: Int): Word = {
+  def fieldOffsetOf(ty: AbstractStructType, index: Int): Word = {
     val fieldType = ty.fieldTys(index)
     val fieldAlign = alignOf(fieldType)
     val prefixSize = structPrefixSizeOf(ty, index)
@@ -119,8 +119,6 @@ object TypeSizes {
   def shiftOffsetOf(ty: Type, index: Word): Word = {
     return alignUp(sizeOf(ty), alignOf(ty)) * index
   }
-
-  def fixedPartOffsetOf(ty: TypeHybrid): Word = 0L
 
   def varPartOffsetOf(ty: TypeHybrid): Word = {
     return alignUp(structPrefixSizeOf(ty, ty.fieldTys.length), alignOf(ty.varTy))
