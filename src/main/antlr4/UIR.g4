@@ -177,6 +177,7 @@ instBody
     |   'TRAP' typeList excClause keepAliveClause                               # InstTrap
     |   'WATCHPOINT' wpid=intLiteral typeList
             dis=destClause ena=destClause ('WPEXC' '(' wpExc=destClause ')')? keepAliveClause    # InstWatchPoint
+    |   'WPBRANCH' wpid=intLiteral dis=destClause ena=destClause                # InstWPBranch
 
     // Foreign Function Interface
     |   'CCALL' callConv=flag '<' funcTy=type funcSig '>' callee=value argList excClause keepAliveClause   # InstCCall

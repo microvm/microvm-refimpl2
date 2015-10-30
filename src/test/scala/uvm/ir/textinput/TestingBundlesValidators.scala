@@ -9,6 +9,10 @@ import uvm.types._
 
 trait TestingBundlesValidators extends Matchers with ExtraMatchers {
   
+  implicit class RichStringContext(sc: StringContext) {
+    def qw(): Seq[String] = sc.parts(0).split("\\s+")
+  }
+  
   implicit class MagicalOur(b: Bundle) {
     def anything(s: String) = b.allNs(s)
     def ty(s: String) = b.typeNs(s)
@@ -20,6 +24,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     def func(s: String) = b.funcNs(s)
     def funcVer(s: String) = b.funcVerNs(s)
     def expFunc(s: String) = b.expFuncNs(s)
+    def inst(s: String) = b.instNs(s)
   }
   
   implicit class MagicalThe(c: FuncVer) {
@@ -31,7 +36,8 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     def globalName(s: String) = UIRTextReader.globalize(s, d.name.get)
     def value(s: String) = d.localVarNs(UIRTextReader.globalize(s, d.name.get))
     def param(s: String) = d.localVarNs(UIRTextReader.globalize(s, d.name.get))
-    def inst(s: String) = d.localVarNs(UIRTextReader.globalize(s, d.name.get))
+    def ires(s: String) = d.localVarNs(UIRTextReader.globalize(s, d.name.get))
+    def inst(s: String) = d.localInstNs(UIRTextReader.globalize(s, d.name.get))
   }
 
   def validateTypes(bundle: GlobalBundle) {
@@ -91,28 +97,36 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     }
     
     our ty "@h0" shouldBeA[TypeHybrid] { its =>
-      its.fixedTy shouldBe (our ty "@void")
+      its.fieldTys shouldBe empty
       its.varTy shouldBe (our ty "@i8")
     }
     our ty "@h1" shouldBeA[TypeHybrid] { its =>
-      its.fixedTy shouldBe (our ty "@foo")
+      its.fieldTys shouldBe Seq(our ty "@foo")
+      its.varTy shouldBe (our ty "@i64")
+    }
+    our ty "@h2" shouldBeA[TypeHybrid] { its =>
+      its.fieldTys shouldBe Seq("@i8", "@i16", "@float").map(our.ty)
       its.varTy shouldBe (our ty "@i64")
     }
     
     our ty "@void" shouldBeA[TypeVoid] thatsIt
     
     our sig "@sig0" shouldBeA[FuncSig] { its =>
-      its.retTy shouldBe (our ty "@void")
-      its.paramTy shouldBe empty
+      its.paramTys shouldBe empty
+      its.retTys shouldBe empty
     }
     
     our ty "@ii8" shouldBeA[TypeIRef] { _.ty shouldBe (our ty "@i8") }
     our ty "@iii8" shouldBeA[TypeIRef] { _.ty shouldBe (our ty "@ii8") }
     
     our sig "@sig1" shouldBeA[FuncSig] { its =>
-      its.retTy shouldBe (our ty "@i32")
-      its paramTy 0 shouldBe (our ty "@i32")
-      its paramTy 1 shouldBe (our ty "@iii8")
+      its.paramTys shouldBe Seq("@i32", "@iii8").map(our.ty)
+      its.retTys shouldBe Seq(our ty "@i32")
+    }
+    
+    our sig "@sig2" shouldBeA[FuncSig] { its =>
+      its.paramTys shouldBe Seq("@i32", "@iii8").map(our.ty)
+      its.retTys shouldBe Seq("@i32", "@i64").map(our.ty)
     }
     
     our ty "@f0" shouldBeA[TypeFuncRef] { _.sig shouldBe (our sig "@sig0") }
@@ -147,7 +161,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     val sig0 = our sig "@sig0"
     our anything "@sig0" shouldBe sig0
   }
-  
+
   def validateConstants(bundle: GlobalBundle) {
     val our = bundle
 
@@ -176,23 +190,19 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     our const "@cdpinf" shouldBeAConstDoubleOf Double.PositiveInfinity 
     our const "@cdbits" shouldBeAConstDoubleOf exactly(bitsd(0xfedcba9876543210L))
  
-    our const "@cs1" shouldBeA[ConstStruct] { its=>
+    our const "@cs1" shouldBeA[ConstSeq] { its=>
       its.constTy shouldBe (our ty "@s1")
-      its fields 0 shouldBe (our const "@ci64")
-      its fields 1 shouldBe (our const "@cd")
+      its.elems shouldBe qw"@ci64 @cd".map(our.const)
     }
     
-    our const "@cs2" shouldBeA[ConstStruct] { its=>
+    our const "@cs2" shouldBeA[ConstSeq] { its=>
       its.constTy shouldBe (our ty "@s2")
-      its fields 0 shouldBe (our const "@cf")
-      its fields 1 shouldBe (our const "@ci64")
+      its.elems shouldBe qw"@cf @ci64".map(our.const)
     }
     
-    our const "@cs3" shouldBeA[ConstStruct] { its=>
+    our const "@cs3" shouldBeA[ConstSeq] { its=>
       its.constTy shouldBe (our ty "@s3")
-      its fields 0 shouldBe (our const "@cd")
-      its fields 1 shouldBe (our const "@cs2")
-      its fields 2 shouldBe (our const "@ci32")
+      its.elems shouldBe qw"@cd @cs2 @ci32".map(our.const)
     }
       
     our const "@cr" shouldBeA[ConstNull] { _.constTy shouldBe (our ty "@rv") }
@@ -203,57 +213,42 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
 
     our const "@cv4f" shouldBeA[ConstSeq] { its =>
       its.constTy shouldBe (our ty "@4xfloat")
-      its elems 0 shouldBe (our const "@F_1")
-      its elems 1 shouldBe (our const "@F_2")
-      its elems 2 shouldBe (our const "@F_3")
-      its elems 3 shouldBe (our const "@F_4")
+      its.elems shouldBe qw"@F_1 @F_2 @F_3 @F_4".map(our.const)
     }
     
     our const "@cv4i" shouldBeA[ConstSeq] { its =>
       its.constTy shouldBe (our ty "@4xi32")
-      its elems 0 shouldBe (our const "@I32_1")
-      its elems 1 shouldBe (our const "@I32_2")
-      its elems 2 shouldBe (our const "@I32_3")
-      its elems 3 shouldBe (our const "@I32_4")
+      its.elems shouldBe qw"@I32_1 @I32_2 @I32_3 @I32_4".map(our.const)
     }
  
     our const "@cv4d" shouldBeA[ConstSeq] { its =>
       its.constTy shouldBe (our ty "@2xdouble")
-      its elems 0 shouldBe (our const "@D_1")
-      its elems 1 shouldBe (our const "@D_2")
+      its.elems shouldBe qw"@D_1 @D_2".map(our.const)
     }
 
     our globalCell "@gi64" shouldBeA[GlobalCell] { _.cellTy shouldBe (our ty "@i64") }
 
     our func "@fdummy" shouldBeA[Function] { _.sig shouldBe (our sig "@sig0") }
     
-    our const "@sgf" shouldBeA[ConstStruct] { its =>
+    our const "@sgf" shouldBeA[ConstSeq] { its =>
       its.constTy shouldBe (our ty "@sgf_t")
-      its fields 0 shouldBe (our globalValue "@gi64")
-      its fields 1 shouldBe (our globalValue "@fdummy")
+      its.elems shouldBe qw"@gi64 @fdummy".map(our.globalValue)
     }
     
-    our const "@I32P_PTR1" shouldBeA[ConstPointer] { its =>
+    our const "@I32P_PTR1" shouldBeA[ConstInt] { its =>
       its.constTy shouldBe (our ty "@i32_p")
-      its.addr shouldBe 0x123456789abcdef0L
+      its.num.toLong shouldBe 0x123456789abcdef0L
     }
     
-    our const "@SIG0FP_PTR1" shouldBeA[ConstPointer] { its =>
+    our const "@SIG0FP_PTR1" shouldBeA[ConstInt] { its =>
       its.constTy shouldBe (our ty "@sig0_fp")
-      its.addr shouldBe 0xfedcba9876543210L
+      its.num.toLong shouldBe 0xfedcba9876543210L
     }
     
     our const "@ary1" shouldBeA[ConstSeq] { its =>
       its.constTy shouldBe (our ty "@i32_3_ary")
-      its elems 0 shouldBe (our const "@I32_1")
-      its elems 1 shouldBe (our const "@I32_2")
-      its elems 2 shouldBe (our const "@I32_3")
+      its.elems shouldBe qw"@I32_1 @I32_2 @I32_3".map(our.const)
     }
-    
-    our const "@VOID" shouldBeA[ConstNull] { its =>
-      its.constTy shouldBe (our ty "@void")
-    }
-
     
     // Testing namespaces
     val ci8 = our const "@ci8"
@@ -271,33 +266,30 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     val our = bundle
     
     our sig "@foo" shouldBeA[FuncSig] { its =>
-      its.retTy shouldBe (our ty "@void")
-      its.paramTy shouldBe empty
+      its.paramTys shouldBe empty
+      its.retTys shouldBe empty
     }
 
     our sig "@bar" shouldBeA[FuncSig] { its =>
-      its.retTy shouldBe (our ty "@i64")
-      its paramTy 0 shouldBe (our ty "@i32")
-      its paramTy 1 shouldBe (our ty "@i16")
+      its.paramTys shouldBe qw"@i32 @i16".map(our.ty)
+      its.retTys shouldBe qw"@i64".map(our.ty)
     }
     
     our sig "@baz" shouldBeA[FuncSig] { its =>
-      its.retTy shouldBe (our ty "@i32")
-      its paramTy 0 shouldBe (our ty "@i32")
-      its paramTy 1 shouldBe (our ty "@iii8")
+      its.paramTys shouldBe qw"@i32 @iii8".map(our.ty)
+      its.retTys shouldBe qw"@i32".map(our.ty)
     }
     
     our sig "@sig_fs" shouldBeA[FuncSig] { its =>
-      its.retTy shouldBe (our ty "@void")
-      its paramTy 0 shouldBe (our ty "@i32")
+      its.paramTys shouldBe qw"@i32".map(our.ty)
+      its.retTys shouldBe empty
     }
     
     our ty "@sig_t" shouldBeA[TypeFuncRef] { _.sig shouldBe (our sig "@sig_fs") }
 
     our sig "@signal_sig" shouldBeA[FuncSig] { its =>
-      its.retTy shouldBe (our ty "@sig_t")
-      its paramTy 0 shouldBe (our ty "@i32")
-      its paramTy 1 shouldBe (our ty "@sig_t")
+      its.paramTys shouldBe qw"@i32 @sig_t".map(our.ty)
+      its.retTys shouldBe qw"@sig_t".map(our.ty)
     }
     
     our func "@signal" shouldBeA[Function] { its =>
@@ -328,6 +320,10 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           whose.ty shouldBe (our ty "@iii8")
           whose.name.get shouldEqual "@main.v1.entry.argv"
         }
+        
+        (my inst "%add").results shouldBe Seq(my ires "%sum")
+        (my inst "%call").results shouldBe qw"%x %y %z".map(my.ires)
+        (my inst "%ret").results shouldBe empty
       }
       
     }
@@ -386,7 +382,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         my inst "%or"   shouldBeA[InstBinOp] { _.op shouldBe BinOptr.OR  }
         my inst "%xor"  shouldBeA[InstBinOp] { _.op shouldBe BinOptr.XOR }
         
-        for (i <- my.localVarNs.all; if i.isInstanceOf[InstBinOp]) {
+        for (i <- my.localInstNs.all; if i.isInstanceOf[InstBinOp]) {
           i.asInstanceOf[InstBinOp].opndTy shouldBe (our ty "@i32")
           i.asInstanceOf[InstBinOp].op1 shouldBe (my param "%p0")
           i.asInstanceOf[InstBinOp].op2 shouldBe (my param "%p1")
@@ -403,7 +399,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         my inst "%fdiv" shouldBeA[InstBinOp] { _.op shouldBe BinOptr.FDIV }
         my inst "%frem" shouldBeA[InstBinOp] { _.op shouldBe BinOptr.FREM }
         
-        for (i <- my.localVarNs.all; if i.isInstanceOf[InstBinOp]) {
+        for (i <- my.localInstNs.all; if i.isInstanceOf[InstBinOp]) {
           i.asInstanceOf[InstBinOp].opndTy shouldBe (our ty "@double")
           i.asInstanceOf[InstBinOp].op1 shouldBe (my param "%p0")
           i.asInstanceOf[InstBinOp].op2 shouldBe (my param "%p1")
@@ -424,7 +420,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         my inst "%sgt" shouldBeA[InstCmp] { _.op shouldBe CmpOptr.SGT }
         my inst "%sge" shouldBeA[InstCmp] { _.op shouldBe CmpOptr.SGE }
         
-        for (i <- my.localVarNs.all; if i.isInstanceOf[InstCmp]) {
+        for (i <- my.localInstNs.all; if i.isInstanceOf[InstCmp]) {
           i.asInstanceOf[InstCmp].opndTy shouldBe (our ty "@i64")
           i.asInstanceOf[InstCmp].op1 shouldBe (my param "%p0")
           i.asInstanceOf[InstCmp].op2 shouldBe (my param "%p1")
@@ -452,7 +448,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         my inst "%fugt"   shouldBeA[InstCmp] { _.op shouldBe CmpOptr.FUGT }
         my inst "%fuge"   shouldBeA[InstCmp] { _.op shouldBe CmpOptr.FUGE }
         
-        for (i <- my.localVarNs.all; if i.isInstanceOf[InstCmp]) {
+        for (i <- my.localInstNs.all; if i.isInstanceOf[InstCmp]) {
           i.asInstanceOf[InstCmp].opndTy shouldBe (our ty "@float")
           i.asInstanceOf[InstCmp].op1 shouldBe (my param "%p0")
           i.asInstanceOf[InstCmp].op2 shouldBe (my param "%p1")
@@ -581,11 +577,46 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
     }
 
+    in (our func "@select") { (func, the) =>
+      in(the bb "%entry") { my =>
+        
+        my inst "%select" shouldBeA[InstSelect] { its =>
+          its.condTy shouldBe (our ty "@i1")
+          its.opndTy shouldBe (our ty "@i32")
+          its.cond shouldBe (our const "@TRUE")
+          its.ifTrue shouldBe (our const "@I32_0")
+          its.ifFalse shouldBe (our const "@I32_1")
+        } 
+      }
+    }
+    
     in (our func "@ctrlFlow") { (func, the) =>
       in(the bb "%entry") { my =>
         my inst "%br1" shouldBeA[InstBranch] { its =>
           its.dest.bb shouldBe (the bb "%head")
           its.dest.args shouldBe Seq(my value "%p0")
+        }
+      }
+        
+      in(the bb "%head") { my =>
+        my inst "%br2" shouldBeA[InstBranch2] { its =>
+          its.cond shouldBe (my ires "%zero")
+          its.ifTrue.bb shouldBe (the bb "%body")
+          its.ifTrue.args shouldBe Seq(my value "%x")
+          its.ifFalse.bb shouldBe (the bb "%exit")
+          its.ifFalse.args shouldBe empty
+        }
+      }
+      
+      in(the bb "%body") { my =>
+        my inst "%switch" shouldBeA[InstSwitch] { its =>
+          its.opndTy shouldBe (our ty "@i32")
+          its.opnd shouldBe (my value "%x")
+          its.defDest.bb shouldBe (the bb "%other")
+          its.cases(0)._1 shouldBe (our value "@I32_1")
+          its.cases(0)._2.bb shouldBe (the bb "%one")  
+          its.cases(1)._1 shouldBe (our value "@I32_2")
+          its.cases(1)._2.bb shouldBe (the bb "%two")  
         }
       }
       
@@ -608,30 +639,9 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         }
       }
       in(the bb "%next") { my =>
-        my inst "%br6" shouldBeA[InstBranch] { _.dest.bb shouldBe (the bb "%head") }
+        my inst "%br6" shouldBeA[InstBranch] { _.dest shouldBe DestClause(the bb "%head", Seq(my ires "%i2")) }
       }
-        
-      in(the bb "%head") { my =>
-        my inst "%br2" shouldBeA[InstBranch2] { its =>
-          its.cond shouldBe (my inst "%zero")
-          its.ifTrue.bb shouldBe (the bb "%body")
-          its.ifTrue.args shouldBe Seq(my value "%x")
-          its.ifFalse.bb shouldBe (the bb "%exit")
-          its.ifFalse.args shouldBe empty
-        }
-      }
-      
-      in(the bb "%body") { my =>
-        my inst "%switch" shouldBeA[InstSwitch] { its =>
-          its.opndTy shouldBe (our ty "@i32")
-          its.opnd shouldBe (my inst "%x")
-          its.defDest.bb shouldBe (the bb "%other")
-          its.cases(0)._1 shouldBe (our value "@I32_1")
-          its.cases(0)._2.bb shouldBe (the bb "%one")  
-          its.cases(1)._1 shouldBe (our value "@I32_2")
-          its.cases(1)._2.bb shouldBe (the bb "%two")  
-        }
-      }
+
     }
     
     in (our func "@callee2") { (func, the) =>
@@ -639,7 +649,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         
         my inst "%ret" shouldBeA[InstRet] { its =>
           its.funcVer shouldBe the
-          its.retVal shouldBe (my inst "%rv")
+          its.retVals shouldBe Seq(my ires "%rv")
         }
       }
     }     
@@ -648,7 +658,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       in(the bb "%entry") { my =>
       
         my inst "%throw" shouldBeA[InstThrow] { its =>
-          its.excVal shouldBe (my inst "%exc")
+          its.excVal shouldBe (my ires "%exc")
         }
       }
     }
@@ -656,7 +666,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     in (our func "@caller1") { (func, the) =>
       in(the bb "%entry") { my =>
         
-        my inst "%v1" shouldBeA[InstCall] { its =>
+        my inst "%call1" shouldBeA[InstCall] { its =>
           its.sig shouldBe (our sig "@npnr_sig")
           its.callee shouldBe (our value "@callee1")
           its.argList shouldBe empty
@@ -664,7 +674,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.keepAlives shouldBe empty
         }
         
-        my inst "%v2" shouldBeA[InstCall] { its =>
+        my inst "%call2" shouldBeA[InstCall] { its =>
           its.sig shouldBe (our sig "@iii_sig")
           its.callee shouldBe (our value "@callee2")
           its.argList shouldEqual Seq("@I64_1", "@I64_2").map(our.value)
@@ -672,20 +682,19 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.keepAlives shouldBe empty
         }
   
-        my inst "%v3" shouldBeA[InstCall] { its =>
+        my inst "%call3" shouldBeA[InstCall] { its =>
           its.sig shouldBe (our sig "@iii_sig")
           its.callee shouldBe (our value "@callee3")
           its.argList shouldEqual Seq("@I64_1", "@I64_2").map(our.value)
-          its.excClause.get.nor.bb shouldBe (the bb "%cont")
-          its.excClause.get.nor.args shouldBe Seq(my inst "%v2", my inst "%v3")
-          its.excClause.get.exc.bb shouldBe (the bb "%catch")
-          its.excClause.get.exc.args shouldBe empty
+          its.excClause shouldBe Some(ExcClause(
+              DestClause(the bb "%cont", qw"%v2 %v3".map(my.ires)),
+              DestClause(the bb "%catch", Seq())))
           its.keepAlives shouldBe empty
         }  
       }
       
       in(the bb "%cont") { my =>
-        my inst "%v4" shouldBeA[InstCall] { its =>
+        my inst "%call4" shouldBeA[InstCall] { its =>
           its.sig shouldBe (our sig "@npnr_sig")
           its.callee shouldBe (our globalValue "@callee1")
           its.argList shouldBe empty
@@ -693,21 +702,20 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.keepAlives shouldBe Seq("%v2", "%v3").map(my.value)
         }
   
-        my inst "%v5" shouldBeA[InstCall] { its =>
+        my inst "%call5" shouldBeA[InstCall] { its =>
           its.sig shouldBe (our sig "@iii_sig")
           its.callee shouldBe (our globalValue "@callee3")
           its.argList shouldBe Seq("%v3", "%v3").map(my.value)
-          its.excClause.get.nor.bb shouldBe (the bb "%cont2")
-          its.excClause.get.nor.args shouldBe empty
-          its.excClause.get.exc.bb shouldBe (the bb "%catch")
-          its.excClause.get.exc.args shouldBe empty
-          its.keepAlives shouldEqual Seq(my value "%v2")
+          its.excClause shouldBe Some(ExcClause(
+              DestClause(the bb "%cont2", Seq()),
+              DestClause(the bb "%catch", Seq())))
+          its.keepAlives shouldEqual Seq(my ires "%v2")
         }  
       }
       
       in(the bb "%cont2") { my =>
         my inst "%retv" shouldBeA[InstRet] {its =>
-          its.retVal shouldBe (our value "@VOID")        
+          its.retVals shouldBe empty
         }
       }
       
@@ -723,7 +731,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         my inst "%tc" shouldBeA[InstTailCall] { its =>
           its.sig shouldBe (our sig "@iii_sig")
           its.callee shouldBe (our globalValue "@callee2")
-          its.argList shouldEqual Seq("%p0", "%p1").map(my.inst)
+          its.argList shouldEqual Seq("%p0", "%p1").map(my.value)
         }
       }
     }
@@ -793,7 +801,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         my inst "%newhybrid" shouldBeA[InstNewHybrid] { its =>
           its.allocTy shouldBe (our ty "@hic")
           its.lenTy shouldBe (our ty "@i64")
-          its.length shouldBe (my param "%p0")
+          its.length shouldBe (our const "@I64_43")
           its.excClause shouldBe None
         }
         
@@ -801,18 +809,11 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.allocTy shouldBe (our ty "@i64")
           its.excClause shouldBe None
         }
-        
-        my inst "%allocahybrid" shouldBeA[InstAllocaHybrid] { its =>
-          its.allocTy shouldBe (our ty "@hic")
-          its.lenTy shouldBe (our ty "@i64")
-          its.length shouldBe (my param "%p0")
-          its.excClause shouldBe None
-        }
 
         my inst "%new_s" shouldBeA[InstNew] { its =>
           its.allocTy shouldBe (our ty "@i64")
           its.excClause shouldBe Some(ExcClause(
-              DestClause(the bb "%bb2", Seq("%alloca", "%allocahybrid", "%p0", "%p1").map(my.value)),
+              DestClause(the bb "%bb2", Seq()),
               DestClause(the bb "%handler", Seq())))
         }
       }
@@ -821,9 +822,9 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         my inst "%newhybrid_s" shouldBeA[InstNewHybrid] { its =>
           its.allocTy shouldBe (our ty "@hic")
           its.lenTy shouldBe (our ty "@i64")
-          its.length shouldBe (my param "%p0")
+          its.length shouldBe (our const "@I64_43")
           its.excClause shouldBe Some(ExcClause(
-              DestClause(the bb "%bb3", Seq("%alloca", "%allocahybrid", "%p0", "%p1").map(my.value)),
+              DestClause(the bb "%bb3", Seq()),
               DestClause(the bb "%handler", Seq())))
         }
       }
@@ -832,7 +833,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         my inst "%alloca_s" shouldBeA[InstAlloca] { its =>
           its.allocTy shouldBe (our ty "@i64")
           its.excClause shouldBe Some(ExcClause(
-              DestClause(the bb "%bb4", Seq("%alloca", "%allocahybrid", "%p0", "%p1").map(my.value)),
+              DestClause(the bb "%bb4", Seq()),
               DestClause(the bb "%handler", Seq())))
         }
       }
@@ -841,9 +842,9 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         my inst "%allocahybrid_s" shouldBeA[InstAllocaHybrid] { its =>
           its.allocTy shouldBe (our ty "@hic")
           its.lenTy shouldBe (our ty "@i64")
-          its.length shouldBe (my param "%p0")
+          its.length shouldBe (our const "@I64_43")
           its.excClause shouldBe Some(ExcClause(
-              DestClause(the bb "%bb5", Seq("%alloca", "%allocahybrid", "%p1").map(my.value)),
+              DestClause(the bb "%bb5", Seq()),
               DestClause(the bb "%handler", Seq())))
         }
       }
@@ -861,49 +862,50 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         
         my inst "%getiref" shouldBeA[InstGetIRef] { its =>
           its.referentTy shouldBe (our ty "@sid")
-          its.opnd shouldBe (my inst "%new2")
+          its.opnd shouldBe (my value "%r9")
         }
         
         my inst "%getfieldiref" shouldBeA[InstGetFieldIRef] { its =>
           its.ptr shouldBe false
           its.referentTy shouldBe (our ty "@sid")
           its.index shouldBe 0
-          its.opnd shouldBe (my inst "%getiref")
+          its.opnd shouldBe (my value "%r11")
         }
         
         my inst "%getelemiref" shouldBeA[InstGetElemIRef] { its =>
           its.ptr shouldBe false
           its.referentTy shouldBe (our ty "@al")
           its.indTy shouldBe (our ty "@i64")
-          its.opnd shouldBe (my inst "%alloca2")
-          its.index shouldBe (my param "%p1")
+          its.opnd shouldBe (my value "%r10")
+          its.index shouldBe (our const "@I64_1")
+        }
+        
+        my inst "%allocahybrid" shouldBeA[InstAllocaHybrid] { its =>
+          its.allocTy shouldBe (our ty "@hic")
+          its.lenTy shouldBe (our ty "@i64")
+          its.length shouldBe (our const "@I64_43")
+          its.excClause shouldBe None
+        }
+
+        my inst "%getvarpartiref" shouldBeA[InstGetVarPartIRef] { its =>
+          its.ptr shouldBe false
+          its.referentTy shouldBe (our ty "@hic")
+          its.opnd shouldBe (my value "%r4")
         }
         
         my inst "%shiftiref" shouldBeA[InstShiftIRef] { its =>
           its.ptr shouldBe false
           its.referentTy shouldBe (our ty "@i8")
           its.offTy shouldBe (our ty "@i64")
-          its.opnd shouldBe (my inst "%getvarpartiref")
-          its.offset shouldBe (my param "%p1")
-        }
-  
-        my inst "%getfixedpartiref" shouldBeA[InstGetFixedPartIRef] { its =>
-          its.ptr shouldBe false
-          its.referentTy shouldBe (our ty "@hic")
-          its.opnd shouldBe (my inst "%allocahybrid")
-        }
-        
-        my inst "%getvarpartiref" shouldBeA[InstGetVarPartIRef] { its =>
-          its.ptr shouldBe false
-          its.referentTy shouldBe (our ty "@hic")
-          its.opnd shouldBe (my inst "%allocahybrid")
-        }
+          its.opnd shouldBe (my value "%r14")
+          its.offset shouldBe (our const "@I64_1")
+        }        
         
         my inst "%load" shouldBeA[InstLoad] { its =>
           its.ptr shouldBe false
           its.ord shouldBe MemoryOrder.NOT_ATOMIC
           its.referentTy shouldBe (our ty "@i64")
-          its.loc shouldBe (my inst "%alloca")
+          its.loc shouldBe (our globalCell "@i64loc")
           its.excClause shouldBe None
         }
         
@@ -911,17 +913,30 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.ptr shouldBe false
           its.ord shouldBe MemoryOrder.NOT_ATOMIC
           its.referentTy shouldBe (our ty "@i64")
-          its.loc shouldBe (my inst "%alloca")
+          its.loc shouldBe (our globalCell "@i64loc")
           its.newVal shouldBe (our const "@I64_42")
           its.excClause shouldBe None
         }
         
         my inst "%cmpxchg" shouldBeA[InstCmpXchg] { its =>
           its.ptr shouldBe false
+          its.weak shouldBe false
           its.ordSucc shouldBe MemoryOrder.SEQ_CST
           its.ordFail shouldBe MemoryOrder.SEQ_CST
           its.referentTy shouldBe (our ty "@i64")
-          its.loc shouldBe (my inst "%alloca")
+          its.loc shouldBe (our globalCell "@i64loc")
+          its.expected shouldBe (our const "@I64_42")
+          its.desired shouldBe (our const "@I64_0")
+          its.excClause shouldBe None
+        }
+        
+        my inst "%cmpxchg_w" shouldBeA[InstCmpXchg] { its =>
+          its.ptr shouldBe false
+          its.weak shouldBe true
+          its.ordSucc shouldBe MemoryOrder.SEQ_CST
+          its.ordFail shouldBe MemoryOrder.SEQ_CST
+          its.referentTy shouldBe (our ty "@i64")
+          its.loc shouldBe (our globalCell "@i64loc")
           its.expected shouldBe (our const "@I64_42")
           its.desired shouldBe (our const "@I64_0")
           its.excClause shouldBe None
@@ -932,7 +947,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.ord shouldBe MemoryOrder.SEQ_CST
           its.op shouldBe AtomicRMWOptr.ADD
           its.referentTy shouldBe (our ty "@i64")
-          its.loc shouldBe (my inst "%alloca")
+          its.loc shouldBe (our globalCell "@i64loc")
           its.opnd shouldBe (our const "@I64_43")
           its.excClause shouldBe None
         }
@@ -941,9 +956,9 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.ptr shouldBe false
           its.ord shouldBe MemoryOrder.NOT_ATOMIC
           its.referentTy shouldBe (our ty "@i64")
-          its.loc shouldBe (my inst "%alloca")
+          its.loc shouldBe (our globalCell "@i64loc")
           its.excClause shouldBe Some(ExcClause(
-              DestClause(the bb "%bb6", Seq(my value "%alloca")),
+              DestClause(the bb "%bb6", Seq()),
               DestClause(the bb "%handler", Seq())))
         }
       }
@@ -953,10 +968,10 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.ptr shouldBe false
           its.ord shouldBe MemoryOrder.NOT_ATOMIC
           its.referentTy shouldBe (our ty "@i64")
-          its.loc shouldBe (my inst "%alloca")
+          its.loc shouldBe (our globalCell "@i64loc")
           its.newVal shouldBe (our const "@I64_42")
           its.excClause shouldBe Some(ExcClause(
-              DestClause(the bb "%bb7", Seq(my value "%alloca" )),
+              DestClause(the bb "%bb7", Seq()),
               DestClause(the bb "%handler", Seq())))
         }
       }
@@ -967,11 +982,11 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.ordSucc shouldBe MemoryOrder.SEQ_CST
           its.ordFail shouldBe MemoryOrder.SEQ_CST
           its.referentTy shouldBe (our ty "@i64")
-          its.loc shouldBe (my inst "%alloca")
+          its.loc shouldBe (our globalCell "@i64loc")
           its.expected shouldBe (our const "@I64_42")
           its.desired shouldBe (our const "@I64_0")
           its.excClause shouldBe Some(ExcClause(
-              DestClause(the bb "%bb8", Seq(my value "%alloca")),
+              DestClause(the bb "%bb8", Seq()),
               DestClause(the bb "%handler", Seq())))
        }
       }
@@ -982,7 +997,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.ord shouldBe MemoryOrder.SEQ_CST
           its.op shouldBe AtomicRMWOptr.ADD
           its.referentTy shouldBe (our ty "@i64")
-          its.loc shouldBe (my inst "%alloca")
+          its.loc shouldBe (our globalCell "@i64loc")
           its.opnd shouldBe (our const "@I64_43")
           its.excClause shouldBe Some(ExcClause(
               DestClause(the bb "%bb9", Seq()),
@@ -1000,20 +1015,20 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     in (our func "@memops_ptr") { (func, the) =>
       in(the bb "%entry") { my =>
         
-        my inst "%p" shouldBeA[InstCommInst] { _.argList(0) shouldBe (my inst "%new")}
+        my inst "%pin" shouldBeA[InstCommInst] { _.argList(0) shouldBe (my value "%o")}
         
         my inst "%getfieldiref" shouldBeA[InstGetFieldIRef] { its =>
           its.ptr shouldBe true
           its.referentTy shouldBe (our ty "@sid")
           its.index shouldBe 0
-          its.opnd shouldBe (my inst "%p2")
+          its.opnd shouldBe (my value "%p2")
         }
         
         my inst "%getelemiref" shouldBeA[InstGetElemIRef] { its =>
           its.ptr shouldBe true
           its.referentTy shouldBe (our ty "@al")
           its.indTy shouldBe (our ty "@i64")
-          its.opnd shouldBe (my inst "%p3")
+          its.opnd shouldBe (my value "%p3")
           its.index shouldBe (my param "%p1")
         }
         
@@ -1021,27 +1036,21 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.ptr shouldBe true
           its.referentTy shouldBe (our ty "@i8")
           its.offTy shouldBe (our ty "@i64")
-          its.opnd shouldBe (my inst "%getvarpartiref")
+          its.opnd shouldBe (my value "%pv")
           its.offset shouldBe (my param "%p1")
-        }
-  
-        my inst "%getfixedpartiref" shouldBeA[InstGetFixedPartIRef] { its =>
-          its.ptr shouldBe true
-          its.referentTy shouldBe (our ty "@hic")
-          its.opnd shouldBe (my inst "%ph")
         }
         
         my inst "%getvarpartiref" shouldBeA[InstGetVarPartIRef] { its =>
           its.ptr shouldBe true
           its.referentTy shouldBe (our ty "@hic")
-          its.opnd shouldBe (my inst "%ph")
+          its.opnd shouldBe (my value "%ph")
         }
         
         my inst "%load" shouldBeA[InstLoad] { its =>
           its.ptr shouldBe true
           its.ord shouldBe MemoryOrder.NOT_ATOMIC
           its.referentTy shouldBe (our ty "@i64")
-          its.loc shouldBe (my inst "%p")
+          its.loc shouldBe (my value "%p")
           its.excClause shouldBe None
         }
         
@@ -1049,7 +1058,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.ptr shouldBe true
           its.ord shouldBe MemoryOrder.NOT_ATOMIC
           its.referentTy shouldBe (our ty "@i64")
-          its.loc shouldBe (my inst "%p")
+          its.loc shouldBe (my value "%p")
           its.newVal shouldBe (our const "@I64_42")
           its.excClause shouldBe None
         }
@@ -1059,7 +1068,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.ordSucc shouldBe MemoryOrder.SEQ_CST
           its.ordFail shouldBe MemoryOrder.SEQ_CST
           its.referentTy shouldBe (our ty "@i64")
-          its.loc shouldBe (my inst "%p")
+          its.loc shouldBe (my value "%p")
           its.expected shouldBe (our const "@I64_42")
           its.desired shouldBe (our const "@I64_0")
           its.excClause shouldBe None
@@ -1070,7 +1079,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.ord shouldBe MemoryOrder.SEQ_CST
           its.op shouldBe AtomicRMWOptr.ADD
           its.referentTy shouldBe (our ty "@i64")
-          its.loc shouldBe (my inst "%p")
+          its.loc shouldBe (my value "%p")
           its.opnd shouldBe (our const "@I64_43")
           its.excClause shouldBe None
         }
@@ -1096,57 +1105,72 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     in (our func "@atomicrmwops") { (func, the) =>
       in(the bb "%entry") { my =>
         
-        my inst "%old0" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.XCHG }
-        my inst "%old1" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.ADD }
-        my inst "%old2" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.SUB }
-        my inst "%old3" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.AND }
-        my inst "%old4" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.NAND }
-        my inst "%old5" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.OR }
-        my inst "%old6" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.XOR }
-        my inst "%old7" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.MAX }
-        my inst "%old8" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.MIN }
-        my inst "%old9" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.UMAX }
-        my inst "%olda" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.UMIN }
+        my inst "%rmw0" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.XCHG }
+        my inst "%rmw1" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.ADD }
+        my inst "%rmw2" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.SUB }
+        my inst "%rmw3" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.AND }
+        my inst "%rmw4" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.NAND }
+        my inst "%rmw5" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.OR }
+        my inst "%rmw6" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.XOR }
+        my inst "%rmw7" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.MAX }
+        my inst "%rmw8" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.MIN }
+        my inst "%rmw9" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.UMAX }
+        my inst "%rmwa" shouldBeA[InstAtomicRMW] { _.op shouldBe AtomicRMWOptr.UMIN }
       }
     }
 
     in (our func "@traps") { (func, the) =>
       in(the bb "%entry") { my =>
         
-        my inst "%tp" shouldBeA[InstTrap] { its =>
-          its.retTy shouldBe (our ty "@i32")
+        my inst "%t" shouldBeA[InstTrap] { its =>
+          its.retTys shouldBe qw"@i32".map(our.ty)
           its.excClause shouldBe None
-          its.keepAlives shouldBe Seq(my inst "%a")
+          its.keepAlives shouldBe Seq(my value "%a")
+        }
+        
+        my inst "%t0" shouldBeA[InstTrap] { its =>
+          its.retTys shouldBe empty
+          its.excClause shouldBe None
+          its.keepAlives shouldBe empty
         }
          
-        my inst "%tp_s" shouldBeA[InstTrap] { its =>
-          its.retTy shouldBe (our ty "@i64")
+        my inst "%ts" shouldBeA[InstTrap] { its =>
+          its.retTys shouldBe qw"@i64 @float".map(our.ty)
           its.excClause shouldBe Some(ExcClause(
               DestClause(the bb "%tp_s_cont", Seq("%a", "%b").map(my.value)),
               DestClause(the bb "%tp_s_exc", Seq())))
-          its.keepAlives shouldBe Seq(my inst "%b")
+          its.keepAlives shouldBe Seq(my value "%b")
         }
       }
+      
       in(the bb "%tp_s_cont") { my =>
         
         my inst "%wp" shouldBeA[InstWatchPoint] { its =>
           its.wpID shouldBe 1
-          its.retTy shouldBe (our ty "@float")
-          its.dis shouldBe DestClause(the bb "%wp_dis_cont", Seq("%b").map(my.value))
+          its.retTys shouldBe empty
+          its.dis shouldBe DestClause(the bb "%wp_dis_cont", Seq(my value "%b"))
           its.ena shouldBe DestClause(the bb "%wp_ena_cont", Seq())
           its.exc shouldBe None
-          its.keepAlives shouldBe Seq(my inst "%a")
+          its.keepAlives shouldBe Seq(my value "%a")
         }
       }
+      
       in(the bb "%wp_dis_cont") { my =>
-        
         my inst "%wp_s" shouldBeA[InstWatchPoint] { its =>
           its.wpID shouldBe 2
-          its.retTy shouldBe (our ty "@double")
+          its.retTys shouldBe Seq(our ty "@double")
           its.dis shouldBe DestClause(the bb "%wp_s_dis_cont", Seq())
           its.ena shouldBe DestClause(the bb "%wp_s_ena_cont", Seq())
           its.exc shouldBe Some(DestClause(the bb "%wp_s_exc", Seq()))
-          its.keepAlives shouldBe Seq(my inst "%b")
+          its.keepAlives shouldBe Seq(my value "%b")
+        }
+      }
+      
+      in(the bb "%wp_s_dis_cont") { my =>
+        my inst "%wpbr" shouldBeA[InstWPBranch] { its =>
+          its.wpID shouldBe 3
+          its.dis shouldBe DestClause(the bb "%wpbr_t", Seq())
+          its.ena shouldBe DestClause(the bb "%wpbr_f", Seq())
         }
       }
     }
@@ -1154,7 +1178,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     in (our func "@ccall") { (func, the) =>
       in(the bb "%entry") { my =>
       
-        my inst "%rv" shouldBeA[InstCCall] { its =>
+        my inst "%ccall" shouldBeA[InstCCall] { its =>
           its.callConv shouldBe Flag("#DEFAULT")
           its.funcTy shouldBe (our ty "@ccall_callee_fp")
           its.sig shouldBe (our sig "@ccall_callee_sig")
@@ -1169,8 +1193,8 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         
         my inst "%ss1" shouldBeA[InstSwapStack] { its =>
           its.swappee shouldBe (my value "%main")
-          its.curStackAction shouldBe RetWith(our ty "@void")
-          its.newStackAction shouldBe PassValue(our ty "@i64", our value "@I64_0")
+          its.curStackAction shouldBe RetWith(Seq())
+          its.newStackAction shouldBe PassValues(Seq(our ty "@i64"), Seq(our value "@I64_0"))
           its.excClause shouldBe None
           its.keepAlives shouldBe empty
         }
@@ -1184,38 +1208,39 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
     }
    
-    in (our func "@swapstack") { (func, the) =>
+    in (our func "@newthread") { (func, the) =>
       in(the bb "%entry") { my =>
         
-        my inst "%curstack" shouldBeA[InstCommInst] { its =>
-          its.inst shouldBe (CommInsts("@uvm.current_stack"))
-          its.typeList shouldBe empty
-          its.argList shouldBe empty
+        my inst "%nt1" shouldBeA[InstNewThread] { its =>
+          its.stack shouldBe (my value "%s1")
+          its.newStackAction shouldBe PassValues(qw"@i64 @i64".map(our.ty), qw"@I64_0 @I64_1".map(our.value))
           its.excClause shouldBe None
-          its.keepAlives shouldBe empty
         }
-        
-        my inst "%coro" shouldBeA[InstNewStack] { its =>
-          its.sig shouldBe (our sig "@iii_sig")
-          its.callee shouldBe (our value "@callee2")
-          its.argList shouldBe Seq(my value "%curstack")
+        my inst "%nt2" shouldBeA[InstNewThread] { its =>
+          its.stack shouldBe (my value "%s2")
+          its.newStackAction shouldBe ThrowExc(our value "@NULLREF")
           its.excClause shouldBe Some(ExcClause(
-              DestClause(the bb "%cont", Seq("%curstack", "%coro").map(my.value)),
-              DestClause(the bb "%exc", Seq())))
+              DestClause(the bb "%nor", Seq()),
+              DestClause(the bb "%exc", Seq())
+              ))
         }
-      }  
-      in(the bb "%cont") { my =>
+      }
+    }
+    
+    in (our func "@swapstack") { (func, the) =>
+ 
+      in(the bb "%entry") { my =>
         my inst "%ss1" shouldBeA[InstSwapStack] { its =>
           its.swappee shouldBe (my value "%coro")
-          its.curStackAction shouldBe RetWith(our ty "@i64")
-          its.newStackAction shouldBe PassValue(our ty "@void", our const "@VOID")
+          its.curStackAction shouldBe RetWith(Seq(our ty "@i64"))
+          its.newStackAction shouldBe PassValues(Seq(), Seq())
           its.excClause shouldBe None
           its.keepAlives shouldBe Seq(my value "%curstack")
         }
         my inst "%ss2" shouldBeA[InstSwapStack] { its =>
           its.swappee shouldBe (my value "%coro")
-          its.curStackAction shouldBe RetWith(our ty "@i64")
-          its.newStackAction shouldBe PassValue(our ty "@void", our const "@VOID")
+          its.curStackAction shouldBe RetWith(Seq(our ty "@i64"))
+          its.newStackAction shouldBe PassValues(Seq(), Seq())
           its.excClause shouldBe Some(ExcClause(
               DestClause(the bb "%nor", Seq()),
               DestClause(the bb "%exc", Seq())))
@@ -1227,27 +1252,17 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     in (our func "@comminst") { (func, the) =>
       in(the bb "%entry") { my =>
       
-        my inst "%thr" shouldBeA[InstCommInst] { its =>
-          its.inst shouldBe CommInsts("@uvm.new_thread")
+        my inst "%ci2" shouldBeA[InstCommInst] { its =>
+          its.inst shouldBe CommInsts("@uvm.new_stack")
           its.flagList shouldBe empty
           its.typeList shouldBe empty
-          its.funcSigList shouldBe empty
-          its.argList shouldBe Seq(my value "%sta")
+          its.funcSigList shouldBe Seq(our sig "@iii_sig")
+          its.argList shouldBe Seq(our value "@callee2")
           its.excClause shouldBe None
           its.keepAlives shouldBe empty
-        }
-        
-        my inst "%th_ex" shouldBeA[InstCommInst] { its =>
-          its.inst shouldBe CommInsts("@uvm.thread_exit")
-          its.flagList shouldBe empty
-          its.typeList shouldBe empty
-          its.funcSigList shouldBe empty
-          its.argList shouldBe empty
-          its.excClause shouldBe None
-          its.keepAlives shouldBe empty
-        }
+        } 
   
-        my inst "%ex" shouldBeA[InstCommInst] { its =>
+        my inst "%ci3" shouldBeA[InstCommInst] { its =>
           its.inst shouldBe CommInsts("@uvm.native.expose")
           its.flagList shouldBe Seq(Flag("#DEFAULT"))
           its.typeList shouldBe empty
@@ -1256,8 +1271,19 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.excClause shouldBe None
           its.keepAlives shouldBe empty
         }
+        
+        my inst "%ci4" shouldBeA[InstCommInst] { its =>
+          its.inst shouldBe CommInsts("@uvm.thread_exit")
+          its.flagList shouldBe empty
+          its.typeList shouldBe empty
+          its.funcSigList shouldBe empty
+          its.argList shouldBe empty
+          its.excClause shouldBe None
+          its.keepAlives shouldBe empty
+        }
       }
     }
+
   }
 
   def validateRedef(globalBundle: GlobalBundle, b1: TrantientBundle, b2: TrantientBundle) {
@@ -1269,7 +1295,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       in (the bb "%entry") { my =>
       
         my inst "%ret" shouldBeA[InstRet] { its =>
-          its.retVal shouldBe (ourOld const "@I64_42")
+          its.retVals shouldBe Seq(ourOld const "@I64_42")
         }
       }
     }
@@ -1287,7 +1313,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       in (the bb "%entry") { my =>
       
         my inst "%ret" shouldBeA[InstRet] { its =>
-          its.retVal shouldBe (ourNew const "@I64_43")
+          its.retVals shouldBe Seq(ourNew const "@I64_43")
         }
       }
     }
@@ -1296,12 +1322,12 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       in (the bb "%entry") { my =>
       
         my inst "%ret" shouldBeA[InstRet] { its =>
-          its.retVal shouldBe (ourNew const "@I64_99")
+          its.retVals shouldBe Seq(ourNew const "@I64_99")
         }
       }
     }
   }
-  
+
   def validateRedefAfterMerge(globalBundle: Bundle, bundle: Bundle) {
     val ourGlobal = globalBundle
     val ourNew = bundle
@@ -1331,4 +1357,5 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       its.cookie shouldBe (ourGlobal const "@I64_43")
     }
   }
+  
 }

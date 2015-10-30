@@ -38,4 +38,5 @@ class BasicBlock extends IdentifiedSettable {
   var insts: Seq[Instruction] = null
 
   var localVarNs: NestedNamespace[LocalVariable] = null // sub-namespace of allNs
+  var localInstNs: NestedNamespace[Instruction] = null // sub-namespace of allNs
 }

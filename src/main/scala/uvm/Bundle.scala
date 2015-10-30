@@ -20,6 +20,8 @@ abstract class Bundle {
    *       + expFuncNs      // Exposed functions
    *     + localVarNs       // Local variables (per basic block)
    *   + bbNs               // Basic blocks (per function version)
+   *   + instNs							// All instructions
+   *   	 + localInstNs  		// Instructions in a basic block (per basic block)
    * 
    * bbNs and localVarNs are part of particular FuncVers and BBs.
    */
@@ -36,6 +38,8 @@ abstract class Bundle {
   val globalCellNs = globalVarNs.makeSubSpace[GlobalCell]()
   val funcNs = globalVarNs.makeSubSpace[Function]()
   val expFuncNs = globalVarNs.makeSubSpace[ExposedFunc]()
+  
+  val instNs = allNs.makeSubSpace[Instruction]()
 }
 
 /**
@@ -96,6 +100,7 @@ class GlobalBundle extends Bundle {
       fv.bbNs.reparent(allNs)
       for (bb <- fv.bbs) {
         bb.localVarNs.reparent(allNs)
+        bb.localInstNs.reparent(allNs)
       }
     }
   }
@@ -109,6 +114,7 @@ class GlobalBundle extends Bundle {
     simpleMerge(globalCellNs, newBundle.globalCellNs)
     simpleMerge(funcNs, newBundle.funcNs)
     simpleMerge(expFuncNs, newBundle.expFuncNs)
+    simpleMerge(instNs, newBundle.instNs)
 
     redefineFunctions(newBundle.funcVerNs)
     

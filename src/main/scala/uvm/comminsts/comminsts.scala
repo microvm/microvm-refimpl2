@@ -11,7 +11,7 @@ object CommInsts extends SimpleNamespace[CommInst] {
     add(ci)
   }
 
-  commInst(0x201, "@uvm.new_thread")
+  commInst(0x201, "@uvm.new_stack")
   commInst(0x202, "@uvm.kill_stack")
   commInst(0x203, "@uvm.thread_exit")
   commInst(0x204, "@uvm.current_stack")

@@ -402,6 +402,7 @@ class UIRTextReader(val idFactory: IDFactory) {
         ver.bbNs.add(bb)
 
         bb.localVarNs = bundle.allNs.makeSubSpace[LocalVariable]
+        bb.localInstNs = bundle.allNs.makeSubSpace[Instruction]
 
         def mkNorParam(ty: Type, name: String): NorParam = {
           val param = NorParam(ty)
@@ -614,8 +615,12 @@ class UIRTextReader(val idFactory: IDFactory) {
                 i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
               }
             case ii: InstWatchPointContext =>
-              InstWatchPoint(ii.intLiteral.intValue(), ii.typeList(), null, null, null, null).later(phase4) { i =>
+              InstWatchPoint(ii.wpid.intValue(), ii.typeList(), null, null, null, null).later(phase4) { i =>
                 i.dis = ii.dis; i.ena = ii.ena; i.exc = Option(ii.wpExc).map(resDestClause); i.keepAlives = ii.keepAliveClause
+              }
+            case ii: InstWPBranchContext =>
+              InstWPBranch(ii.wpid.intValue(), null, null).later(phase4) { i =>
+                i.dis = ii.dis; i.ena = ii.ena
               }
             case ii: InstCCallContext =>
               InstCCall(ii.callConv, ii.funcTy, ii.funcSig, null, null, null, null).later(phase4) { i =>
@@ -630,8 +635,8 @@ class UIRTextReader(val idFactory: IDFactory) {
             case ii: InstSwapStackContext =>
               InstSwapStack(null, null, null, null, null).later(phase4) { i =>
                 i.swappee = ii.swappee
-                i.curStackAction = ii.curStackClause 
-                i.newStackAction = ii.newStackClause 
+                i.curStackAction = ii.curStackClause
+                i.newStackAction = ii.newStackClause
                 i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
               }
             case ii: InstCommInstContext =>
@@ -645,16 +650,24 @@ class UIRTextReader(val idFactory: IDFactory) {
 
           inst.id = idFactory.getID()
           inst.name = Option(instDef.name).map(n => globalize(n.getText, bbName))
+          
+          bb.localInstNs.add(inst)
 
-          for ((instResDef, index) <- instDef.instResults().results.zipWithIndex) {
-            val resName = globalize(instResDef.getText, bbName)
-            
-            val instRes = InstResult(inst, index)
-            instRes.id = idFactory.getID()
-            instRes.name = Some(resName)
-            bb.localVarNs.add(instRes)
+          val instRess: Seq[InstResult] = Option(instDef.instResults) match {
+            case None => Seq()
+            case Some(r) => for ((instResDef, index) <- r.results.zipWithIndex) yield {
+              val resName = globalize(instResDef.getText, bbName)
+
+              val instRes = InstResult(inst, index)
+              instRes.id = idFactory.getID()
+              instRes.name = Some(resName)
+              bb.localVarNs.add(instRes)
+
+              instRes
+            }
           }
 
+          inst.results = instRess
 
           return inst
         }

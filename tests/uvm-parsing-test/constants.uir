@@ -45,7 +45,7 @@
 .typedef @rv        = ref<@void>
 .typedef @irv       = iref<@void>
 .typedef @wrv       = weakref<@void>
-.funcsig @sig0      = @void ()
+.funcsig @sig0      = () -> ()
 .typedef @func0     = funcref <@sig0>
 .typedef @thread    = threadref
 .typedef @stack     = stackref
@@ -55,7 +55,6 @@
 .const @cfu <@func0>    = NULL
 .const @cth <@thread>   = NULL
 .const @cst <@stack>    = NULL
-.const @VOID <@void>    = NULL
 
 .typedef @4xfloat   = vector <@float 4>
 .typedef @4xi32     = vector <@i32 4>
