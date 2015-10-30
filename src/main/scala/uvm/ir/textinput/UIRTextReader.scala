@@ -241,7 +241,7 @@ class UIRTextReader(val idFactory: IDFactory) {
         case t: TypeWeakRefContext   => TypeWeakRef(null).later(phase1) { _.ty = t.ty }
         case t: TypeStructContext    => TypeStruct(null).later(phase1) { _.fieldTys = t.fieldTys.map(resTy) }
         case t: TypeArrayContext     => TypeArray(null, t.length.longValue()).later(phase1) { _.elemTy = t.ty }
-        case t: TypeHybridContext    => TypeHybrid(null, null).later(phase1) { tt => tt.fixedTy = t.fixedTy; tt.varTy = t.varTy }
+        case t: TypeHybridContext    => TypeHybrid(null, null).later(phase1) { tt => tt.fieldTys = t.fieldTys.map(resTy); tt.varTy = t.varTy }
         case t: TypeVoidContext      => TypeVoid()
         case t: TypeFuncRefContext   => TypeFuncRef(null).later(phase1) { _.sig = t.funcSig() }
         case t: TypeThreadRefContext => TypeThreadRef()
@@ -257,8 +257,8 @@ class UIRTextReader(val idFactory: IDFactory) {
 
     def mkSig(fsc: FuncSigConstructorContext): FuncSig = {
       val sig = FuncSig(null, null).later(phase1) { sig =>
-        sig.retTy = resTy(fsc.retTy)
-        sig.paramTy = for (t <- fsc.paramTys) yield resTy(t)
+        sig.retTys = for (t <- fsc.retTys) yield resTy(t)
+        sig.paramTys = for (t <- fsc.paramTys) yield resTy(t)
       }
       return sig
     }
@@ -285,19 +285,11 @@ class UIRTextReader(val idFactory: IDFactory) {
 
     def mkConst(t: Type, c: ConstConstructorContext): Constant = {
       val con = c match {
-        case cc: CtorIntContext => t match {
-          case _: TypeInt             => ConstInt(t, cc.intLiteral)
-          case _: AbstractPointerType => ConstPointer(t, cc.intLiteral().longValue())
-        }
+        case cc: CtorIntContext    => ConstInt(t, cc.intLiteral)
         case cc: CtorFloatContext  => ConstFloat(t, cc.floatLiteral)
         case cc: CtorDoubleContext => ConstDouble(t, cc.doubleLiteral)
-        case cc: CtorListContext => t match {
-          case _: TypeStruct => ConstStruct(t, null).later(phase2) {
-            _.fields = for (gn <- cc.GLOBAL_NAME()) yield resGlobalVar(gn)
-          }
-          case _: TypeArray | _: TypeVector => ConstSeq(t, null).later(phase2) {
-            _.elems = for (gn <- cc.GLOBAL_NAME()) yield resGlobalVar(gn)
-          }
+        case cc: CtorListContext => ConstSeq(t, null).later(phase2) {
+          _.elems = for (gn <- cc.GLOBAL_NAME()) yield resGlobalVar(gn)
         }
         case _: CtorNullContext => ConstNull(t)
       }
@@ -474,6 +466,20 @@ class UIRTextReader(val idFactory: IDFactory) {
             Some(ExcClause(ec.nor, ec.exc))
           }
 
+        implicit def resNewStackClause(nsc: NewStackClauseContext): NewStackAction = {
+          nsc match {
+            case a: NewStackPassValueContext => PassValues(a.typeList(), a.argList())
+            case a: NewStackThrowExcContext  => ThrowExc(a.exc)
+          }
+        }
+
+        implicit def resCurStackClause(csc: CurStackClauseContext): CurStackAction = {
+          csc match {
+            case a: CurStackRetWithContext => RetWith(a.typeList())
+            case a: CurStackKillOldContext => KillOld()
+          }
+        }
+
         // Make instruction
 
         def mkInst(bb: BasicBlock, instDef: InstContext): Instruction = {
@@ -519,7 +525,7 @@ class UIRTextReader(val idFactory: IDFactory) {
               }
             case ii: InstRetContext =>
               InstRet(ver, null).later(phase4) { i =>
-                i.retVal = ii.retVal
+                i.retVals = ii.retVals.vals.map(resVar)
               }
             case ii: InstThrowContext =>
               InstThrow(null).later(phase4) { i =>
@@ -577,10 +583,6 @@ class UIRTextReader(val idFactory: IDFactory) {
               InstShiftIRef(ii.ptr != null, ii.refTy, needInt(ii.offTy), null, null).later(phase4) { i =>
                 i.opnd = ii.opnd; i.offset = ii.offset
               }
-            case ii: InstGetFixedPartIRefContext =>
-              InstGetFixedPartIRef(ii.ptr != null, needHybrid(ii.refTy), null).later(phase4) { i =>
-                i.opnd = ii.opnd
-              }
             case ii: InstGetVarPartIRefContext =>
               InstGetVarPartIRef(ii.ptr != null, needHybrid(ii.refTy), null).later(phase4) { i =>
                 i.opnd = ii.opnd
@@ -608,33 +610,28 @@ class UIRTextReader(val idFactory: IDFactory) {
             case ii: InstFenceContext =>
               InstFence(ii.memord)
             case ii: InstTrapContext =>
-              InstTrap(ii.`type`, null, null).later(phase4) { i =>
+              InstTrap(ii.typeList(), null, null).later(phase4) { i =>
                 i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
               }
             case ii: InstWatchPointContext =>
-              InstWatchPoint(ii.intLiteral.intValue(), ii.`type`, null, null, null, null).later(phase4) { i =>
+              InstWatchPoint(ii.intLiteral.intValue(), ii.typeList(), null, null, null, null).later(phase4) { i =>
                 i.dis = ii.dis; i.ena = ii.ena; i.exc = Option(ii.wpExc).map(resDestClause); i.keepAlives = ii.keepAliveClause
               }
             case ii: InstCCallContext =>
-              InstCCall(ii.callConv, ii.funcTy, ii.funcSig, null, null, null).later(phase4) { i =>
-                i.callee = ii.callee; i.argList = ii.argList; i.keepAlives = ii.keepAliveClause
+              InstCCall(ii.callConv, ii.funcTy, ii.funcSig, null, null, null, null).later(phase4) { i =>
+                i.callee = ii.callee; i.argList = ii.argList; i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
               }
-            case ii: InstNewStackContext =>
-              InstNewStack(null, null, null, null).later(phase4) { i =>
-                asgnFuncCallBody(i, ii.funcCallBody)
+            case ii: InstNewThreadContext =>
+              InstNewThread(null, null, null).later(phase4) { i =>
+                i.stack = ii.stack
+                i.newStackAction = ii.newStackClause
                 i.excClause = ii.excClause
               }
             case ii: InstSwapStackContext =>
               InstSwapStack(null, null, null, null, null).later(phase4) { i =>
-                i.swappee = ii.swappee;
-                i.curStackAction = ii.curStackClause match {
-                  case a: CurStackRetWithContext => RetWith(a.`type`)
-                  case a: CurStackKillOldContext => KillOld()
-                }
-                i.newStackAction = ii.newStackClause match {
-                  case a: NewStackPassValueContext => PassValue(a.`type`, a.value)
-                  case a: NewStackThrowExcContext  => ThrowExc(a.exc)
-                }
+                i.swappee = ii.swappee
+                i.curStackAction = ii.curStackClause 
+                i.newStackAction = ii.newStackClause 
                 i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
               }
             case ii: InstCommInstContext =>
@@ -649,7 +646,15 @@ class UIRTextReader(val idFactory: IDFactory) {
           inst.id = idFactory.getID()
           inst.name = Option(instDef.name).map(n => globalize(n.getText, bbName))
 
-          bb.localVarNs.add(inst)
+          for ((instResDef, index) <- instDef.instResults().results.zipWithIndex) {
+            val resName = globalize(instResDef.getText, bbName)
+            
+            val instRes = InstResult(inst, index)
+            instRes.id = idFactory.getID()
+            instRes.name = Some(resName)
+            bb.localVarNs.add(instRes)
+          }
+
 
           return inst
         }

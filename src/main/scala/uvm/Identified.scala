@@ -5,6 +5,14 @@ trait Identified {
   def name: Option[String]
 
   def repr: String = "[%d:%s]".format(id, name.getOrElse("_"))
+  
+  // Identified objects should use reference equality rather than structural equality. (case classes use the latter)
+  override def hashCode(): Int = if (id != 0) id else System.identityHashCode(this)
+  override def equals(that: Any): Boolean = that match {
+    case v: AnyRef => this eq v
+    case _         => false
+  }
+  override def toString = "%s%s".format(this.getClass.getSimpleName, this.repr)
 }
 
 trait IdentifiedSettable extends Identified {

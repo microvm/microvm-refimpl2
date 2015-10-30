@@ -51,7 +51,7 @@ typeConstructor
     |   'weakref' 	'<' ty=type '>'                             # TypeWeakRef
     |   'struct' 	'<' fieldTys+=type+ '>'                     # TypeStruct
     |   'array' 	'<' ty=type length=intLiteral '>'           # TypeArray
-    |   'hybrid' 	'<' fixedTy=type varTy=type '>'             # TypeHybrid
+    |   'hybrid' 	'<' fieldTys+=type* varTy=type '>'          # TypeHybrid
     |   'void'                                                  # TypeVoid
     |   'funcref' 	'<' funcSig '>'                             # TypeFuncRef
     |   'threadref'                                             # TypeThreadRef
@@ -63,7 +63,7 @@ typeConstructor
     ;
 
 funcSigConstructor
-    :   retTy=type '(' (paramTys+=type*) ')'
+    :   '(' paramTys+=type* ')' '->' '(' retTys+=type* ')'
     ;
 
 constConstructor
@@ -103,23 +103,28 @@ label
     ;
 	
 bbParam
-	: 	'<' type '>' name
+	: 	'<' ty=type '>' name
 	;
 	
 excParam
 	: 	'[' name ']'
 	;
+	
+instResults
+    :   results+=name
+    |   '(' results+=name* ')'
+    ;
 
 inst
-    :   (name '=')? instBody
+    :   (instResults '=')? ('[' name ']')? instBody
     ;
 
 instBody
     // Integer/FP Arithmetic
-    :   binop '<' type '>' op1=value op2=value excClause                # InstBinOp
+    :   binop '<' ty=type '>' op1=value op2=value excClause                # InstBinOp
 
     // Integer/FP Comparison
-    |   cmpop '<' type '>' op1=value op2=value                          # InstCmp
+    |   cmpop '<' ty=type '>' op1=value op2=value                          # InstCmp
 
     // Conversions
     |   convop  '<' fromTy=type toTy=type '>' opnd=value                # InstConversion
@@ -130,14 +135,14 @@ instBody
     // Intra-function Control Flow
     |   'BRANCH' dest=destClause                                        # InstBranch
     |   'BRANCH2' cond=value ifTrue=destClause ifFalse=destClause       # InstBranch2
-    |   'SWITCH' '<' type '>' opnd=value defDest=destClause '{'
+    |   'SWITCH' '<' ty=type '>' opnd=value defDest=destClause '{'
             (caseVal+=value caseDest+=destClause )* '}'                 # InstSwitch
 
     // Inter-function Control Flow
     |   'CALL' funcCallBody excClause keepAliveClause                   # InstCall
     |   'TAILCALL' funcCallBody                     # InstTailCall
 
-    |   'RET' retVal=value                          # InstRet
+    |   'RET' retVals                               # InstRet
     |   'THROW' exc=value                           # InstThrow
 
     // Aggregate Operations
@@ -158,7 +163,6 @@ instBody
     |   'GETFIELDIREF'      (ptr='PTR'?) '<' refTy=type index=intLiteral '>' opnd=value          # InstGetFieldIRef
     |   'GETELEMIREF'       (ptr='PTR'?) '<' refTy=type indTy=type '>' opnd=value index=value    # InstGetElemIRef
     |   'SHIFTIREF'         (ptr='PTR'?) '<' refTy=type offTy=type '>' opnd=value offset=value   # InstShiftIRef
-    |   'GETFIXEDPARTIREF'  (ptr='PTR'?) '<' refTy=type '>' opnd=value                           # InstGetFixedPartIRef
     |   'GETVARPARTIREF'    (ptr='PTR'?) '<' refTy=type '>' opnd=value                           # InstGetVarPartIRef
     
     |   'LOAD'      (ptr='PTR'?) memord? '<' type '>' loc=value excClause                        # InstLoad
@@ -170,19 +174,24 @@ instBody
     |   'FENCE' memord                                                              # InstFence
 
     // Trap
-    |   'TRAP' '<' type '>' excClause keepAliveClause                               # InstTrap
-    |   'WATCHPOINT' wpid=intLiteral '<' type '>'
+    |   'TRAP' typeList excClause keepAliveClause                               # InstTrap
+    |   'WATCHPOINT' wpid=intLiteral typeList
             dis=destClause ena=destClause ('WPEXC' '(' wpExc=destClause ')')? keepAliveClause    # InstWatchPoint
 
     // Foreign Function Interface
-    |   'CCALL' callConv=flag '<' funcTy=type funcSig '>' callee=value argList keepAliveClause   # InstCCall
+    |   'CCALL' callConv=flag '<' funcTy=type funcSig '>' callee=value argList excClause keepAliveClause   # InstCCall
 
     // Thread and Stack Operations
-    |   'NEWSTACK' funcCallBody excClause                                                   # InstNewStack
+    |   'NEWTHREAD' stack=value newStackClause excClause                                     # InstNewThread
     |   'SWAPSTACK' swappee=value curStackClause newStackClause excClause keepAliveClause   # InstSwapStack
 
     // Common Instructions
     |   'COMMINST' nam=GLOBAL_NAME flagList? typeList? funcSigList? argList? excClause keepAliveClause     # InstCommInst
+    ;
+    
+retVals
+    :   '(' vals+=value* ')'
+    |   vals+=value
     ;
 
 destClause
@@ -226,12 +235,12 @@ argList
     ;
 
 curStackClause
-    :   'RET_WITH' '<' type '>'     # CurStackRetWith
-    |   'KILL_OLD'                  # CurStackKillOld
+    :   'RET_WITH' typeList             # CurStackRetWith
+    |   'KILL_OLD'                      # CurStackKillOld
     ;
 
 newStackClause
-    :   'PASS_VALUE' '<' type '>' value     # NewStackPassValue
+    :   'PASS_VALUES' typeList argList      # NewStackPassValue
     |   'THROW_EXC' exc=value               # NewStackThrowExc
     ;
 

@@ -1,3 +1,8 @@
+
+lazy val genSrc = taskKey[List[File]]("generate sources")
+
+genSrc <<= (sourceGenerators in Compile) { _.join.map(_.flatten.toList) }
+
 lazy val root = (project in file(".")).settings(
     organization := "org.microvm",
 
@@ -30,3 +35,5 @@ lazy val root = (project in file(".")).settings(
 
     antlr4GenVisitor in Antlr4 := false
   )
+
+

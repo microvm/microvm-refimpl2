@@ -4,8 +4,9 @@ Mu Reference Implementation version 2
 This project is the current reference implementation of Mu, the micro virtual
 machine designed by [The Micro Virtual Machine Project](http://microvm.org).
 
-Version 2.1.x implements the latest revision of the [Mu Specification version
-2](https://github.com/microvm/microvm-spec/wiki).
+Version 2.1.x implements the [goto-with-value form of the Mu
+Specification](https://github.com/microvm/microvm-spec/tree/goto-with-values),
+which will eventually become the main line.
 
 This project is based on the previous works of
 [simplest-microvm-project](https://github.com/microvm/simplest-microvm-project).
@@ -33,9 +34,7 @@ git clone git@github.com:microvm/microvm-refimpl2.git
 * In the directory `microvm-refimpl2`, do the following:
 
 ```bash
-sbt update
-sbt antlr4:antlr4Generate
-sbt eclipse
+sbt update genSrc eclipse
 ```
 
 * Open Scala IDE and import the generated project as "existing project into
@@ -51,14 +50,16 @@ yum, pacman, etc. for GNU/Linux distributions and Homebrew for Mac OS X).
 To download all dependencies from the Maven central repository, invoke `sbt
 update`.
 
-To compile, invoke `sbt compile` or do this in your favourite IDE. This will
-also generate the Mu IR parser from the Antlr grammar. The generated sources
-will be in the `target/scala-2.11/src_managed` directory.
+To generate the Mu IR parser from the Antlr grammar, invoke `sbt genSrc`. The
+generated sources will be in the `target/scala-2.11/src_managed` directory.
 
 To generate an Eclipse project, install the [sbt-eclipse
-plugin](https://github.com/typesafehub/sbteclipse) and invoke `sbt eclipse`. By
-default, it should automatically put the managed source directory to the source
-paths, too.
+plugin](https://github.com/typesafehub/sbteclipse) and invoke `sbt eclipse`.
+Make sure you generate the parser before creating the Eclipse project, so that
+the generated sources will be on the Eclipse build path.
+
+To compile, invoke `sbt compile`. This will also generate the Mu IR parser using
+Antlr.
 
 IntelliJ IDEA has plugins for Scala and SBT. Make sure you don't commit `.idea`
 or generated project files into the repository.
