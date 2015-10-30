@@ -81,19 +81,20 @@ object MemoryDataScanner extends StrictLogging {
 
       }
       case t: TypeHybrid => {
-        val fixedTy = t.fixedTy
         val varTy = t.varTy
-        val fixedSize = TypeSizes.sizeOf(fixedTy)
-        val fixedAlign = TypeSizes.alignOf(fixedTy)
         val varSize = TypeSizes.sizeOf(varTy)
         val varAlign = TypeSizes.alignOf(varTy)
-        var curAddr = iRef
         val varLength = HeaderUtils.getVarLength(iRef)
-        scanField(fixedTy, objRef, curAddr, handler)
-        curAddr = TypeSizes.alignUp(curAddr + fixedSize, fixedAlign)
+        var curAddr = iRef
+        for (fieldTy <- t.fieldTys) {
+          val fieldAlign = TypeSizes.alignOf(fieldTy)
+          curAddr = TypeSizes.alignUp(curAddr, fieldAlign)
+          scanField(fieldTy, objRef, curAddr, handler)
+          curAddr += TypeSizes.sizeOf(fieldTy)
+        }
         for (i <- 0L until varLength) {
-          scanField(varTy, objRef, curAddr, handler)
           curAddr = TypeSizes.alignUp(curAddr + varSize, varAlign)
+          scanField(varTy, objRef, curAddr, handler)
         }
       }
       case t: TypeStackRef => {

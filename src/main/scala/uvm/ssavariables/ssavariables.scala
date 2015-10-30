@@ -210,7 +210,7 @@ case class InstAllocaHybrid(var allocTy: TypeHybrid, var lenTy: TypeInt, var len
 
 case class InstGetIRef(var referentTy: Type, var opnd: SSAVariable) extends Instruction
 
-case class InstGetFieldIRef(var ptr: Boolean, var referentTy: TypeStruct, var index: Int, var opnd: SSAVariable) extends WorksWithPointer
+case class InstGetFieldIRef(var ptr: Boolean, var referentTy: AbstractStructType, var index: Int, var opnd: SSAVariable) extends WorksWithPointer
 
 case class InstGetElemIRef(var ptr: Boolean, var referentTy: AbstractSeqType, var indTy: TypeInt,
                            var opnd: SSAVariable, var index: SSAVariable) extends WorksWithPointer

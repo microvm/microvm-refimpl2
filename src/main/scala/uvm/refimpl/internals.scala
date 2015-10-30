@@ -31,7 +31,7 @@ object InternalTypes {
   val VOID = TypeVoid() := internal("void")
 
   val BYTE = TypeInt(8) := internal("byte")
-  val BYTE_ARRAY = TypeHybrid(VOID, BYTE) := internal("byte_array")
+  val BYTE_ARRAY = TypeHybrid(Seq(), BYTE) := internal("byte_array")
 
   val REF_VOID = TypeRef(VOID) := internal("ref_void")
 
@@ -49,94 +49,105 @@ object InternalTypePool {
   val vecOf = LazyPool[(Type, Long), TypeVector] { case (t, l) => TypeVector(t, l) }
   def unmarkedOf(t: Type): Type = t match {
     case TypeWeakRef(r) => refOf(r)
-    case _ => t
+    case _              => t
   }
 }
 
 object TypeInferer {
   import InternalTypes._
   import InternalTypePool._
-  
+
   def ptrOrIRefOf(ptr: Boolean, ty: Type): Type = {
     if (ptr) ptrOf(ty) else irefOf(ty)
   }
-  
+
   def inferType(v: SSAVariable): Type = v match {
-    case c: Constant => c.constTy
+    case c: Constant   => c.constTy
     case g: GlobalCell => irefOf(g.cellTy)
-    case f: Function => funcOf(f.sig)
-    case p: NorParam => p.ty
-    case p: ExcParam => REF_VOID
-    case i: InstBinOp => i.opndTy
-    case i: InstCmp => i.opndTy match {
-      case TypeVector(_, l) => vecOf(I1, l)
-      case _ => I1
+    case f: Function   => funcOf(f.sig)
+    case p: NorParam   => p.ty
+    case p: ExcParam   => REF_VOID
+    case r: InstResult => {
+      val resTys = inferInstResultTypes(r.inst)
+      try {
+        resTys(r.index)
+      } catch {
+        case e: ArrayIndexOutOfBoundsException => throw new UvmRefImplException(
+          s"Instruction ${r.inst} produces only ${resTys.size} results, but result index ${r.index} is requested")
+      }
     }
-    case i: InstConv => i.toTy
-    case i: InstSelect => i.opndTy
-    case i: InstBranch => VOID
-    case i: InstBranch2 => VOID
-    case i: InstSwitch => VOID
-    case i: InstCall => i.sig.retTy
-    case i: InstTailCall => VOID
-    case i: InstRet => VOID
-    case i: InstThrow => VOID
-    case i: InstExtractValue => i.strTy.fieldTys(i.index)
-    case i: InstInsertValue => i.strTy
-    case i: InstExtractElement => i.seqTy.elemTy
-    case i: InstInsertElement => i.seqTy
-    case i: InstShuffleVector => vecOf((i.vecTy.elemTy, i.maskTy.len))
-    case i: InstNew => refOf(i.allocTy)
-    case i: InstNewHybrid => refOf(i.allocTy)
-    case i: InstAlloca => irefOf(i.allocTy)
-    case i: InstAllocaHybrid => irefOf(i.allocTy)
-    case i: InstGetIRef => irefOf(i.referentTy)
-    case i: InstGetFieldIRef => ptrOrIRefOf(i.ptr, i.referentTy.fieldTys(i.index))
-    case i: InstGetElemIRef => ptrOrIRefOf(i.ptr, i.referentTy.elemTy)
-    case i: InstShiftIRef => ptrOrIRefOf(i.ptr, i.referentTy)
-    case i: InstGetFixedPartIRef => ptrOrIRefOf(i.ptr, i.referentTy.fixedTy)
-    case i: InstGetVarPartIRef => ptrOrIRefOf(i.ptr, i.referentTy.varTy)
-    case i: InstLoad => unmarkedOf(i.referentTy)
-    case i: InstStore => VOID
-    case i: InstCmpXchg => unmarkedOf(i.referentTy)
-    case i: InstAtomicRMW => unmarkedOf(i.referentTy)
-    case i: InstFence => VOID
-    case i: InstTrap => i.retTy
-    case i: InstWatchPoint => i.retTy
-    case i: InstCCall => i.sig.retTy
-    case i: InstNewStack => STACK
+  }
+
+  def inferInstResultTypes(inst: Instruction): Seq[Type] = inst match {
+    case i: InstBinOp => Seq(i.opndTy)
+    case i: InstCmp => i.opndTy match {
+      case TypeVector(_, l) => Seq(vecOf(I1, l))
+      case _                => Seq(I1)
+    }
+    case i: InstConv           => Seq(i.toTy)
+    case i: InstSelect         => Seq(i.opndTy)
+    case i: InstBranch         => Seq()
+    case i: InstBranch2        => Seq()
+    case i: InstSwitch         => Seq()
+    case i: InstCall           => i.sig.retTys
+    case i: InstTailCall       => Seq()
+    case i: InstRet            => Seq()
+    case i: InstThrow          => Seq()
+    case i: InstExtractValue   => Seq(i.strTy.fieldTys(i.index))
+    case i: InstInsertValue    => Seq(i.strTy)
+    case i: InstExtractElement => Seq(i.seqTy.elemTy)
+    case i: InstInsertElement  => Seq(i.seqTy)
+    case i: InstShuffleVector  => Seq(vecOf((i.vecTy.elemTy, i.maskTy.len)))
+    case i: InstNew            => Seq(refOf(i.allocTy))
+    case i: InstNewHybrid      => Seq(refOf(i.allocTy))
+    case i: InstAlloca         => Seq(irefOf(i.allocTy))
+    case i: InstAllocaHybrid   => Seq(irefOf(i.allocTy))
+    case i: InstGetIRef        => Seq(irefOf(i.referentTy))
+    case i: InstGetFieldIRef   => Seq(ptrOrIRefOf(i.ptr, i.referentTy.fieldTys(i.index)))
+    case i: InstGetElemIRef    => Seq(ptrOrIRefOf(i.ptr, i.referentTy.elemTy))
+    case i: InstShiftIRef      => Seq(ptrOrIRefOf(i.ptr, i.referentTy))
+    case i: InstGetVarPartIRef => Seq(ptrOrIRefOf(i.ptr, i.referentTy.varTy))
+    case i: InstLoad           => Seq(unmarkedOf(i.referentTy))
+    case i: InstStore          => Seq()
+    case i: InstCmpXchg        => Seq(unmarkedOf(i.referentTy), I1)
+    case i: InstAtomicRMW      => Seq(unmarkedOf(i.referentTy))
+    case i: InstFence          => Seq()
+    case i: InstTrap           => i.retTys
+    case i: InstWatchPoint     => i.retTys
+    case i: InstCCall          => i.sig.retTys
+    case i: InstNewThread      => Seq(THREAD)
     case i: InstSwapStack => i.curStackAction match {
       case RetWith(t) => t
-      case _: KillOld => VOID
+      case _: KillOld => Seq()
     }
     case i: InstCommInst => i.inst.name.get match {
-      case "@uvm.new_thread" => THREAD
-      case "@uvm.kill_stack" => VOID
-      case "@uvm.thread_exit" => VOID
-      case "@uvm.current_stack" => STACK
-      case "@uvm.tr64.is_fp" => I1
-      case "@uvm.tr64.is_int" => I1
-      case "@uvm.tr64.is_ref" => I1
-      case "@uvm.tr64.from_fp" => TAGREF64
-      case "@uvm.tr64.from_int" => TAGREF64
-      case "@uvm.tr64.from_ref" => TAGREF64
-      case "@uvm.tr64.to_fp" => DOUBLE
-      case "@uvm.tr64.to_int" => I52
-      case "@uvm.tr64.to_ref" => REF_VOID
-      case "@uvm.tr64.to_tag" => I6
-      case "@uvm.futex.wait" => I32
-      case "@uvm.futex.wait_timeout" => I32
-      case "@uvm.futex.wake" => I32
-      case "@uvm.futex.cmp_requeue" => I32
-      case "@uvm.kill_dependency" => i.typeList(0)
-      case "@uvm.native.pin" => i.typeList(0) match{
-        case TypeRef(t) => ptrOf(t)
-        case TypeIRef(t) => ptrOf(t)
+      case "@uvm.new_stack"          => Seq(STACK)
+      case "@uvm.kill_stack"         => Seq()
+      case "@uvm.thread_exit"        => Seq()
+      case "@uvm.current_stack"      => Seq(STACK)
+      case "@uvm.tr64.is_fp"         => Seq(I1)
+      case "@uvm.tr64.is_int"        => Seq(I1)
+      case "@uvm.tr64.is_ref"        => Seq(I1)
+      case "@uvm.tr64.from_fp"       => Seq(TAGREF64)
+      case "@uvm.tr64.from_int"      => Seq(TAGREF64)
+      case "@uvm.tr64.from_ref"      => Seq(TAGREF64)
+      case "@uvm.tr64.to_fp"         => Seq(DOUBLE)
+      case "@uvm.tr64.to_int"        => Seq(I52)
+      case "@uvm.tr64.to_ref"        => Seq(REF_VOID)
+      case "@uvm.tr64.to_tag"        => Seq(I6)
+      case "@uvm.futex.wait"         => Seq(I32)
+      case "@uvm.futex.wait_timeout" => Seq(I32)
+      case "@uvm.futex.wake"         => Seq(I32)
+      case "@uvm.futex.cmp_requeue"  => Seq(I32)
+      case "@uvm.kill_dependency"    => Seq(i.typeList(0))
+      case "@uvm.native.pin" => i.typeList(0) match {
+        case TypeRef(t)  => Seq(ptrOf(t))
+        case TypeIRef(t) => Seq(ptrOf(t))
       }
-      case "@uvm.native.unpin" => VOID
-      case "@uvm.native.expose" => funcPtrOf(i.funcSigList(0))
-      case "@uvm.native.unexpose" => VOID
-      case "@uvm.native.get_cookie" => I64
+      case "@uvm.native.unpin"      => Seq()
+      case "@uvm.native.expose"     => Seq(funcPtrOf(i.funcSigList(0)))
+      case "@uvm.native.unexpose"   => Seq()
+      case "@uvm.native.get_cookie" => Seq(I64)
     }
   }
 }

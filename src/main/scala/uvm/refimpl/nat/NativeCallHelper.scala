@@ -35,7 +35,6 @@ class NativeCallHelper {
 
   /** A mapping of Mu types to JFFI types. Cached for struct types. */
   val jffiTypePool: LazyPool[MType, JType] = LazyPool {
-    case TypeVoid()       => JType.VOID
     case TypeInt(8)       => JType.SINT8
     case TypeInt(16)      => JType.SINT16
     case TypeInt(32)      => JType.SINT32
@@ -52,11 +51,20 @@ class NativeCallHelper {
     case t                      => throw new UvmRefImplException("Type %s cannot be used in native calls.".format(t.repr))
   }
 
+  /** Map Mu-style multi-return types to C-style single return type */
+  def getNativeReturnType(retTys: Seq[MType]): JType = {
+    retTys match {
+      case Seq()  => JType.VOID
+      case Seq(t) => jffiTypePool(t)
+      case ts     => throw new UvmRefImplException("Multiple return types %s cannot be used in native calls.".format(ts.map(_.repr).mkString(" ")))
+    }
+  }
+
   /** A mapping from referenced C functions (signature, function pointer) to JFFI functions. Cached. */
   val jffiFuncPool = LazyPool[(FuncSig, Word), JFunction] {
     case (sig, funcAddr) => {
-      val jParamTypes = sig.paramTy.map(jffiTypePool.apply)
-      val jRetTy = jffiTypePool(sig.retTy)
+      val jParamTypes = sig.paramTys.map(jffiTypePool.apply)
+      val jRetTy = getNativeReturnType(sig.retTys)
       new JFunction(funcAddr, jRetTy, jParamTypes: _*)
     }
   }
@@ -111,7 +119,7 @@ class NativeCallHelper {
 
     val hib = new HeapInvocationBuffer(jFunc)
 
-    for ((mty, vb) <- (sig.paramTy zip args)) {
+    for ((mty, vb) <- (sig.paramTys zip args)) {
       putArg(hib, mty, vb)
     }
 
@@ -120,43 +128,45 @@ class NativeCallHelper {
 
     val inv = Invoker.getInstance
 
-    sig.retTy match {
-      case TypeVoid() => {
+    sig.retTys match {
+      case Seq() => {
         inv.invokeLong(jFunc, hib)
       }
-      case TypeInt(8) => {
-        val rv = inv.invokeInt(jFunc, hib).toByte
-        retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 8)
-      }
-      case TypeInt(16) => {
-        val rv = inv.invokeInt(jFunc, hib).toShort
-        retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 16)
-      }
-      case TypeInt(32) => {
-        val rv = inv.invokeInt(jFunc, hib)
-        retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 32)
-      }
-      case TypeInt(64) => {
-        val rv = inv.invokeLong(jFunc, hib)
-        retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 64)
-      }
-      case TypeFloat() => {
-        val rv = inv.invokeFloat(jFunc, hib)
-        retBox.asInstanceOf[BoxFloat].value = rv
-      }
-      case TypeDouble() => {
-        val rv = inv.invokeDouble(jFunc, hib)
-        retBox.asInstanceOf[BoxDouble].value = rv
-      }
-      case TypeStruct(flds) => {
-        val rv = inv.invokeStruct(jFunc, hib)
-        val buf = ByteBuffer.wrap(rv).order(ByteOrder.LITTLE_ENDIAN)
-        logger.debug("Hexdump:\n" + HexDump.dumpByteBuffer(buf))
-        getArgFromBuf(buf, 0, sig.retTy, retBox)
-      }
-      case _: AbstractPointerType => {
-        val rv = inv.invokeAddress(jFunc, hib)
-        retBox.asInstanceOf[BoxPointer].addr = rv
+      case Seq(t) => t match {
+        case TypeInt(8) => {
+          val rv = inv.invokeInt(jFunc, hib).toByte
+          retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 8)
+        }
+        case TypeInt(16) => {
+          val rv = inv.invokeInt(jFunc, hib).toShort
+          retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 16)
+        }
+        case TypeInt(32) => {
+          val rv = inv.invokeInt(jFunc, hib)
+          retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 32)
+        }
+        case TypeInt(64) => {
+          val rv = inv.invokeLong(jFunc, hib)
+          retBox.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(rv), 64)
+        }
+        case TypeFloat() => {
+          val rv = inv.invokeFloat(jFunc, hib)
+          retBox.asInstanceOf[BoxFloat].value = rv
+        }
+        case TypeDouble() => {
+          val rv = inv.invokeDouble(jFunc, hib)
+          retBox.asInstanceOf[BoxDouble].value = rv
+        }
+        case TypeStruct(flds) => {
+          val rv = inv.invokeStruct(jFunc, hib)
+          val buf = ByteBuffer.wrap(rv).order(ByteOrder.LITTLE_ENDIAN)
+          logger.debug("Hexdump:\n" + HexDump.dumpByteBuffer(buf))
+          getArgFromBuf(buf, 0, t, retBox)
+        }
+        case _: AbstractPointerType => {
+          val rv = inv.invokeAddress(jFunc, hib)
+          retBox.asInstanceOf[BoxPointer].addr = rv
+        }
       }
     }
     currentNativeStackKeeper.remove()
@@ -221,18 +231,18 @@ class NativeCallHelper {
       case _: AbstractPointerType => vb.asInstanceOf[BoxPointer].addr = buf.getLong(off)
     }
   }
-  
+
   def exposeFuncStatic(expFunc: ExposedFunc): Word = {
     val efr = exposeFunc(expFunc.func, expFunc.cookie.num.toLong, false)
     expFuncToRec(expFunc) = efr
     efr.closureHandle.getAddress
   }
-  
+
   def exposeFuncDynamic(muFunc: MFunc, cookie: Long): Word = {
     val efr = exposeFunc(muFunc, cookie, true)
     efr.closureHandle.getAddress
   }
-  
+
   /**
    * Expose a Mu function.
    *
@@ -240,8 +250,8 @@ class NativeCallHelper {
    */
   private def exposeFunc(muFunc: MFunc, cookie: Long, isDynamic: Boolean): ExpFuncRec = {
     val sig = muFunc.sig
-    val jParamTypes = sig.paramTy.map(jffiTypePool.apply)
-    val jRetTy = jffiTypePool(sig.retTy)
+    val jParamTypes = sig.paramTys.map(jffiTypePool.apply)
+    val jRetTy = getNativeReturnType(sig.retTys)
 
     val clos = new MuCallbackClosure(muFunc, cookie)
     val handle = NativeSupport.closureManager.newClosure(clos, jRetTy, jParamTypes.toArray, CallingConvention.DEFAULT)
@@ -283,19 +293,25 @@ class NativeCallHelper {
 
         val sig = muFunc.sig
 
-        val paramBoxes = for ((paramTy, i) <- sig.paramTy.zipWithIndex) yield {
+        val paramBoxes = for ((paramTy, i) <- sig.paramTys.zipWithIndex) yield {
           makeBoxForParam(buf, paramTy, i)
         }
 
-        val rvBox = ValueBox.makeBoxForType(sig.retTy)
+        val maybeRvBox = sig.retTys match {
+          case Seq() => None
+          case Seq(t) => Some(ValueBox.makeBoxForType(t))
+          case ts => throw new UvmRefImplException("Multiple return types %s cannot be used in native calls.".format(ts.map(_.repr).mkString(" ")))
+        }
 
         logger.debug("Calling to Mu nsk.slave...")
 
-        nsk.slave.onCallBack(muFunc, cookie, paramBoxes, rvBox)
+        nsk.slave.onCallBack(muFunc, cookie, paramBoxes, maybeRvBox)
 
         logger.debug("Back from nsk.slave. Returning to native...")
 
-        putRvToBuf(buf, sig.retTy, rvBox)
+        maybeRvBox.foreach { rvBox => 
+          putRvToBuf(buf, sig.retTys(0), rvBox)
+        }
 
         currentNativeStackKeeper.set(nsk)
       } catch {
@@ -340,7 +356,6 @@ class NativeCallHelper {
     }
 
     def putRvToBuf(buf: Closure.Buffer, ty: MType, vb: ValueBox): Unit = ty match {
-      case TypeVoid()   => // do nothing
       case TypeInt(8)   => buf.setByteReturn(vb.asInstanceOf[BoxInt].value.toByte)
       case TypeInt(16)  => buf.setShortReturn(vb.asInstanceOf[BoxInt].value.toShort)
       case TypeInt(32)  => buf.setIntReturn(vb.asInstanceOf[BoxInt].value.toInt)

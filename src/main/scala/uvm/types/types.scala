@@ -29,9 +29,9 @@ case class TypeDouble() extends FPType
 case class TypeRef(var ty: Type) extends AbstractRefType
 case class TypeIRef(var ty: Type) extends AbstractRefType
 case class TypeWeakRef(var ty: Type) extends AbstractRefType
-case class TypeStruct(var fieldTys: Seq[Type]) extends Type
+case class TypeStruct(var fieldTys: Seq[Type]) extends AbstractStructType
 case class TypeArray(var elemTy: Type, var len: Long) extends AbstractSeqType
-case class TypeHybrid(var fieldTys: Seq[Type], var varTy: Type) extends Type
+case class TypeHybrid(var fieldTys: Seq[Type], var varTy: Type) extends AbstractStructType
 case class TypeVoid() extends Type
 case class TypeFuncRef(var sig: FuncSig) extends Type
 case class TypeThreadRef() extends Type

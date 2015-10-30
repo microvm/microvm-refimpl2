@@ -214,6 +214,7 @@ class UIRTextReader(val idFactory: IDFactory) {
 
     def needInt[T <: Type](tc: TypeContext) = needType(tc, classOf[TypeInt], "int")
     def needStruct[T <: Type](tc: TypeContext) = needType(tc, classOf[TypeStruct], "struct")
+    def needAbsStruct[T <: Type](tc: TypeContext) = needType(tc, classOf[AbstractStructType], "struct or hybrid")
     def needArray[T <: Type](tc: TypeContext) = needType(tc, classOf[TypeArray], "array")
     def needVector[T <: Type](tc: TypeContext) = needType(tc, classOf[TypeVector], "vector")
     def needHybrid[T <: Type](tc: TypeContext) = needType(tc, classOf[TypeHybrid], "hybrid")
@@ -573,7 +574,7 @@ class UIRTextReader(val idFactory: IDFactory) {
                 i.opnd = ii.opnd
               }
             case ii: InstGetFieldIRefContext =>
-              InstGetFieldIRef(ii.ptr != null, needStruct(ii.refTy), ii.intLiteral.intValue, null).later(phase4) { i =>
+              InstGetFieldIRef(ii.ptr != null, needAbsStruct(ii.refTy), ii.intLiteral.intValue, null).later(phase4) { i =>
                 i.opnd = ii.opnd
               }
             case ii: InstGetElemIRefContext =>

@@ -251,20 +251,9 @@ class ClientAgent(mutator: Mutator)(
     newHandle(nt, nb)
   }
 
-  def getFixedPartIRef(handle: Handle): Handle = {
-    val t = handle.ty.asInstanceOf[TypeIRef]
-    val ht = t.ty.asInstanceOf[TypeHybrid]
-    val ft = ht.fixedTy
-    val nt = InternalTypePool.irefOf(ft)
-    val ob = handle.vb.asInstanceOf[BoxIRef]
-    val nb = ob
-    newHandle(nt, nb)
-  }
-
   def getVarPartIRef(handle: Handle): Handle = {
     val t = handle.ty.asInstanceOf[TypeIRef]
     val ht = t.ty.asInstanceOf[TypeHybrid]
-    val ft = ht.fixedTy
     val vt = ht.varTy
     val nt = InternalTypePool.irefOf(vt)
     val ob = handle.vb.asInstanceOf[BoxIRef]

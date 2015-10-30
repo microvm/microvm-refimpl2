@@ -31,7 +31,7 @@ trait PoorManAgent[T] {
 
 abstract class NativeCallResult
 object NativeCallResult {
-  case class CallBack(func: MFunc, cookie: Long, args: Seq[ValueBox], retBox: ValueBox) extends NativeCallResult
+  case class CallBack(func: MFunc, cookie: Long, args: Seq[ValueBox], maybeRetBox: Option[ValueBox]) extends NativeCallResult
   case class Return() extends NativeCallResult
 }
 
@@ -100,9 +100,9 @@ class NativeStackKeeper(implicit nativeCallHelper: NativeCallHelper) extends Poo
       }
     }
 
-    def onCallBack(func: MFunc, cookie: Long, args: Seq[ValueBox], retBox: ValueBox): Unit = {
+    def onCallBack(func: MFunc, cookie: Long, args: Seq[ValueBox], maybeRetBox: Option[ValueBox]): Unit = {
       logger.debug("sending master the CallBack message...")
-      master.send(NativeCallResult.CallBack(func, cookie, args, retBox))
+      master.send(NativeCallResult.CallBack(func, cookie, args, maybeRetBox))
       logger.debug("msg sent. Waiting for master's reply...")
       try {
         while (true) {

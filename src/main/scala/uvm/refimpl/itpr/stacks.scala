@@ -215,8 +215,8 @@ class MuFrame(val funcVer: FuncVer, val cookie: Long, prev: Option[InterpreterFr
         putBox(p)
       }
 
-      for (inst <- bb.insts) {
-        putBox(inst)
+      for (inst <- bb.insts; res <- inst.results) {
+        putBox(res)
       }
     }
   }

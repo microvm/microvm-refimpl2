@@ -15,8 +15,6 @@ import uvm.refimpl.nat.NativeCallResult
 
 object InterpreterThread {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
-
-  val BOX_VOID = new BoxVoid()
 }
 
 class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator: Mutator)(
@@ -1369,7 +1367,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
   }
 
   /** Rebind to a stack and pass a value. */
-  private def rebindPassValue(newStack: InterpreterStack, value: ValueBox): Unit = {
+  private def rebindPassValues(newStack: InterpreterStack, values: Seq[ValueBox]): Unit = {
     val oldState = rebind(newStack)
 
     top match {
@@ -1377,12 +1375,14 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
         if (mf.justCreated) {
           mf.justCreated = false
         } else {
-          try {
-            boxOf(curInst).copyFrom(value)
-          } catch {
-            case e: Exception => {
-              throw new UvmRuntimeException(ctx + "Error passing value while rebinding. " +
-                "The new stack is in state %s, the passed value box is a %s.".format(oldState, value.getClass.getName), e)
+          for ((rb, vb) <- boxesOf(curInst) zip values) {
+            try {
+              rb.copyFrom(vb)
+            } catch {
+              case e: Exception => {
+                throw new UvmRuntimeException(ctx + "Error passing value while rebinding. " +
+                  "The new stack is in state %s, the passed value box is a %s.".format(oldState, value.getClass.getName), e)
+              }
             }
           }
         }

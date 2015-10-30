@@ -90,7 +90,7 @@ object TypeSizes {
   }
 
   def hybridSizeOf(ty: TypeHybrid, len: Word): Word = {
-    val fixedSize = sizeOf(ty.fixedTy)
+    val fixedSize = structPrefixSizeOf(ty, ty.fieldTys.size)
     val varAlign = alignOf(ty.varTy)
     val varSize = shiftOffsetOf(ty.varTy, len)
     val size = alignUp(fixedSize, varAlign) + varSize
@@ -98,9 +98,9 @@ object TypeSizes {
   }
 
   def hybridAlignOf(ty: TypeHybrid, len: Word): Word = {
-    val fixedAlign = alignOf(ty.fixedTy)
+    val fieldAligns = ty.fieldTys.map(alignOf)
     val varAlign = alignOf(ty.varTy)
-    val align = Math.max(fixedAlign, varAlign)
+    val align = fieldAligns.foldLeft(varAlign)(Math.max)
     return align
   }
 
@@ -123,10 +123,10 @@ object TypeSizes {
   def fixedPartOffsetOf(ty: TypeHybrid): Word = 0L
 
   def varPartOffsetOf(ty: TypeHybrid): Word = {
-    return alignUp(sizeOf(ty.fixedTy), alignOf(ty.varTy))
+    return alignUp(structPrefixSizeOf(ty, ty.fieldTys.length), alignOf(ty.varTy))
   }
 
-  def structPrefixSizeOf(ty: TypeStruct, prefixLen: Int): Word = {
+  def structPrefixSizeOf(ty: AbstractStructType, prefixLen: Int): Word = {
     val sz = ty.fieldTys.take(prefixLen).foldLeft(0L) { (oldSz, nextTy) =>
       alignUp(oldSz, alignOf(nextTy)) + sizeOf(nextTy)
     }
