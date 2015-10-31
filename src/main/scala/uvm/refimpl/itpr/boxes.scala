@@ -53,12 +53,6 @@ case class BoxIRef(var objRef: Word, var offset: Word) extends HasObjRef {
   def oo: (Word, Word) = (objRef, offset)
   def oo_=(newVal: (Word, Word)): Unit = { objRef = newVal._1; offset = newVal._2 }
 }
-case class BoxStruct(var values: Seq[ValueBox]) extends ValueBox {
-  def copyFrom(other: ValueBox): Unit = { for ((t, o) <- this.values.zip(other.asInstanceOf[BoxStruct].values)) t.copyFrom(o) }
-}
-case class BoxVoid() extends ValueBox {
-  def copyFrom(other: ValueBox): Unit = {}
-}
 case class BoxFunc(var func: Option[Function]) extends ObjectBox[Function] {
   def obj = func
   def obj_=(other: Option[Function]): Unit = { func = other }
@@ -97,7 +91,7 @@ object ValueBox {
     case _: TypeRef => BoxRef(0L)
     case _: TypeIRef => BoxIRef(0L, 0L)
     case _: TypeWeakRef => throw new UvmRefImplException("weakref cannot be an SSA variable type")
-    case TypeStruct(fieldTys) => BoxStruct(fieldTys.map(makeBoxForType))
+    case TypeStruct(fieldTys) => BoxSeq(fieldTys.map(makeBoxForType))
     case TypeArray(elemTy, len) => BoxSeq(Seq.fill(len.toInt)(makeBoxForType(elemTy)))
     case _: TypeHybrid => throw new UvmRefImplException("hybrid cannot be an SSA variable type")
     case _: TypeFuncRef => BoxFunc(None)

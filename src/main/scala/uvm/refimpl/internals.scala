@@ -27,6 +27,7 @@ object InternalTypes {
   val I32 = TypeInt(32) := internal("i32")
   val I52 = TypeInt(52) := internal("i52")
   val I64 = TypeInt(52) := internal("i64")
+  val FLOAT = TypeFloat() := internal("float")
   val DOUBLE = TypeDouble() := internal("double")
   val VOID = TypeVoid() := internal("void")
 
@@ -41,6 +42,7 @@ object InternalTypes {
 }
 
 object InternalTypePool {
+  val intOf = LazyPool(TypeInt)
   val refOf = LazyPool(TypeRef)
   val irefOf = LazyPool(TypeIRef)
   val ptrOf = LazyPool(TypeUPtr)

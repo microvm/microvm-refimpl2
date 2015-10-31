@@ -12,166 +12,234 @@ import uvm.ssavariables.HasKeepAliveClause
 import scala.collection.mutable.ArrayBuffer
 import uvm.ssavariables.Flag
 
-case class Handle(ty: Type, vb: ValueBox)
+object MuValue {
+  def apply(ty: Type, vb: ValueBox): MuValue = (ty, vb) match {
+    case (t: TypeInt, v: BoxInt)           => MuIntValue(t, v)
+    case (t: TypeFloat, v: BoxFloat)       => MuFloatValue(t, v)
+    case (t: TypeDouble, v: BoxDouble)     => MuDoubleValue(t, v)
+    case (t: TypeRef, v: BoxRef)           => MuRefValue(t, v)
+    case (t: TypeIRef, v: BoxIRef)         => MuIRefValue(t, v)
+    case (t: TypeStruct, v: BoxSeq)        => MuStructValue(t, v)
+    case (t: TypeArray, v: BoxSeq)         => MuArrayValue(t, v)
+    case (t: TypeFuncRef, v: BoxFunc)      => MuFuncRefValue(t, v)
+    case (t: TypeThreadRef, v: BoxThread)  => MuThreadRefValue(t, v)
+    case (t: TypeStackRef, v: BoxStack)    => MuStackRefValue(t, v)
+    case (t: TypeTagRef64, v: BoxTagRef64) => MuTagRef64Value(t, v)
+    case (t: TypeUPtr, v: BoxPointer)      => MuUPtrValue(t, v)
+    case (t: TypeUFuncPtr, v: BoxPointer)  => MuUFPValue(t, v)
+    case (t, v) => {
+      throw new IllegalArgumentException("Improper type-box pair: %s,%s".format(t.getClass.getSimpleName, v.getClass.getSimpleName))
+    }
+  }
+}
+
+/**
+ * A handle to a Mu value, held by a MuCtx. In the Scala API, Handles are immutable and cannot be copied.
+ * Only use the handle in the MuCtx it is defined.
+ */
+abstract class MuValue {
+  def ty: Type
+  def vb: ValueBox
+}
+
+case class MuIntValue(ty: TypeInt, vb: BoxInt) extends MuValue
+case class MuFloatValue(ty: TypeFloat, vb: BoxFloat) extends MuValue
+case class MuDoubleValue(ty: TypeDouble, vb: BoxDouble) extends MuValue
+case class MuRefValue(ty: TypeRef, vb: BoxRef) extends MuValue
+case class MuIRefValue(ty: TypeIRef, vb: BoxIRef) extends MuValue
+case class MuStructValue(ty: TypeStruct, vb: BoxSeq) extends MuValue
+case class MuArrayValue(ty: TypeArray, vb: BoxSeq) extends MuValue
+case class MuFuncRefValue(ty: TypeFuncRef, vb: BoxFunc) extends MuValue
+case class MuThreadRefValue(ty: TypeThreadRef, vb: BoxThread) extends MuValue
+case class MuStackRefValue(ty: TypeStackRef, vb: BoxStack) extends MuValue
+case class MuTagRef64Value(ty: TypeTagRef64, vb: BoxTagRef64) extends MuValue
+case class MuUPtrValue(ty: TypeUPtr, vb: BoxPointer) extends MuValue
+case class MuUFPValue(ty: TypeUFuncPtr, vb: BoxPointer) extends MuValue
 
 abstract class TrapHandlerResult
-case class TrapExit() extends TrapHandlerResult
-case class TrapRebindPassValues(newStack: Handle, values: Seq[Handle]) extends TrapHandlerResult
-case class TrapRebindThrowExc(newStack: Handle, exc: Handle) extends TrapHandlerResult
+case class ThreadExit() extends TrapHandlerResult
+
+abstract class HowToResume extends TrapHandlerResult
+case class RebindPassValues(newStack: MuStackRefValue, values: Seq[MuValue]) extends HowToResume
+case class RebindThrowExc(newStack: MuStackRefValue, exc: MuRefValue) extends HowToResume
 
 trait TrapHandler {
-  def handleTrap(ca: ClientAgent, thread: Handle, stack: Handle, watchPointID: Int): TrapHandlerResult
+  def handleTrap(ctx: MuCtx, thread: MuThreadRefValue, stack: MuStackRefValue, watchPointID: Int): TrapHandlerResult
 }
 
 trait UndefinedFunctionHandler {
   def handleUndefinedFunction(functionID: Int): Unit
 }
 
-class ClientAgent(mutator: Mutator)(
+class MuCtx(mutator: Mutator)(
     implicit microVM: MicroVM, memorySupport: MemorySupport) extends ObjectPinner {
-  val handles = new HashSet[Handle]()
+  val handles = new HashSet[MuValue]()
 
   val pinSet = new ArrayBuffer[Word]
 
-  /**
-   * Given a name, get the ID of an identified entity.
-   */
+  /** Given a name, get the ID of an identified entity. */
   def idOf(name: String): Int = microVM.idOf(name)
 
-  /**
-   * Given an ID, get the name of an identified entity.
-   */
+  /** Given an ID, get the name of an identified entity. */
   def nameOf(id: Int): String = microVM.nameOf(id)
 
-  def close(): Unit = {
+  /** Close the context. */
+  def closeContext(): Unit = {
     handles.clear()
     mutator.close()
     microVM.clientAgents.remove(this)
   }
 
+  /** Load a Mu IR bundle */
   def loadBundle(r: Reader): Unit = {
     val bundle = microVM.irReader.read(r, microVM.globalBundle)
     microVM.addBundle(bundle)
   }
 
+  /** Load a Mu IR bundle */
   def loadBundle(s: String): Unit = {
     val bundle = microVM.irReader.read(s, microVM.globalBundle)
     microVM.addBundle(bundle)
   }
 
-  private def newHandle(t: Type, vb: ValueBox): Handle = {
-    val handle = Handle(t, vb)
-    handles.add(handle)
-    return handle
+  /** Load a HAIL script */
+  def loadHail(r: Reader): Unit = ???
+
+  /** Load a HAIL script */
+  def loadHail(s: String): Unit = ???
+
+  private def addHandle[T <: MuValue](h: T): T = {
+    handles.add(h)
+    h
   }
 
-  def putInt(typeID: Int, v: BigInt): Handle = {
-    val t = microVM.globalBundle.typeNs(typeID).asInstanceOf[TypeInt]
-    val preparedV = OpHelper.unprepare(v, t.length)
-    newHandle(t, BoxInt(preparedV))
+  /** Convert any int (BigInt) to a handle. */
+  def handleFromInt(num: BigInt, len: Int): MuIntValue = {
+    val t = InternalTypePool.intOf(len)
+    val v = OpHelper.unprepare(num, len)
+    addHandle(MuIntValue(t, BoxInt(v)))
   }
 
-  def putFloat(typeID: Int, v: Float): Handle = {
-    val t = microVM.globalBundle.typeNs(typeID).asInstanceOf[TypeFloat]
-    newHandle(t, BoxFloat(v))
+  /** Convert float to a handle. */
+  def handleFromFloat(num: Float): MuFloatValue = {
+    val t = InternalTypes.FLOAT
+    addHandle(MuFloatValue(t, BoxFloat(num)))
   }
 
-  def putDouble(typeID: Int, v: Double): Handle = {
-    val t = microVM.globalBundle.typeNs(typeID).asInstanceOf[TypeDouble]
-    newHandle(t, BoxDouble(v))
+  /** Convert double to a handle. */
+  def handleFromDouble(num: Double): MuDoubleValue = {
+    val t = InternalTypes.DOUBLE
+    addHandle(MuDoubleValue(t, BoxDouble(num)))
   }
 
-  def putIntVec(typeID: Int, vs: Seq[BigInt]): Handle = {
-    val t = microVM.globalBundle.typeNs(typeID).asInstanceOf[TypeVector]
-    val et = t.elemTy.asInstanceOf[TypeInt]
-    val preparedVs = for (v <- vs) yield OpHelper.trunc(v, et.length)
-    newHandle(t, BoxSeq(preparedVs.map(BoxInt)))
+  /** Convert pointer (Long) to a handle. */
+  def handleFromPtr(muType: Int, v: Word): MuUPtrValue = {
+    val t = microVM.globalBundle.typeNs(muType).asInstanceOf[TypeUPtr]
+    addHandle(MuUPtrValue(t, BoxPointer(v)))
   }
 
-  def putFloatVec(typeID: Int, vs: Seq[Float]): Handle = {
-    val t = microVM.globalBundle.typeNs(typeID).asInstanceOf[TypeVector]
-    val et = t.elemTy.asInstanceOf[TypeFloat]
-    newHandle(t, BoxSeq(vs.map(BoxFloat)))
+  /** Convert function pointer (Long) to a handle. */
+  def handleFromFP(muType: Int, v: Word): MuUFPValue = {
+    val t = microVM.globalBundle.typeNs(muType).asInstanceOf[TypeUFuncPtr]
+    addHandle(MuUFPValue(t, BoxPointer(v)))
   }
 
-  def putDoubleVec(typeID: Int, vs: Seq[Double]): Handle = {
-    val t = microVM.globalBundle.typeNs(typeID).asInstanceOf[TypeVector]
-    val et = t.elemTy.asInstanceOf[TypeDouble]
-    newHandle(t, BoxSeq(vs.map(BoxDouble)))
+  /** Convert handle to an integer (BigInt). */
+  def handleToInt(opnd: MuIntValue, signExt: Boolean): BigInt = {
+    val t = opnd.ty
+    val ib = opnd.vb
+    if (signExt) OpHelper.prepareSigned(ib.value, t.length) else OpHelper.prepareUnsigned(ib.value, t.length)
   }
 
-  def putPointer(typeID: Int, v: Word): Handle = {
-    val t = microVM.globalBundle.typeNs(typeID)
-    newHandle(t, BoxPointer(v))
+  /** Convert handle to integer (BigInt), assume signed. */
+  def handleToSInt(opnd: MuIntValue) = handleToInt(opnd, true)
+
+  /** Convert handle to integer (BigInt), assume unsigned. */
+  def handleToUInt(opnd: MuIntValue) = handleToInt(opnd, false)
+
+  /** Convert handle to float. */
+  def handleToFloat(opnd: MuFloatValue): Float = {
+    opnd.vb.value
   }
 
-  def putConstant(id: Int): Handle = {
+  /** Convert handle to double. */
+  def handleToDouble(opnd: MuDoubleValue): Double = {
+    opnd.vb.value
+  }
+
+  /** Convert handle to pointer (Long). */
+  def handleToPtr(opnd: MuUPtrValue): Word = {
+    opnd.vb.addr
+  }
+
+  /** Convert handle to function pointer (Long). */
+  def handleToFP(opnd: MuUFPValue): Word = {
+    opnd.vb.addr
+  }
+
+  /** Make a handle for a constant. */
+  def handleFromConst(id: Int): MuValue = {
     val c = microVM.globalBundle.constantNs(id)
     val t = c.constTy
     val box = microVM.constantPool.getGlobalVarBox(c)
-    newHandle(t, box)
+    addHandle(MuValue(t, box))
   }
 
-  def putGlobal(id: Int): Handle = {
+  /** Make a handle for a global cell (its iref). */
+  def handleFromGlobal(id: Int): MuIRefValue = {
     val g = microVM.globalBundle.globalCellNs(id)
     val t = InternalTypePool.irefOf(g.cellTy)
     val a = microVM.memoryManager.globalMemory.addrForGlobalCell(g)
     val box = BoxIRef(0L, a)
-    newHandle(t, box)
+    addHandle(MuIRefValue(t, box))
   }
 
-  def putFunction(id: Int): Handle = {
+  /** Make a handle for a function (funcref). */
+  def handleFromFunc(id: Int): MuFuncRefValue = {
     val f = microVM.globalBundle.funcNs(id)
     val t = InternalTypePool.funcOf(f.sig)
     val box = BoxFunc(Some(f))
-    newHandle(t, box)
+    addHandle(MuFuncRefValue(t, box))
   }
 
-  def putExpFunc(id: Int): Handle = {
+  /**
+   * Make a handle for an exposed function. In this implementation, the type is ufuncptr, but other implementations
+   * may be different.
+   */
+  def handleFromExpose(id: Int): MuUFPValue = {
     val ef = microVM.globalBundle.expFuncNs(id)
     val t = InternalTypePool.funcPtrOf(ef.func.sig)
     val box = BoxPointer(microVM.nativeCallHelper.getStaticExpFuncAddr(ef))
-    newHandle(t, box)
+    addHandle(MuUFPValue(t, box))
   }
 
-  def deleteHandle(h: Handle): Unit = {
-    handles.remove(h)
+  /** Delete a handle. */
+  def deleteValue(opnd: MuValue): Unit = {
+    handles.remove(opnd)
   }
 
-  def toInt(h: Handle, signExt: Boolean = false): BigInt = {
-    val t = h.ty.asInstanceOf[TypeInt]
-    val ib = h.vb.asInstanceOf[BoxInt]
-    if (signExt) OpHelper.prepareSigned(ib.value, t.length) else OpHelper.prepareUnsigned(ib.value, t.length)
-  }
-
-  def toFloat(h: Handle): Float = {
-    h.vb.asInstanceOf[BoxFloat].value
-  }
-
-  def toDouble(h: Handle): Double = {
-    h.vb.asInstanceOf[BoxDouble].value
-  }
-
-  def toIntVec(h: Handle, signExt: Boolean = false): Seq[BigInt] = {
-    val t = h.ty.asInstanceOf[TypeVector]
-    val et = t.elemTy.asInstanceOf[TypeInt]
-    val bv = h.vb.asInstanceOf[BoxSeq]
-    for (b <- bv.values) yield {
-      val ib = b.asInstanceOf[BoxInt]
-      if (signExt) OpHelper.prepareSigned(ib.value, et.length) else OpHelper.prepareUnsigned(ib.value, et.length)
+  /** Compare general reference types for equality. */
+  def refEq(lhs: MuValue, rhs: MuValue): Boolean = (lhs, rhs) match {
+    case (l: MuRefValue, r: MuRefValue)             => l.vb.objRef == r.vb.objRef
+    case (l: MuIRefValue, r: MuIRefValue)           => l.vb.oo == r.vb.oo
+    case (l: MuFuncRefValue, r: MuFuncRefValue)     => l.vb.func == r.vb.func
+    case (l: MuThreadRefValue, r: MuThreadRefValue) => l.vb.thread == r.vb.thread
+    case (l: MuStackRefValue, r: MuStackRefValue)   => l.vb.stack == r.vb.stack
+    case (l, r) => {
+      throw new IllegalArgumentException("Bad types for refEq: %s and %s".format(
+        l.getClass.getSimpleName, r.getClass.getSimpleName))
     }
   }
 
-  def toFloatVec(h: Handle): Seq[Float] = {
-    h.vb.asInstanceOf[BoxSeq].values.map(b => b.asInstanceOf[BoxFloat].value)
-  }
-
-  def toDoubleVec(h: Handle): Seq[Double] = {
-    h.vb.asInstanceOf[BoxSeq].values.map(b => b.asInstanceOf[BoxDouble].value)
-  }
-
-  def toPointer(h: Handle): Word = {
-    h.vb.asInstanceOf[BoxPointer].addr
+  /** Compare general reference types for less-than. */
+  def refUlt(lhs: MuIRefValue, rhs: MuIRefValue): Boolean = {
+    if (lhs.vb.objRef != rhs.vb.objRef) {
+      val (lb, lo) = lhs.vb.oo
+      val (rb, ro) = rhs.vb.oo
+      throw new UvmRefImplException(("Two operands refer to different objects. This is an undefined behaviour. " +
+        "lhs: %d+%d (0x%x+0x%x); rhs: %d+%d (0x%x+0x%x)".format(lb, lo, lb, lo, rb, ro, rb, ro)))
+    }
+    lhs.vb.offset < rhs.vb.offset
   }
 
   def extractValue(str: Handle, index: Int): Handle = {
@@ -282,7 +350,7 @@ class ClientAgent(mutator: Mutator)(
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
     val nvb = newVal.vb
-    
+
     MemoryOperations.store(ptr, uty, addr, nvb)
   }
 
@@ -393,7 +461,7 @@ class ClientAgent(mutator: Mutator)(
         throw new UvmRefImplException("Attempt to dump keepalive variables for a native frame for native funciton 0x%x".format(f.func))
       }
       case f: UndefinedMuFrame => {
-        for ((ty,box) <- f.func.sig.paramTys zip f.boxes) yield {
+        for ((ty, box) <- f.func.sig.paramTys zip f.boxes) yield {
           newHandle(ty, box)
         }
       }

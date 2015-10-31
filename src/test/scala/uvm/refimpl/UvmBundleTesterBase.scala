@@ -66,7 +66,7 @@ abstract class UvmBundleTesterBase extends FlatSpec with Matchers {
 
   def testFunc(ca: ClientAgent, func: Handle, args: Seq[Handle])(handler: TrapHandlerFunction): Unit = {
     microVM.trapManager.trapHandler = new MockTrapHandler(handler)
-    val hStack = ca.newStack(func, args)
+    val hStack = ca.newStack(func)
     val hThread = ca.newThread(hStack)
     microVM.execute()
   }
