@@ -21,22 +21,17 @@ object InterpreterThread {
  * A thread that interprets Mu instruction.
  */
 class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator: Mutator)(
-    implicit microVM: MicroVM) extends ObjectPinner with InstructionExecutor {
+    implicit protected val microVM: MicroVM) extends InstructionExecutor {
   import InterpreterThread._
 
   // Injectable resources (used by memory access instructions)
-  implicit private val memorySupport = microVM.memoryManager.memorySupport
-  
+  implicit protected val memorySupport = microVM.memoryManager.memorySupport
+
   override def curThread = this
 
   // Initialisation
 
   rebindPassValues(initialStack, Seq())
-
-  // Public interface
-
-  def futexReturn(rv: Int): Unit
-  def interpretCurrentInstruction(): Unit
 }
 
 /**
@@ -47,7 +42,7 @@ trait InterpreterThreadState {
   def id: Int
 
   /** The Micro VM */
-  private[itpr] def microVM: MicroVM
+  implicit protected def microVM: MicroVM
 
   /** The underlying stack. */
   var stack: Option[InterpreterStack] = None
@@ -61,25 +56,25 @@ trait InterpreterThreadState {
   /** Object-pinnning multiset. */
   val pinSet = new ArrayBuffer[Word]
 
-  private[itpr] def curStack = stack.get
-  private[itpr] def top: InterpreterFrame = curStack.top
-  private[itpr] def topMu: MuFrame = curStack.top match {
+  protected def curStack = stack.get
+  protected def top: InterpreterFrame = curStack.top
+  protected def topMu: MuFrame = curStack.top match {
     case f: MuFrame => f
     case f: NativeFrame => throw new UvmRefImplException(("Stack %d: Expected Mu top frame, " +
       "found native frame for native function 0x%x.").format(curStack.id, f.func))
   }
-  private[itpr] def topDefMu: DefinedMuFrame = topMu match {
+  protected def topDefMu: DefinedMuFrame = topMu match {
     case f: DefinedMuFrame => f
     case f: UndefinedMuFrame => throw new UvmRefImplException(("Stack %d: Expected defined Mu top frame, " +
       "found undefined frame for Mu function %s.").format(curStack.id, f.func.repr))
   }
-  private[itpr] def curBB = topDefMu.curBB
-  private[itpr] def curInst = topDefMu.curInst
-  private[itpr] def justCreated = topMu.justCreated
-  private[itpr] def justCreated_=(v: Boolean) = topMu.justCreated_=(v)
+  protected def curBB = topDefMu.curBB
+  protected def curInst = topDefMu.curInst
+  protected def justCreated = topMu.justCreated
+  protected def justCreated_=(v: Boolean) = topMu.justCreated_=(v)
 
   /** Make a string to identify the current function version, basic block and instruction for debugging. */
-  private[itpr] def ctx = stack match {
+  protected def ctx = stack match {
     case None => "(Thred not bound to stack): "
     case Some(s) => s.top match {
       case f: NativeFrame      => "TID %d, Native frame for function 0x%x: ".format(id, f.func)
@@ -99,19 +94,19 @@ trait InterpreterThreadState {
   }
 
   /** Get the value box of an SSA variable in the current stack. */
-  private[itpr] def boxOf(v: SSAVariable): ValueBox = v match {
+  protected def boxOf(v: SSAVariable): ValueBox = v match {
     case g: GlobalVariable => microVM.constantPool.getGlobalVarBox(g)
     case l: LocalVariable  => topDefMu.boxes(l)
   }
 
   /** Get the edge-assigned value box of an edge-assigned instruction in the current stack. */
-  private[itpr] def edgeAssignedBoxOf(p: Parameter): ValueBox = topDefMu.edgeAssignedBoxes(p)
+  protected def edgeAssignedBoxOf(p: Parameter): ValueBox = topDefMu.edgeAssignedBoxes(p)
 
   /** Get the result boxes of the current instruction. */
-  private[itpr] def resultBoxes: Seq[ValueBox] = curInst.results.map(boxOf)
+  protected def resultBoxes: Seq[ValueBox] = curInst.results.map(boxOf)
 
   /** Get one result box of the current instruction. */
-  private[itpr] def resultBox(index: Int): ValueBox = boxOf(curInst.results(index))
+  protected def resultBox(index: Int): ValueBox = boxOf(curInst.results(index))
 }
 
 /**
@@ -124,12 +119,17 @@ trait InterpreterActions extends InterpreterThreadState {
    * Interpret the current instruction.
    * @see uvm.refimpl.itpr.InstructionExecutor
    */
-  def interpretCurrentInstruction(): Unit
+  protected def interpretCurrentInstruction(): Unit
   
+  /**
+   * Specialised to interpet common instructions.
+   */
+  protected def interpretCurrentCommonInstruction(): Unit
+
   /**
    * Let InterpreterThread return self
    */
-  def curThread: InterpreterThread
+  protected def curThread: InterpreterThread
 
   /** Write the return value of futex. May be written from FutexManager */
   def futexReturn(rv: Int): Unit = {
@@ -143,7 +143,7 @@ trait InterpreterActions extends InterpreterThreadState {
   }
 
   /** Execute one instruction. */
-  private[itpr] def step(): Unit = {
+  def step(): Unit = {
     if (!isRunning) throw new UvmRefImplException(ctx + "Attempt to run thread after it has reached exit.")
     if (isFutexWaiting) throw new UvmRefImplException(ctx + "Attempt to run thread when it is waiting on a futex.")
     topMu.justCreated = false
@@ -151,12 +151,12 @@ trait InterpreterActions extends InterpreterThreadState {
   }
 
   /** Set PC to the next instruction of the same basic block. */
-  private[itpr] def incPC(): Unit = topDefMu.incPC()
+  protected def incPC(): Unit = topDefMu.incPC()
   /** Set PC to the beginning of another basic block. */
-  private[itpr] def jump(bb: BasicBlock, ix: Int): Unit = topDefMu.jump(bb, ix)
+  protected def jump(bb: BasicBlock, ix: Int): Unit = topDefMu.jump(bb, ix)
 
   /** Branch to a basic block and assign parameters */
-  private[itpr] def branchTo(destClause: DestClause, maybeExcAddr: Option[Word] = None): Unit = {
+  protected def branchTo(destClause: DestClause, maybeExcAddr: Option[Word] = None): Unit = {
     val curBB = this.curBB
     val dest = destClause.bb
     val norArgs = destClause.args
@@ -201,7 +201,7 @@ trait InterpreterActions extends InterpreterThreadState {
   }
 
   /** Continue normally. This will move to the next instruction. Work for all instructions. */
-  private[itpr] def continueNormally(): Unit = {
+  protected def continueNormally(): Unit = {
     curInst match {
       case wp: InstWatchPoint => {
         branchTo(wp.ena)
@@ -224,7 +224,7 @@ trait InterpreterActions extends InterpreterThreadState {
    * Attempt to catch exception in the current frame. Will repeatedly unwind the stack until the exception can be
    * handled. Stack underflow is an undefined behaviour.
    */
-  private[itpr] def catchException(exc: Word): Unit = {
+  protected def catchException(exc: Word): Unit = {
     @tailrec
     def unwindUntilCatchable(frame: InterpreterFrame): (InterpreterFrame, DestClause) = frame match {
       case f: MuFrame => {
@@ -266,7 +266,7 @@ trait InterpreterActions extends InterpreterThreadState {
    * @throw Throw UvmRefimplException if a frame stops at an unexpected instruction. Normally the top frame can be
    * executing TRAP, WATCHPOINT, SWAPSTACK or CALL and all other frames must be executing CALL.
    */
-  private[itpr] def maybeFindExceptionHandler(inst: Instruction): Option[DestClause] = {
+  protected def maybeFindExceptionHandler(inst: Instruction): Option[DestClause] = {
     inst match {
       case i: InstCall       => i.excClause.map(_.exc)
       case i: InstTrap       => i.excClause.map(_.exc)
@@ -280,15 +280,15 @@ trait InterpreterActions extends InterpreterThreadState {
 
   // Misc helper
 
-  private[itpr] def writeBooleanResult(result: Boolean, box: ValueBox): Unit = {
+  protected def writeBooleanResult(result: Boolean, box: ValueBox): Unit = {
     box.asInstanceOf[BoxInt].value = if (result) 1 else 0
   }
 
-  private[itpr] def writeIntResult(len: Int, result: BigInt, box: ValueBox): Unit = {
+  protected def writeIntResult(len: Int, result: BigInt, box: ValueBox): Unit = {
     box.asInstanceOf[BoxInt].value = OpHelper.unprepare(result, len)
   }
 
-  private[itpr] def incrementBoxIRefOrPointer(ptr: Boolean, src: SSAVariable, dst: SSAVariable, addrIncr: Word): Unit = {
+  protected def incrementBoxIRefOrPointer(ptr: Boolean, src: SSAVariable, dst: SSAVariable, addrIncr: Word): Unit = {
     if (ptr) {
       val sb = boxOf(src).asInstanceOf[BoxPointer]
       val db = boxOf(dst).asInstanceOf[BoxPointer]
@@ -301,14 +301,14 @@ trait InterpreterActions extends InterpreterThreadState {
     }
   }
 
-  private[itpr] def addressOf(ptr: Boolean, v: SSAVariable): Word = {
+  protected def addressOf(ptr: Boolean, v: SSAVariable): Word = {
     MemoryOperations.addressOf(ptr, boxOf(v))
   }
 
   // Thread termination
 
   /** Terminate the thread. Please only let the thread terminate itself. */
-  private[itpr] def threadExit(): Unit = {
+  protected def threadExit(): Unit = {
     curStack.kill()
     isRunning = false
   }
@@ -316,13 +316,13 @@ trait InterpreterActions extends InterpreterThreadState {
   // Thread/stack binding and unbinding
 
   /** Unbind the current thread from the stack. */
-  private[itpr] def unbindRetWith(tys: Seq[Type]): Unit = {
+  protected def unbindRetWith(tys: Seq[Type]): Unit = {
     curStack.unbindRetWith(tys)
     stack = None
   }
 
   /** Unbind and kill the current stack. */
-  private[itpr] def unbindAndKillStack(): Unit = {
+  protected def unbindAndKillStack(): Unit = {
     curStack.kill()
     stack = None
   }
@@ -330,12 +330,12 @@ trait InterpreterActions extends InterpreterThreadState {
   /**
    *  Rebind to a stack.
    */
-  private[itpr] def rebind(newStack: InterpreterStack): Unit = {
+  protected def rebind(newStack: InterpreterStack): Unit = {
     stack = Some(newStack)
   }
 
   /** Rebind to a stack and pass a value. */
-  private[itpr] def rebindPassValues(newStack: InterpreterStack, values: Seq[ValueBox]): Unit = {
+  protected def rebindPassValues(newStack: InterpreterStack, values: Seq[ValueBox]): Unit = {
     rebind(newStack)
 
     val shouldIncrementPC = newStack.rebindPassValues(values)
@@ -345,7 +345,7 @@ trait InterpreterActions extends InterpreterThreadState {
   }
 
   /** Rebind to a stack and throw an exception on that stack. */
-  private[itpr] def rebindThrowExc(newStack: InterpreterStack, exc: ValueBox): Unit = {
+  protected def rebindThrowExc(newStack: InterpreterStack, exc: ValueBox): Unit = {
     rebind(newStack)
 
     val excObjRef = exc.asInstanceOf[BoxRef].objRef
@@ -356,7 +356,7 @@ trait InterpreterActions extends InterpreterThreadState {
   // Trap and watchpoint handling
 
   /** Execute the trap handler in the Client. Work for both TRAP and WATCHPOINT. */
-  private[itpr] def doTrap(retTys: Seq[Type], wpID: Int) = {
+  protected def doTrap(retTys: Seq[Type], wpID: Int) = {
     val curCtx = ctx // save the context string for debugging
 
     val ca = microVM.newClientAgent()
@@ -399,7 +399,7 @@ trait InterpreterActions extends InterpreterThreadState {
    *  }
    *  }}}
    */
-  private[itpr] def branchToExcDestOr(excClause: Option[ExcClause])(f: => Unit): Unit = {
+  protected def branchToExcDestOr(excClause: Option[ExcClause])(f: => Unit): Unit = {
     excClause match {
       case None                      => f
       case Some(ExcClause(_, excBB)) => branchTo(excBB)
@@ -419,7 +419,7 @@ trait InterpreterActions extends InterpreterThreadState {
    * }
    * }}}
    */
-  private[itpr] def handleOutOfMemory(excClause: Option[ExcClause])(f: => Unit): Unit = {
+  protected def handleOutOfMemory(excClause: Option[ExcClause])(f: => Unit): Unit = {
     try {
       f
     } catch {
@@ -435,7 +435,7 @@ trait InterpreterActions extends InterpreterThreadState {
    * Raise NULL reference error. NULL reference errors in the micro VM usually branches to an exception destination, but has
    * undefined behaviour when ExcClause is absent.
    */
-  private[itpr] def nullRefError(excClause: Option[ExcClause]): Unit = {
+  protected def nullRefError(excClause: Option[ExcClause]): Unit = {
     branchToExcDestOr(excClause) {
       throw new UvmRuntimeException(ctx + "Accessing null reference.")
     }

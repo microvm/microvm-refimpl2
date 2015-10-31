@@ -282,9 +282,8 @@ class ClientAgent(mutator: Mutator)(
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
     val nvb = newVal.vb
-    val nb = ValueBox.makeBoxForType(uty)
-
-    MemoryOperations.store(ptr, uty, addr, nvb, nb)
+    
+    MemoryOperations.store(ptr, uty, addr, nvb)
   }
 
   def cmpXchg(ordSucc: MemoryOrder, ordFail: MemoryOrder, weak: Boolean, loc: Handle, expected: Handle, desired: Handle): (Boolean, Handle) = {

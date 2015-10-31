@@ -16,15 +16,15 @@ import uvm.refimpl.nat.NativeCallResult
 /**
  * Part of the InterpreterThread. It isolates the GIANT case-matching function.
  */
-trait InstructionExecutor extends InterpreterActions {
+trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
   import InterpreterThread.logger
 
-  private[itpr] def mutator: Mutator
-  implicit private[itpr] def microVM: MicroVM
-  implicit private[itpr] def memorySupport: MemorySupport
+  protected def mutator: Mutator
+  implicit protected def microVM: MicroVM
+  implicit protected def memorySupport: MemorySupport
 
   /** Interpret the current instruction. */
-  private[itpr] def interpretCurrentInstruction(): Unit = try {
+  protected def interpretCurrentInstruction(): Unit = try {
     logger.debug(ctx + "Executing instruction...")
 
     curInst match {
@@ -682,20 +682,18 @@ trait InstructionExecutor extends InterpreterActions {
       }
 
       case i @ InstNewThread(stack, newStackAction, excClause) => {
-        val calleeFunc = boxOf(callee).asInstanceOf[BoxFunc].func.getOrElse {
-          throw new UvmRuntimeException(ctx + "Stack-bottom function must not be NULL")
+        val newStack = boxOf(stack).asInstanceOf[BoxStack].stack.getOrElse {
+          throw new UvmRuntimeException(ctx + "Attempt to bind to a NULL stack.")
         }
-
-        val funcVer = getFuncDefOrTriggerCallback(calleeFunc)
-
-        val argBoxes = argList.map(boxOf)
-
-        val ib = resultBox(0).asInstanceOf[BoxStack]
-
-        handleOutOfMemory(excClause) {
-          val sta = microVM.threadStackManager.newStack(funcVer, argBoxes, mutator)
-          ib.stack = Some(sta)
-          continueNormally()
+        newStackAction match {
+          case PassValues(argTys, args) => {
+            val argBoxes = args.map(boxOf)
+            rebindPassValues(newStack, argBoxes)
+          }
+          case ThrowExc(exc) => {
+            val excBox = boxOf(exc)
+            rebindThrowExc(newStack, excBox)
+          }
         }
       }
 
@@ -705,10 +703,9 @@ trait InstructionExecutor extends InterpreterActions {
           throw new UvmRuntimeException(ctx + "Swappee must not be NULL.")
         }
 
-        curStackAction match {
-          case RetWith(retTy) => {
-            curInstHalfExecuted = true
-            unbind(retTy)
+        def handleOldStack() = curStackAction match {
+          case RetWith(retTys) => {
+            unbindRetWith(retTys)
           }
           case KillOld() => {
             unbindAndKillStack()
@@ -716,319 +713,20 @@ trait InstructionExecutor extends InterpreterActions {
         }
 
         newStackAction match {
-          case PassValue(argTy, arg) => {
-            val argBox = boxOf(oldStack, arg)
-            rebindPassValue(newStack, argBox)
+          case PassValues(argTys, args) => {
+            val argBoxes = args.map(boxOf)
+            handleOldStack()
+            rebindPassValues(newStack, argBoxes)
           }
           case ThrowExc(exc) => {
-            val excBox = boxOf(oldStack, exc)
+            val excBox = boxOf(exc)
+            handleOldStack()
             rebindThrowExc(newStack, excBox)
           }
         }
       }
-
-      case i @ InstCommInst(ci, flagList, typeList, sigList, argList, excClause, keepAlives) => {
-        ci.name.get match {
-          // Thread and stack operations
-          case "@uvm.new_thread" => {
-            val Seq(s) = argList
-            val sta = boxOf(s).asInstanceOf[BoxStack].stack.getOrElse {
-              throw new UvmRuntimeException(ctx + "Attempt to create new thread on NULL stack.")
-            }
-
-            if (!sta.state.isInstanceOf[StackState.Ready]) {
-              throw new UvmRuntimeException(ctx + "Stack not in READY<T> state. Actual state: %s".format(sta.state))
-            }
-
-            val thr = microVM.threadStackManager.newThread(sta)
-            resultBox(0).asInstanceOf[BoxThread].thread = Some(thr)
-            continueNormally()
-          }
-
-          case "@uvm.kill_stack" => {
-            val Seq(s) = argList
-            val sta = boxOf(s).asInstanceOf[BoxStack].stack.getOrElse {
-              throw new UvmRuntimeException(ctx + "Attempt to kill NULL stack.")
-            }
-            sta.kill()
-            continueNormally()
-          }
-
-          case "@uvm.thread_exit" => {
-            threadExit()
-          }
-
-          case "@uvm.current_stack" => {
-            val bi = resultBox(0)
-            bi.asInstanceOf[BoxStack].stack = stack
-            continueNormally()
-          }
-
-          // 64-bit Tagged Reference
-
-          case "@uvm.tr64.is_fp" => {
-            val Seq(tr) = argList
-            val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
-            val result = OpHelper.tr64IsFp(raw)
-            writeBooleanResult(result, resultBox(0))
-            continueNormally()
-          }
-
-          case "@uvm.tr64.is_int" => {
-            val Seq(tr) = argList
-            val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
-            val result = OpHelper.tr64IsInt(raw)
-            writeBooleanResult(result, resultBox(0))
-            continueNormally()
-          }
-
-          case "@uvm.tr64.is_ref" => {
-            val Seq(tr) = argList
-            val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
-            val result = OpHelper.tr64IsRef(raw)
-            writeBooleanResult(result, resultBox(0))
-            continueNormally()
-          }
-
-          case "@uvm.tr64.from_fp" => {
-            val Seq(v) = argList
-            val vFP = boxOf(v).asInstanceOf[BoxDouble].value
-            val raw = OpHelper.fpToTr64(vFP)
-            resultBox(0).asInstanceOf[BoxTagRef64].raw = raw
-            continueNormally()
-          }
-
-          case "@uvm.tr64.from_int" => {
-            val Seq(v) = argList
-            val vInt = OpHelper.prepareUnsigned(boxOf(v).asInstanceOf[BoxInt].value, 52)
-            val raw = OpHelper.intToTr64(vInt.longValue())
-            resultBox(0).asInstanceOf[BoxTagRef64].raw = raw
-            continueNormally()
-          }
-
-          case "@uvm.tr64.from_ref" => {
-            val Seq(ref, tag) = argList
-            val vRef = boxOf(ref).asInstanceOf[BoxRef].objRef
-            val vTag = OpHelper.prepareUnsigned(boxOf(tag).asInstanceOf[BoxInt].value, 6)
-            val raw = OpHelper.refToTr64(vRef, vTag.longValue())
-            resultBox(0).asInstanceOf[BoxTagRef64].raw = raw
-            continueNormally()
-          }
-
-          case "@uvm.tr64.to_fp" => {
-            val Seq(tr) = argList
-            val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
-            if (OpHelper.tr64IsFp(raw)) {
-              val result = OpHelper.tr64ToFp(raw)
-              resultBox(0).asInstanceOf[BoxDouble].value = result
-              continueNormally()
-            } else {
-              throw new UvmRuntimeException(ctx + "Attempt to extract double from a tagref64 which is not holding a double")
-            }
-          }
-
-          case "@uvm.tr64.to_int" => {
-            val Seq(tr) = argList
-            val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
-            if (OpHelper.tr64IsInt(raw)) {
-              val result = OpHelper.tr64ToInt(raw)
-              resultBox(0).asInstanceOf[BoxInt].value = OpHelper.unprepare(result, 52)
-              continueNormally()
-            } else {
-              throw new UvmRuntimeException(ctx + "Attempt to extract int from a tagref64 which is not holding a int")
-            }
-          }
-
-          case "@uvm.tr64.to_ref" => {
-            val Seq(tr) = argList
-            val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
-            if (OpHelper.tr64IsRef(raw)) {
-              val result = OpHelper.tr64ToRef(raw)
-              resultBox(0).asInstanceOf[BoxRef].objRef = result
-              continueNormally()
-            } else {
-              throw new UvmRuntimeException(ctx + "Attempt to extract ref from a tagref64 which is not holding a ref")
-            }
-          }
-
-          case "@uvm.tr64.to_tag" => {
-            val Seq(tr) = argList
-            val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
-            if (OpHelper.tr64IsRef(raw)) {
-              val result = OpHelper.tr64ToTag(raw)
-              resultBox(0).asInstanceOf[BoxInt].value = OpHelper.unprepare(result, 6)
-              continueNormally()
-            } else {
-              throw new UvmRuntimeException(ctx + "Attempt to extract tag from a tagref64 which is not holding a ref")
-            }
-          }
-
-          case "@uvm.futex.wait" => {
-            val Seq(ty) = typeList
-            val Seq(loc, v) = argList
-
-            val len = ty.asInstanceOf[TypeInt].length
-            val bLoc = boxOf(loc).asInstanceOf[BoxIRef]
-            val objRef = bLoc.objRef
-            val offset = bLoc.offset
-            val locWord = objRef + offset
-            val bv = boxOf(v).asInstanceOf[BoxInt]
-
-            val equal = MemoryOperations.cmpInt(len, locWord, bv)
-
-            if (equal) {
-              microVM.threadStackManager.futexManager.futexWaitNoCheck(objRef, offset, this, None)
-              logger.debug(ctx + "Waiting in the futex waiting queue.")
-            } else {
-              logger.debug(ctx + "Memory location does not contain expected value. Don't wait.")
-              futexReturn(-1)
-            }
-          }
-
-          case "@uvm.futex.wait_timeout" => {
-            val Seq(ty) = typeList
-            val Seq(loc, v, timeout) = argList
-
-            val len = ty.asInstanceOf[TypeInt].length
-            val bLoc = boxOf(loc).asInstanceOf[BoxIRef]
-            val objRef = bLoc.objRef
-            val offset = bLoc.offset
-            val locWord = objRef + offset
-            val bv = boxOf(v).asInstanceOf[BoxInt]
-            val bto = boxOf(timeout).asInstanceOf[BoxInt]
-            val toVal = OpHelper.prepareSigned(bto.value, 64).longValue
-
-            if (toVal < 0L) throw new UvmRefImplException(ctx + "This refimpl treats timeout as signed due to restriction of Java.")
-
-            val equal = MemoryOperations.cmpInt(len, locWord, bv)
-
-            if (equal) {
-              microVM.threadStackManager.futexManager.futexWaitNoCheck(objRef, offset, this, Some(toVal))
-              logger.debug(ctx + "Waiting in the futex waiting queue.")
-            } else {
-              logger.debug(ctx + "Memory location does not contain expected value. Don't wait.")
-              futexReturn(-1)
-            }
-          }
-
-          case "@uvm.futex.wake" => {
-            val Seq(ty) = typeList
-            val Seq(loc, nthread) = argList
-
-            val len = ty.asInstanceOf[TypeInt].length
-            val bLoc = boxOf(loc).asInstanceOf[BoxIRef]
-            val objRef = bLoc.objRef
-            val offset = bLoc.offset
-            val locWord = objRef + offset
-            val nth = OpHelper.prepareSigned(boxOf(nthread).asInstanceOf[BoxInt].value, 32).intValue
-
-            if (nth < 0) throw new UvmRuntimeException(ctx + "nthread must not be negative")
-
-            val nWoken = microVM.threadStackManager.futexManager.futexWake(objRef, offset, nth)
-            futexReturn(nWoken)
-          }
-
-          case "@uvm.futex.cmp_requeue" => {
-            val Seq(ty) = typeList
-            val Seq(locSrc, locDst, expected, nthread) = argList
-
-            val len = ty.asInstanceOf[TypeInt].length
-            val (objRefSrc, offsetSrc) = boxOf(locSrc).asInstanceOf[BoxIRef].oo
-            val (objRefDst, offsetDst) = boxOf(locDst).asInstanceOf[BoxIRef].oo
-            val bExp = boxOf(expected).asInstanceOf[BoxInt]
-            val nth = OpHelper.prepareSigned(boxOf(nthread).asInstanceOf[BoxInt].value, 32).intValue
-
-            if (nth < 0) throw new UvmRuntimeException(ctx + "nthread must not be negative")
-
-            val equal = MemoryOperations.cmpInt(len, objRefSrc + offsetSrc, bExp)
-
-            if (equal) {
-              val nWoken = microVM.threadStackManager.futexManager.futexRequeue(objRefSrc, offsetSrc, objRefDst, offsetDst, nth)
-              futexReturn(nWoken)
-            } else {
-              futexReturn(-1)
-            }
-          }
-
-          case "@uvm.kill_dependency" => {
-            val Seq(v) = argList
-            val vBox = boxOf(v)
-            resultBox(0).copyFrom(vBox)
-            continueNormally()
-          }
-
-          case "@uvm.native.pin" => {
-            val Seq(ty) = typeList
-            val Seq(r) = argList
-
-            val (addr, offset) = ty match {
-              case TypeRef(_)  => (boxOf(r).asInstanceOf[BoxRef].objRef, 0L)
-              case TypeIRef(_) => boxOf(r).asInstanceOf[BoxIRef].oo
-            }
-
-            pin(addr)
-
-            resultBox(0).asInstanceOf[BoxPointer].addr = addr + offset
-            continueNormally()
-          }
-
-          case "@uvm.native.unpin" => {
-            val Seq(ty) = typeList
-            val Seq(r) = argList
-
-            val addr = ty match {
-              case TypeRef(_)  => boxOf(r).asInstanceOf[BoxRef].objRef
-              case TypeIRef(_) => boxOf(r).asInstanceOf[BoxIRef].objRef
-            }
-
-            unpin(addr)
-
-            continueNormally()
-          }
-
-          case "@uvm.native.expose" => {
-            val Seq(callConv) = flagList
-            val Seq(sig) = sigList
-            val Seq(func, cookie) = argList
-
-            val f = boxOf(func).asInstanceOf[BoxFunc].func.getOrElse {
-              throw new UvmRuntimeException(ctx + "Attempt to expose NULL Mu function")
-            }
-
-            val c = boxOf(cookie).asInstanceOf[BoxInt].value.toLong
-
-            val addr = microVM.nativeCallHelper.exposeFuncDynamic(f, c)
-
-            resultBox(0).asInstanceOf[BoxPointer].addr = addr
-
-            continueNormally()
-          }
-
-          case "@uvm.native.unexpose" => {
-            val Seq(callConv) = flagList
-            val Seq(addr) = argList
-
-            val a = boxOf(addr).asInstanceOf[BoxPointer].addr
-
-            microVM.nativeCallHelper.unexposeFunc(a)
-
-            continueNormally()
-          }
-
-          case "@uvm.native.get_cookie" => {
-            val cookie = topMu.cookie
-            resultBox(0).asInstanceOf[BoxInt].value = OpHelper.trunc(cookie, 64)
-            continueNormally()
-          }
-
-          // Insert more CommInsts here.
-
-          case ciName => {
-            throw new UvmRefImplException("Unimplemented common instruction %s".format(ciName))
-          }
-
-        }
-      }
+      
+      case i: InstCommInst => interpretCurrentCommonInstruction()
 
       case i => {
         throw new UvmRefImplException("Unimplemented instruction %s".format(i.getClass.getName))
