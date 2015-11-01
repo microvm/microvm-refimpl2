@@ -45,31 +45,33 @@ abstract class UvmBundleTesterBase extends FlatSpec with Matchers {
   implicit def nameOf(id: Int): String = microVM.nameOf(id)
 
   def preloadBundles(fileNames: String*): Unit = {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
     for (fn <- fileNames) {
       val r = new FileReader(fn)
-      ca.loadBundle(r)
+      ctx.loadBundle(r)
       r.close()
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 
-  type TrapHandlerFunction = (ClientAgent, Handle, Handle, Int) => TrapHandlerResult
+  type TrapHandlerFunction = (MuCtx, MuThreadRefValue, MuStackRefValue, Int) => TrapHandlerResult
 
   class MockTrapHandler(thf: TrapHandlerFunction) extends TrapHandler {
-    def handleTrap(ca: ClientAgent, thread: Handle, stack: Handle, watchPointID: Int): TrapHandlerResult = {
-      thf(ca, thread, stack, watchPointID)
+    def handleTrap(ctx: MuCtx, thread: MuThreadRefValue, stack: MuStackRefValue, watchPointID: Int): TrapHandlerResult = {
+      thf(ctx, thread, stack, watchPointID)
     }
   }
 
-  def testFunc(ca: ClientAgent, func: Handle, args: Seq[Handle])(handler: TrapHandlerFunction): Unit = {
+  def testFunc(ctx: MuCtx, func: MuFuncRefValue, args: Seq[MuValue])(handler: TrapHandlerFunction): Unit = {
     microVM.trapManager.trapHandler = new MockTrapHandler(handler)
-    val hStack = ca.newStack(func)
-    val hThread = ca.newThread(hStack)
+    val hStack = ctx.newStack(func)
+    val hThread = ctx.newThread(hStack, HowToResume.PassValues(args))
     microVM.execute()
   }
+  
+  implicit def magicalMuValue(mv: MuValue): MagicalBox = MagicalBox(mv.vb)
 
   implicit class MagicalBox(vb: ValueBox) {
     def asInt: BigInt = vb.asInstanceOf[BoxInt].value
@@ -80,7 +82,7 @@ abstract class UvmBundleTesterBase extends FlatSpec with Matchers {
     def asRef: Word = vb.asInstanceOf[BoxRef].objRef
     def asIRef: (Word, Word) = { val b = vb.asInstanceOf[BoxIRef]; (b.objRef, b.offset) }
     def asIRefAddr: Word = { val b = vb.asInstanceOf[BoxIRef]; b.objRef + b.offset }
-    def asStruct: Seq[ValueBox] = vb.asInstanceOf[BoxStruct].values
+    def asStruct: Seq[ValueBox] = vb.asInstanceOf[BoxSeq].values
     def asFunc: Option[Function] = vb.asInstanceOf[BoxFunc].func
     def asThread: Option[InterpreterThread] = vb.asInstanceOf[BoxThread].thread
     def asStack: Option[InterpreterStack] = vb.asInstanceOf[BoxStack].stack
@@ -89,5 +91,11 @@ abstract class UvmBundleTesterBase extends FlatSpec with Matchers {
     def asSeq: Seq[ValueBox] = vb.asInstanceOf[BoxSeq].values
     def asVec: Seq[ValueBox] = vb.asInstanceOf[BoxSeq].values
     def asPointer: Word = vb.asInstanceOf[BoxPointer].addr
+  }
+  
+  implicit class RichMuCtx(ctx: MuCtx) {
+    def i32(num: BigInt) = ctx.handleFromInt(num, 32)
+    def i64(num: BigInt) = ctx.handleFromInt(num, 64)
+    def func(id: Int) = ctx.handleFromFunc(id)
   }
 }

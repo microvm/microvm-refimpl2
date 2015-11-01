@@ -74,7 +74,7 @@ object TypeInferer {
       try {
         resTys(r.index)
       } catch {
-        case e: ArrayIndexOutOfBoundsException => throw new UvmRefImplException(
+        case e: IndexOutOfBoundsException => throw new UvmRefImplException(
           s"Instruction ${r.inst} produces only ${resTys.size} results, but result index ${r.index} is requested")
       }
     }

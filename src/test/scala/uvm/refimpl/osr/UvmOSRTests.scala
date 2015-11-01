@@ -1,4 +1,4 @@
-package uvm.refimpl
+package uvm.refimpl.osr
 
 import org.scalatest._
 import java.io.FileReader

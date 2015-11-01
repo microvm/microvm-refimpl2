@@ -22,6 +22,7 @@ object MuValue {
     case (t: TypeIRef, v: BoxIRef)         => MuIRefValue(t, v)
     case (t: TypeStruct, v: BoxSeq)        => MuStructValue(t, v)
     case (t: TypeArray, v: BoxSeq)         => MuArrayValue(t, v)
+    case (t: TypeVector, v: BoxSeq)        => MuVectorValue(t, v)
     case (t: TypeFuncRef, v: BoxFunc)      => MuFuncRefValue(t, v)
     case (t: TypeThreadRef, v: BoxThread)  => MuThreadRefValue(t, v)
     case (t: TypeStackRef, v: BoxStack)    => MuStackRefValue(t, v)

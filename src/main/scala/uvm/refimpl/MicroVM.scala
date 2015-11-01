@@ -77,7 +77,7 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
   def idOf(name: String): Int = try {
     globalBundle.allNs(name).id
   } catch {
-    case e: NoSuchElementException => throw new UvmRefImplException("No Mu entity has name %s.".format(name), e)
+    case e: NoSuchElementException => throw new UvmRefImplException("No Mu entity has name %s".format(name), e)
   }
 
   /**
@@ -86,7 +86,7 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
   def nameOf(id: Int): String = try {
     globalBundle.allNs(id).name.get
   } catch {
-    case e: NoSuchElementException => throw new UvmRefImplException("No Mu entity has ID %d.".format(id), e)
+    case e: NoSuchElementException => throw new UvmRefImplException("No Mu entity has ID %d".format(id), e)
   }
   
   /**
