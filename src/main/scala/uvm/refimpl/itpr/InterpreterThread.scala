@@ -144,7 +144,7 @@ trait InterpreterActions extends InterpreterThreadState {
   /** Write the return value of futex. May be written from FutexManager */
   def futexReturn(rv: Int): Unit = {
     assert(curInst.isInstanceOf[InstCommInst])
-    assert(Seq("@uvm.futex.wait", "@uvm.futex.wait_timeout") contains
+    assert(Seq("@uvm.futex.wait", "@uvm.futex.wait_timeout", "@uvm.futex.wake", "@uvm.futex.cmp_requeue") contains
       curInst.asInstanceOf[InstCommInst].inst.name.get)
 
     logger.debug(ctx + "Setting futex return value")

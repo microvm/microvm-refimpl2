@@ -22,110 +22,110 @@ class UvmInterpreterSimpleTests extends UvmBundleTesterBase {
     "tests/uvm-refimpl-test/simple-tests.uir")
 
   "Factorial functions" should "work" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@test_fac")
+    val func = ctx.handleFromFunc("@test_fac")
 
-    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      val Seq(r1, r2, r3) = ca.dumpKeepalives(st, 0)
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      val Seq(r1, r2, r3) = ctx.dumpKeepalives(st, 0)
 
       r1.vb.asInt shouldEqual 3628800
       r2.vb.asInt shouldEqual 3628800
       r3.vb.asInt shouldEqual 3628800
 
-      TrapRebindPassVoid(st)
+      returnFromTrap(st)
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 
   "Fibonacci functions" should "work" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@test_fib")
+    val func = ctx.handleFromFunc("@test_fib")
 
     val watch = true
 
-    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      val trapName = nameOf(ca.currentInstruction(st, 0))
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      val trapName = nameOf(ctx.curInst(st, 0))
 
       trapName match {
         case "@fibonacci_mat_v1.head.watch" => {
           if (watch) {
-            val vhs = ca.dumpKeepalives(st, 0)
+            val vhs = ctx.dumpKeepalives(st, 0)
             val vs = vhs.map(_.vb.asInt)
             println("watch " + vs)
           }
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@test_fib_v1.entry.checktrap" => {
-          val Seq(r1, r2) = ca.dumpKeepalives(st, 0)
+          val Seq(r1, r2) = ctx.dumpKeepalives(st, 0)
 
           r1.vb.asInt shouldEqual 55
           r2.vb.asInt shouldEqual 55
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case _ => fail("Should not hit " + trapName)
       }
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 
   "Coroutine test" should "work" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@test_coroutine")
+    val func = ctx.handleFromFunc("@test_coroutine")
 
-    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      val trapName = nameOf(ca.currentInstruction(st, 0))
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      val trapName = nameOf(ctx.curInst(st, 0))
 
       trapName match {
         case "@test_coroutine_v1.body.trap_body" => {
-          val Seq(v) = ca.dumpKeepalives(st, 0)
+          val Seq(v) = ctx.dumpKeepalives(st, 0)
 
           println(v.vb.asSInt(64))
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@test_coroutine_v1.exit.trap_exit" => {
-          val Seq(exc) = ca.dumpKeepalives(st, 0)
+          val Seq(exc) = ctx.dumpKeepalives(st, 0)
 
-          val hsi = ca.putGlobal("@StopIteration")
-          val hrsi = ca.load(MemoryOrder.NOT_ATOMIC, hsi)
+          val hsi = ctx.handleFromGlobal("@StopIteration")
+          val hrsi = ctx.load(MemoryOrder.NOT_ATOMIC, hsi)
 
           exc.vb.asRef shouldEqual hrsi.vb.asRef
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case _ => fail("Should not hit " + trapName)
       }
     }
 
-    ca.close()
+    ctx.closeContext()
   }
-  
+
   "Multi-threading test" should "work" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@test_multithreading")
+    val func = ctx.handleFromFunc("@test_multithreading")
 
-    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      val trapName = nameOf(ca.currentInstruction(st, 0))
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      val trapName = nameOf(ctx.curInst(st, 0))
 
       trapName match {
         case "@test_multithreading_v1.getresult.trap_result" => {
-          val Seq(v) = ca.dumpKeepalives(st, 0)
+          val Seq(v) = ctx.dumpKeepalives(st, 0)
 
           v.vb.asSInt(64) shouldEqual 4950
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case _ => fail("Should not hit " + trapName)
       }
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 }

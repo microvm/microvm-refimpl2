@@ -14,6 +14,8 @@ import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
 import ch.qos.logback.classic.{ Logger => LLogger }
 import ch.qos.logback.classic.Level
+import uvm.refimpl.TrapHandlerResult.Rebind
+import uvm.refimpl.HowToResume.PassValues
 
 object UvmBundleTesterBase {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
@@ -98,4 +100,6 @@ abstract class UvmBundleTesterBase extends FlatSpec with Matchers {
     def i64(num: BigInt) = ctx.handleFromInt(num, 64)
     def func(id: Int) = ctx.handleFromFunc(id)
   }
+  
+  def returnFromTrap(st: MuStackRefValue) = Rebind(st, PassValues(Seq()))
 }

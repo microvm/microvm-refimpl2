@@ -229,6 +229,9 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
    * @return true if the interpreter should increment the PC by continueNormally().
    */
   def rebindPassValues(args: Seq[ValueBox]): Boolean = {
+    if(!state.isInstanceOf[FrameState.Ready]) {
+      throw new UvmRuntimeException("Attempt to bind to a stack not in the ready state. Actual state: %s".format(state))
+    }
     top match {
       case mf: MuFrame => {
         mf.resumeNormally(args)
