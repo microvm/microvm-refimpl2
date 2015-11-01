@@ -845,6 +845,19 @@
         COMMINST @uvm.thread_exit
 }
 
+.funcdef @wpbranch VERSION %v1 <@v_v> {
+    %entry():
+        WPBRANCH 42 %dis() %ena()
+    %dis():
+        [%trap] TRAP <>
+        BRANCH %exit()
+    %ena():
+        [%trap] TRAP <>
+        BRANCH %exit()
+    %exit():
+        COMMINST @uvm.thread_exit
+}
+
 .funcsig @corostackfunc_sig = (@stack @i64) -> ()
 .funcdef @corostackfunc VERSION %v1 <@corostackfunc_sig> {
     %entry(<@stack> %fromsta <@i64> %p):

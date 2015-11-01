@@ -665,6 +665,15 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
         }
       }
 
+      case i @ InstWPBranch(wpID, dis, ena) => {
+        val isEnabled = microVM.trapManager.isWatchPointEnabled(wpID)
+        if (isEnabled) {
+          branchTo(ena)
+        } else {
+          branchTo(dis)
+        }
+      }
+
       case i @ InstCCall(callConv, funcTy, sig, callee, argList, excClause, keepAlives) => {
         if (callConv != Flag("#DEFAULT")) {
           throw new UvmRefImplException(ctx + "Currently only support the #DEFAULT callConv. %s found.".format(callConv.name))
@@ -725,7 +734,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
           }
         }
       }
-      
+
       case i: InstCommInst => interpretCurrentCommonInstruction()
 
       case i => {

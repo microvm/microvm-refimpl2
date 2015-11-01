@@ -1096,20 +1096,26 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
       val Seq(voidR, voidR2, voidR3) = kas.take(3)
       val Seq(cx32_1, succ32_1, cx32_2, succ32_2, cx64_1, succ64_1, cx64_2, succ64_2) = kas.drop(3).take(8)
       val Seq(l32, l64) = kas.drop(11).take(2)
-      val Seq(cxr_1, succr_1, cxr_2, succcr_2, lr) = kas.drop(13).take(5)
+      val Seq(cxr_1, succr_1, cxr_2, succr_2, lr) = kas.drop(13).take(5)
       val Seq(rmw0, rmw1, rmw2, rmw3, rmw4, rmw5, rmw6, rmw7, rmw8, rmw9, rmwA) = kas.drop(18).take(11)
       val Seq(l64_2) = kas.drop(29).take(1)
 
       cx32_1.vb.asSInt(32) shouldBe 43
+      succ32_1.vb.asUInt(1) shouldBe 1
       cx32_2.vb.asSInt(32) shouldBe 53
+      succ32_2.vb.asUInt(1) shouldBe 0
       cx64_1.vb.asSInt(64) shouldBe 44
+      succ64_1.vb.asUInt(1) shouldBe 1
       cx64_2.vb.asSInt(64) shouldBe 54
+      succ64_2.vb.asUInt(1) shouldBe 0
 
       l32.vb.asSInt(32) shouldBe 53
       l64.vb.asSInt(64) shouldBe 54
 
       cxr_1.vb.asRef shouldBe voidR.vb.asRef
+      succr_1.vb.asUInt(1) shouldBe 1
       cxr_2.vb.asRef shouldBe voidR2.vb.asRef
+      succr_2.vb.asUInt(1) shouldBe 0
       lr.vb.asRef shouldBe voidR2.vb.asRef
 
       rmw0.vb.asSInt(64) shouldBe 1L
@@ -1158,17 +1164,26 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
       val Seq(rmw0, rmw1, rmw2, rmw3, rmw4, rmw5, rmw6, rmw7, rmw8, rmw9, rmwA, l64_2) = kas.drop(20).take(12)
 
       cx32_1.vb.asSInt(32) shouldBe 43
+      succ32_1.vb.asUInt(1) shouldBe 1
       cx32_2.vb.asSInt(32) shouldBe 53
+      succ32_2.vb.asUInt(1) shouldBe 0
       cx64_1.vb.asSInt(64) shouldBe 44
+      succ64_1.vb.asUInt(1) shouldBe 1
       cx64_2.vb.asSInt(64) shouldBe 54
+      succ64_2.vb.asUInt(1) shouldBe 0
 
       l32.vb.asSInt(32) shouldBe 53
       l64.vb.asSInt(64) shouldBe 54
 
       cxp_1.vb.asPointer shouldBe 0x55abL
+      succp_1.vb.asUInt(1) shouldBe 1
       cxp_2.vb.asPointer shouldBe 0x5a5aL
+      succp_2.vb.asUInt(1) shouldBe 0
       cxfp_1.vb.asPointer shouldBe 0x55abL
+      succfp_1.vb.asUInt(1) shouldBe 1
       cxfp_2.vb.asPointer shouldBe 0x5a5aL
+      succfp_2.vb.asUInt(1) shouldBe 0
+
       lp.vb.asPointer shouldBe 0x5a5aL
       lfp.vb.asPointer shouldBe 0x5a5aL
 
@@ -1332,6 +1347,54 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
         case n => fail("Unexpected trap " + n)
       }
     }
+
+    ctx.closeContext()
+  }
+
+  "WPBRANCH" should "work" in {
+    val ctx = microVM.newContext()
+
+    val func = ctx.func("@wpbranch")
+
+    ctx.disableWatchpoint(42)
+
+    var disReached = false
+
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      nameOf(ctx.curInst(st, 0)) match {
+        case "@wpbranch.v1.dis.trap" => {
+          disReached = true
+          Rebind(st, PassValues(Seq()))
+        }
+        case "@wpbranch.v1.ena.trap" => {
+          fail("Should not reach %ena")
+          Rebind(st, PassValues(Seq()))
+        }
+        case n => fail("Unexpected trap " + n)
+      }
+    }
+
+    disReached shouldBe true
+
+    ctx.enableWatchpoint(42)
+
+    var enaReached = false
+
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      nameOf(ctx.curInst(st, 0)) match {
+        case "@wpbranch.v1.dis.trap" => {
+          fail("Should not reach %dis")
+          Rebind(st, PassValues(Seq()))
+        }
+        case "@wpbranch.v1.ena.trap" => {
+          enaReached = true
+          Rebind(st, PassValues(Seq()))
+        }
+        case n => fail("Unexpected trap " + n)
+      }
+    }
+
+    enaReached shouldBe true
 
     ctx.closeContext()
   }
