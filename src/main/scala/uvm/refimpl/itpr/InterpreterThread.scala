@@ -7,6 +7,7 @@ import com.typesafe.scalalogging.Logger
 import uvm._
 import uvm.comminsts._
 import uvm.refimpl._
+import uvm.refimpl.{ HowToResume => ClientHowToResume }
 import uvm.refimpl.mem._
 import uvm.refimpl.mem.TypeSizes.Word
 import uvm.ssavariables._
@@ -17,10 +18,16 @@ object InterpreterThread {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
+abstract class HowToResume
+object HowToResume {
+  case class PassValues(values: Seq[ValueBox]) extends HowToResume
+  case class ThrowExc(exc: Word) extends HowToResume
+}
+
 /**
  * A thread that interprets Mu instruction.
  */
-class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator: Mutator)(
+class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator: Mutator, htr: HowToResume)(
     implicit protected val microVM: MicroVM) extends InstructionExecutor {
   import InterpreterThread._
 
@@ -31,7 +38,10 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
 
   // Initialisation
 
-  rebindPassValues(initialStack, Seq())
+  htr match {
+    case HowToResume.PassValues(values) => rebindPassValues(initialStack, values)
+    case HowToResume.ThrowExc(exc)      => catchException(exc)
+  }
 }
 
 /**
@@ -120,7 +130,7 @@ trait InterpreterActions extends InterpreterThreadState {
    * @see uvm.refimpl.itpr.InstructionExecutor
    */
   protected def interpretCurrentInstruction(): Unit
-  
+
   /**
    * Specialised to interpet common instructions.
    */
@@ -359,34 +369,36 @@ trait InterpreterActions extends InterpreterThreadState {
   protected def doTrap(retTys: Seq[Type], wpID: Int) = {
     val curCtx = ctx // save the context string for debugging
 
-    val ca = microVM.newClientAgent()
+    val c = microVM.newContext()
 
-    val hThread = ca.putThread(Some(curThread))
-    val hStack = ca.putStack(Some(curStack))
+    val hThread = c.handleFromInterpreterThread(Some(curThread))
+    val hStack = c.handleFromInterpreterStack(Some(curStack))
 
     unbindRetWith(retTys)
 
-    val res = microVM.trapManager.trapHandler.handleTrap(ca, hThread, hStack, wpID)
-
-    def getStackNotNull(sh: Handle): InterpreterStack = sh.vb.asInstanceOf[BoxStack].stack.getOrElse {
-      throw new UvmRuntimeException(curCtx + "Attempt to rebind to NULL stack when returning from trap.")
-    }
+    val res = microVM.trapManager.trapHandler.handleTrap(c, hThread, hStack, wpID)
 
     res match {
-      case TrapExit() => {
+      case TrapHandlerResult.ThreadExit() => {
         isRunning = false
       }
-      case TrapRebindPassValues(newStack, values) => {
-        val ns = getStackNotNull(newStack)
-        rebindPassValues(ns, values.map(_.vb))
-      }
-      case TrapRebindThrowExc(newStack, exc) => {
-        val ns = getStackNotNull(newStack)
-        rebindThrowExc(ns, exc.vb)
+      case TrapHandlerResult.Rebind(newStack, htr) => {
+        val ns = newStack.vb.stack.getOrElse {
+          throw new UvmRuntimeException(curCtx + "Attempt to rebind to NULL stack when returning from trap.")
+        }
+
+        htr match {
+          case ClientHowToResume.PassValues(values) => {
+            rebindPassValues(ns, values.map(_.vb))
+          }
+          case ClientHowToResume.ThrowExc(exc) => {
+            rebindThrowExc(ns, exc.vb)
+          }
+        }
       }
     }
 
-    ca.close()
+    c.closeContext()
   }
 
   // Internal control structures (syntax sugars)

@@ -66,10 +66,10 @@ class ThreadStackManager(implicit microVM: MicroVM, nativeCallHelper: NativeCall
   /**
    * Create a new thread, bind to a given stack.
    */
-  def newThread(stack: InterpreterStack): InterpreterThread = {
+  def newThread(stack: InterpreterStack, htr: HowToResume): InterpreterThread = {
     val mutator = microVM.memoryManager.makeMutator()
     val id = makeThreadID()
-    val thr = new InterpreterThread(id, stack, mutator)
+    val thr = new InterpreterThread(id, stack, mutator, htr)
     threadRegistry.put(id, thr)
     thr
   }

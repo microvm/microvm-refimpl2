@@ -11,6 +11,7 @@ import uvm.refimpl.mem._
 import uvm.ssavariables.HasKeepAliveClause
 import scala.collection.mutable.ArrayBuffer
 import uvm.ssavariables.Flag
+import uvm.refimpl.itpr.{ HowToResume => ItprHowToResume }
 
 object MuValue {
   def apply(ty: Type, vb: ValueBox): MuValue = (ty, vb) match {
@@ -28,7 +29,7 @@ object MuValue {
     case (t: TypeUPtr, v: BoxPointer)      => MuUPtrValue(t, v)
     case (t: TypeUFuncPtr, v: BoxPointer)  => MuUFPValue(t, v)
     case (t, v) => {
-      throw new IllegalArgumentException("Improper type-box pair: %s,%s".format(t.getClass.getSimpleName, v.getClass.getSimpleName))
+      throw new IllegalArgumentException("Improper type-box pair: %s,%s".format(t.toString, vb.getClass.getSimpleName))
     }
   }
 }
@@ -40,28 +41,45 @@ object MuValue {
 abstract class MuValue {
   def ty: Type
   def vb: ValueBox
+
+  def showTy: String = "%s: %s".format(this.getClass.getSimpleName, ty.repr)
+}
+
+abstract class MuSeqValue extends MuValue {
+  def ty: AbstractSeqType
+  def vb: BoxSeq
+}
+
+abstract class MuGenRefValue extends MuValue {
+  def ty: AbstractGenRefType
 }
 
 case class MuIntValue(ty: TypeInt, vb: BoxInt) extends MuValue
 case class MuFloatValue(ty: TypeFloat, vb: BoxFloat) extends MuValue
 case class MuDoubleValue(ty: TypeDouble, vb: BoxDouble) extends MuValue
-case class MuRefValue(ty: TypeRef, vb: BoxRef) extends MuValue
-case class MuIRefValue(ty: TypeIRef, vb: BoxIRef) extends MuValue
+case class MuRefValue(ty: TypeRef, vb: BoxRef) extends MuGenRefValue
+case class MuIRefValue(ty: TypeIRef, vb: BoxIRef) extends MuGenRefValue
 case class MuStructValue(ty: TypeStruct, vb: BoxSeq) extends MuValue
-case class MuArrayValue(ty: TypeArray, vb: BoxSeq) extends MuValue
-case class MuFuncRefValue(ty: TypeFuncRef, vb: BoxFunc) extends MuValue
-case class MuThreadRefValue(ty: TypeThreadRef, vb: BoxThread) extends MuValue
-case class MuStackRefValue(ty: TypeStackRef, vb: BoxStack) extends MuValue
+case class MuArrayValue(ty: TypeArray, vb: BoxSeq) extends MuSeqValue
+case class MuVectorValue(ty: TypeVector, vb: BoxSeq) extends MuSeqValue
+case class MuFuncRefValue(ty: TypeFuncRef, vb: BoxFunc) extends MuGenRefValue
+case class MuThreadRefValue(ty: TypeThreadRef, vb: BoxThread) extends MuGenRefValue
+case class MuStackRefValue(ty: TypeStackRef, vb: BoxStack) extends MuGenRefValue
 case class MuTagRef64Value(ty: TypeTagRef64, vb: BoxTagRef64) extends MuValue
 case class MuUPtrValue(ty: TypeUPtr, vb: BoxPointer) extends MuValue
 case class MuUFPValue(ty: TypeUFuncPtr, vb: BoxPointer) extends MuValue
 
 abstract class TrapHandlerResult
-case class ThreadExit() extends TrapHandlerResult
+object TrapHandlerResult {
+  case class ThreadExit() extends TrapHandlerResult
+  case class Rebind(newStack: MuStackRefValue, htr: HowToResume) extends TrapHandlerResult
+}
 
-abstract class HowToResume extends TrapHandlerResult
-case class RebindPassValues(newStack: MuStackRefValue, values: Seq[MuValue]) extends HowToResume
-case class RebindThrowExc(newStack: MuStackRefValue, exc: MuRefValue) extends HowToResume
+abstract class HowToResume
+object HowToResume {
+  case class PassValues(values: Seq[MuValue]) extends HowToResume
+  case class ThrowExc(exc: MuRefValue) extends HowToResume
+}
 
 trait TrapHandler {
   def handleTrap(ctx: MuCtx, thread: MuThreadRefValue, stack: MuStackRefValue, watchPointID: Int): TrapHandlerResult
@@ -87,7 +105,7 @@ class MuCtx(mutator: Mutator)(
   def closeContext(): Unit = {
     handles.clear()
     mutator.close()
-    microVM.clientAgents.remove(this)
+    microVM.contexts.remove(this)
   }
 
   /** Load a Mu IR bundle */
@@ -219,7 +237,7 @@ class MuCtx(mutator: Mutator)(
   }
 
   /** Compare general reference types for equality. */
-  def refEq(lhs: MuValue, rhs: MuValue): Boolean = (lhs, rhs) match {
+  def refEq(lhs: MuGenRefValue, rhs: MuGenRefValue): Boolean = (lhs, rhs) match {
     case (l: MuRefValue, r: MuRefValue)             => l.vb.objRef == r.vb.objRef
     case (l: MuIRefValue, r: MuIRefValue)           => l.vb.oo == r.vb.oo
     case (l: MuFuncRefValue, r: MuFuncRefValue)     => l.vb.func == r.vb.func
@@ -227,7 +245,7 @@ class MuCtx(mutator: Mutator)(
     case (l: MuStackRefValue, r: MuStackRefValue)   => l.vb.stack == r.vb.stack
     case (l, r) => {
       throw new IllegalArgumentException("Bad types for refEq: %s and %s".format(
-        l.getClass.getSimpleName, r.getClass.getSimpleName))
+        l.showTy, r.showTy))
     }
   }
 
@@ -242,96 +260,147 @@ class MuCtx(mutator: Mutator)(
     lhs.vb.offset < rhs.vb.offset
   }
 
-  def extractValue(str: Handle, index: Int): Handle = {
-    val st = str.ty.asInstanceOf[TypeStruct]
-    val sb = str.vb.asInstanceOf[BoxStruct]
-    val et = st.fieldTys(index)
-    val eb = sb.values(index)
-    newHandle(et, eb)
+  /** Get the value of a field of a struct value. */
+  def extractValue(str: MuStructValue, index: Int): MuValue = {
+    val st = str.ty
+    val sb = str.vb
+    val ft = st.fieldTys(index)
+    val fb = sb.values(index)
+    addHandle(MuValue(ft, fb))
   }
 
-  def insertValue(str: Handle, index: Int, newVal: Handle): Handle = {
-    val st = str.ty.asInstanceOf[TypeStruct]
-    val sb = str.vb.asInstanceOf[BoxStruct]
-    val nsb = BoxStruct(for ((b, i) <- sb.values.zipWithIndex) yield if (i == index) newVal.vb else b)
-    newHandle(st, nsb)
+  /** Copy a struct value, replacing one of its fields. */
+  def insertValue(str: MuStructValue, index: Int, newval: MuValue): MuStructValue = {
+    val st = str.ty
+    val sb = str.vb
+    val nsb = BoxSeq(for ((b, i) <- sb.values.zipWithIndex) yield if (i == index) newval.vb else b)
+    addHandle(MuStructValue(st, nsb))
   }
 
-  def newFixed(tid: Int): Handle = {
-    val t = microVM.globalBundle.typeNs(tid)
+  /** Get the value of an element of an array or value. */
+  def extractElement[T <: MuSeqValue](seq: T, index: MuIntValue): MuValue = {
+    val indexVal = handleToUInt(index).toInt
+
+    val et = seq.ty.elemTy
+    val eb = seq.vb.values(indexVal)
+    addHandle(MuValue(et, eb))
+  }
+
+  /** Copy an array or vector value, replacing one of its elements. */
+  def insertElement[T <: MuSeqValue](seq: T, index: MuIntValue, newval: MuValue): T = {
+    val indexVal = handleToUInt(index).toInt
+
+    val st = seq.ty
+    val sb = seq.vb
+    val nsb = BoxSeq(for ((b, i) <- sb.values.zipWithIndex) yield if (i == index) newval.vb else b)
+    addHandle(MuValue(st, nsb).asInstanceOf[T])
+  }
+
+  /** Allocate a fixed object in the heap. */
+  def newFixed(muType: Int): MuRefValue = {
+    val t = microVM.globalBundle.typeNs(muType)
     val objRef = mutator.newScalar(t)
     val b = BoxRef(objRef)
     val rt = InternalTypePool.refOf(t)
-    newHandle(rt, b)
+    addHandle(MuRefValue(rt, b))
   }
 
-  def newHybrid(tid: Int, length: Handle): Handle = {
+  /** Allocate a hybrid object in the heap. */
+  def newHybrid(tid: Int, length: MuIntValue): MuRefValue = {
     val t = microVM.globalBundle.typeNs(tid).asInstanceOf[TypeHybrid]
-    val len = toInt(length).longValue
+    val len = handleToUInt(length).longValue
     val objRef = mutator.newHybrid(t, len)
     val b = BoxRef(objRef)
     val rt = InternalTypePool.refOf(t)
-    newHandle(rt, b)
+    addHandle(MuRefValue(rt, b))
   }
 
-  def refCast(handle: Handle, newType: Int): Handle = {
-    val t = microVM.globalBundle.typeNs(newType)
-    newHandle(t, handle.vb)
+  /** Cast between two refs, two irefs or two funcrefs */
+  def refcast(opnd: MuValue, newType: Int): MuValue = {
+    val nt = microVM.globalBundle.typeNs(newType)
+
+    val nh = (opnd, nt) match {
+      case (MuRefValue(ty, vb), ty2 @ TypeRef(_))         => MuRefValue(ty2, vb)
+      case (MuIRefValue(ty, vb), ty2 @ TypeIRef(_))       => MuIRefValue(ty2, vb)
+      case (MuFuncRefValue(ty, vb), ty2 @ TypeFuncRef(_)) => MuFuncRefValue(ty2, vb)
+      case _ => {
+        throw new IllegalArgumentException("Bad types for refcast: opnd:%s, newType:%s".format(
+          opnd.showTy, nt.repr))
+      }
+    }
+
+    addHandle(nh)
   }
 
-  def getIRef(handle: Handle): Handle = {
-    val t = handle.ty.asInstanceOf[TypeRef]
-    val nt = InternalTypePool.irefOf(t.ty)
-    val ob = handle.vb.asInstanceOf[BoxRef]
-    val nb = BoxIRef(ob.objRef, 0L)
-    newHandle(nt, nb)
+  /** Convert ref to iref */
+  def getIRef(opnd: MuRefValue): MuIRefValue = {
+    val nt = InternalTypePool.irefOf(opnd.ty.ty)
+    val nb = BoxIRef(opnd.vb.objRef, 0L)
+    addHandle(MuIRefValue(nt, nb))
   }
 
-  def getFieldIRef(handle: Handle, index: Int): Handle = {
-    val t = handle.ty.asInstanceOf[TypeIRef]
-    val st = t.ty.asInstanceOf[TypeStruct]
-    val ft = st.fieldTys(index)
+  /** Get the iref to a field of a struct or hybrid location */
+  def getFieldIRef(opnd: MuIRefValue, field: Int): MuIRefValue = {
+    val st = try {
+      opnd.ty.ty.asInstanceOf[AbstractStructType]
+    } catch {
+      case e: ClassCastException => throw new IllegalArgumentException(
+        "opnd must refer to a struct or hybrid location. Actual referenct type: %s".format(opnd.ty.ty.repr), e)
+    }
+
+    val ft = st.fieldTys(field)
     val nt = InternalTypePool.irefOf(ft)
-    val ob = handle.vb.asInstanceOf[BoxIRef]
-    val nb = BoxIRef(ob.objRef, ob.offset + TypeSizes.fieldOffsetOf(st, index))
-    newHandle(nt, nb)
+    val ob = opnd.vb
+    val nb = BoxIRef(ob.objRef, ob.offset + TypeSizes.fieldOffsetOf(st, field))
+    addHandle(MuIRefValue(nt, nb))
   }
 
-  def getElemIRef(handle: Handle, index: Handle): Handle = {
-    val t = handle.ty.asInstanceOf[TypeIRef]
-    val st = t.ty.asInstanceOf[AbstractSeqType]
+  /** Get the iref to an element of an array or vector location. */
+  def getElemIRef(opnd: MuIRefValue, index: MuIntValue): MuIRefValue = {
+    val st = try {
+      opnd.ty.ty.asInstanceOf[AbstractSeqType]
+    } catch {
+      case e: ClassCastException => throw new IllegalArgumentException(
+        "opnd must refer to an array or vector location. Actual referenct type: %s".format(opnd.ty.ty.repr), e)
+    }
+    val i = handleToUInt(index).longValue
     val et = st.elemTy
     val nt = InternalTypePool.irefOf(et)
-    val ob = handle.vb.asInstanceOf[BoxIRef]
-    val i = toInt(index, signExt = true).longValue
+    val ob = opnd.vb
     val nb = BoxIRef(ob.objRef, ob.offset + TypeSizes.elemOffsetOf(st, i))
-    newHandle(nt, nb)
+    addHandle(MuIRefValue(nt, nb))
   }
 
-  def shiftIRef(handle: Handle, index: Handle): Handle = {
-    val t = handle.ty.asInstanceOf[TypeIRef]
-    val rt = t.ty
-    val nt = InternalTypePool.irefOf(rt)
-    val ob = handle.vb.asInstanceOf[BoxIRef]
-    val i = toInt(index, signExt = true).longValue
-    val nb = BoxIRef(ob.objRef, ob.offset + TypeSizes.shiftOffsetOf(rt, i))
-    newHandle(nt, nb)
+  /** Shift an iref to an array element by offset elements. */
+  def shiftIRef(opnd: MuIRefValue, offset: MuIntValue): MuIRefValue = {
+    val ot = opnd.ty
+    val ob = opnd.vb
+    val rt = ot.ty
+    val nt = ot
+    val off = handleToSInt(offset).longValue
+    val nb = BoxIRef(ob.objRef, ob.offset + TypeSizes.shiftOffsetOf(rt, off))
+    addHandle(MuIRefValue(nt, nb))
   }
 
-  def getVarPartIRef(handle: Handle): Handle = {
-    val t = handle.ty.asInstanceOf[TypeIRef]
-    val ht = t.ty.asInstanceOf[TypeHybrid]
+  /** Get the iref to the 0-th element of the variable part of a hybrid location. */
+  def getVarPartIRef(opnd: MuIRefValue): MuIRefValue = {
+    val ht = try {
+      opnd.ty.ty.asInstanceOf[TypeHybrid]
+    } catch {
+      case e: ClassCastException => throw new IllegalArgumentException(
+        "opnd must refer to a hybrid location. Actual referenct type: %s".format(opnd.ty.ty.repr), e)
+    }
     val vt = ht.varTy
     val nt = InternalTypePool.irefOf(vt)
-    val ob = handle.vb.asInstanceOf[BoxIRef]
+    val ob = opnd.vb
     val nb = BoxIRef(ob.objRef, ob.offset + TypeSizes.varPartOffsetOf(ht))
-    newHandle(nt, nb)
+    addHandle(MuIRefValue(nt, nb))
   }
 
-  def load(ord: MemoryOrder, loc: Handle): Handle = {
+  /** Load from a location. */
+  def load(ord: MemoryOrder, loc: MuIRefValue): MuValue = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypeUPtr(t) => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
@@ -339,13 +408,13 @@ class MuCtx(mutator: Mutator)(
 
     MemoryOperations.load(ptr, uty, addr, nb)
 
-    newHandle(uty, nb)
+    addHandle(MuValue(uty, nb))
   }
 
-  def store(ord: MemoryOrder, loc: Handle, newVal: Handle): Unit = {
+  /** Store to a location. */
+  def store(ord: MemoryOrder, loc: MuIRefValue, newVal: MuValue): Unit = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypeUPtr(t) => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
@@ -354,10 +423,11 @@ class MuCtx(mutator: Mutator)(
     MemoryOperations.store(ptr, uty, addr, nvb)
   }
 
-  def cmpXchg(ordSucc: MemoryOrder, ordFail: MemoryOrder, weak: Boolean, loc: Handle, expected: Handle, desired: Handle): (Boolean, Handle) = {
+  /** Perform compare exchange on a location. */ 
+  def cmpXchg(ordSucc: MemoryOrder, ordFail: MemoryOrder, weak: Boolean,
+              loc: MuIRefValue, expected: MuValue, desired: MuValue): (MuValue, Boolean) = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypeUPtr(t) => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
@@ -365,26 +435,29 @@ class MuCtx(mutator: Mutator)(
     val db = desired.vb
     val br = ValueBox.makeBoxForType(uty)
     val succ = MemoryOperations.cmpXchg(ptr, uty, addr, eb, db, br)
-    (succ, newHandle(uty, br))
+    (addHandle(MuValue(uty, br)), succ)
   }
 
-  def atomicRMW(ord: MemoryOrder, op: AtomicRMWOptr, loc: Handle, opnd: Handle): Handle = {
+  /** Perform an atomic read-modify-write operation on a location. */
+  def atomicRMW(ord: MemoryOrder, op: AtomicRMWOptr, loc: MuIRefValue, opnd: MuValue): MuValue = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
-      case TypeUPtr(t) => (true, t)
     }
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
     val ob = opnd.vb
     val br = ValueBox.makeBoxForType(uty)
     MemoryOperations.atomicRMW(ptr, uty, op, addr, ob, br)
-    newHandle(uty, br)
+    addHandle(MuValue(uty, br))
   }
 
+  /** Memory fence */
   def fence(ord: MemoryOrder): Unit = {
+    // No-op
   }
 
-  def newStack(func: Handle): Handle = {
+  /** Create a Mu stack with fa stack-bottom function */
+  def newStack(func: MuFuncRefValue): MuStackRefValue = {
     val funcVal = func.vb.asInstanceOf[BoxFunc].func.getOrElse {
       throw new UvmRuntimeException("Stack-bottom function must not be NULL")
     }
@@ -392,25 +465,30 @@ class MuCtx(mutator: Mutator)(
     val sta = microVM.threadStackManager.newStack(funcVal, mutator)
 
     val nb = BoxStack(Some(sta))
-    newHandle(InternalTypes.STACK, nb)
+    addHandle(MuStackRefValue(InternalTypes.STACK, nb))
   }
 
-  private def getStackNotNull(stack: Handle): InterpreterStack = {
-    stack.vb.asInstanceOf[BoxStack].stack match {
-      case None    => throw new UvmRuntimeException("Stack argument cannot be a NULL micro VM stack value.")
-      case Some(v) => v
+  private def getStackNotNull(stack: MuStackRefValue): InterpreterStack = {
+    stack.vb.stack.getOrElse {
+      throw new UvmRuntimeException("Stack argument cannot be a NULL stackref value.")
     }
   }
 
-  def newThread(stack: Handle): Handle = {
+  /** Create a Mu thread and bind it to a Mu stack. */
+  def newThread(stack: MuStackRefValue, htr: HowToResume): MuThreadRefValue = {
     val sv = getStackNotNull(stack)
-    val thr = microVM.threadStackManager.newThread(sv)
+    val itprHtr = htr match {
+      case HowToResume.PassValues(values) => ItprHowToResume.PassValues(values.map(_.vb))
+      case HowToResume.ThrowExc(exc)      => ItprHowToResume.ThrowExc(exc.vb.objRef)
+    }
+    val thr = microVM.threadStackManager.newThread(sv, itprHtr)
 
     val nb = BoxThread(Some(thr))
-    newHandle(InternalTypes.THREAD, nb)
+    addHandle(MuThreadRefValue(InternalTypes.THREAD, nb))
   }
 
-  def killStack(stack: Handle): Unit = {
+  /** Kill a Mu stack. */
+  def killStack(stack: MuStackRefValue): Unit = {
     val sv = getStackNotNull(stack)
 
     sv.kill()
@@ -422,18 +500,30 @@ class MuCtx(mutator: Mutator)(
       if (it.hasNext) {
         it.next()
       } else {
-        throw new UvmRuntimeException("The stack only has %d frames, but the %d-th frame is requested.".format(i, n))
+        throw new UvmRuntimeException("The stack %d only has %d frames, but the %d-th frame is requested.".format(i, n))
       }
     }
     if (it.hasNext) {
       it.next()
     } else {
-      throw new UvmRuntimeException("The stack only has %d frames, but the %d-th frame is requested.".format(n, n))
+      throw new UvmRuntimeException("The stack %d only has %d frames, but the %d-th frame is requested.".format(n, n))
     }
 
   }
 
-  def currentFuncVer(stack: Handle, frame: Int): Int = {
+  /** Get the ID of the current function of a frame. Return 0 for native frames. */
+  def curFunc(stack: MuStackRefValue, frame: Int): Int = {
+    val sv = getStackNotNull(stack)
+    val fr = nthFrame(sv, frame)
+    fr match {
+      case f: NativeFrame => 0
+      case f: MuFrame     => f.func.id
+    }
+  }
+
+  /** Get the ID of the current function version of a frame. Return 0 for native frames
+   *  or Mu frames of undefined functions*/
+  def curFuncVer(stack: MuStackRefValue, frame: Int): Int = {
     val sv = getStackNotNull(stack)
     val fr = nthFrame(sv, frame)
     fr match {
@@ -443,26 +533,29 @@ class MuCtx(mutator: Mutator)(
     }
   }
 
-  def currentInstruction(stack: Handle, frame: Int): Int = {
+  /** Get the ID of the current instruction of a frame. Return 0 for native frames, Mu frames for undefined
+   *  functions, or if the frame is just created by newStack or pushFrame. */
+  def curInst(stack: MuStackRefValue, frame: Int): Int = {
     val sv = getStackNotNull(stack)
     val fr = nthFrame(sv, frame)
     fr match {
       case f: NativeFrame      => 0
       case f: UndefinedMuFrame => 0
-      case f: DefinedMuFrame   => f.curInst.id
+      case f: DefinedMuFrame   => if (f.justCreated) 0 else f.curInst.id
     }
   }
 
-  def dumpKeepalives(stack: Handle, frame: Int): Seq[Handle] = {
+  /** Dump keep-alive variables of the current instruction. */
+  def dumpKeepalives(stack: MuStackRefValue, frame: Int): Seq[MuValue] = {
     val sv = getStackNotNull(stack)
     val fr = nthFrame(sv, frame)
     fr match {
       case f: NativeFrame => {
-        throw new UvmRefImplException("Attempt to dump keepalive variables for a native frame for native funciton 0x%x".format(f.func))
+        throw new UvmRefImplException("Attempt to dump keepalives from a native frame. Funciton 0x%x".format(f.func))
       }
       case f: UndefinedMuFrame => {
         for ((ty, box) <- f.func.sig.paramTys zip f.boxes) yield {
-          newHandle(ty, box)
+          addHandle(MuValue(ty, box))
         }
       }
       case f: DefinedMuFrame => {
@@ -473,7 +566,7 @@ class MuCtx(mutator: Mutator)(
             for (ka <- kas) yield {
               val box = f.boxes(ka)
               val ty = TypeInferer.inferType(ka)
-              newHandle(ty, box)
+              addHandle(MuValue(ty, box))
             }
           }
           case _ => {
@@ -484,158 +577,152 @@ class MuCtx(mutator: Mutator)(
     }
   }
 
-  def popFrame(stack: Handle): Unit = {
+  /** Pop the top frame of a Mu stack. */
+  def popFrame(stack: MuStackRefValue): Unit = {
     val st = getStackNotNull(stack)
-    val top = st.top
-    top match {
-      case f: NativeFrame => throw new UvmRuntimeException("Attempting to pop a native frame. It has implementation-defined behaviour and this refimpl does not allow it.")
-      case f: MuFrame => f.prev match {
-        case None       => throw new UvmRuntimeException("Attempting to pop the last frame of a stack.")
-        case Some(prev) => st.popFrame()
-      }
-    }
+    st.popFrame()
   }
 
-  def pushFrame(stack: Handle, func: Handle): Unit = {
-    val sta = stack.vb.asInstanceOf[BoxStack].stack.getOrElse {
-      throw new UvmRuntimeException("Stack must not be NULL")
-    }
+  /** Create a new frame for a Mu function and push it to the top of a stack. */
+  def pushFrame(stack: MuStackRefValue, func: MuFuncRefValue): Unit = {
+    val st = getStackNotNull(stack)
 
     val funcVal = func.vb.asInstanceOf[BoxFunc].func.getOrElse {
       throw new UvmRuntimeException("Stack-bottom function must not be NULL")
     }
 
-    sta.pushFrame(funcVal)
+    st.pushFrame(funcVal)
   }
 
-  def tr64IsFp(handle: Handle): Boolean = {
-    OpHelper.tr64IsFp(handle.vb.asInstanceOf[BoxTagRef64].raw)
+  /** Test if a tagref64 holds a double. */
+  def tr64IsFp(value: MuTagRef64Value): Boolean = {
+    OpHelper.tr64IsFp(value.vb.raw)
   }
 
-  def tr64IsInt(handle: Handle): Boolean = {
-    OpHelper.tr64IsInt(handle.vb.asInstanceOf[BoxTagRef64].raw)
+  /** Test if a tagref64 holds an int. */
+  def tr64IsInt(value: MuTagRef64Value): Boolean = {
+    OpHelper.tr64IsInt(value.vb.raw)
   }
 
-  def tr64IsRef(handle: Handle): Boolean = {
-    OpHelper.tr64IsRef(handle.vb.asInstanceOf[BoxTagRef64].raw)
+  /** Test if a tagref64 holds a ref. */
+  def tr64IsRef(value: MuTagRef64Value): Boolean = {
+    OpHelper.tr64IsRef(value.vb.raw)
   }
 
-  def tr64ToFp(handle: Handle): Handle = {
-    val raw = handle.vb.asInstanceOf[BoxTagRef64].raw
+  /** Extract the double held by a tagref64. */
+  def tr64ToFp(value: MuTagRef64Value): MuDoubleValue = {
+    val raw = value.vb.raw
     val box = new BoxDouble(OpHelper.tr64ToFp(raw))
-    newHandle(InternalTypes.DOUBLE, box)
+    addHandle(MuDoubleValue(InternalTypes.DOUBLE, box))
   }
 
-  def tr64ToInt(handle: Handle): Handle = {
-    val raw = handle.vb.asInstanceOf[BoxTagRef64].raw
+  /** Extract the int held by a tagref64. */
+  def tr64ToInt(value: MuTagRef64Value): MuIntValue = {
+    val raw = value.vb.raw
     val box = new BoxInt(OpHelper.tr64ToInt(raw))
-    newHandle(InternalTypes.I52, box)
+    addHandle(MuIntValue(InternalTypes.I52, box))
   }
 
-  def tr64ToRef(handle: Handle): Handle = {
-    val raw = handle.vb.asInstanceOf[BoxTagRef64].raw
+  /** Extract the object ref held by a tagref64. */
+  def tr64ToRef(value: MuTagRef64Value): MuRefValue = {
+    val raw = value.vb.raw
     val box = new BoxRef(OpHelper.tr64ToRef(raw))
-    newHandle(InternalTypes.REF_VOID, box)
+    addHandle(MuRefValue(InternalTypes.REF_VOID, box))
   }
 
-  def tr64ToTag(handle: Handle): Handle = {
-    val raw = handle.vb.asInstanceOf[BoxTagRef64].raw
+  /** Extract the tag held by a tagref64. */
+  def tr64ToTag(value: MuTagRef64Value): MuIntValue = {
+    val raw = value.vb.raw
     val box = new BoxInt(OpHelper.tr64ToTag(raw))
-    newHandle(InternalTypes.I6, box)
+    addHandle(MuIntValue(InternalTypes.I6, box))
   }
 
-  def tr64FromFp(handle: Handle): Handle = {
-    val fp = handle.vb.asInstanceOf[BoxDouble].value
+  /** Convert a double to a tagref64. */
+  def tr64FromFp(value: MuDoubleValue): MuTagRef64Value = {
+    val fp = value.vb.value
     val box = new BoxTagRef64(OpHelper.fpToTr64(fp))
-    newHandle(InternalTypes.TAGREF64, box)
+    addHandle(MuTagRef64Value(InternalTypes.TAGREF64, box))
   }
 
-  def tr64FromInt(handle: Handle): Handle = {
-    val i = handle.vb.asInstanceOf[BoxInt].value
+  /** Convert an int to a tagref64. */
+  def tr64FromInt(value: MuIntValue): MuTagRef64Value = {
+    if (value.ty.length != 52) throw new IllegalArgumentException("Expect int<52>, found %s".format(value.ty.repr))
+    val i = value.vb.value
     val box = new BoxTagRef64(OpHelper.intToTr64(i.longValue))
-    newHandle(InternalTypes.TAGREF64, box)
+    addHandle(MuTagRef64Value(InternalTypes.TAGREF64, box))
   }
 
-  def tr64FromRef(ref: Handle, tag: Handle): Handle = {
-    val refv = ref.vb.asInstanceOf[BoxRef].objRef
-    val tagv = tag.vb.asInstanceOf[BoxInt].value
+  /** Convert an object ref and a tag to a tagref64. */
+  def tr64FromRef(ref: MuRefValue, tag: MuIntValue): MuTagRef64Value = {
+    if (tag.ty.length != 52) throw new IllegalArgumentException("Expect int<6> tag, found %s".format(tag.ty.repr))
+    val refv = ref.vb.objRef
+    val tagv = tag.vb.value
     val box = new BoxTagRef64(OpHelper.refToTr64(refv, tagv.longValue))
-    newHandle(InternalTypes.TAGREF64, box)
+    addHandle(MuTagRef64Value(InternalTypes.TAGREF64, box))
   }
 
-  def enableWatchPoint(wpID: Int): Unit = {
+  def enableWatchpoint(wpID: Int): Unit = {
     microVM.trapManager.enableWatchPoint(wpID)
   }
 
-  def disableWatchPoint(wpID: Int): Unit = {
+  def disableWatchpoint(wpID: Int): Unit = {
     microVM.trapManager.disableWatchPoint(wpID)
   }
 
-  def ptrcast(handle: Handle, newType: Type): Handle = {
-    require(handle.ty.isInstanceOf[AbstractPointerType] || handle.ty.isInstanceOf[TypeInt], "handle must have type int, ptr or funcptr. %s found".format(handle.ty.repr))
-    require(newType.isInstanceOf[AbstractPointerType] || newType.isInstanceOf[TypeInt], "can only convert to int, ptr or funcptr. %s found".format(newType.repr))
-
-    val addr = handle.ty match {
-      case TypeInt(n)             => OpHelper.trunc(handle.vb.asInstanceOf[BoxInt].value, 64).toLong
-      case _: AbstractPointerType => handle.vb.asInstanceOf[BoxPointer].addr
-    }
-
-    val box = newType match {
-      case TypeInt(n)             => new BoxInt(OpHelper.trunc(BigInt(addr), Math.min(n, 64)))
-      case _: AbstractPointerType => new BoxPointer(addr)
-    }
-
-    newHandle(newType, box)
-  }
-
-  def pin(handle: Handle): Handle = {
-    val (objTy, (objRef, offset)) = handle.ty match {
-      case TypeRef(t)  => (t, (handle.vb.asInstanceOf[BoxRef].objRef, 0L))
-      case TypeIRef(t) => (t, handle.vb.asInstanceOf[BoxIRef].oo)
+  def pin(loc: MuValue): MuUPtrValue = {
+    val (objTy, (objRef, offset)) = loc match {
+      case MuRefValue(t, vb)  => (t, (vb.objRef, 0L))
+      case MuIRefValue(t, vb) => (t, vb.oo)
+      case _ => {
+        throw new IllegalArgumentException("loc must be ref or iref. Found %s".format())
+      }
     }
     pin(objRef)
     val ptrTy = InternalTypePool.ptrOf(objTy)
     val box = new BoxPointer(objRef + offset)
-    newHandle(ptrTy, box)
+    addHandle(MuUPtrValue(ptrTy, box))
   }
 
-  def unpin(handle: Handle): Unit = {
-    val (objTy, objRef) = handle.ty match {
-      case TypeRef(t)  => (t, handle.vb.asInstanceOf[BoxRef].objRef)
-      case TypeIRef(t) => (t, handle.vb.asInstanceOf[BoxIRef].objRef)
+  def unpin(loc: MuValue): Unit = {
+    val (objTy, objRef) = loc match {
+      case MuRefValue(t, vb)  => (t, vb.objRef)
+      case MuIRefValue(t, vb) => (t, vb.objRef)
+      case _ => {
+        throw new IllegalArgumentException("loc must be ref or iref. Found %s".format())
+      }
     }
     unpin(objRef)
   }
 
-  def expose(func: Handle, callConv: Flag, cookie: Handle): Handle = {
+  def expose(func: MuFuncRefValue, callConv: Flag, cookie: MuIntValue): MuUFPValue = {
     val TypeFuncRef(sig) = func.ty
-    val f = func.vb.asInstanceOf[BoxFunc].func.getOrElse {
+    val f = func.vb.func.getOrElse {
       throw new UvmRuntimeException("Attempt to expose NULL Mu function")
     }
 
-    val c = cookie.vb.asInstanceOf[BoxInt].value.toLong
+    val c = cookie.vb.value.toLong
 
     val addr = microVM.nativeCallHelper.exposeFuncDynamic(f, c)
-    newHandle(InternalTypePool.funcPtrOf(sig), BoxPointer(addr))
+    addHandle(MuUFPValue(InternalTypePool.funcPtrOf(sig), BoxPointer(addr)))
   }
 
-  def unexpose(callConv: Flag, addr: Handle): Unit = {
-    val a = addr.vb.asInstanceOf[BoxPointer].addr
+  def unexpose(callConv: Flag, addr: MuUFPValue): Unit = {
+    val a = addr.vb.addr
     microVM.nativeCallHelper.unexposeFunc(a)
   }
 
   // Internal methods for the micro VM
 
-  def putThread(thr: Option[InterpreterThread]): Handle = {
+  def handleFromInterpreterThread(thr: Option[InterpreterThread]): MuThreadRefValue = {
     val t = InternalTypes.THREAD
     val box = BoxThread(thr)
-    newHandle(t, box)
+    addHandle(MuThreadRefValue(t, box))
   }
 
-  def putStack(sta: Option[InterpreterStack]): Handle = {
-    val t = InternalTypes.STACK
+  def handleFromInterpreterStack(sta: Option[InterpreterStack]): MuStackRefValue = {
+    val s = InternalTypes.STACK
     val box = BoxStack(sta)
-    newHandle(t, box)
+    addHandle(MuStackRefValue(s, box))
   }
 
 }

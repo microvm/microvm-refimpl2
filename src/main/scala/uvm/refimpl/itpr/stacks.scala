@@ -257,7 +257,14 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
 
   /** Pop a frame. Part of the API. Also used by THROW */
   def popFrame(): Unit = {
-    _popFrame()
+    top match {
+      case f: NativeFrame => throw new UnimplementedOprationException("Popping native frames is not supported.")
+      case f: MuFrame => f.prev match {
+        case None       => throw new UvmRuntimeException("Attempting to pop the last frame of a stack.")
+        case Some(prev) => popMuFrame()
+      }
+
+    }
   }
 
   /** Push a Mu frame. Part of the API. */
@@ -352,7 +359,7 @@ class UndefinedMuFrame(func: Function, prev: Option[InterpreterFrame]) extends M
 
       justCreated = false
       state = FrameState.Running
-      
+
       false
     } else {
       throw new UvmRefImplException("Undefined frame for function %s is already executed. Could be double binding.".format(func.repr))
@@ -486,10 +493,10 @@ class DefinedMuFrame(val savedStackPointer: Word, val funcVer: FuncVer, val cook
     }
 
     val wasJustCreated = justCreated
-    
+
     justCreated = false
     state = FrameState.Running
-    
+
     !wasJustCreated
   }
 

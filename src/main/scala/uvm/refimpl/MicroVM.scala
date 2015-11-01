@@ -27,12 +27,12 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
   val memoryManager = new MemoryManager(heapSize, globalSize, stackSize)
 
   private implicit val memorySupport = memoryManager.memorySupport
-  
+
   implicit val nativeCallHelper = new NativeCallHelper()
 
   val threadStackManager = new ThreadStackManager()
   val trapManager = new TrapManager()
-  val clientAgents = new HashSet[ClientAgent]()
+  val contexts = new HashSet[MuCtx]()
 
   val irReader = new UIRTextReader(new IDFactory())
 
@@ -63,24 +63,39 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
   }
 
   /**
-   * Create a new ClientAgent.
+   * Create a new MuCtx. Part of the API.
    */
-  def newClientAgent(): ClientAgent = {
+  def newContext(): MuCtx = {
     val mutator = microVM.memoryManager.heap.makeMutator() // This may trigger GC
-    val ca = new ClientAgent(mutator)
-    clientAgents.add(ca)
+    val ca = new MuCtx(mutator)
+    contexts.add(ca)
     ca
   }
   /**
    * Given a name, get the ID of an identified entity.
    */
-  def idOf(name: String): Int = globalBundle.allNs(name).id
+  def idOf(name: String): Int = try {
+    globalBundle.allNs(name).id
+  } catch {
+    case e: NoSuchElementException => throw new UvmRefImplException("No Mu entity has name %s.".format(name), e)
+  }
 
   /**
    * Given an ID, get the name of an identified entity.
    */
-  def nameOf(id: Int): String = globalBundle.allNs(id).name.get
+  def nameOf(id: Int): String = try {
+    globalBundle.allNs(id).name.get
+  } catch {
+    case e: NoSuchElementException => throw new UvmRefImplException("No Mu entity has ID %d.".format(id), e)
+  }
   
+  /**
+   * Set the trap handler.
+   */
+  def setTrapHandler(trapHandler: TrapHandler): Unit = {
+    trapManager.trapHandler = trapHandler
+  }
+
   /**
    * Execute. This is the external pusher of the execution.
    */

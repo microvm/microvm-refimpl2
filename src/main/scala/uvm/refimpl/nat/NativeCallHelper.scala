@@ -36,7 +36,7 @@ object NativeCallHelper {
       case TypeFloat()  => ptr.putFloat(off, vb.asInstanceOf[BoxFloat].value)
       case TypeDouble() => ptr.putDouble(off, vb.asInstanceOf[BoxDouble].value)
       case s @ TypeStruct(flds) => {
-        val fldvbs = vb.asInstanceOf[BoxStruct].values
+        val fldvbs = vb.asInstanceOf[BoxSeq].values
         for (((fty, fvb), i) <- (flds zip fldvbs).zipWithIndex) {
           val off2 = TypeSizes.fieldOffsetOf(s, i)
           storeBoxToPtr(ptr, off + off2.toInt, fty, fvb)
@@ -55,7 +55,7 @@ object NativeCallHelper {
       case TypeFloat()  => vb.asInstanceOf[BoxFloat].value = ptr.getFloat(off)
       case TypeDouble() => vb.asInstanceOf[BoxDouble].value = ptr.getDouble(off)
       case s @ TypeStruct(flds) => {
-        val fldvbs = vb.asInstanceOf[BoxStruct].values
+        val fldvbs = vb.asInstanceOf[BoxSeq].values
         for (((fty, fvb), i) <- (flds zip fldvbs).zipWithIndex) {
           val off2 = TypeSizes.fieldOffsetOf(s, i)
           loadBoxFromPtr(ptr, off + off2, fty, fvb)
@@ -77,7 +77,7 @@ object NativeCallHelper {
         val off2 = TypeSizes.fieldOffsetOf(s, i)
         makeBoxFromPtr(ptr, off + off2, fty)
       }
-      BoxStruct(fldvbs)
+      BoxSeq(fldvbs)
     }
     case _: AbstractPointerType => BoxPointer(ptr.getAddress(off))
   }
@@ -106,7 +106,6 @@ object NativeCallHelper {
   }
 
   def makeBoxFromClosureBufParam(cbuf: Closure.Buffer, index: Int, mty: MType): ValueBox = mty match {
-    case TypeVoid()   => BoxVoid()
     case TypeInt(8)   => BoxInt(OpHelper.trunc(cbuf.getByte(index), 8))
     case TypeInt(16)  => BoxInt(OpHelper.trunc(cbuf.getShort(index), 16))
     case TypeInt(32)  => BoxInt(OpHelper.trunc(cbuf.getInt(index), 32))
@@ -372,6 +371,7 @@ class NativeCallHelper {
         (maybeRetBox, maybeRvb) match {
           case (None, None)           =>
           case (Some(dst), Some(src)) => dst.copyFrom(src)
+          case _                      => throw new Error("This is impossible")
         }
 
         logger.debug("Back from nsk.slave. Returning to native...")

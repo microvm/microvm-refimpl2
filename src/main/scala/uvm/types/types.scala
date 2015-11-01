@@ -8,7 +8,9 @@ abstract class Type extends IdentifiedSettable {
 
 abstract class FPType extends Type
 
-abstract class AbstractRefType extends Type {
+abstract class AbstractGenRefType extends Type
+
+abstract class AbstractRefType extends AbstractGenRefType {
   def ty: Type
 }
 
@@ -33,9 +35,9 @@ case class TypeStruct(var fieldTys: Seq[Type]) extends AbstractStructType
 case class TypeArray(var elemTy: Type, var len: Long) extends AbstractSeqType
 case class TypeHybrid(var fieldTys: Seq[Type], var varTy: Type) extends AbstractStructType
 case class TypeVoid() extends Type
-case class TypeFuncRef(var sig: FuncSig) extends Type
-case class TypeThreadRef() extends Type
-case class TypeStackRef() extends Type
+case class TypeFuncRef(var sig: FuncSig) extends AbstractGenRefType
+case class TypeThreadRef() extends AbstractGenRefType
+case class TypeStackRef() extends AbstractGenRefType
 case class TypeTagRef64() extends Type
 case class TypeVector(var elemTy: Type, var len: Long) extends AbstractSeqType
 case class TypeUPtr(var ty: Type) extends AbstractPointerType

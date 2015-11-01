@@ -31,7 +31,7 @@ class AllScanner(val handler: RefFieldHandler)(
     logger.debug("Tracing pin sets...")
     tracePinSets()
     logger.debug("Tracing external roots...")
-    traceClientAgents()
+    traceClientContexts()
     logger.debug("Tracing globals...")
     traceGlobal()
     logger.debug("Tracing threads...")
@@ -39,11 +39,11 @@ class AllScanner(val handler: RefFieldHandler)(
   }
 
   private def tracePinSets() {
-    logger.debug(s"Tracing client agents for pinned objects")
-    for (ca <- microVM.clientAgents) {
-      assert(ca != null)
-      assert(ca.pinSet != null)
-      for (addr <- ca.pinSet) {
+    logger.debug(s"Tracing client contexts for pinned objects")
+    for (ctx <- microVM.contexts) {
+      assert(ctx != null)
+      assert(ctx.pinSet != null)
+      for (addr <- ctx.pinSet) {
         this.pinSetToMem(addr)
       }
     }
@@ -55,8 +55,8 @@ class AllScanner(val handler: RefFieldHandler)(
     }
   }
 
-  private def traceClientAgents() {
-    for (ca <- microVM.clientAgents; h <- ca.handles) {
+  private def traceClientContexts() {
+    for (ctx <- microVM.contexts; h <- ctx.handles) {
       h.vb match {
         case hor: HasObjRef => this.boxToHeap(hor)
         case bst: BoxStack  => this.boxToStack(bst)

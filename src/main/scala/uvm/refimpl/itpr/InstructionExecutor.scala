@@ -425,7 +425,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
       }
 
       case i @ InstExtractValue(strTy, index, opnd) => {
-        val ob = boxOf(opnd).asInstanceOf[BoxStruct]
+        val ob = boxOf(opnd).asInstanceOf[BoxSeq]
         val fb = ob.values(index)
         val ib = resultBox(0)
         ib.copyFrom(fb)
@@ -433,9 +433,9 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
       }
 
       case i @ InstInsertValue(strTy, index, opnd, newVal) => {
-        val ob = boxOf(opnd).asInstanceOf[BoxStruct]
+        val ob = boxOf(opnd).asInstanceOf[BoxSeq]
         val nvb = boxOf(newVal)
-        val ib = resultBox(0).asInstanceOf[BoxStruct]
+        val ib = resultBox(0).asInstanceOf[BoxSeq]
         for (((ofb, ifb), ind) <- (ob.values zip ib.values).zipWithIndex) {
           if (ind == index) {
             ifb.copyFrom(nvb)
