@@ -1,29 +1,38 @@
 // require primitives.uir
 
-.funcsig @IntReturner = @i64 ()
+.funcsig @IntReturner = () -> (@i64)
 
-.funcdef @meaning_of_life <@IntReturner> () {
-    RET <@i64> 42
+.const @I64_42 <@i64> = 42
+
+.funcdef @meaning_of_life VERSION %v1 <@IntReturner> {
+    %entry():
+        RET @I64_42
 }
 
 .funcdecl @foxsay <@IntReturner>
 
-.funcdef @main <@noparamsnoret> () {
-    %cur_meaning = CALL <@IntReturner> @meaning_of_life ()
-    %checkpoint1 = TRAP <@void> %step2 %step2 KEEPALIVE (%cur_meaning)
-    
-%step2:
-    %fox = CALL <@IntReturner> @foxsay ()
-    %checkpoint2 = TRAP <@void> %step3 %step3 KEEPALIVE (%fox)
-    
-%step3:
-    %change_meaning = TRAP <@void> %step4 %step4 KEEPALIVE ()
-
-%step4:
-    %new_meaning = CALL <@IntReturner> @meaning_of_life ()
-    %checkpoint3 = TRAP <@void> %exit %exit KEEPALIVE (%new_meaning)
-    
-%exit:
-    ICALL @uvm.thread_exit ()
-    THROW @NULLREF
+.funcdef @main VERSION %v1 <@v_v> {
+    %entry():
+        %cur_meaning = CALL <@IntReturner> @meaning_of_life ()
+        [%checkpoint1]      TRAP <> KEEPALIVE (%cur_meaning)
+        %fox = CALL <@IntReturner> @foxsay ()
+        [%checkpoint2]      TRAP <> KEEPALIVE (%fox)
+        [%change_meaning]   TRAP <> KEEPALIVE ()
+        %new_meaning = CALL <@IntReturner> @meaning_of_life ()
+        [%checkpoint3]      TRAP <> KEEPALIVE (%new_meaning)
+        COMMINST @uvm.thread_exit
 }
+
+.funcdecl @lonelyfox <@v_v>
+
+.funcdef @main2 VERSION %v1 <@v_v> {
+    %entry():
+        [%call] CALL <@v_v> @lonelyfox () EXC(%nor() %exc())
+    %nor():
+        [%trap] TRAP <>
+        COMMINST @uvm.thread_exit
+    %exc() [%e]:
+        [%trap] TRAP <> KEEPALIVE(%e)
+        COMMINST @uvm.thread_exit
+}
+

@@ -229,7 +229,7 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
    * @return true if the interpreter should increment the PC by continueNormally().
    */
   def rebindPassValues(args: Seq[ValueBox]): Boolean = {
-    if(!state.isInstanceOf[FrameState.Ready]) {
+    if (!state.isInstanceOf[FrameState.Ready]) {
       throw new UvmRuntimeException("Attempt to bind to a stack not in the ready state. Actual state: %s".format(state))
     }
     top match {
@@ -328,6 +328,10 @@ abstract class MuFrame(val func: Function, prev: Option[InterpreterFrame]) exten
 
 object UndefinedMuFrame {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+
+  val VIRT_INST_NOT_STARTED = 0
+  val VIRT_INST_TRAP = 1
+  val VIRT_INST_TAILCALL = 2
 }
 
 /**
@@ -347,6 +351,8 @@ class UndefinedMuFrame(func: Function, prev: Option[InterpreterFrame]) extends M
     }
   }
 
+  var virtInst = VIRT_INST_NOT_STARTED
+
   override def scannableBoxes = boxes
 
   def resumeNormally(args: Seq[ValueBox]): Boolean = {
@@ -361,11 +367,22 @@ class UndefinedMuFrame(func: Function, prev: Option[InterpreterFrame]) extends M
       }
 
       justCreated = false
+      virtInst = VIRT_INST_TRAP
       state = FrameState.Running
 
       false
     } else {
-      throw new UvmRefImplException("Undefined frame for function %s is already executed. Could be double binding.".format(func.repr))
+      assert(virtInst != VIRT_INST_NOT_STARTED, "The previous if should handle justCreated UndefinedMuFrame")
+      assert(virtInst != VIRT_INST_TAILCALL, "TAILCALL is not an OSR point")
+      assert(virtInst == VIRT_INST_TRAP)
+
+      if (args.length != 0) {
+        throw new UvmRefImplException("Undefined function %s expects no param on its first virtual trap, got %d args.".format(
+          func.repr, args.length))
+      }
+
+      virtInst = VIRT_INST_TAILCALL
+      false
     }
   }
 

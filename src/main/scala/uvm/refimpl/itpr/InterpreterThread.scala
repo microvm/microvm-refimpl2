@@ -120,8 +120,8 @@ trait InterpreterThreadState {
     boxOf(curInst.results(index))
   } catch {
     case e: IndexOutOfBoundsException => throw new UvmRefImplException(
-        "Instruction %s is declared to have only %d results. Result %d is requested.".format(
-            curInst, curInst.results.length, index), e)
+      "Instruction %s is declared to have only %d results. Result %d is requested.".format(
+        curInst, curInst.results.length, index), e)
   }
 }
 
@@ -163,7 +163,35 @@ trait InterpreterActions extends InterpreterThreadState {
     if (!isRunning) throw new UvmRefImplException(ctx + "Attempt to run thread after it has reached exit.")
     if (isFutexWaiting) throw new UvmRefImplException(ctx + "Attempt to run thread when it is waiting on a futex.")
     topMu.justCreated = false
-    interpretCurrentInstruction()
+
+    topMu match {
+      case f: DefinedMuFrame   => interpretCurrentInstruction()
+      case f: UndefinedMuFrame => executeUndefinedMuFrame()
+    }
+  }
+
+  /** Execute an undefined Mu frame. This will call the trap handler, and tail-call the same function. */
+  def executeUndefinedMuFrame(): Unit = {
+    val f = top.asInstanceOf[UndefinedMuFrame]
+    assert(f.virtInst != UndefinedMuFrame.VIRT_INST_NOT_STARTED)
+    f.virtInst match {
+      case UndefinedMuFrame.VIRT_INST_TRAP => {
+        logger.debug(ctx+"Executing virtual trap")
+        doTrap(Seq(), 0)
+      }
+      case UndefinedMuFrame.VIRT_INST_TAILCALL => {
+        logger.debug(ctx+"Executing virtual tail-call")
+        val calleeFunc = f.func
+        val argBoxes = f.boxes
+
+        val shouldIncrementPC = curStack.tailCallMu(calleeFunc, argBoxes)
+        // Now we are in a new frame.
+        if (shouldIncrementPC) {
+          // Impossible because the callee is always fresh. Added here for consistency.
+          continueNormally()
+        }
+      }
+    }
   }
 
   /** Set PC to the next instruction of the same basic block. */
