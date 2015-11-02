@@ -3,6 +3,7 @@ if [ x$SED == x ]; then
     SED=sed
 fi
 $SED -i 's/newClientAgent/newContext/g' $FN
+$SED -i 's/ClientAgent/MuCtx/g' $FN
 $SED -i 's/deleteHandle/deleteValue/g' $FN
 $SED -i 's/\bca\b/ctx/g' $FN
 $SED -i 's/ctx\.close()/ctx.closeContext()/g' $FN
