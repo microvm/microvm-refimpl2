@@ -26,65 +26,65 @@ class ObjectPinningTest extends UvmBundleTesterBase {
 
   microVM.memoryManager.heap.space.debugLogBlockStates()
 
-  preloadBundles("tests/uvm-refimpl-test/uvm-mem-test-bundle.uir")
+  preloadBundles("tests/uvm-refimpl-test/primitives.uir", "tests/uvm-refimpl-test/uvm-mem-test-bundle.uir")
 
   microVM.memoryManager.heap.space.debugLogBlockStates()
 
   behavior of "The garbage collector"
 
   it should "not collect pinned objects." in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val hRefsKeep = new ArrayBuffer[Handle]
+    val hRefsKeep = new ArrayBuffer[MuValue]
 
-    val hRefsPin = new ArrayBuffer[Handle]
-    val hPtrsPin = new ArrayBuffer[Handle]
+    val hRefsPin = new ArrayBuffer[MuValue]
+    val hPtrsPin = new ArrayBuffer[MuValue]
     val addrsPin = new ArrayBuffer[Word]
 
     val keepPer = 1000
     val pinPer = 6000
 
     for (i <- 0 until 20000) {
-      val hRef = ca.newFixed("@i64")
+      val hRef = ctx.newFixed("@i64")
       if (i % keepPer == 0) {
         hRefsKeep += hRef
 
         if (i % pinPer == 0) {
-          val hPtr = ca.pin(hRef)
-          val addr = ca.toPointer(hPtr)
+          val hPtr = ctx.pin(hRef)
+          val addr = ctx.handleToPtr(hPtr)
           hRefsPin += hRef
           hPtrsPin += hPtr
           addrsPin += addr
         }
       } else {
-        ca.deleteHandle(hRef)
+        ctx.deleteValue(hRef)
       }
     }
 
     gc()
 
     val addrs2Pin = hRefsPin.map { h =>
-      val hPtr2 = ca.pin(h)
-      val addr2 = ca.toPointer(hPtr2)
+      val hPtr2 = ctx.pin(h)
+      val addr2 = ctx.handleToPtr(hPtr2)
       addr2
     }
 
     addrsPin shouldEqual addrs2Pin
 
     for (hRef <- hRefsPin) {
-      ca.unpin(hRef)
-      ca.unpin(hRef)
+      ctx.unpin(hRef)
+      ctx.unpin(hRef)
     }
     
     gc()
 
     for (hRef <- hRefsKeep) {
-      ca.deleteHandle(hRef)
+      ctx.deleteValue(hRef)
     }
 
     gc()
 
-    ca.close()
+    ctx.closeContext()
   }
 
 }

@@ -9,7 +9,7 @@
         RET %rv
 }
 
-.funcsig @sum_osr_oneshot_sig = @i64 (@i64 @i64 @i64)
+.funcsig @sum_osr_oneshot_sig = (@i64 @i64 @i64) -> (@i64)
 
 // Calculate the remaining sum.
 // Given s, i, n, the result is s + (n-i)*(n+i-1)/2

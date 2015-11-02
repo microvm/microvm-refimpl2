@@ -1,34 +1,34 @@
 // requires "primitives.uir"
 
-.funcsig @v_i = @void (@i64)
+.funcsig @v_i = (@i64) -> ()
 
 .funcdef @intro_test_base VERSION @intro_test_base_v1 <@v_i> {
     %entry(<@i64> %n):
-        %rv = CALL <@v_i> @intro_rec (%n)
+        %rv = [%call] CALL <@i_i> @intro_rec (%n)
         
         COMMINST @uvm.thread_exit
 }
 
-.funcdef @intro_rec VERSION @intro_rec_v1 <@v_i> {
+.funcdef @intro_rec VERSION @intro_rec_v1 <@i_i> {
     %entry(<@i64> %n):
         %isz = EQ <@i64> %n @I64_0
         BRANCH2 %isz %zero(%n) %nz(%n)
 
     %zero(<@i64> %n):
-        %trap_rec = TRAP <@i64> KEEPALIVE(%n)
-        RET %trap_rec
+        %v = [%trap_rec] TRAP <@i64> KEEPALIVE(%n)
+        RET %v
 
     %nz(<@i64> %n):
         %nm1 = SUB <@i64> %n @I64_1
-        %rv = CALL <@v_i> @intro_rec (%nm1) KEEPALIVE(%n %nm1)
+        %rv = [%call] CALL <@i_i> @intro_rec (%nm1) KEEPALIVE(%n %nm1)
 
         RET %rv
 }
 
 .funcdef @osr_test_base VERSION @osr_test_base_v1 <@v_i> {
     %entry(<@i64> %n):
-        %rv = CALL <@i_i> @sum (%n)
-        %trap_base_exit = TRAP <@void> KEEPALIVE (%rv)
+        %rv = [%call] CALL <@i_i> @sum (%n)
+        [%trap_base_exit] TRAP <> KEEPALIVE (%rv)
         COMMINST @uvm.thread_exit
 }
 
@@ -56,6 +56,6 @@
         RET %s
 
     %opt(<@i64> %n <@i64> %i <@i64> %s):
-        %trap_opt = TRAP <@void> KEEPALIVE(%n %i %s)
+        [%trap_opt] TRAP <> KEEPALIVE(%n %i %s)
         THROW @NULLREF // unreachable
 }

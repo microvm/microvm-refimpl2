@@ -11,6 +11,8 @@ import uvm.refimpl.mem._
 import MemoryOrder._
 import AtomicRMWOptr._
 import uvm.refimpl.mem.TypeSizes.Word
+import uvm.refimpl.TrapHandlerResult.{ ThreadExit, Rebind }
+import uvm.refimpl.HowToResume.{ PassValues, ThrowExc }
 
 import ch.qos.logback.classic.Level._
 
@@ -25,111 +27,111 @@ class UvmOSRTests extends UvmBundleTesterBase {
     "tests/uvm-refimpl-test/osr-tests.uir")
 
   "Stack introspection" should "see functions and keepalive value in all frames" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@intro_test_base")
+    val func = ctx.handleFromFunc("@intro_test_base")
 
-    val arg0 = ca.putInt("@i64", 3)
+    val arg0 = ctx.handleFromInt64(3)
 
-    testFunc(ca, func, Seq(arg0)) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) match {
+    testFunc(ctx, func, Seq(arg0)) { (ctx, th, st, wp) =>
+      nameOf(ctx.curInst(st, 0)) match {
         case "@intro_rec_v1.zero.trap_rec" => {
-          val Seq(n0) = ca.dumpKeepalives(st, 0)
-          ca.toInt(n0) shouldBe 0
+          val Seq(n0) = ctx.dumpKeepalives(st, 0)
+          ctx.handleToUInt(n0.asInstanceOf[MuIntValue]) shouldBe 0
 
           for (i <- 1 to 3) {
-            nameOf(ca.currentInstruction(st, i)) shouldBe "@intro_rec_v1.nz.rv"
-            val Seq(ni, nm1i) = ca.dumpKeepalives(st, i)
-            ca.toInt(ni) shouldBe i
-            ca.toInt(nm1i) shouldBe (i - 1)
+            nameOf(ctx.curInst(st, i)) shouldBe "@intro_rec_v1.nz.call"
+            val Seq(ni, nm1i) = ctx.dumpKeepalives(st, i)
+            ctx.handleToUInt(ni.asInstanceOf[MuIntValue]) shouldBe i
+            ctx.handleToUInt(nm1i.asInstanceOf[MuIntValue]) shouldBe (i - 1)
           }
 
-          nameOf(ca.currentInstruction(st, 4)) shouldBe "@intro_test_base_v1.entry.rv"
+          nameOf(ctx.curInst(st, 4)) shouldBe "@intro_test_base_v1.entry.call"
 
-          TrapRebindPassValue(st, n0)
+          Rebind(st, PassValues(Seq(n0)))
         }
       }
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 
   "@sum" should "give the sum when n < 5" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@osr_test_base")
+    val func = ctx.handleFromFunc("@osr_test_base")
 
-    val arg0 = ca.putInt("@i64", 4)
+    val arg0 = ctx.handleFromInt64(4)
 
-    testFunc(ca, func, Seq(arg0)) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) match {
+    testFunc(ctx, func, Seq(arg0)) { (ctx, th, st, wp) =>
+      nameOf(ctx.curInst(st, 0)) match {
         case "@osr_test_base_v1.entry.trap_base_exit" => {
-          val Seq(rv) = ca.dumpKeepalives(st, 0)
-          ca.toInt(rv) shouldBe 6
+          val Seq(rv) = ctx.dumpKeepalives(st, 0)
+          ctx.handleToUInt(rv.asInstanceOf[MuIntValue]) shouldBe 6
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
       }
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 
   "@sum" should "trigger trap when n >= 5 and work with OSR" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@osr_test_base")
+    val func = ctx.handleFromFunc("@osr_test_base")
 
-    val arg0 = ca.putInt("@i64", 8)
+    val arg0 = ctx.handleFromInt64(8)
 
-    testFunc(ca, func, Seq(arg0)) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) match {
+    testFunc(ctx, func, Seq(arg0)) { (ctx, th, st, wp) =>
+      nameOf(ctx.curInst(st, 0)) match {
         case "@sum_v1.opt.trap_opt" => {
-          val Seq(n, i, s) = ca.dumpKeepalives(st, 0)
-          
-          ca.toInt(s) shouldBe 10
-          ca.toInt(i) shouldBe 5
-          ca.toInt(n) shouldBe 8
+          val Seq(n, i, s) = ctx.dumpKeepalives(st, 0)
+
+          ctx.handleToUInt(s.asInstanceOf[MuIntValue]) shouldBe 10
+          ctx.handleToUInt(i.asInstanceOf[MuIntValue]) shouldBe 5
+          ctx.handleToUInt(n.asInstanceOf[MuIntValue]) shouldBe 8
 
           // Emulate optimising compiling by loading a pre-optimised version.
           val r = new FileReader("tests/uvm-refimpl-test/osr-tests-part2.uir")
           try {
-            ca.loadBundle(r)
+            ctx.loadBundle(r)
           } finally {
             r.close()
           }
-          
+
           // OSR
-          ca.popFrame(st)
-          
-          val oneShotFunc = ca.putFunction("@sum_osr_oneshot")
-          ca.pushFrame(st, oneShotFunc, Seq(s, i, n))
+          ctx.popFrame(st)
+
+          val oneShotFunc = ctx.handleFromFunc("@sum_osr_oneshot")
+          ctx.pushFrame(st, oneShotFunc)
 
           // Continue
-          TrapRebindPassVoid(st)
+          Rebind(st, PassValues(Seq(s, i, n)))
         }
         case "@osr_test_base_v1.entry.trap_base_exit" => {
-          val Seq(rv) = ca.dumpKeepalives(st, 0)
-          ca.toInt(rv) shouldBe 28
+          val Seq(rv) = ctx.dumpKeepalives(st, 0)
+          ctx.handleToUInt(rv.asInstanceOf[MuIntValue]) shouldBe 28
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
       }
     }
-    
+
     // The second time when it is called, it should call the second version
     // and OSR should be unnecessary.
-    testFunc(ca, func, Seq(arg0)) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) match {
+    testFunc(ctx, func, Seq(arg0)) { (ctx, th, st, wp) =>
+      nameOf(ctx.curInst(st, 0)) match {
         case "@osr_test_base_v1.entry.trap_base_exit" => {
-          val Seq(rv) = ca.dumpKeepalives(st, 0)
-          ca.toInt(rv) shouldBe 28
+          val Seq(rv) = ctx.dumpKeepalives(st, 0)
+          ctx.handleToUInt(rv.asInstanceOf[MuIntValue]) shouldBe 28
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
       }
     }
-    
-    ca.close()
+
+    ctx.closeContext()
   }
 }
