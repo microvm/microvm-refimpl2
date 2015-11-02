@@ -1,5 +1,4 @@
 .typedef @i64 = int<64>
-.typedef @void = void
 
 .const @I64_1 <@i64> = 1
 
@@ -105,7 +104,7 @@
 .global @g99 <@i64>
 
 
-.funcsig @big.sig = @void (@i64)
+.funcsig @big.sig = (@i64) -> ()
 .funcdef @big VERSION @big_v1 <@big.sig> {
     %entry(<@i64> %p):
         %i0 = ADD <@i64> %p @I64_1
@@ -339,6 +338,6 @@
         %r28 = LOAD <@i64> @g28
         %r29 = LOAD <@i64> @g29
         
-        %trap = TRAP <@void> KEEPALIVE (%i199)
+        [%trap] TRAP <> KEEPALIVE (%i199)
         COMMINST @uvm.thread_exit
 }

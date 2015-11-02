@@ -1,9 +1,9 @@
 // require "primitives.uir"
 
-.funcsig @simplesum_sig = @void (@i64 @i64)
+.funcsig @simplesum_sig = (@i64 @i64) -> (@void)
 .funcdef @simplesum VERSION @simplesum_v1 <@simplesum_sig> {
     %entry (<@i64> %from <@i64> %to):
-        %starttrap = TRAP <@void>
+        [%starttrap] TRAP <>
         BRANCH %head(@I64_0 %from %to)
 
     %head(<@i64> %sum <@i64> %i <@i64> %to):
@@ -14,9 +14,9 @@
         %sum2 = ADD <@i64> %sum %i
         %i2   = ADD <@i64> %i @I64_1
         BRANCH %head(%sum2 %i2 %to)
-        //%montrap = TRAP <@void> %head %head KEEPALIVE (%from %to %sum %i %le %sum2 %i2)
+        //[%montrap] TRAP <> %head %head KEEPALIVE (%from %to %sum %i %le %sum2 %i2)
 
     %exit(<@i64> %sum):
-        %exittrap = TRAP <@void> KEEPALIVE (%sum)
+        [%exittrap] TRAP <> KEEPALIVE (%sum)
         COMMINST @uvm.thread_exit
 }

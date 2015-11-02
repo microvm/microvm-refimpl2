@@ -116,7 +116,13 @@ trait InterpreterThreadState {
   protected def resultBoxes: Seq[ValueBox] = curInst.results.map(boxOf)
 
   /** Get one result box of the current instruction. */
-  protected def resultBox(index: Int): ValueBox = boxOf(curInst.results(index))
+  protected def resultBox(index: Int): ValueBox = try {
+    boxOf(curInst.results(index))
+  } catch {
+    case e: IndexOutOfBoundsException => throw new UvmRefImplException(
+        "Instruction %s is declared to have only %d results. Result %d is requested.".format(
+            curInst, curInst.results.length, index), e)
+  }
 }
 
 /**

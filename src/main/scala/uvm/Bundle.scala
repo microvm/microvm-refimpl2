@@ -84,7 +84,7 @@ class GlobalBundle extends Bundle {
         case e: NameConflictException =>
           throw new IllegalRedefinitionException(
             "Redefinition of type, function signature, constant or" +
-              " global cell is not allowed", e);
+              " global cell is not allowed: %s".format(cand.repr), e);
       }
     }
   }

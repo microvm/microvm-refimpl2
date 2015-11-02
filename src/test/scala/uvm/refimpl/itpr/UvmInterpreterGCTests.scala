@@ -19,7 +19,7 @@ class UvmInterpreterGCTests extends UvmBundleTesterBase {
     "uvm.refimpl.itpr" -> DEBUG,
     "uvm.refimpl.mem" -> DEBUG)
 
-  preloadBundles("tests/uvm-refimpl-test/gc-tests.uir")
+  preloadBundles("tests/uvm-refimpl-test/primitives.uir", "tests/uvm-refimpl-test/gc-tests.uir")
 
   def gc() = microVM.memoryManager.heap.mutatorTriggerAndWaitForGCEnd(false)
 
@@ -40,176 +40,176 @@ class UvmInterpreterGCTests extends UvmBundleTesterBase {
   }
 
   "The memory manager" should "retain global reference between gc." in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@keepglobal")
-    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) match {
+    val func = ctx.handleFromFunc("@keepglobal")
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      nameOf(ctx.curInst(st, 0)) match {
         case "@keepglobal_v1.entry.gctrap" => {
           gc()
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@keepglobal_v1.entry.checktrap" => {
-          val Seq(obj2, obj2val) = ca.dumpKeepalives(st, 0)
+          val Seq(obj2, obj2val) = ctx.dumpKeepalives(st, 0)
 
           obj2.vb.asRef shouldNot be(0L)
           obj2val.vb.asSInt(64) shouldBe 42
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
       }
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 
   "The memory manager" should "not retain references in dead alloca cells between gc." in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@nokeepalloca")
-    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) match {
+    val func = ctx.handleFromFunc("@nokeepalloca")
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      nameOf(ctx.curInst(st, 0)) match {
         case "@nokeepalloca_v1.entry.gctrap" => {
           gc()
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@allocatest_v1.entry.gctrap" => {
           gc()
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
       }
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 
   "The large object space" should "withstand repeated non-retained allocations" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
     quiet {
-      val func = ca.putFunction("@crazy_allocation_test")
-      testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val func = ctx.handleFromFunc("@crazy_allocation_test")
+      testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
         fail("No traps in this test")
       }
     }
 
-    ca.close()
+    ctx.closeContext()
 
     gc()
   }
 
   "The small object space" should "withstand repeated fragmented allocations" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
     quiet {
-      val func = ca.putFunction("@breadcrumbs")
-      testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val func = ctx.handleFromFunc("@breadcrumbs")
+      testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
         fail("No traps in this test")
       }
     }
 
-    ca.close()
+    ctx.closeContext()
 
     gc()
   }
 
   "The garbage collector" should "nullify weak references if there is no strong references to the referent" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@testweakref")
-    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) match {
+    val func = ctx.handleFromFunc("@testweakref")
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      nameOf(ctx.curInst(st, 0)) match {
         case "@testweakref_v1.entry.gctrap" => {
           gc()
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@peekweakref_v1.entry.checknztrap" => {
-          val Seq(refval) = ca.dumpKeepalives(st, 0)
+          val Seq(refval) = ctx.dumpKeepalives(st, 0)
 
           refval.vb.asRef shouldNot be(0L)
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@testweakref_v1.entry.checkztrap" => {
-          val Seq(refval) = ca.dumpKeepalives(st, 0)
+          val Seq(refval) = ctx.dumpKeepalives(st, 0)
 
           refval.vb.asRef should be(0L)
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
       }
     }
 
-    ca.close()
+    ctx.closeContext()
 
     gc()
   }
   
   "The garbage collector" should "treat tagref64 as reference when it actually is" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@testtagrefgc")
-    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) match {
+    val func = ctx.handleFromFunc("@testtagrefgc")
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      nameOf(ctx.curInst(st, 0)) match {
         case "@testtagrefgc_v1.entry.gctrap" => {
           gc()
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
 
         case "@testtagrefgc_v1.entry.checktrap" => {
-          val Seq(tr, refv, tagv, iv) = ca.dumpKeepalives(st, 0)
+          val Seq(tr, refv, tagv, iv) = ctx.dumpKeepalives(st, 0)
 
-          ca.toInt(tagv) shouldBe 13
-          ca.toInt(iv) shouldBe 42
+          ctx.handleToUInt(tagv.asInstanceOf[MuIntValue]) shouldBe 13
+          ctx.handleToUInt(iv.asInstanceOf[MuIntValue]) shouldBe 42
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
       }
     }
 
-    ca.close()
+    ctx.closeContext()
 
     gc()
   }
   
   "The garbage collector" should "scan tagref64 references in the memory" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@testtagrefgcmem")
-    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) match {
+    val func = ctx.handleFromFunc("@testtagrefgcmem")
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      nameOf(ctx.curInst(st, 0)) match {
         case "@testtagrefgcmem_v1.entry.gctrap" => {
           gc()
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
 
         case "@testtagrefgcmem_v1.entry.checktrap" => {
-          val Seq(tr, refv, tagv, iv) = ca.dumpKeepalives(st, 0)
+          val Seq(tr, refv, tagv, iv) = ctx.dumpKeepalives(st, 0)
 
-          ca.toInt(tagv) shouldBe 13
-          ca.toInt(iv) shouldBe 42
+          ctx.handleToUInt(tagv.asInstanceOf[MuIntValue]) shouldBe 13
+          ctx.handleToUInt(iv.asInstanceOf[MuIntValue]) shouldBe 42
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
       }
     }
 
-    ca.close()
+    ctx.closeContext()
 
     gc()
   }
   
   "The small object space" should "withstand repeated fragmented allocations when objects are referred by tagref64" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
     quiet {
-      val func = ca.putFunction("@breadcrumbstr64")
-      testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
+      val func = ctx.handleFromFunc("@breadcrumbstr64")
+      testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
         fail("No traps in this test")
       }
     }
 
-    ca.close()
+    ctx.closeContext()
 
     gc()
   }

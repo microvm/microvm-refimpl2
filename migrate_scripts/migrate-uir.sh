@@ -7,5 +7,10 @@ $SED -i 's/NEWSTACK\s*<\(@\w\+\)>\s*\(@\w\+\)/COMMINST @uvm.new_stack <[\1]> (\2
 $SED -i 's/COMMINST\s*@uvm\.new_thread\s*(\([@%]\w\+\))/NEWTHREAD \1 PASS_VALUES /g' $FN
 $SED -i 's/TRAP\s*<@void>/TRAP <>/g' $FN
 $SED -i 's/noparamsnoret/v_v/g' $FN
-$SED -i 's/@void\s*(\([^)]*\))/(\1) -> ()/g' $FN
+#$SED -i 's/@void\s*(\([^)]*\))/(\1) -> ()/g' $FN
+$SED -i '/\.funcsig/ {s/=\s*\(@\w\+\)\s*(\([^)]*\))/= (\2) -> (\1)/}' $FN
+$SED -i 's/@funcdumb/@frv_v/g' $FN
+$SED -i 's/@i_ii/@ii_i/g' $FN
+$SED -i 's/RET @VOID/RET ()/g' $FN
+$SED -i 's/hybrid\s*<@void\s*/hybrid</g' $FN
 

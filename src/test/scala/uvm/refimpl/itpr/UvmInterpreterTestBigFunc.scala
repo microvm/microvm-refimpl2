@@ -22,56 +22,55 @@ class UvmInterpreterTestBigFunc extends UvmBundleTesterBase {
   preloadBundles("tests/uvm-refimpl-test/extra-big-func.uir")
 
   "The extra big function" should "execute properly" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@big")
-    val hParam = ca.putInt("@i64", 0)
+    val func = ctx.handleFromFunc("@big")
+    val hParam = ctx.handleFromInt64(0)
 
-    testFunc(ca, func, Seq(hParam)) { (ca, th, st, wp) =>
-      val Seq(i) = ca.dumpKeepalives(st, 0)
+    testFunc(ctx, func, Seq(hParam)) { (ctx, th, st, wp) =>
+      val Seq(i) = ctx.dumpKeepalives(st, 0)
 
-      ca.toInt(i, true) shouldEqual 200
+      ctx.handleToSInt(i.asInstanceOf[MuIntValue]) shouldEqual 200
 
-      TrapRebindPassVoid(st)
+      returnFromTrap(st)
     }
 
-    ca.close()
+    ctx.closeContext()
   }
-  
+
   "The Micro VM" should "sustain frequent bundle loading" in {
-    val ca = microVM.newClientAgent()
-    
-    for(i <- 0 until 1000) {
+    val ctx = microVM.newContext()
+
+    for (i <- 0 until 1000) {
       val miniBundle = s".global @h${i} <@i64>"
-      ca.loadBundle(miniBundle)
+      ctx.loadBundle(miniBundle)
     }
-    
+
     val sb = new StringBuilder()
     sb ++= ".funcdef @bigger VERSION @bigger.v1 <@big.sig> {\n"
     sb ++= "     %entry(<@i64> %p):\n"
-    for(i <- 0 until 1000) {
-      sb ++= s"        %r${i} = STORE <@i64> @h${i} %p\n"
+    for (i <- 0 until 1000) {
+      sb ++= s"        [%s${i}] STORE <@i64> @h${i} %p\n"
     }
-    sb ++= "        TRAP <@void>\n"
+    sb ++= "        TRAP <>\n"
     sb ++= "        COMMINST @uvm.thread_exit\n"
     sb ++= "}"
- 
-    ca.loadBundle(sb.toString())
-    
-    val func = ca.putFunction("@bigger")
-    val hParam = ca.putInt("@i64", 42)
 
-    testFunc(ca, func, Seq(hParam)) { (ca, th, st, wp) =>
-      val hr = ca.putGlobal("@h12")
-      val hv = ca.load(MemoryOrder.NOT_ATOMIC, hr)
-      val v = ca.toInt(hv, true).toInt
-      
+    ctx.loadBundle(sb.toString())
+
+    val func = ctx.handleFromFunc("@bigger")
+    val hParam = ctx.handleFromInt64(42)
+
+    testFunc(ctx, func, Seq(hParam)) { (ctx, th, st, wp) =>
+      val hr = ctx.handleFromGlobal("@h12")
+      val hv = ctx.load(MemoryOrder.NOT_ATOMIC, hr)
+      val v = ctx.handleToSInt(hv.asInstanceOf[MuIntValue]).toInt
+
       v shouldEqual 42
 
-      TrapRebindPassVoid(st)
+      returnFromTrap(st)
     }
 
-    
-    ca.close()
+    ctx.closeContext()
   }
 }
