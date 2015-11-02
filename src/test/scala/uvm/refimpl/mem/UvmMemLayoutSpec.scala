@@ -19,7 +19,7 @@ class UvmMemLayoutSpec extends FlatSpec with Matchers with BeforeAndAfter {
     sizeOf(TypeIRef(TypeVoid())) shouldBe 16
     sizeOf(TypeWeakRef(TypeVoid())) shouldBe 8
     sizeOf(TypeVoid()) shouldBe 0
-    sizeOf(TypeFuncRef(FuncSig(TypeVoid(), Seq()))) shouldBe 8
+    sizeOf(TypeFuncRef(FuncSig(Seq(), Seq()))) shouldBe 8
     sizeOf(TypeThreadRef()) shouldBe 8
     sizeOf(TypeStackRef()) shouldBe 8
     sizeOf(TypeTagRef64()) shouldBe 8
@@ -36,7 +36,7 @@ class UvmMemLayoutSpec extends FlatSpec with Matchers with BeforeAndAfter {
     alignOf(TypeIRef(TypeVoid())) shouldBe 16
     alignOf(TypeWeakRef(TypeVoid())) shouldBe 8
     alignOf(TypeVoid()) shouldBe 1
-    alignOf(TypeFuncRef(FuncSig(TypeVoid(), Seq()))) shouldBe 8
+    alignOf(TypeFuncRef(FuncSig(Seq(), Seq()))) shouldBe 8
     alignOf(TypeThreadRef()) shouldBe 8
     alignOf(TypeStackRef()) shouldBe 8
     alignOf(TypeTagRef64()) shouldBe 8
@@ -75,10 +75,20 @@ class UvmMemLayoutSpec extends FlatSpec with Matchers with BeforeAndAfter {
   }
   
   "In a hybrid, fields" should "be laid out in the fixed-then-var fasion" in {
-    val ty = TypeHybrid(TypeInt(16), TypeDouble())
-    hybridSizeOf(ty, 10) shouldBe 88
+    val ty = TypeHybrid(Seq(TypeInt(8), TypeInt(16), TypeInt(32), TypeInt(64)), TypeDouble())
+    hybridSizeOf(ty, 10) shouldBe 96
     hybridAlignOf(ty, 10) shouldBe 8
-    fixedPartOffsetOf(ty) shouldBe 0
-    varPartOffsetOf(ty) shouldBe 8
+    fieldOffsetOf(ty, 0) shouldBe 0
+    fieldOffsetOf(ty, 1) shouldBe 2
+    fieldOffsetOf(ty, 2) shouldBe 4
+    fieldOffsetOf(ty, 3) shouldBe 8
+    varPartOffsetOf(ty) shouldBe 16
+  } 
+  
+  "In a hybrid with no fixed parts, the variable part" should "have offset 0" in {
+    val ty = TypeHybrid(Seq(), TypeFloat())
+    hybridSizeOf(ty, 10) shouldBe 40
+    hybridAlignOf(ty, 10) shouldBe 4
+    varPartOffsetOf(ty) shouldBe 0
   } 
 }

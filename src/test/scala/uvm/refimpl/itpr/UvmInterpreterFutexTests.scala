@@ -146,10 +146,10 @@ class UvmInterpreterFutexTests extends UvmBundleTesterBase {
           val nthr2 = nt2.vb.asThread.get
 
           if (nthr.isFutexWaiting && nthr2.isFutexWaiting) {
-            val one = ctx.i32(1)
+            val one = ctx.handleFromInt32(1)
             Rebind(st, PassValues(Seq(one)))
           } else {
-            val zero = ctx.i32(0)
+            val zero = ctx.handleFromInt32(0)
             Rebind(st, PassValues(Seq(zero)))
           }
         }
@@ -215,10 +215,10 @@ class UvmInterpreterFutexTests extends UvmBundleTesterBase {
             val nthr = nt.vb.asThread.get
 
             if (nthr.isFutexWaiting) {
-              val one = ctx.i32(1)
+              val one = ctx.handleFromInt32(1)
               Rebind(st, PassValues(Seq(one)))
             } else {
-              val zero = ctx.i32(0)
+              val zero = ctx.handleFromInt32(0)
               Rebind(st, PassValues(Seq(zero)))
             }
           }

@@ -44,9 +44,9 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Binary operations" should "work on int<32>" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@binops32")
-    val arg0 = ctx.i32(42)
-    val arg1 = ctx.i32(3)
+    val func = ctx.handleFromFunc("@binops32")
+    val arg0 = ctx.handleFromInt32(42)
+    val arg1 = ctx.handleFromInt32(3)
 
     testFunc(ctx, func, Seq(arg0, arg1)) { (ctx, th, st, wp) =>
       val Seq(add, sub, mul, udiv, sdiv, urem, srem, shl, lshr, ashr, and, or, xor) = ctx.dumpKeepalives(st, 0)
@@ -98,9 +98,9 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Binary operations" should "work on int<64>" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@binops64")
-    val arg0 = ctx.i64(42)
-    val arg1 = ctx.i64(3)
+    val func = ctx.handleFromFunc("@binops64")
+    val arg0 = ctx.handleFromInt64(42)
+    val arg1 = ctx.handleFromInt64(3)
 
     testFunc(ctx, func, Seq(arg0, arg1)) { (ctx, th, st, wp) =>
       val Seq(add, sub, mul, udiv, sdiv, urem, srem, shl, lshr, ashr, and, or, xor) = ctx.dumpKeepalives(st, 0)
@@ -122,8 +122,8 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
       Rebind(st, PassValues(Seq()))
     }
 
-    val arg2 = ctx.i64(-0x8000000000000000L)
-    val arg3 = ctx.i64(-1L)
+    val arg2 = ctx.handleFromInt64(-0x8000000000000000L)
+    val arg3 = ctx.handleFromInt64(-1L)
 
     testFunc(ctx, func, Seq(arg2, arg3)) { (ctx, th, st, wp) =>
       val Seq(add, sub, mul, udiv, sdiv, urem, srem, shl, lshr, ashr, and, or, xor) = ctx.dumpKeepalives(st, 0)
@@ -134,10 +134,10 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
       Rebind(st, PassValues(Seq()))
     }
 
-    val arg4 = ctx.i64(13)
-    val arg5 = ctx.i64(63)
-    val arg6 = ctx.i64(64)
-    val arg7 = ctx.i64(65)
+    val arg4 = ctx.handleFromInt64(13)
+    val arg5 = ctx.handleFromInt64(63)
+    val arg6 = ctx.handleFromInt64(64)
+    val arg7 = ctx.handleFromInt64(65)
 
     testFunc(ctx, func, Seq(arg4, arg5)) { (ctx, th, st, wp) =>
       val Seq(add, sub, mul, udiv, sdiv, urem, srem, shl, lshr, ashr, and, or, xor) = ctx.dumpKeepalives(st, 0)
@@ -175,10 +175,10 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Binary operations" should "safely handle integer division by zero" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@binops64_div0")
-    val a = ctx.i64(42)
-    val one = ctx.i64(1)
-    val zero = ctx.i64(0)
+    val func = ctx.handleFromFunc("@binops64_div0")
+    val a = ctx.handleFromInt64(42)
+    val one = ctx.handleFromInt64(1)
+    val zero = ctx.handleFromInt64(0)
 
     testFunc(ctx, func, Seq(a, zero, one, one, one)) { (ctx, th, st, wp) =>
       nameOf(ctx.curInst(st, 0)) shouldBe "@binops64_div0.v1.exc.trapexc"
@@ -203,7 +203,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Binary operations" should "work on float" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@binops_f")
+    val func = ctx.handleFromFunc("@binops_f")
     val arg0 = ctx.handleFromFloat(45.0f)
     val arg1 = ctx.handleFromFloat(4.0f)
 
@@ -239,7 +239,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Binary operations" should "work on double" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@binops_d")
+    val func = ctx.handleFromFunc("@binops_d")
     val arg0 = ctx.handleFromDouble(45.0d)
     val arg1 = ctx.handleFromDouble(4.0d)
 
@@ -275,7 +275,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Binary operations" should "work on vector types" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@binops_vec")
+    val func = ctx.handleFromFunc("@binops_vec")
 
     val a0 = ctx.handleFromConst("@4xI32_V3")
     val a1 = ctx.handleFromConst("@4xI32_V4")
@@ -303,10 +303,10 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Comparing operations" should "work on int<64>" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@cmp64")
+    val func = ctx.handleFromFunc("@cmp64")
 
-    val a0 = ctx.i64(1)
-    val a1 = ctx.i64(2)
+    val a0 = ctx.handleFromInt64(1)
+    val a1 = ctx.handleFromInt64(2)
 
     testFunc(ctx, func, Seq(a0, a1)) { (ctx, th, st, wp) =>
       val Seq(eq, ne, ult, ule, ugt, uge, slt, sle, sgt, sge) = ctx.dumpKeepalives(st, 0)
@@ -342,7 +342,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
       Rebind(st, PassValues(Seq()))
     }
 
-    val a2 = ctx.i64(-3)
+    val a2 = ctx.handleFromInt64(-3)
 
     testFunc(ctx, func, Seq(a0, a2)) { (ctx, th, st, wp) =>
       val Seq(eq, ne, ult, ule, ugt, uge, slt, sle, sgt, sge) = ctx.dumpKeepalives(st, 0)
@@ -363,7 +363,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Comparing operations" should "work on float" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@cmp_f")
+    val func = ctx.handleFromFunc("@cmp_f")
 
     val a0 = ctx.handleFromFloat(1.0f)
     val a1 = ctx.handleFromFloat(2.0f)
@@ -444,7 +444,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Comparing operations" should "work on double" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@cmp_d")
+    val func = ctx.handleFromFunc("@cmp_d")
 
     val a0 = ctx.handleFromDouble(1.0d)
     val a1 = ctx.handleFromDouble(2.0d)
@@ -525,7 +525,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Comparing operations" should "work on vectors" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@cmp_vec")
+    val func = ctx.handleFromFunc("@cmp_vec")
 
     val a0 = ctx.handleFromConst("@4xI32_V5")
     val a1 = ctx.handleFromConst("@4xI32_V6")
@@ -566,14 +566,14 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Comparing operations" should "work on general reference types" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@cmp_ref")
+    val func = ctx.handleFromFunc("@cmp_ref")
 
     val a0 = ctx.newFixed("@i64")
     val a1 = ctx.newFixed("@i64")
     val a2 = ctx.handleFromGlobal("@dummy_global1")
     val a3 = ctx.handleFromGlobal("@dummy_global2")
-    val a4 = ctx.func("@dummy_func1")
-    val a5 = ctx.func("@dummy_func2")
+    val a4 = ctx.handleFromFunc("@dummy_func1")
+    val a5 = ctx.handleFromFunc("@dummy_func2")
     val a6 = ctx.newStack(a4)
     val a7 = ctx.newStack(a5)
 
@@ -648,10 +648,10 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Conversions" should "work on scalar types" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@conv")
+    val func = ctx.handleFromFunc("@conv")
 
-    val a0 = ctx.i32(0xfedcba98L)
-    val a1 = ctx.i64(0x123456789abcdef0L)
+    val a0 = ctx.handleFromInt32(0xfedcba98L)
+    val a1 = ctx.handleFromInt64(0x123456789abcdef0L)
     val a2 = ctx.handleFromFloat(1.5f)
     val a3 = ctx.handleFromDouble(6.25d)
 
@@ -690,7 +690,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
       Rebind(st, PassValues(Seq()))
     }
-    val a5 = ctx.i64(-0x123456789abcdef0L)
+    val a5 = ctx.handleFromInt64(-0x123456789abcdef0L)
 
     testFunc(ctx, func, Seq(a0, a5, a2, a3)) { (ctx, th, st, wp) =>
       val kas = ctx.dumpKeepalives(st, 0)
@@ -713,7 +713,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Conversions" should "work on vector types" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@conv_vec")
+    val func = ctx.handleFromFunc("@conv_vec")
 
     val a0 = ctx.handleFromConst("@4xI32_ABNORMALV1")
     val a1 = ctx.handleFromConst("@4xF_ABNORMALV1")
@@ -738,7 +738,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "The SELECT instruction" should "work on both scalars and vectors and allow per-element select" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@select")
+    val func = ctx.handleFromFunc("@select")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       val Seq(sel1, sel2, sel3, sel4, sel5) = ctx.dumpKeepalives(st, 0)
@@ -760,10 +760,10 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Branching" should "work" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@branch")
+    val func = ctx.handleFromFunc("@branch")
 
-    val a0 = ctx.i64(0)
-    val a1 = ctx.i64(1)
+    val a0 = ctx.handleFromInt64(0)
+    val a1 = ctx.handleFromInt64(1)
 
     testFunc(ctx, func, Seq(a0)) { (ctx, th, st, wp) =>
       nameOf(ctx.curInst(st, 0)) shouldBe "@branch.v1.iftrue.traptrue"
@@ -781,12 +781,12 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "SWTICH" should "work" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@switch")
+    val func = ctx.handleFromFunc("@switch")
 
-    val a0 = ctx.i64(0)
-    val a1 = ctx.i64(1)
-    val a2 = ctx.i64(2)
-    val a3 = ctx.i64(3)
+    val a0 = ctx.handleFromInt64(0)
+    val a1 = ctx.handleFromInt64(1)
+    val a2 = ctx.handleFromInt64(2)
+    val a3 = ctx.handleFromInt64(3)
 
     def expectFlow(midTrapName: String, phiValue: BigInt): TrapHandlerFunction = { (ctx, th, st, wp) =>
       val M = midTrapName
@@ -812,7 +812,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "Parameters of a basic block" should "be assigned at the same time in CFG edges" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@edge_asgn_test")
+    val func = ctx.handleFromFunc("@edge_asgn_test")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       val Seq(x, y) = ctx.dumpKeepalives(st, 0)
@@ -829,10 +829,10 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "CALL and RET" should "work for normal returns" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@call_ret")
+    val func = ctx.handleFromFunc("@call_ret")
 
-    val a0 = ctx.i64(3)
-    val a1 = ctx.i64(4)
+    val a0 = ctx.handleFromInt64(3)
+    val a1 = ctx.handleFromInt64(4)
 
     testFunc(ctx, func, Seq(a0, a1)) { (ctx, th, st, wp) =>
       val Seq(ss) = ctx.dumpKeepalives(st, 0)
@@ -847,9 +847,9 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "CALL, THROW and the exception parameter" should "handle exceptions" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@call_throw")
+    val func = ctx.handleFromFunc("@call_throw")
 
-    val a0 = ctx.i64(3)
+    val a0 = ctx.handleFromInt64(3)
 
     testFunc(ctx, func, Seq(a0)) { (ctx, th, st, wp) =>
       nameOf(ctx.curInst(st, 0)) match {
@@ -865,7 +865,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
       Rebind(st, PassValues(Seq()))
     }
 
-    val a1 = ctx.i64(0)
+    val a1 = ctx.handleFromInt64(0)
 
     testFunc(ctx, func, Seq(a1)) { (ctx, th, st, wp) =>
       nameOf(ctx.curInst(st, 0)) match {
@@ -886,7 +886,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "CALL" should "be able to receive multiple return values or no return values" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@call_multi_return")
+    val func = ctx.handleFromFunc("@call_multi_return")
 
     var checkpointReached = false
 
@@ -914,7 +914,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "EXTRACTVALUE and INSERTVALUE" should "work" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@aggregate_struct")
+    val func = ctx.handleFromFunc("@aggregate_struct")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       val Seq(f1, f12) = ctx.dumpKeepalives(st, 0)
@@ -931,7 +931,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "EXTRACTELEMENT and INSERTELEMENT" should "work on vectors and arrays" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@aggregate_seq")
+    val func = ctx.handleFromFunc("@aggregate_seq")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       val Seq(ee0, ie0, sv0, ee1, ie1) = ctx.dumpKeepalives(st, 0)
@@ -951,9 +951,9 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "NEW, NEWHYBRID, ALLOCA, ALLOCAHYBRID" should "work" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@allocs")
+    val func = ctx.handleFromFunc("@allocs")
 
-    val sz = ctx.i64(20)
+    val sz = ctx.handleFromInt64(20)
 
     testFunc(ctx, func, Seq(sz)) { (ctx, th, st, wp) =>
       val Seq(n, nh, a, ah) = ctx.dumpKeepalives(st, 0)
@@ -974,7 +974,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@memAddressing")
+    val func = ctx.handleFromFunc("@memAddressing")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       val Seq(barRef, barIRef, bar3, bazIRef, baz3, baz6, jaRef, jaIRef, jaVar) = ctx.dumpKeepalives(st, 0)
@@ -1002,7 +1002,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@memAddressingPtr")
+    val func = ctx.handleFromFunc("@memAddressingPtr")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       val Seq(barPtr, bazPtr, jaPtr, bar3, baz3, baz6, jaVar) = ctx.dumpKeepalives(st, 0)
@@ -1028,7 +1028,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
   "LOAD and STORE" should "work with iref in good cases" in {
     val ctx = microVM.newContext()
-    val func = ctx.func("@memAccessing")
+    val func = ctx.handleFromFunc("@memAccessing")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       val Seq(voidR, voidIR, li8, li16, li32, li64, lf, ld, lr, lir, lwr, lfunc) = ctx.dumpKeepalives(st, 0)
@@ -1053,7 +1053,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
   "LOAD and STORE" should "work with pointer in good cases" in {
     val ctx = microVM.newContext()
-    val func = ctx.func("@memAccessingPtr")
+    val func = ctx.handleFromFunc("@memAccessingPtr")
 
     val myms = new MemorySupport(1024)
     val begin = myms.muMemoryBegin
@@ -1087,7 +1087,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
   "CMPXCHG and ATOMICRMW" should "work with iref in good cases" in {
     val ctx = microVM.newContext()
-    val func = ctx.func("@memAccessingAtomic")
+    val func = ctx.handleFromFunc("@memAccessingAtomic")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       val kas = ctx.dumpKeepalives(st, 0)
@@ -1139,7 +1139,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
   "CMPXCHG and ATOMICRMW" should "work with pointer in good cases" in {
     val ctx = microVM.newContext()
-    val func = ctx.func("@memAccessingAtomicPtr")
+    val func = ctx.handleFromFunc("@memAccessingAtomicPtr")
 
     val myms = new MemorySupport(1024)
     val begin = myms.muMemoryBegin
@@ -1208,7 +1208,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
   "LOAD, STORE, CMPXCHG and ATOMICRMW" should "jump to the exceptional destination on NULL ref access" in {
     val ctx = microVM.newContext()
-    val func = ctx.func("@memAccessingNull")
+    val func = ctx.handleFromFunc("@memAccessingNull")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       nameOf(ctx.curInst(st, 0)) match {
@@ -1224,11 +1224,11 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     val ctx = microVM.newContext()
 
     val exc = ctx.newFixed("@void")
-    val fortyTwo = ctx.i64(42L)
+    val fortyTwo = ctx.handleFromInt64(42L)
     val fortyTwoPointZero = ctx.handleFromFloat(42.0f)
     val fortyTwoPointFive = ctx.handleFromDouble(42.5d)
 
-    val func = ctx.func("@traptest")
+    val func = ctx.handleFromFunc("@traptest")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       nameOf(ctx.curInst(st, 0)) match {
@@ -1262,7 +1262,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     ctx.disableWatchpoint(1)
 
-    val func = ctx.func("@wptest")
+    val func = ctx.handleFromFunc("@wptest")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       nameOf(ctx.curInst(st, 0)) match {
@@ -1282,10 +1282,10 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     ctx.enableWatchpoint(1)
 
     val exc = ctx.newFixed("@i32")
-    val fortyTwo = ctx.i64(42L)
+    val fortyTwo = ctx.handleFromInt64(42L)
     val fortyTwoPointZero = ctx.handleFromDouble(42.0d)
 
-    val func = ctx.func("@wptest")
+    val func = ctx.handleFromFunc("@wptest")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       nameOf(ctx.curInst(st, 0)) match {
@@ -1325,7 +1325,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     val exc1 = ctx.newFixed("@void")
     val exc2 = ctx.newFixed("@void")
 
-    val func = ctx.func("@trapExc")
+    val func = ctx.handleFromFunc("@trapExc")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       nameOf(ctx.curInst(st, 0)) match {
@@ -1354,7 +1354,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "WPBRANCH" should "work" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@wpbranch")
+    val func = ctx.handleFromFunc("@wpbranch")
 
     ctx.disableWatchpoint(42)
 
@@ -1402,7 +1402,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "SWAPSTAK" should "work" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@testswapstack")
+    val func = ctx.handleFromFunc("@testswapstack")
 
     var coro1Reached = false
     var coro2Reached = false
@@ -1458,7 +1458,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "COMMINST @uvm.tr64.*" should "work" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@testtr64")
+    val func = ctx.handleFromFunc("@testtr64")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       val Seq(rv, f, i, r,
@@ -1486,7 +1486,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "COMMINST @uvm.kill_dependency" should "do nothing" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@testdependency")
+    val func = ctx.handleFromFunc("@testdependency")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       val Seq(b) = ctx.dumpKeepalives(st, 0)
@@ -1502,7 +1502,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "COMMINST @uvm.native.pin and @uvm.native.unpin" should "expose ref/iref as ptr for access" in {
     val ctx = microVM.newContext()
 
-    val func = ctx.func("@objectpinning")
+    val func = ctx.handleFromFunc("@objectpinning")
 
     testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
       val Seq(a, b, c, d, e, f) = ctx.dumpKeepalives(st, 0)

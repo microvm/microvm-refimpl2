@@ -95,11 +95,7 @@ abstract class UvmBundleTesterBase extends FlatSpec with Matchers {
     def asPointer: Word = vb.asInstanceOf[BoxPointer].addr
   }
   
-  implicit class RichMuCtx(ctx: MuCtx) {
-    def i32(num: BigInt) = ctx.handleFromInt(num, 32)
-    def i64(num: BigInt) = ctx.handleFromInt(num, 64)
-    def func(id: Int) = ctx.handleFromFunc(id)
-  }
+  implicit def richMuCtx(ctx: MuCtx) = RichMuCtx.RichMuCtx(ctx)
   
   def returnFromTrap(st: MuStackRefValue) = Rebind(st, PassValues(Seq()))
 }
