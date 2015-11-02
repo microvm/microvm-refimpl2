@@ -15,6 +15,7 @@ $SED -i 's/putDouble("@double",/handleFromDouble(/g' $FN
 $SED -i 's/putConstant/handleFromConst/g' $FN
 $SED -i 's/putGlobal/handleFromGlobal/g' $FN
 $SED -i 's/putFunction/handleFromFunc/g' $FN
+$SED -i 's/putExpFunc/handleFromExpose/g' $FN
 $SED -i 's/toInt(\(\w\+\),\s*\(signExt\s*=\s*\)\?true)/handleToSInt(\1.asInstanceOf[MuIntValue])/g' $FN
 $SED -i 's/toInt(\(\w\+\))/handleToUInt(\1.asInstanceOf[MuIntValue])/g' $FN
 $SED -i 's/toFloat/handleToFloat/g' $FN

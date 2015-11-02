@@ -28,20 +28,20 @@ class UvmInterpreterNativeTestsExtra extends UvmBundleTesterBase {
     throw new RuntimeException("Need to compile the structtest.so library. cd into tests/c-snippets and invoke 'make'.")
   }
 
-  preloadBundles("tests/uvm-refimpl-test/native-tests.uir")
+  preloadBundles("tests/uvm-refimpl-test/primitives.uir", "tests/uvm-refimpl-test/native-tests.uir")
 
   "The CCALL instruction" should "handle struct parameters in foo" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
     val lib = Library.openLibrary(fileName, Library.NOW)
     val funcAddr = lib.getSymbolAddress("foo_func")
 
-    val func = ca.putFunction("@foo_func_test")
+    val func = ctx.handleFromFunc("@foo_func_test")
 
-    val a0 = ca.putInt("@i64", funcAddr)
+    val a0 = ctx.handleFromInt64( funcAddr)
 
-    testFunc(ca, func, Seq(a0)) { (ca, th, st, wp) =>
-      val Seq(fp, rv, a, b, c, d) = ca.dumpKeepalives(st, 0)
+    testFunc(ctx, func, Seq(a0)) { (ctx, th, st, wp) =>
+      val Seq(fp, rv, a, b, c, d) = ctx.dumpKeepalives(st, 0)
 
       fp.vb.asPointer shouldEqual funcAddr
 
@@ -52,24 +52,24 @@ class UvmInterpreterNativeTestsExtra extends UvmBundleTesterBase {
       c.vb.asUInt(16) shouldEqual 0xa5a5
       d.vb.asUInt(8) shouldEqual 0x61
 
-      TrapRebindPassVoid(st)
+      returnFromTrap(st)
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 
   "The CCALL instruction" should "handle struct parameters in bar involving pointers" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
     val lib = Library.openLibrary(fileName, Library.NOW)
     val funcAddr = lib.getSymbolAddress("bar_func")
 
-    val func = ca.putFunction("@bar_func_test")
+    val func = ctx.handleFromFunc("@bar_func_test")
 
-    val a0 = ca.putInt("@i64", funcAddr)
+    val a0 = ctx.handleFromInt64( funcAddr)
 
-    testFunc(ca, func, Seq(a0)) { (ca, th, st, wp) =>
-      val Seq(fp, rv, a, b) = ca.dumpKeepalives(st, 0)
+    testFunc(ctx, func, Seq(a0)) { (ctx, th, st, wp) =>
+      val Seq(fp, rv, a, b) = ctx.dumpKeepalives(st, 0)
 
       fp.vb.asPointer shouldEqual funcAddr
 
@@ -78,24 +78,24 @@ class UvmInterpreterNativeTestsExtra extends UvmBundleTesterBase {
       a.vb.asPointer shouldEqual 0x123456789abcdef0L
       b.vb.asPointer shouldEqual 0xfedcba9876543210L
 
-      TrapRebindPassVoid(st)
+      returnFromTrap(st)
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 
   "The CCALL instruction" should "handle struct parameters and return value in baz" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
     val lib = Library.openLibrary(fileName, Library.NOW)
     val funcAddr = lib.getSymbolAddress("baz_func")
 
-    val func = ca.putFunction("@baz_func_test")
+    val func = ctx.handleFromFunc("@baz_func_test")
 
-    val a0 = ca.putInt("@i64", funcAddr)
+    val a0 = ctx.handleFromInt64( funcAddr)
 
-    testFunc(ca, func, Seq(a0)) { (ca, th, st, wp) =>
-      val Seq(fp, rv, a, b, c, pextra, aextra) = ca.dumpKeepalives(st, 0)
+    testFunc(ctx, func, Seq(a0)) { (ctx, th, st, wp) =>
+      val Seq(fp, rv, a, b, c, pextra, aextra) = ctx.dumpKeepalives(st, 0)
 
       fp.vb.asPointer shouldEqual funcAddr
 
@@ -126,9 +126,9 @@ class UvmInterpreterNativeTestsExtra extends UvmBundleTesterBase {
       m.getInt(ptr+4) shouldEqual 5
       m.getDouble(ptr+8) shouldEqual 6.0
       
-      TrapRebindPassVoid(st)
+      returnFromTrap(st)
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 }

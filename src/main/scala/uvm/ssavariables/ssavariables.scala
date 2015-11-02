@@ -46,7 +46,7 @@ case class InstResult(inst: Instruction, index: Int) extends LocalVariable
 abstract class Instruction extends IdentifiedSettable {
   var results: Seq[InstResult] = Seq()
   
-  override def toString = "%s %s".format(this.repr, this.getClass.getSimpleName)
+  override def toString = "[(%s) = %s %s]".format(this.results.map(_.repr).mkString(" "), this.repr, this.getClass.getSimpleName)
 }
 
 /// enumerations

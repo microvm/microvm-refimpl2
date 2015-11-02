@@ -22,60 +22,60 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
     "uvm.refimpl.itpr" -> DEBUG,
     "uvm.refimpl.nat" -> DEBUG)
 
-  preloadBundles("tests/uvm-refimpl-test/native-callback-tests.uir")
+  preloadBundles("tests/uvm-refimpl-test/primitives.uir", "tests/uvm-refimpl-test/native-callback-tests.uir")
 
   val libCallbacktest = NativeLibraryTestHelper.loadTestLibrary("callbacktest")
 
   "The exposing definition" should "allow a native function to call it" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val hCB = ca.putExpFunc("@square.exposed")
-    val hCBAddr = ca.toPointer(hCB)
+    val hCB = ctx.handleFromExpose("@square.exposed")
+    val hCBAddr = ctx.handleToFP(hCB)
     println("Callback address: 0x%x".format(hCBAddr))
     hCBAddr should not be 0L
 
     val nativeFuncAddr = libCallbacktest.getSymbolAddress("one_level")
     nativeFuncAddr should not be 0L
 
-    val hFP = ca.putPointer("@one_level.fp", nativeFuncAddr)
+    val hFP = ctx.handleFromFP("@one_level.fp", nativeFuncAddr)
 
-    val nativeFuncGlobal = ca.putGlobal("@one_level.global")
-    ca.store(MemoryOrder.NOT_ATOMIC, nativeFuncGlobal, hFP)
+    val nativeFuncGlobal = ctx.handleFromGlobal("@one_level.global")
+    ctx.store(MemoryOrder.NOT_ATOMIC, nativeFuncGlobal, hFP)
 
-    val muFunc = ca.putFunction("@one_level_test")
+    val muFunc = ctx.handleFromFunc("@one_level_test")
 
     var callbackCalled: Int = 0
 
-    testFunc(ca, muFunc, Seq()) { (ca, th, st, wp) =>
-      ca.nameOf(ca.currentInstruction(st, 0)) match {
+    testFunc(ctx, muFunc, Seq()) { (ctx, th, st, wp) =>
+      ctx.nameOf(ctx.curInst(st, 0)) match {
         case "@square.v1.entry.trap" => {
-          val Seq(value, cok) = ca.dumpKeepalives(st, 0)
+          val Seq(value: MuDoubleValue, cok: MuIntValue) = ctx.dumpKeepalives(st, 0)
 
-          ca.toDouble(value) shouldBe (callbackCalled match {
+          ctx.handleToDouble(value) shouldBe (callbackCalled match {
             case 0 => 3.0
             case 1 => 4.0
           })
 
-          ca.toInt(cok).toLong shouldBe 42L
+          ctx.handleToUInt(cok).toLong shouldBe 42L
 
           callbackCalled += 1
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@one_level_test.v1.entry.pretrap" => {
-          val Seq(fp) = ca.dumpKeepalives(st, 0)
+          val Seq(fp: MuUFPValue) = ctx.dumpKeepalives(st, 0)
 
-          ca.toPointer(fp) shouldEqual nativeFuncAddr
+          ctx.handleToFP(fp) shouldEqual nativeFuncAddr
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@one_level_test.v1.entry.trap" => {
-          val Seq(fp, rv) = ca.dumpKeepalives(st, 0)
+          val Seq(fp: MuUFPValue, rv: MuDoubleValue) = ctx.dumpKeepalives(st, 0)
 
-          ca.toPointer(fp) shouldEqual nativeFuncAddr
-          ca.toDouble(rv) shouldEqual 25.0
+          ctx.handleToFP(fp) shouldEqual nativeFuncAddr
+          ctx.handleToDouble(rv) shouldEqual 25.0
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
       }
 
@@ -83,37 +83,37 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
     callbackCalled shouldBe 2
 
-    ca.close()
+    ctx.closeContext()
   }
 
   "The @uvm.native.expose instruction" should "allow a native function to call it" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
     val nativeFuncAddr = libCallbacktest.getSymbolAddress("one_level")
     nativeFuncAddr should not be 0L
 
-    val hFP = ca.putPointer("@one_level.fp", nativeFuncAddr)
+    val hFP = ctx.handleFromFP("@one_level.fp", nativeFuncAddr)
 
-    val nativeFuncGlobal = ca.putGlobal("@one_level.global")
-    ca.store(MemoryOrder.NOT_ATOMIC, nativeFuncGlobal, hFP)
+    val nativeFuncGlobal = ctx.handleFromGlobal("@one_level.global")
+    ctx.store(MemoryOrder.NOT_ATOMIC, nativeFuncGlobal, hFP)
 
-    val muFunc = ca.putFunction("@one_level_test2")
+    val muFunc = ctx.handleFromFunc("@one_level_test2")
 
     var callbackCalled: Int = 0
 
-    testFunc(ca, muFunc, Seq()) { (ca, th, st, wp) =>
-      ca.nameOf(ca.currentInstruction(st, 0)) match {
+    testFunc(ctx, muFunc, Seq()) { (ctx, th, st, wp) =>
+      ctx.nameOf(ctx.curInst(st, 0)) match {
         case "@square.v1.entry.trap" => {
-          val Seq(value, cok) = ca.dumpKeepalives(st, 0)
+          val Seq(value: MuDoubleValue, cok: MuIntValue) = ctx.dumpKeepalives(st, 0)
 
-          ca.toDouble(value) shouldBe (callbackCalled match {
+          ctx.handleToDouble(value) shouldBe (callbackCalled match {
             case 0 => 3.0
             case 1 => 4.0
             case 2 => 3.0
             case 3 => 4.0
           })
 
-          ca.toInt(cok).toLong shouldBe (callbackCalled match {
+          ctx.handleToUInt(cok.asInstanceOf[MuIntValue]).toLong shouldBe (callbackCalled match {
             case 0 => 84L
             case 1 => 84L
             case 2 => 126L
@@ -122,15 +122,15 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
           callbackCalled += 1
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@one_level_test2.v1.entry.pretrap" => {
-          val Seq(fp, cb1, cb2) = ca.dumpKeepalives(st, 0)
+          val Seq(fp: MuUFPValue, cb1: MuUFPValue, cb2: MuUFPValue) = ctx.dumpKeepalives(st, 0)
 
-          ca.toPointer(fp) shouldEqual nativeFuncAddr
+          ctx.handleToFP(fp) shouldEqual nativeFuncAddr
 
-          val cb1Ptr = ca.toPointer(cb1)
-          val cb2Ptr = ca.toPointer(cb2)
+          val cb1Ptr = ctx.handleToFP(cb1)
+          val cb2Ptr = ctx.handleToFP(cb2)
           cb1Ptr should not equal cb2Ptr
 
           val cb1Rec = microVM.nativeCallHelper.addrToRec(cb1Ptr)
@@ -142,84 +142,85 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
           cb1Rec.cookie shouldBe 84L
           cb2Rec.cookie shouldBe 126L
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@one_level_test2.v1.entry.trap" => {
-          val Seq(fp, rv1, rv2, cb1, cb2) = ca.dumpKeepalives(st, 0)
+          val Seq(fp: MuUFPValue, rv1: MuDoubleValue, rv2: MuDoubleValue, cb1: MuUFPValue, cb2: MuUFPValue) =
+            ctx.dumpKeepalives(st, 0)
 
-          ca.toPointer(fp) shouldEqual nativeFuncAddr
-          ca.toDouble(rv1) shouldEqual 25.0
-          ca.toDouble(rv2) shouldEqual 25.0
+          ctx.handleToFP(fp) shouldEqual nativeFuncAddr
+          ctx.handleToDouble(rv1) shouldEqual 25.0
+          ctx.handleToDouble(rv2) shouldEqual 25.0
 
-          val cb1Ptr = ca.toPointer(cb1)
-          val cb2Ptr = ca.toPointer(cb2)
+          val cb1Ptr = ctx.handleToFP(cb1)
+          val cb2Ptr = ctx.handleToFP(cb2)
 
           microVM.nativeCallHelper.addrToRec should not contain cb1Ptr
           microVM.nativeCallHelper.addrToRec should not contain cb2Ptr
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
       }
     }
 
     callbackCalled shouldBe 4
 
-    ca.close()
+    ctx.closeContext()
   }
 
   "The expose and unexpose API calls" should "allow a native function to call it" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val hCBF = ca.putFunction("@square")
-    val hCok = ca.putInt("@i64", 168L)
-    val hCB = ca.expose(hCBF, Flag("#DEFAULT"), hCok)
-    val hCBAddr = ca.toPointer(hCB)
+    val hCBF = ctx.handleFromFunc("@square")
+    val hCok = ctx.handleFromInt64(168L)
+    val hCB = ctx.expose(hCBF, Flag("#DEFAULT"), hCok)
+    val hCBAddr = ctx.handleToFP(hCB)
     println("Callback address: 0x%x".format(hCBAddr))
     hCBAddr should not be 0L
 
     val nativeFuncAddr = libCallbacktest.getSymbolAddress("one_level")
     nativeFuncAddr should not be 0L
 
-    val hFP = ca.putPointer("@one_level.fp", nativeFuncAddr)
+    val hFP = ctx.handleFromFP("@one_level.fp", nativeFuncAddr)
 
-    val nativeFuncGlobal = ca.putGlobal("@one_level.global")
-    ca.store(MemoryOrder.NOT_ATOMIC, nativeFuncGlobal, hFP)
+    val nativeFuncGlobal = ctx.handleFromGlobal("@one_level.global")
+    ctx.store(MemoryOrder.NOT_ATOMIC, nativeFuncGlobal, hFP)
 
-    val muFunc = ca.putFunction("@one_level_test3")
+    val muFunc = ctx.handleFromFunc("@one_level_test3")
 
     var callbackCalled: Int = 0
 
-    testFunc(ca, muFunc, Seq(hCB)) { (ca, th, st, wp) =>
-      ca.nameOf(ca.currentInstruction(st, 0)) match {
+    testFunc(ctx, muFunc, Seq(hCB)) { (ctx, th, st, wp) =>
+      ctx.nameOf(ctx.curInst(st, 0)) match {
         case "@square.v1.entry.trap" => {
-          val Seq(value, cok) = ca.dumpKeepalives(st, 0)
+          val Seq(value: MuDoubleValue, cok) = ctx.dumpKeepalives(st, 0)
 
-          ca.toDouble(value) shouldBe (callbackCalled match {
+          ctx.handleToDouble(value) shouldBe (callbackCalled match {
             case 0 => 3.0
             case 1 => 4.0
           })
 
-          ca.toInt(cok).toLong shouldBe 168L
+          ctx.handleToUInt(cok.asInstanceOf[MuIntValue]).toLong shouldBe 168L
 
           callbackCalled += 1
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@one_level_test3.v1.entry.pretrap" => {
-          val Seq(fp, cb) = ca.dumpKeepalives(st, 0)
+          val Seq(fp: MuUFPValue, cb: MuUFPValue) = ctx.dumpKeepalives(st, 0)
 
-          ca.toPointer(fp) shouldEqual nativeFuncAddr
-          ca.toPointer(cb) shouldEqual hCBAddr
+          ctx.handleToFP(fp) shouldEqual nativeFuncAddr
+          ctx.handleToFP(cb) shouldEqual hCBAddr
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@one_level_test3.v1.entry.trap" => {
-          val Seq(fp, rv) = ca.dumpKeepalives(st, 0)
+          val Seq(fp: MuUFPValue, rv: MuDoubleValue) = ctx.dumpKeepalives(st, 0)
 
-          ca.toPointer(fp) shouldEqual nativeFuncAddr
-          ca.toDouble(rv) shouldEqual 25.0
+          ctx.handleToFP(fp) shouldEqual nativeFuncAddr
+          ctx.handleToDouble(rv) shouldEqual 25.0
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
       }
 
@@ -227,17 +228,17 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
 
     callbackCalled shouldBe 2
 
-    ca.unexpose(Flag("#DEFAULT"), hCB)
+    ctx.unexpose(Flag("#DEFAULT"), hCB)
     microVM.nativeCallHelper.addrToRec should not contain hCBAddr
 
-    ca.close()
+    ctx.closeContext()
   }
 
   "The exposing definition" should "allow multi-level nested/recursive Mu-native calls" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val hPongFP = ca.putExpFunc("@pong.exposed")
-    val pongAddr = ca.toPointer(hPongFP)
+    val hPongFP = ctx.handleFromExpose("@pong.exposed")
+    val pongAddr = ctx.handleToFP(hPongFP)
     println("Exposed Mu func (pong) addr: 0x%x".format(pongAddr))
     pongAddr should not be 0L
 
@@ -245,19 +246,19 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
     println("Native func (ping) addr: 0x%x".format(pingAddr))
     pingAddr should not be 0L
 
-    val hPingFP = ca.putPointer("@PingPong.fp", pingAddr)
+    val hPingFP = ctx.handleFromFP("@PingPong.fp", pingAddr)
 
-    val hPongTest = ca.putFunction("@pong_test")
-    val initialV = ca.putInt("@i32", 10)
+    val hPongTest = ctx.handleFromFunc("@pong_test")
+    val initialV = ctx.handleFromInt32(10)
 
     var pongCalled: Int = 0
 
-    testFunc(ca, hPongTest, Seq(initialV, hPingFP)) { (ca, th, st, wp) =>
-      ca.nameOf(ca.currentInstruction(st, 0)) match {
+    testFunc(ctx, hPongTest, Seq(initialV, hPingFP)) { (ctx, th, st, wp) =>
+      ctx.nameOf(ctx.curInst(st, 0)) match {
         case "@pong.v1.entry.entrytrap" => {
-          val Seq(v, peer) = ca.dumpKeepalives(st, 0)
-          val vInt = ca.toInt(v).toInt
-          val peerAddr = ca.toPointer(peer)
+          val Seq(v: MuIntValue, peer: MuUFPValue) = ctx.dumpKeepalives(st, 0)
+          val vInt = ctx.handleToUInt(v).toInt
+          val peerAddr = ctx.handleToFP(peer)
 
           pongCalled += 1
 
@@ -272,14 +273,14 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
             case 6 => 0
           })
 
-          ca.toPointer(peer) shouldEqual pingAddr
+          ctx.handleToFP(peer) shouldEqual pingAddr
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@pong.v1.not_zero.resptrap" => {
-          val Seq(v, resp) = ca.dumpKeepalives(st, 0)
-          val vInt = ca.toInt(v).toInt
-          val respInt = ca.toInt(resp).toInt
+          val Seq(v: MuIntValue, resp: MuIntValue) = ctx.dumpKeepalives(st, 0)
+          val vInt = ctx.handleToUInt(v).toInt
+          val respInt = ctx.handleToUInt(resp).toInt
 
           respInt shouldBe (vInt match {
             case 10 => 362880
@@ -289,33 +290,33 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
             case 2  => 1
           })
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@pong_test.v1.entry.entrytrap" => {
-          val Seq(v, peer) = ca.dumpKeepalives(st, 0)
+          val Seq(v: MuIntValue, peer: MuUFPValue) = ctx.dumpKeepalives(st, 0)
 
-          ca.toInt(v).toInt shouldEqual 10
-          ca.toPointer(peer) shouldEqual pingAddr
+          ctx.handleToUInt(v).toInt shouldEqual 10
+          ctx.handleToFP(peer) shouldEqual pingAddr
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case "@pong_test.v1.entry.exittrap" => {
-          val Seq(rv) = ca.dumpKeepalives(st, 0)
+          val Seq(rv) = ctx.dumpKeepalives(st, 0)
 
-          ca.toInt(rv).toInt shouldEqual 3628800
+          ctx.handleToUInt(rv.asInstanceOf[MuIntValue]).toInt shouldEqual 3628800
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
       }
     }
 
     pongCalled shouldBe 6
 
-    ca.close()
+    ctx.closeContext()
   }
 
   "The Mu micro VM" should "be able to swap between stacks with native frames" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
     val giverAddr = libCallbacktest.getSymbolAddress("giver")
     println("Native func (giver) addr: 0x%x".format(giverAddr))
@@ -325,39 +326,39 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
     println("Native func (taker) addr: 0x%x".format(takerAddr))
     takerAddr should not be 0L
 
-    val hGiverFP = ca.putPointer("@giver.fp", giverAddr)
-    val hGiverGlobal = ca.putGlobal("@giver.global")
-    ca.store(MemoryOrder.NOT_ATOMIC, hGiverGlobal, hGiverFP)
+    val hGiverFP = ctx.handleFromFP("@giver.fp", giverAddr)
+    val hGiverGlobal = ctx.handleFromGlobal("@giver.global")
+    ctx.store(MemoryOrder.NOT_ATOMIC, hGiverGlobal, hGiverFP)
 
-    val hTakerFP = ca.putPointer("@taker.fp", takerAddr)
-    val hTakerGlobal = ca.putGlobal("@taker.global")
-    ca.store(MemoryOrder.NOT_ATOMIC, hTakerGlobal, hTakerFP)
+    val hTakerFP = ctx.handleFromFP("@taker.fp", takerAddr)
+    val hTakerGlobal = ctx.handleFromGlobal("@taker.global")
+    ctx.store(MemoryOrder.NOT_ATOMIC, hTakerGlobal, hTakerFP)
 
-    val muFunc = ca.putFunction("@native_sched_test")
+    val muFunc = ctx.handleFromFunc("@native_sched_test")
 
-    testFunc(ca, muFunc, Seq()) { (ca, th, st, wp) =>
-      ca.nameOf(ca.currentInstruction(st, 0)) match {
+    testFunc(ctx, muFunc, Seq()) { (ctx, th, st, wp) =>
+      ctx.nameOf(ctx.curInst(st, 0)) match {
         case "@native_sched_test.v1.body.inspect" => {
-          val Seq(rv) = ca.dumpKeepalives(st, 0)
-          val rvInt = ca.toInt(rv)
+          val Seq(rv) = ctx.dumpKeepalives(st, 0)
+          val rvInt = ctx.handleToUInt(rv.asInstanceOf[MuIntValue])
           printf("@native_sched_test: rv = %d\n", rvInt)
-          
-          TrapRebindPassVoid(st)
+
+          returnFromTrap(st)
         }
         case "@take_from_mu.v1.entry.inspect" => {
-          val Seq(ss) = ca.dumpKeepalives(st, 0)
-          val rvInt = ca.toInt(ss)
+          val Seq(ss) = ctx.dumpKeepalives(st, 0)
+          val rvInt = ctx.handleToUInt(ss.asInstanceOf[MuIntValue])
           printf("@take_from_mu: ss = %d\n", rvInt)
-          
-          TrapRebindPassVoid(st)
+
+          returnFromTrap(st)
         }
         case "@native_sched_test.v1.exit.exittrap" => {
           try {
-            val Seq(rvTaker) = ca.dumpKeepalives(st, 0)
+            val Seq(rvTaker) = ctx.dumpKeepalives(st, 0)
 
-            ca.toInt(rvTaker).toInt shouldEqual 3628800
+            ctx.handleToUInt(rvTaker.asInstanceOf[MuIntValue]).toInt shouldEqual 3628800
 
-            TrapRebindPassVoid(st)
+            returnFromTrap(st)
           } catch {
             case e: Exception =>
               e.printStackTrace()
@@ -369,6 +370,6 @@ class UvmInterpreterNativeCallbackTests extends UvmBundleTesterBase {
       }
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 }

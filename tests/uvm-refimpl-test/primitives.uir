@@ -25,8 +25,20 @@
 .typedef @2xfloat   = vector <@float 2>
 .typedef @4xdouble  = vector <@double 4>
 
-.typedef @refi64        = ref<@i64>
-.typedef @irefi64       = iref<@i64>
+.typedef @refi8     = ref<@i8>
+.typedef @refi16    = ref<@i16>
+.typedef @refi32    = ref<@i32>
+.typedef @refi64    = ref<@i64>
+.typedef @reffloat  = ref<@float>
+.typedef @refdouble = ref<@double>
+
+.typedef @irefi8    = iref<@i8>
+.typedef @irefi16   = iref<@i16>
+.typedef @irefi32   = iref<@i32>
+.typedef @irefi64   = iref<@i64>
+.typedef @ireffloat = iref<@float>
+.typedef @irefdouble= iref<@double>
+
 .typedef @weakrefi64    = weakref<@i64>
 
 .typedef @refvoid       = ref<@void>
@@ -43,11 +55,13 @@
 .typedef @ptrfloat   = uptr<@float>
 .typedef @ptrdouble  = uptr<@double>
 .typedef @ptrptrvoid = uptr<@ptrvoid>
-.typedef @ptrfpi_i   = uptr<@fpi_i>
 
 .typedef @fpv_v     = ufuncptr<@v_v>
 .typedef @fpi_i     = ufuncptr<@i_i>
 .typedef @fpii_i    = ufuncptr<@ii_i>
+.typedef @ptrfpv_v  = uptr<@fpv_v>
+.typedef @ptrfpi_i  = uptr<@fpi_i>
+.typedef @ptrfpii_i = uptr<@fpii_i>
 
 .funcsig @v_v   = () -> ()
 

@@ -20,10 +20,10 @@ class UvmInterpreterNativeTests extends UvmBundleTesterBase {
     ROOT_LOGGER_NAME -> INFO,
     "uvm.refimpl.itpr" -> DEBUG)
 
-  preloadBundles("tests/uvm-refimpl-test/native-tests.uir")
+  preloadBundles("tests/uvm-refimpl-test/primitives.uir", "tests/uvm-refimpl-test/native-tests.uir")
 
   "The CCALL instruction" should "call the getpid() function" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
     val lib = Library.getDefault()
     val funcAddr = lib.getSymbolAddress("getpid")
@@ -33,58 +33,58 @@ class UvmInterpreterNativeTests extends UvmBundleTesterBase {
 
     println("actualPID = %d".format(actualPID))
 
-    val func = ca.putFunction("@getpidtest")
+    val func = ctx.handleFromFunc("@getpidtest")
 
-    val a0 = ca.putInt("@i64", funcAddr)
+    val a0 = ctx.handleFromInt64( funcAddr)
 
-    testFunc(ca, func, Seq(a0)) { (ca, th, st, wp) =>
-      val Seq(fp, rv) = ca.dumpKeepalives(st, 0)
+    testFunc(ctx, func, Seq(a0)) { (ctx, th, st, wp) =>
+      val Seq(fp, rv) = ctx.dumpKeepalives(st, 0)
 
       fp.vb.asPointer shouldEqual funcAddr
       rv.vb.asSInt(32) shouldEqual actualPID
 
-      TrapRebindPassVoid(st)
+      returnFromTrap(st)
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 
   "The CCALL instruction" should "call the write() function" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
     val lib = Library.getDefault()
     val funcAddr = lib.getSymbolAddress("write")
 
-    val func = ca.putFunction("@writetest")
+    val func = ctx.handleFromFunc("@writetest")
 
-    val a0 = ca.putPointer("@write_fp", funcAddr)
+    val a0 = ctx.handleFromFP("@write_fp", funcAddr)
 
-    testFunc(ca, func, Seq(a0)) { (ca, th, st, wp) =>
-      val Seq(fp, rv, buf, bufV0P) = ca.dumpKeepalives(st, 0)
+    testFunc(ctx, func, Seq(a0)) { (ctx, th, st, wp) =>
+      val Seq(fp, rv, buf, bufV0P) = ctx.dumpKeepalives(st, 0)
 
       fp.vb.asPointer shouldEqual funcAddr
       rv.vb.asSInt(64) shouldEqual 6
 
-      TrapRebindPassVoid(st)
+      returnFromTrap(st)
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 
   "The CCALL instruction" should "call the memcpy() function" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
     val lib = Library.getDefault()
     val funcAddr = lib.getSymbolAddress("memcpy")
 
-    val hgfp = ca.putGlobal("@FP_MEMCPY")
-    val hfp = ca.putPointer("@memcpy_fp", funcAddr)
-    ca.store(MemoryOrder.NOT_ATOMIC, hgfp, hfp)
+    val hgfp = ctx.handleFromGlobal("@FP_MEMCPY")
+    val hfp = ctx.handleFromFP("@memcpy_fp", funcAddr)
+    ctx.store(MemoryOrder.NOT_ATOMIC, hgfp, hfp)
 
-    val func = ca.putFunction("@memcpytest")
+    val func = ctx.handleFromFunc("@memcpytest")
 
-    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      val Seq(fp, rv, ob, b0, b1, b2, b3, b4, b5) = ca.dumpKeepalives(st, 0)
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      val Seq(fp, rv, ob, b0, b1, b2, b3, b4, b5) = ctx.dumpKeepalives(st, 0)
 
       fp.vb.asPointer shouldEqual funcAddr
       rv.vb.asPointer shouldEqual ob.vb.asPointer
@@ -96,9 +96,9 @@ class UvmInterpreterNativeTests extends UvmBundleTesterBase {
       b4.vb.asSInt(8) shouldEqual 'o'
       b5.vb.asSInt(8) shouldEqual '\n'
 
-      TrapRebindPassVoid(st)
+      returnFromTrap(st)
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 }

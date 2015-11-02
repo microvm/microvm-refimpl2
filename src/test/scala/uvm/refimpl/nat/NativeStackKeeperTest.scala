@@ -12,12 +12,8 @@ import com.kenai.jffi.{ Type => JType }
 import uvm.FuncSig
 import uvm.{ Function => MFunc }
 import uvm.ir.textinput.ExtraMatchers
-import uvm.refimpl.itpr.BoxDouble
-import uvm.refimpl.itpr.BoxInt
-import uvm.refimpl.itpr.BoxPointer
-import uvm.types.TypeDouble
-import uvm.types.TypeInt
-import uvm.types.TypeUFuncPtr
+import uvm.refimpl.itpr._
+import uvm.types._
 
 class NativeStackKeeperTest extends FlatSpec with Matchers with ExtraMatchers {
   behavior of "NativeStackKeeper"
@@ -50,17 +46,16 @@ class NativeStackKeeperTest extends FlatSpec with Matchers with ExtraMatchers {
     autoClose(nsk) {
 
       val i32 = TypeInt(32)
-      val sig = FuncSig(i32, Seq(i32, i32))
+      val sig = FuncSig(Seq(i32, i32), Seq(i32))
 
       val box1 = BoxInt(3)
       val box2 = BoxInt(4)
-      val boxRv = BoxInt(-1)
 
-      val result = nsk.callNative(sig, addr, Seq(box1, box2), boxRv)
+      val result = nsk.callNative(sig, addr, Seq(box1, box2))
 
-      result shouldBe NativeCallResult.Return()
-
-      boxRv.value shouldBe 7
+      result shouldBeA[NativeCallResult.ReturnToMu] { its => 
+        its.maybeRvb shouldBe Some(BoxInt(7))
+      }
     }
   }
 
@@ -74,9 +69,9 @@ class NativeStackKeeperTest extends FlatSpec with Matchers with ExtraMatchers {
     autoClose(nsk) {
 
       val d = TypeDouble()
-      val dtdSig = FuncSig(d, Seq(d))
+      val dtdSig = FuncSig(Seq(d), Seq(d))
       val dtd = TypeUFuncPtr(dtdSig)
-      val sig = FuncSig(d, Seq(d, dtd))
+      val sig = FuncSig(Seq(d, dtd), Seq(d))
 
       val mockMuCallbackFunc = new MFunc()
       mockMuCallbackFunc.sig = dtdSig
@@ -87,44 +82,34 @@ class NativeStackKeeperTest extends FlatSpec with Matchers with ExtraMatchers {
 
       val b1 = BoxDouble(3.0)
       val b2 = BoxPointer(mockClosAddr)
-      val br = BoxDouble(-1.0)
 
-      val r1 = nsk.callNative(sig, addr, Seq(b1, b2), br)
+      val r1 = nsk.callNative(sig, addr, Seq(b1, b2))
 
       println("Hello. I received r1")
 
-      r1 shouldBeA[NativeCallResult.CallBack] { its =>
+      r1 shouldBeA[NativeCallResult.CallMu] { its =>
         its.func shouldBe mockMuCallbackFunc
         its.cookie shouldBe 42
         its.args.size shouldBe 1
-        its.args(0) shouldBeA[BoxDouble] {whose =>
-          whose.value shouldBe 3.0
-        }
-        
-        its.retBox shouldBeA[BoxDouble] { b =>
-          b.value = 9.0
-        }
+        its.args(0) shouldBe BoxDouble(3.0)
       }
       
-      val r2 = nsk.returnToCallBack()
+      val r2 = nsk.returnToNative(Some(BoxDouble(9.0)))
+      
       println("Hello. I received r2")
-      r2 shouldBeA[NativeCallResult.CallBack] { its =>
+      
+      r2 shouldBeA[NativeCallResult.CallMu] { its =>
         its.func shouldBe mockMuCallbackFunc
         its.cookie shouldBe 42
         its.args.size shouldBe 1
-        its.args(0) shouldBeA[BoxDouble] {whose =>
-          whose.value shouldBe 4.0
-        }
-        
-        its.retBox shouldBeA[BoxDouble] { b =>
-          b.value = 16.0
-        }
+        its.args(0) shouldBe BoxDouble(4.0)
       }      
-      val r3 = nsk.returnToCallBack()
+      
+      val r3 = nsk.returnToNative(Some(BoxDouble(16.0)))
+      
       println("Hello. I received r3")
-      r3 shouldBe NativeCallResult.Return()
-
-      br.value shouldBe 25.0
+      
+      r3 shouldBe NativeCallResult.ReturnToMu(Some(BoxDouble(25.0)))
     }
   }
 
@@ -138,9 +123,9 @@ class NativeStackKeeperTest extends FlatSpec with Matchers with ExtraMatchers {
     autoClose(nsk) {
 
       val d = TypeDouble()
-      val dtdSig = FuncSig(d, Seq(d))
+      val dtdSig = FuncSig(Seq(d), Seq(d))
       val dtd = TypeUFuncPtr(dtdSig)
-      val sig = FuncSig(d, Seq(d, dtd))
+      val sig = FuncSig(Seq(d, dtd), Seq(d))
 
       val clos = new Closure() {
         def invoke(buf: Buffer): Unit = {
@@ -159,11 +144,11 @@ class NativeStackKeeperTest extends FlatSpec with Matchers with ExtraMatchers {
       val b2 = BoxPointer(closHandle.getAddress)
       val br = BoxDouble(-1.0)
 
-      nsk.callNative(sig, addr, Seq(b1, b2), br)
+      val result = nsk.callNative(sig, addr, Seq(b1, b2))
 
       closHandle.dispose()
 
-      br.value shouldBe 25.0
+      result shouldBe NativeCallResult.ReturnToMu(Some(BoxDouble(25.0)))
     }
   }
 }

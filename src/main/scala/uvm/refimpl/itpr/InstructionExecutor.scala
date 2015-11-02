@@ -682,7 +682,6 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
         val addr = boxOf(callee).asInstanceOf[BoxPointer].addr
 
         val argBoxes = argList.map(boxOf)
-        val retBox = resultBox(0)
 
         val shouldIncrementPC = curStack.callNative(sig, addr, argBoxes)
         if (shouldIncrementPC) {
