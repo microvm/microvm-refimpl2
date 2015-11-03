@@ -1,11 +1,15 @@
 package uvm.refimpl.itpr
 
-import uvm.types._
-import uvm.ssavariables._
+import java.nio.charset.Charset
+
 import uvm.refimpl._
-import uvm.refimpl.mem.TypeSizes._
 import uvm.refimpl.mem.MemorySupport
-import AtomicRMWOptr._
+import uvm.refimpl.mem.Mutator
+import uvm.refimpl.mem.TypeSizes._
+import uvm.refimpl.mem.TypeSizes
+import uvm.ssavariables._
+import uvm.ssavariables.AtomicRMWOptr._
+import uvm.types._
 
 object OpHelper {
 
@@ -563,6 +567,40 @@ object MemoryOperations {
       expNum == actualNum
     }
     case _ => throw new UnimplementedOprationException("Futex of %d bit int is not supported".format(len))
+  }
+
+  val US_ASCII = Charset.forName("US-ASCII")
+
+  /**
+   * Read an ASCII string from the memory.
+   *
+   * @param loc A ref to a @uvm.meta.bytes object.
+   */
+  def bytesToStr(loc: Word)(implicit memorySupport: MemorySupport): String = {
+    // It is a hybrid<@i64 @i8> object. The length is determined by the fixed part. 
+    val len = memorySupport.loadLong(loc)
+    val bytes = new Array[Byte](len.toInt)
+    val begin = loc + TypeSizes.WORD_SIZE_BYTES
+    memorySupport.loadBytes(begin, bytes, 0, len, true)
+
+    val result = new String(bytes, US_ASCII)
+    result
+  }
+
+  /**
+   * Create a Mu @uvm.meta.bytes object to hold an ASCII string.
+   *
+   * @return The address of the allocated object.
+   */
+  def strToBytes(str: String)(implicit memorySupport: MemorySupport, mutator: Mutator): Word = {
+    val bytes = str.getBytes(US_ASCII)
+    val len = bytes.length
+    val loc = mutator.newHybrid(InternalTypes.BYTES, len)
+    memorySupport.storeLong(loc, bytes.length.toLong)
+    val begin = loc + TypeSizes.WORD_SIZE_BYTES
+    memorySupport.storeBytes(begin, bytes, 0, len, true)
+    
+    loc
   }
 }
 

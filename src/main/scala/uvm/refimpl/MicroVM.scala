@@ -42,6 +42,12 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
     globalBundle.typeNs.add(InternalTypes.VOID)
     globalBundle.typeNs.add(InternalTypes.BYTE)
     globalBundle.typeNs.add(InternalTypes.BYTE_ARRAY)
+    
+    // Types for the @uvm.meta.* common instructions.
+    globalBundle.typeNs.add(InternalTypes.BYTES)
+    globalBundle.typeNs.add(InternalTypes.BYTES_R)
+    globalBundle.typeNs.add(InternalTypes.REFS)
+    globalBundle.typeNs.add(InternalTypes.REFS_R)
   }
 
   /**

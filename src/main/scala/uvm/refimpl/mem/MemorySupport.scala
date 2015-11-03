@@ -129,8 +129,24 @@ class MemorySupport(val muMemorySize: Word) {
     storeI128(addr, desired, inMu)
     return oldVal
   }
-  
+
   def memset(addr: Word, size: Word, value: Byte): Unit = {
     theMemory.setMemory(addr, size, value)
+  }
+
+  def loadBytes(addr: Word, dest: Array[Byte], index: Int, len: Word, inMu: Boolean = true): Unit = {
+    assertInMuMemory(inMu, addr)
+    assertInMuMemory(inMu, addr + len - 1)
+    assert(index >= 0, "Index is negative")
+    assert(index + len <= dest.length, "array too small. dest.size=%d, len=%d".format(dest.size, len))
+    theMemory.get(addr, dest, 0, len.toInt)
+  }
+
+  def storeBytes(addr: Word, dest: Array[Byte], index: Int, len: Word, inMu: Boolean = true): Unit = {
+    assertInMuMemory(inMu, addr)
+    assertInMuMemory(inMu, addr + len - 1)
+    assert(index >= 0, "Index is negative")
+    assert(index + len <= dest.length, "array too small. dest.size=%d, len=%d".format(dest.size, len))
+    theMemory.put(addr, dest, 0, len.toInt)
   }
 }

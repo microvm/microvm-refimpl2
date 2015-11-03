@@ -18,12 +18,21 @@ object InternalTypes {
       i.name = Some(name)
       i
     }
+
+    def :=(idName: (Int, String)): T = {
+      val (id, name) = idName
+      i.id = id
+      i.name = Some(name)
+      i
+    }
   }
 
   def internal(name: String) = "@uvm.internal.types." + name
 
   val I1 = TypeInt(1) := internal("i1")
   val I6 = TypeInt(6) := internal("i6")
+  val I8 = TypeInt(6) := internal("i8")
+  val I16 = TypeInt(6) := internal("i16")
   val I32 = TypeInt(32) := internal("i32")
   val I52 = TypeInt(52) := internal("i52")
   val I64 = TypeInt(52) := internal("i64")
@@ -39,6 +48,11 @@ object InternalTypes {
   val STACK = TypeStackRef() := internal("stack")
   val THREAD = TypeThreadRef() := internal("thread")
   val TAGREF64 = TypeTagRef64() := internal("tagref64")
+
+  val BYTES = TypeHybrid(Seq(I64), I8) := (0x260, "@uvm.meta.bytes")
+  val BYTES_R = TypeRef(BYTES) := (0x261, "@uvm.meta.bytes_r")
+  val REFS = TypeHybrid(Seq(I64), REF_VOID) := (0x262, "@uvm.meta.refs")
+  val REFS_R = TypeRef(BYTES) := (0x263, "@uvm.meta.refs_r")
 }
 
 object InternalTypePool {
@@ -146,10 +160,28 @@ object TypeInferer {
         case TypeRef(t)  => Seq(ptrOf(t))
         case TypeIRef(t) => Seq(ptrOf(t))
       }
-      case "@uvm.native.unpin"      => Seq()
-      case "@uvm.native.expose"     => Seq(funcPtrOf(i.funcSigList(0)))
-      case "@uvm.native.unexpose"   => Seq()
-      case "@uvm.native.get_cookie" => Seq(I64)
+      case "@uvm.native.unpin"            => Seq()
+      case "@uvm.native.expose"           => Seq(funcPtrOf(i.funcSigList(0)))
+      case "@uvm.native.unexpose"         => Seq()
+      case "@uvm.native.get_cookie"       => Seq(I64)
+
+      case "@uvm.meta.id_of"              => Seq(I32)
+      case "@uvm.meta.name_of"            => Seq(BYTES_R)
+      case "@uvm.meta.load_bundle"        => Seq(BYTES_R)
+      case "@uvm.meta.load_hail"          => Seq(BYTES_R)
+
+      case "@uvm.meta.cur_func"           => Seq(I32)
+      case "@uvm.meta.cur_func_ver"       => Seq(I32)
+      case "@uvm.meta.cur_inst"           => Seq(I32)
+      case "@uvm.meta.dump_keepalives"    => Seq(REFS_R)
+
+      case "@uvm.meta.pop_frame"          => Seq()
+      case "@uvm.meta.push_frame"         => Seq()
+
+      case "@uvm.meta.enable_watchpoint"  => Seq()
+      case "@uvm.meta.disable_watchpoint" => Seq()
+
+      case "@uvm.meta.set_trap_handler"   => Seq()
     }
   }
 }

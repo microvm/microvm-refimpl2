@@ -17,7 +17,7 @@ import uvm.refimpl.nat.NativeCallResult
 trait CommInstExecutor extends InterpreterActions with ObjectPinner {
   import InterpreterThread.logger
 
-  protected def mutator: Mutator
+  implicit protected def mutator: Mutator
   implicit protected def memorySupport: MemorySupport
 
   override def interpretCurrentCommonInstruction(): Unit = {
@@ -311,6 +311,45 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
       case "@uvm.native.get_cookie" => {
         val cookie = topDefMu.cookie
         resultBox(0).asInstanceOf[BoxInt].value = OpHelper.trunc(cookie, 64)
+        continueNormally()
+      }
+
+      case "@uvm.meta.id_of" => {
+        val Seq(name) = argList
+        val nameStr = MemoryOperations.bytesToStr(boxOf(name).asInstanceOf[BoxRef].objRef)
+        val theID = microVM.idOf(nameStr)
+
+        resultBox(0).asInstanceOf[BoxInt].value = OpHelper.unprepare(theID, 32)
+
+        continueNormally()
+      }
+
+      case "@uvm.meta.name_of" => {
+        val Seq(theID) = argList
+        val idInt = boxOf(theID).asInstanceOf[BoxInt].value.toInt
+        val name = microVM.nameOf(idInt)
+        val bytesRef = MemoryOperations.strToBytes(name)
+
+        resultBox(0).asInstanceOf[BoxRef].objRef = bytesRef
+
+        continueNormally()
+      }
+
+      case "@uvm.meta.load_bundle" => {
+        val Seq(bundle) = argList
+        val bundleStr = MemoryOperations.bytesToStr(boxOf(bundle).asInstanceOf[BoxRef].objRef)
+
+        MetaOperations.loadBundle(bundleStr)
+
+        continueNormally()
+      }
+      
+      case "@uvm.meta.load_hail" => {
+        val Seq(hailScript) = argList
+        val hailStr = MemoryOperations.bytesToStr(boxOf(hailScript).asInstanceOf[BoxRef].objRef)
+
+        MetaOperations.loadHail(hailStr)
+
         continueNormally()
       }
 

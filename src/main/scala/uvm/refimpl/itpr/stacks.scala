@@ -258,6 +258,18 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
     }
   }
 
+  /**
+   * Return the n-th frame of the current stack.
+   */
+  def nthFrame(n: Int): InterpreterFrame = {
+    val dropped = frames.drop(n)
+    if (dropped.hasNext) {
+      dropped.next
+    } else {
+      throw new UvmRuntimeException("The stack %d only has %d frames, but the %d-th frame is requested.".format(id, n))
+    }
+  }
+
   /** Pop a frame. Part of the API. Also used by THROW */
   def popFrame(): Unit = {
     top match {
@@ -281,6 +293,16 @@ abstract class InterpreterFrame(val prev: Option[InterpreterFrame]) {
    * The state of the frame. Must be set when creating the frame.
    */
   var state: FrameState = _
+
+  /** ID of the current function. Return 0 for native frames. */
+  def curFuncID: Int
+
+  /** ID of the current function version Return 0 for native frames or undefined Mu frames. */
+  def curFuncVerID: Int
+
+  /** ID of the current instruction. Return 0 for native frames, undefined Mu frames, or a just-created frame. */
+  def curInstID: Int
+
 }
 
 object InterpreterFrame {
@@ -305,7 +327,11 @@ object InterpreterFrame {
   }
 }
 
-class NativeFrame(val func: Word, prev: Option[InterpreterFrame]) extends InterpreterFrame(prev)
+class NativeFrame(val func: Word, prev: Option[InterpreterFrame]) extends InterpreterFrame(prev) {
+  override def curFuncID: Int = 0
+  override def curFuncVerID: Int = 0
+  override def curInstID: Int = 0
+}
 
 abstract class MuFrame(val func: Function, prev: Option[InterpreterFrame]) extends InterpreterFrame(prev) {
   /**
@@ -354,6 +380,10 @@ class UndefinedMuFrame(func: Function, prev: Option[InterpreterFrame]) extends M
   var virtInst = VIRT_INST_NOT_STARTED
 
   override def scannableBoxes = boxes
+  
+  override def curFuncID: Int = func.id
+  override def curFuncVerID: Int = 0
+  override def curInstID: Int = 0
 
   def resumeNormally(args: Seq[ValueBox]): Boolean = {
     if (justCreated) {
@@ -447,6 +477,10 @@ class DefinedMuFrame(val savedStackPointer: Word, val funcVer: FuncVer, val cook
       edgeAssignedBoxes.put(lv.asInstanceOf[Parameter], ValueBox.makeBoxForType(ty))
     }
   }
+  
+  override def curFuncID: Int = func.id
+  override def curFuncVerID: Int = funcVer.id
+  override def curInstID: Int = if (justCreated) 0 else curInst.id
 
   def curInst: Instruction = try {
     curBB.insts(curInstIndex)

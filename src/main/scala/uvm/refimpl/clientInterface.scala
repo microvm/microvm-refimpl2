@@ -13,23 +13,24 @@ import scala.collection.mutable.ArrayBuffer
 import uvm.ssavariables.Flag
 import uvm.refimpl.itpr.{ HowToResume => ItprHowToResume }
 import scala.collection.mutable.Buffer
+import java.nio.charset.Charset
 
 object MuValue {
   def apply(ty: Type, vb: ValueBox): MuValue = (ty, vb) match {
-    case (t: TypeInt, v: BoxInt)           => MuIntValue(t, v)
-    case (t: TypeFloat, v: BoxFloat)       => MuFloatValue(t, v)
-    case (t: TypeDouble, v: BoxDouble)     => MuDoubleValue(t, v)
-    case (t: TypeRef, v: BoxRef)           => MuRefValue(t, v)
-    case (t: TypeIRef, v: BoxIRef)         => MuIRefValue(t, v)
-    case (t: TypeStruct, v: BoxSeq)        => MuStructValue(t, v)
-    case (t: TypeArray, v: BoxSeq)         => MuArrayValue(t, v)
-    case (t: TypeVector, v: BoxSeq)        => MuVectorValue(t, v)
-    case (t: TypeFuncRef, v: BoxFunc)      => MuFuncRefValue(t, v)
-    case (t: TypeThreadRef, v: BoxThread)  => MuThreadRefValue(t, v)
-    case (t: TypeStackRef, v: BoxStack)    => MuStackRefValue(t, v)
+    case (t: TypeInt, v: BoxInt) => MuIntValue(t, v)
+    case (t: TypeFloat, v: BoxFloat) => MuFloatValue(t, v)
+    case (t: TypeDouble, v: BoxDouble) => MuDoubleValue(t, v)
+    case (t: TypeRef, v: BoxRef) => MuRefValue(t, v)
+    case (t: TypeIRef, v: BoxIRef) => MuIRefValue(t, v)
+    case (t: TypeStruct, v: BoxSeq) => MuStructValue(t, v)
+    case (t: TypeArray, v: BoxSeq) => MuArrayValue(t, v)
+    case (t: TypeVector, v: BoxSeq) => MuVectorValue(t, v)
+    case (t: TypeFuncRef, v: BoxFunc) => MuFuncRefValue(t, v)
+    case (t: TypeThreadRef, v: BoxThread) => MuThreadRefValue(t, v)
+    case (t: TypeStackRef, v: BoxStack) => MuStackRefValue(t, v)
     case (t: TypeTagRef64, v: BoxTagRef64) => MuTagRef64Value(t, v)
-    case (t: TypeUPtr, v: BoxPointer)      => MuUPtrValue(t, v)
-    case (t: TypeUFuncPtr, v: BoxPointer)  => MuUFPValue(t, v)
+    case (t: TypeUPtr, v: BoxPointer) => MuUPtrValue(t, v)
+    case (t: TypeUFuncPtr, v: BoxPointer) => MuUFPValue(t, v)
     case (t, v) => {
       throw new IllegalArgumentException("Improper type-box pair: %s,%s".format(t.toString, vb.getClass.getSimpleName))
     }
@@ -91,12 +92,19 @@ trait UndefinedFunctionHandler {
   def handleUndefinedFunction(functionID: Int): Unit
 }
 
+object MuCtx {
+  val US_ASCII = Charset.forName("US-ASCII")
+}
+
 /**
  * A client context. The main part of the API. It keeps thread-local states, including a set of handles. It provides
  * operations on the Mu VM.
  */
-class MuCtx(mutator: Mutator)(
+class MuCtx(_mutator: Mutator)(
     implicit microVM: MicroVM, memorySupport: MemorySupport) extends ObjectPinner {
+
+  implicit def mutator = _mutator
+
   val handles = new HashSet[MuValue]()
 
   val pinSet = new ArrayBuffer[Word]
@@ -116,21 +124,23 @@ class MuCtx(mutator: Mutator)(
 
   /** Load a Mu IR bundle */
   def loadBundle(r: Reader): Unit = {
-    val bundle = microVM.irReader.read(r, microVM.globalBundle)
-    microVM.addBundle(bundle)
+    MetaOperations.loadBundle(r)
   }
 
   /** Load a Mu IR bundle */
   def loadBundle(s: String): Unit = {
-    val bundle = microVM.irReader.read(s, microVM.globalBundle)
-    microVM.addBundle(bundle)
+    MetaOperations.loadBundle(s)
   }
 
   /** Load a HAIL script */
-  def loadHail(r: Reader): Unit = ???
+  def loadHail(r: Reader): Unit = {
+    MetaOperations.loadHail(r)
+  }
 
   /** Load a HAIL script */
-  def loadHail(s: String): Unit = ???
+  def loadHail(s: String): Unit = {
+    MetaOperations.loadHail(s)
+  }
 
   private def addHandle[T <: MuValue](h: T): T = {
     handles.add(h)
@@ -244,11 +254,11 @@ class MuCtx(mutator: Mutator)(
 
   /** Compare general reference types for equality. */
   def refEq(lhs: MuGenRefValue, rhs: MuGenRefValue): Boolean = (lhs, rhs) match {
-    case (l: MuRefValue, r: MuRefValue)             => l.vb.objRef == r.vb.objRef
-    case (l: MuIRefValue, r: MuIRefValue)           => l.vb.oo == r.vb.oo
-    case (l: MuFuncRefValue, r: MuFuncRefValue)     => l.vb.func == r.vb.func
+    case (l: MuRefValue, r: MuRefValue) => l.vb.objRef == r.vb.objRef
+    case (l: MuIRefValue, r: MuIRefValue) => l.vb.oo == r.vb.oo
+    case (l: MuFuncRefValue, r: MuFuncRefValue) => l.vb.func == r.vb.func
     case (l: MuThreadRefValue, r: MuThreadRefValue) => l.vb.thread == r.vb.thread
-    case (l: MuStackRefValue, r: MuStackRefValue)   => l.vb.stack == r.vb.stack
+    case (l: MuStackRefValue, r: MuStackRefValue) => l.vb.stack == r.vb.stack
     case (l, r) => {
       throw new IllegalArgumentException("Bad types for refEq: %s and %s".format(
         l.showTy, r.showTy))
@@ -326,8 +336,8 @@ class MuCtx(mutator: Mutator)(
     val nt = microVM.globalBundle.typeNs(newType)
 
     val nh = (opnd, nt) match {
-      case (MuRefValue(ty, vb), ty2 @ TypeRef(_))         => MuRefValue(ty2, vb)
-      case (MuIRefValue(ty, vb), ty2 @ TypeIRef(_))       => MuIRefValue(ty2, vb)
+      case (MuRefValue(ty, vb), ty2 @ TypeRef(_)) => MuRefValue(ty2, vb)
+      case (MuIRefValue(ty, vb), ty2 @ TypeIRef(_)) => MuIRefValue(ty2, vb)
       case (MuFuncRefValue(ty, vb), ty2 @ TypeFuncRef(_)) => MuFuncRefValue(ty2, vb)
       case _ => {
         throw new IllegalArgumentException("Bad types for refcast: opnd:%s, newType:%s".format(
@@ -431,7 +441,7 @@ class MuCtx(mutator: Mutator)(
 
   /** Perform compare exchange on a location. */
   def cmpXchg(ordSucc: MemoryOrder, ordFail: MemoryOrder, weak: Boolean,
-              loc: MuIRefValue, expected: MuValue, desired: MuValue): (MuValue, Boolean) = {
+    loc: MuIRefValue, expected: MuValue, desired: MuValue): (MuValue, Boolean) = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
     }
@@ -485,7 +495,7 @@ class MuCtx(mutator: Mutator)(
     val sv = getStackNotNull(stack)
     val itprHtr = htr match {
       case HowToResume.PassValues(values) => ItprHowToResume.PassValues(values.map(_.vb))
-      case HowToResume.ThrowExc(exc)      => ItprHowToResume.ThrowExc(exc.vb.objRef)
+      case HowToResume.ThrowExc(exc) => ItprHowToResume.ThrowExc(exc.vb.objRef)
     }
     val thr = microVM.threadStackManager.newThread(sv, itprHtr)
 
@@ -500,31 +510,10 @@ class MuCtx(mutator: Mutator)(
     sv.kill()
   }
 
-  private def nthFrame(stack: InterpreterStack, n: Int): InterpreterFrame = {
-    val it = stack.frames
-    for (i <- (0 until n)) {
-      if (it.hasNext) {
-        it.next()
-      } else {
-        throw new UvmRuntimeException("The stack %d only has %d frames, but the %d-th frame is requested.".format(i, n))
-      }
-    }
-    if (it.hasNext) {
-      it.next()
-    } else {
-      throw new UvmRuntimeException("The stack %d only has %d frames, but the %d-th frame is requested.".format(n, n))
-    }
-
-  }
-
   /** Get the ID of the current function of a frame. Return 0 for native frames. */
   def curFunc(stack: MuStackRefValue, frame: Int): Int = {
     val sv = getStackNotNull(stack)
-    val fr = nthFrame(sv, frame)
-    fr match {
-      case f: NativeFrame => 0
-      case f: MuFrame     => f.func.id
-    }
+    sv.nthFrame(frame).curFuncID
   }
 
   /**
@@ -533,12 +522,7 @@ class MuCtx(mutator: Mutator)(
    */
   def curFuncVer(stack: MuStackRefValue, frame: Int): Int = {
     val sv = getStackNotNull(stack)
-    val fr = nthFrame(sv, frame)
-    fr match {
-      case f: NativeFrame      => 0
-      case f: UndefinedMuFrame => 0
-      case f: DefinedMuFrame   => f.funcVer.id
-    }
+    sv.nthFrame(frame).curFuncVerID
   }
 
   /**
@@ -547,18 +531,13 @@ class MuCtx(mutator: Mutator)(
    */
   def curInst(stack: MuStackRefValue, frame: Int): Int = {
     val sv = getStackNotNull(stack)
-    val fr = nthFrame(sv, frame)
-    fr match {
-      case f: NativeFrame      => 0
-      case f: UndefinedMuFrame => 0
-      case f: DefinedMuFrame   => if (f.justCreated) 0 else f.curInst.id
-    }
+    sv.nthFrame(frame).curInstID
   }
 
   /** Dump keep-alive variables of the current instruction. */
   def dumpKeepalives(stack: MuStackRefValue, frame: Int): Seq[MuValue] = {
     val sv = getStackNotNull(stack)
-    val fr = nthFrame(sv, frame)
+    val fr = sv.nthFrame(frame)
     fr match {
       case f: NativeFrame => {
         throw new UvmRefImplException("Attempt to dump keepalives from a native frame. Funciton 0x%x".format(f.func))
@@ -681,10 +660,10 @@ class MuCtx(mutator: Mutator)(
 
   def pin(loc: MuValue): MuUPtrValue = {
     val (objTy, (objRef, offset)) = loc match {
-      case MuRefValue(t, vb)  => (t, (vb.objRef, 0L))
+      case MuRefValue(t, vb) => (t, (vb.objRef, 0L))
       case MuIRefValue(t, vb) => (t, vb.oo)
       case _ => {
-        throw new IllegalArgumentException("loc must be ref or iref. Found %s".format())
+        throw new IllegalArgumentException("loc must be ref or iref. Found %s".format(loc.ty))
       }
     }
     pin(objRef)
@@ -695,10 +674,10 @@ class MuCtx(mutator: Mutator)(
 
   def unpin(loc: MuValue): Unit = {
     val (objTy, objRef) = loc match {
-      case MuRefValue(t, vb)  => (t, vb.objRef)
+      case MuRefValue(t, vb) => (t, vb.objRef)
       case MuIRefValue(t, vb) => (t, vb.objRef)
       case _ => {
-        throw new IllegalArgumentException("loc must be ref or iref. Found %s".format())
+        throw new IllegalArgumentException("loc must be ref or iref. Found %s".format(loc.ty))
       }
     }
     unpin(objRef)
@@ -748,14 +727,18 @@ object RichMuCtx {
     def handleFromInt52(num: BigInt) = ctx.handleFromInt(num, 52)
     def handleFromInt64(num: BigInt) = ctx.handleFromInt(num, 64)
     def deleteValue(vs: MuValue*) = vs.foreach(ctx.deleteValue)
-    
+
     class DelayedDisposer(garbageList: Buffer[MuValue]) {
-      def apply[T<:MuValue](v: T): T = {
+      def apply[T <: MuValue](v: T): T = {
+        garbageList += v
+        v
+      }
+      def <<[T <: MuValue](v: T): T = {
         garbageList += v
         v
       }
     }
-    
+
     def autoDispose[T](f: DelayedDisposer => T) = {
       val garbages = ArrayBuffer[MuValue]()
       val dd = new DelayedDisposer(garbages)
@@ -763,7 +746,7 @@ object RichMuCtx {
       garbages.foreach(ctx.deleteValue)
       rv
     }
-    
+
     def loadInt(ord: MemoryOrder, loc: MuIRefValue) = ctx.load(ord, loc).asInstanceOf[MuIntValue]
     def loadFloat(ord: MemoryOrder, loc: MuIRefValue) = ctx.load(ord, loc).asInstanceOf[MuFloatValue]
     def loadDouble(ord: MemoryOrder, loc: MuIRefValue) = ctx.load(ord, loc).asInstanceOf[MuDoubleValue]
@@ -785,5 +768,24 @@ object RichMuCtx {
     def storeStackRef(ord: MemoryOrder, loc: MuIRefValue, newval: MuValue) = ctx.store(ord, loc, newval).asInstanceOf[MuStackRefValue]
     def storeTagRef64(ord: MemoryOrder, loc: MuIRefValue, newval: MuValue) = ctx.store(ord, loc, newval).asInstanceOf[MuTagRef64Value]
     def storeVector(ord: MemoryOrder, loc: MuIRefValue, newval: MuValue) = ctx.store(ord, loc, newval).asInstanceOf[MuVectorValue]
+
+    def bytesToStr(bytes: MuRefValue): String = ctx.autoDispose { x =>
+      val hIR = x << ctx.getIRef(bytes)
+      val hFix = x << ctx.getFieldIRef(hIR, 0)
+      val hLen = x << ctx.loadInt(NOT_ATOMIC, hFix)
+      val len = ctx.handleToSInt(hLen).toLong
+      val hVar = x << ctx.getVarPartIRef(hIR)
+
+      val byteValues = for (i <- 0L until len) yield ctx.autoDispose { x =>
+        val hI = x << ctx.handleFromInt64(i)
+        val hVarI = x << ctx.shiftIRef(hVar, hI)
+        val hByte = x << ctx.loadInt(NOT_ATOMIC, hVarI)
+        val byte = ctx.handleToSInt(hByte).toByte
+        byte
+      }
+      val bytesArray = byteValues.toArray
+      val str = new String(bytesArray, MuCtx.US_ASCII)
+      str
+    }
   }
 }

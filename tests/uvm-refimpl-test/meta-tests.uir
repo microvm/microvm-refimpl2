@@ -1,0 +1,31 @@
+// require "primitives.uir"
+
+.typedef @foo = int<64>
+
+.const @I8_AT   <@i8> = 64
+.const @I8_f    <@i8> = 102
+.const @I8_o    <@i8> = 111
+
+.funcdef @id_name VERSION %v1 <@v_v> {
+    %entry():
+        %name_o = NEWHYBRID <@uvm.meta.bytes @i64> @I64_4
+        %name_i = GETIREF <@uvm.meta.bytes> %name_o
+        %name_f = GETFIELDIREF <@uvm.meta.bytes 0> %name_i
+        [%store_len] STORE <@i64> %name_f @I64_4
+        %name_v = GETVARPARTIREF <@uvm.meta.bytes> %name_i
+
+        %name_v0 = SHIFTIREF <@i8 @i64> %name_v @I64_0
+        [%store_0] STORE <@i8> %name_v0 @I8_AT
+        %name_v1 = SHIFTIREF <@i8 @i64> %name_v @I64_1
+        [%store_1] STORE <@i8> %name_v1 @I8_f
+        %name_v2 = SHIFTIREF <@i8 @i64> %name_v @I64_2
+        [%store_2] STORE <@i8> %name_v2 @I8_o
+        %name_v3 = SHIFTIREF <@i8 @i64> %name_v @I64_3
+        [%store_3] STORE <@i8> %name_v3 @I8_o
+
+        %id = COMMINST @uvm.meta.id_of (%name_o)
+        %name = COMMINST @uvm.meta.name_of (%id)
+
+        [%trap] TRAP <> KEEPALIVE(%id %name)
+        COMMINST @uvm.thread_exit
+}
