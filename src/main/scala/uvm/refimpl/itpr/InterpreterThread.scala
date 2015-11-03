@@ -40,7 +40,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
 
   htr match {
     case HowToResume.PassValues(values) => rebindPassValues(initialStack, values)
-    case HowToResume.ThrowExc(exc) => catchException(exc)
+    case HowToResume.ThrowExc(exc)      => catchException(exc)
   }
 }
 
@@ -87,7 +87,7 @@ trait InterpreterThreadState {
   protected def ctx = stack match {
     case None => "(Thred not bound to stack): "
     case Some(s) => s.top match {
-      case f: NativeFrame => "TID %d, Native frame for function 0x%x: ".format(id, f.func)
+      case f: NativeFrame      => "TID %d, Native frame for function 0x%x: ".format(id, f.func)
       case f: UndefinedMuFrame => "TID %d, Function %s (not defined): ".format(id, f.func.repr)
       case f: DefinedMuFrame => {
         val ix = f.curInstIndex
@@ -96,7 +96,7 @@ trait InterpreterThreadState {
         } else {
           "TID %d, FuncVer %s, BB %s, Inst(%d): %s (%s): ".format(id, f.funcVer.repr, curBB.repr, ix, curInst.repr, curInst match {
             case ci: InstCommInst => ci.inst.name.get
-            case _ => curInst.getClass.getSimpleName()
+            case _                => curInst.getClass.getSimpleName()
           })
         }
       }
@@ -106,11 +106,14 @@ trait InterpreterThreadState {
   /** Get the value box of an SSA variable in the current stack. */
   protected def boxOf(v: SSAVariable): ValueBox = v match {
     case g: GlobalVariable => microVM.constantPool.getGlobalVarBox(g)
-    case l: LocalVariable => topDefMu.boxes(l)
+    case l: LocalVariable  => topDefMu.boxes(l)
   }
 
   /** Get the edge-assigned value box of an edge-assigned instruction in the current stack. */
   protected def edgeAssignedBoxOf(p: Parameter): ValueBox = topDefMu.edgeAssignedBoxes(p)
+
+  /** Results (SSA Variables) of the current instruction. */
+  protected def results = curInst.results
 
   /** Get the result boxes of the current instruction. */
   protected def resultBoxes: Seq[ValueBox] = curInst.results.map(boxOf)
@@ -154,7 +157,7 @@ trait InterpreterActions extends InterpreterThreadState {
       curInst.asInstanceOf[InstCommInst].inst.name.get)
 
     logger.debug(ctx + "Setting futex return value")
-    writeIntResult(32, rv, resultBoxes(0))
+    results(0).asInt32 = rv
     continueNormally()
   }
 
@@ -165,7 +168,7 @@ trait InterpreterActions extends InterpreterThreadState {
     topMu.justCreated = false
 
     topMu match {
-      case f: DefinedMuFrame => interpretCurrentInstruction()
+      case f: DefinedMuFrame   => interpretCurrentInstruction()
       case f: UndefinedMuFrame => executeUndefinedMuFrame()
     }
   }
@@ -281,7 +284,7 @@ trait InterpreterActions extends InterpreterThreadState {
         maybeDestClause match {
           case Some(dc) => (f, dc)
           case None => f.prev match {
-            case None => throw new UvmRuntimeException(ctx + "Exception is thrown out of the bottom frame.")
+            case None       => throw new UvmRuntimeException(ctx + "Exception is thrown out of the bottom frame.")
             case Some(prev) => unwindUntilCatchable(prev)
           }
 
@@ -312,10 +315,10 @@ trait InterpreterActions extends InterpreterThreadState {
    */
   protected def maybeFindExceptionHandler(inst: Instruction): Option[DestClause] = {
     inst match {
-      case i: InstCall => i.excClause.map(_.exc)
-      case i: InstTrap => i.excClause.map(_.exc)
+      case i: InstCall       => i.excClause.map(_.exc)
+      case i: InstTrap       => i.excClause.map(_.exc)
       case i: InstWatchPoint => i.exc
-      case i: InstSwapStack => i.excClause.map(_.exc)
+      case i: InstSwapStack  => i.excClause.map(_.exc)
       case _ => {
         throw new UvmRefImplException(ctx + "Non-OSR point instruction %s (%s) is in a stack frame when an exception is thrown.".format(inst.repr, inst.getClass.getName))
       }
@@ -323,25 +326,12 @@ trait InterpreterActions extends InterpreterThreadState {
   }
 
   // Misc helper
-
-  protected def writeBooleanResult(result: Boolean, box: ValueBox): Unit = {
-    box.asInstanceOf[BoxInt].value = if (result) 1 else 0
-  }
-
-  protected def writeIntResult(len: Int, result: BigInt, box: ValueBox): Unit = {
-    box.asInstanceOf[BoxInt].value = OpHelper.unprepare(result, len)
-  }
-
   protected def incrementBoxIRefOrPointer(ptr: Boolean, src: SSAVariable, dst: SSAVariable, addrIncr: Word): Unit = {
     if (ptr) {
-      val sb = boxOf(src).asInstanceOf[BoxPointer]
-      val db = boxOf(dst).asInstanceOf[BoxPointer]
-      db.addr = sb.addr + addrIncr
+      dst.asPtr = src.asPtr + addrIncr
     } else {
-      val sb = boxOf(src).asInstanceOf[BoxIRef]
-      val db = boxOf(dst).asInstanceOf[BoxIRef]
-      db.objRef = sb.objRef
-      db.offset = sb.offset + addrIncr
+      val (sb,so) = src.asIRef
+      dst.asIRef = (sb, so + addrIncr) 
     }
   }
 
@@ -389,12 +379,10 @@ trait InterpreterActions extends InterpreterThreadState {
   }
 
   /** Rebind to a stack and throw an exception on that stack. */
-  protected def rebindThrowExc(newStack: InterpreterStack, exc: ValueBox): Unit = {
+  protected def rebindThrowExc(newStack: InterpreterStack, exc: Word): Unit = {
     rebind(newStack)
 
-    val excObjRef = exc.asInstanceOf[BoxRef].objRef
-
-    catchException(excObjRef)
+    catchException(exc)
   }
 
   // Trap and watchpoint handling
@@ -426,7 +414,7 @@ trait InterpreterActions extends InterpreterThreadState {
             rebindPassValues(ns, values.map(_.vb))
           }
           case ClientHowToResume.ThrowExc(exc) => {
-            rebindThrowExc(ns, exc.vb)
+            rebindThrowExc(ns, exc.vb.objRef)
           }
         }
       }
@@ -447,7 +435,7 @@ trait InterpreterActions extends InterpreterThreadState {
    */
   protected def branchToExcDestOr(excClause: Option[ExcClause])(f: => Unit): Unit = {
     excClause match {
-      case None => f
+      case None                      => f
       case Some(ExcClause(_, excBB)) => branchTo(excBB)
     }
   }
@@ -488,18 +476,61 @@ trait InterpreterActions extends InterpreterThreadState {
   }
 
   import MagicalBox.MagicalBox
-  
-  implicit protected def ssaVariableToMagicalBox(v: SSAVariable) = new MagicalBox(boxOf(v))
-  implicit protected def boxToMagicalBox(b: ValueBox) = new MagicalBox(b)
+
+  implicit protected def ssaVariableToValueBox(v: SSAVariable): ValueBox = boxOf(v)
+  implicit protected def ssaVariableToMagicalBox(v: SSAVariable): MagicalBox = new MagicalBox(boxOf(v))
+  implicit protected def boxToMagicalBox(b: ValueBox): MagicalBox = new MagicalBox(b)
 }
 
 object MagicalBox {
   implicit class MagicalBox(val box: ValueBox) extends AnyVal {
-    def getIntRaw(): BigInt = box.asInstanceOf[BoxInt].value
-    def setIntRaw(v: BigInt): Unit = box.asInstanceOf[BoxInt].value = v
+    def asIntRaw: BigInt = box.asInstanceOf[BoxInt].value
+    def asInt32: BigInt = OpHelper.prepareUnsigned(box.asIntRaw, 32)
+    def asInt64: BigInt = OpHelper.prepareUnsigned(box.asIntRaw, 64)
+    def asUInt32: BigInt = OpHelper.prepareUnsigned(box.asIntRaw, 32)
+    def asUInt64: BigInt = OpHelper.prepareUnsigned(box.asIntRaw, 64)
+    def asSInt32: BigInt = OpHelper.prepareSigned(box.asIntRaw, 32)
+    def asSInt64: BigInt = OpHelper.prepareSigned(box.asIntRaw, 64)
+    def asInt1: BigInt = OpHelper.prepareUnsigned(box.asIntRaw, 1)
+    def asBoolean: Boolean = OpHelper.prepareUnsigned(box.asIntRaw, 1) == 1
+    def asFloat: Float = box.asInstanceOf[BoxFloat].value
+    def asDouble: Double = box.asInstanceOf[BoxDouble].value
+    def asRef: Word = box.asInstanceOf[BoxRef].objRef
+    def asIRef: (Word, Word) = box.asInstanceOf[BoxIRef].oo
+    def asFunc: Option[Function] = box.asInstanceOf[BoxFunc].func
+    def asThread: Option[InterpreterThread] = box.asInstanceOf[BoxThread].thread
+    def asStack: Option[InterpreterStack] = box.asInstanceOf[BoxStack].stack
+    def asTR64Raw: Long = box.asInstanceOf[BoxTagRef64].raw
+    def asPtr: Word = box.asInstanceOf[BoxPointer].addr
+    def asSeq: Seq[ValueBox] = box.asInstanceOf[BoxSeq].values
 
-    def getSInt(len: Int): BigInt = OpHelper.prepareSigned(box.getIntRaw(), len)
-    def getUInt(len: Int): BigInt = OpHelper.prepareUnsigned(box.getIntRaw(), len)
-    def setInt(v: BigInt, len: Int): Unit = box.setIntRaw(OpHelper.unprepare(v, len))
+    def asIntRaw_=(v: BigInt): Unit = box.asInstanceOf[BoxInt].value = v
+    def asInt1_=(v: BigInt): Unit = box.setInt(v, 1)
+    def asInt32_=(v: BigInt): Unit = box.setInt(v, 32)
+    def asInt64_=(v: BigInt): Unit = box.setInt(v, 64)
+    def asUInt32_=(v: BigInt): Unit = box.setInt(v, 32)
+    def asUInt64_=(v: BigInt): Unit = box.setInt(v, 64)
+    def asSInt32_=(v: BigInt): Unit = box.setInt(v, 32)
+    def asSInt64_=(v: BigInt): Unit = box.setInt(v, 64)
+    def asBoolean_=(v: Boolean): Unit = box.setInt(if (v) 1 else 0, 1)
+    def asFloat_=(v: Float): Unit = box.asInstanceOf[BoxFloat].value = v
+    def asDouble_=(v: Double): Unit = box.asInstanceOf[BoxDouble].value = v
+    def asRef_=(v: Word): Unit = box.asInstanceOf[BoxRef].objRef = v
+    def asIRef_=(oo: (Word, Word)): Unit = box.asInstanceOf[BoxIRef].oo = oo
+    def asFunc_=(v: Option[Function]): Unit = box.asInstanceOf[BoxFunc].func = v
+    def asThread_=(v: Option[InterpreterThread]): Unit = box.asInstanceOf[BoxThread].thread = v
+    def asStack_=(v: Option[InterpreterStack]): Unit = box.asInstanceOf[BoxStack].stack = v
+    def asTR64Raw_=(v: Long): Unit = box.asInstanceOf[BoxTagRef64].raw = v
+    def asPtr_=(v: Word): Unit = box.asInstanceOf[BoxPointer].addr = v
+    def asSeq_=(vs: Seq[ValueBox]): Unit = {
+      for ((dst, src) <- box.asSeq zip vs) {
+        dst copyFrom src
+      }
+    }
+
+    def getSInt(len: Int): BigInt = OpHelper.prepareSigned(box.asIntRaw, len)
+    def getUInt(len: Int): BigInt = OpHelper.prepareUnsigned(box.asIntRaw, len)
+    def setInt(v: BigInt, len: Int): Unit = box.asIntRaw = OpHelper.unprepare(v, len)
+
   }
 }

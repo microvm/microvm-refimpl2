@@ -29,18 +29,18 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
       case "@uvm.new_stack" => {
         val Seq(sig) = sigList
         val Seq(func) = argList
-        val funcVal = boxOf(func).asInstanceOf[BoxFunc].func.getOrElse {
+        val funcVal = func.asFunc.getOrElse {
           throw new UvmRuntimeException(ctx + "Attempt to create new thread for NULL Mu function.")
         }
 
         val sta = microVM.threadStackManager.newStack(funcVal, mutator)
-        resultBox(0).asInstanceOf[BoxStack].stack = Some(sta)
+        resultBox(0).asStack = Some(sta)
         continueNormally()
       }
 
       case "@uvm.kill_stack" => {
         val Seq(s) = argList
-        val sta = boxOf(s).asInstanceOf[BoxStack].stack.getOrElse {
+        val sta = s.asStack.getOrElse {
           throw new UvmRuntimeException(ctx + "Attempt to kill NULL stack.")
         }
         sta.kill()
@@ -52,8 +52,7 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
       }
 
       case "@uvm.current_stack" => {
-        val bi = resultBox(0)
-        bi.asInstanceOf[BoxStack].stack = stack
+        results(0).asStack = Some(curStack)
         continueNormally()
       }
 
@@ -61,59 +60,48 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
 
       case "@uvm.tr64.is_fp" => {
         val Seq(tr) = argList
-        val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
-        val result = OpHelper.tr64IsFp(raw)
-        writeBooleanResult(result, resultBox(0))
+        results(0).asBoolean = OpHelper.tr64IsFp(tr.asTR64Raw)
         continueNormally()
       }
 
       case "@uvm.tr64.is_int" => {
         val Seq(tr) = argList
-        val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
-        val result = OpHelper.tr64IsInt(raw)
-        writeBooleanResult(result, resultBox(0))
+        results(0).asBoolean = OpHelper.tr64IsInt(tr.asTR64Raw)
         continueNormally()
       }
 
       case "@uvm.tr64.is_ref" => {
         val Seq(tr) = argList
-        val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
-        val result = OpHelper.tr64IsRef(raw)
-        writeBooleanResult(result, resultBox(0))
+        results(0).asBoolean = OpHelper.tr64IsRef(tr.asTR64Raw)
         continueNormally()
       }
 
       case "@uvm.tr64.from_fp" => {
         val Seq(v) = argList
-        val vFP = boxOf(v).asInstanceOf[BoxDouble].value
-        val raw = OpHelper.fpToTr64(vFP)
-        resultBox(0).asInstanceOf[BoxTagRef64].raw = raw
+        results(0).asTR64Raw = OpHelper.fpToTr64(v.asDouble)
         continueNormally()
       }
 
       case "@uvm.tr64.from_int" => {
         val Seq(v) = argList
-        val vInt = OpHelper.prepareUnsigned(boxOf(v).asInstanceOf[BoxInt].value, 52)
-        val raw = OpHelper.intToTr64(vInt.longValue())
-        resultBox(0).asInstanceOf[BoxTagRef64].raw = raw
+        results(0).asTR64Raw = OpHelper.intToTr64(v.getUInt(52).longValue)
         continueNormally()
       }
 
       case "@uvm.tr64.from_ref" => {
         val Seq(ref, tag) = argList
-        val vRef = boxOf(ref).asInstanceOf[BoxRef].objRef
-        val vTag = OpHelper.prepareUnsigned(boxOf(tag).asInstanceOf[BoxInt].value, 6)
-        val raw = OpHelper.refToTr64(vRef, vTag.longValue())
-        resultBox(0).asInstanceOf[BoxTagRef64].raw = raw
+        val vRef = ref.asRef
+        val vTag = tag.getSInt(6).longValue
+        resultBox(0).asTR64Raw = OpHelper.refToTr64(vRef, vTag)
         continueNormally()
       }
 
       case "@uvm.tr64.to_fp" => {
         val Seq(tr) = argList
-        val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
+        val raw = tr.asTR64Raw
         if (OpHelper.tr64IsFp(raw)) {
           val result = OpHelper.tr64ToFp(raw)
-          resultBox(0).asInstanceOf[BoxDouble].value = result
+          results(0).asDouble = result
           continueNormally()
         } else {
           throw new UvmRuntimeException(ctx + "Attempt to extract double from a tagref64 which is not holding a double")
@@ -122,10 +110,10 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
 
       case "@uvm.tr64.to_int" => {
         val Seq(tr) = argList
-        val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
+        val raw = tr.asTR64Raw
         if (OpHelper.tr64IsInt(raw)) {
           val result = OpHelper.tr64ToInt(raw)
-          resultBox(0).asInstanceOf[BoxInt].value = OpHelper.unprepare(result, 52)
+          results(0).setInt(result, 52)
           continueNormally()
         } else {
           throw new UvmRuntimeException(ctx + "Attempt to extract int from a tagref64 which is not holding a int")
@@ -134,10 +122,10 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
 
       case "@uvm.tr64.to_ref" => {
         val Seq(tr) = argList
-        val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
+        val raw = tr.asTR64Raw
         if (OpHelper.tr64IsRef(raw)) {
           val result = OpHelper.tr64ToRef(raw)
-          resultBox(0).asInstanceOf[BoxRef].objRef = result
+          results(0).asRef = result
           continueNormally()
         } else {
           throw new UvmRuntimeException(ctx + "Attempt to extract ref from a tagref64 which is not holding a ref")
@@ -146,10 +134,10 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
 
       case "@uvm.tr64.to_tag" => {
         val Seq(tr) = argList
-        val raw = boxOf(tr).asInstanceOf[BoxTagRef64].raw
+        val raw = tr.asTR64Raw
         if (OpHelper.tr64IsRef(raw)) {
           val result = OpHelper.tr64ToTag(raw)
-          resultBox(0).asInstanceOf[BoxInt].value = OpHelper.unprepare(result, 6)
+          results(0).setInt(result, 6)
           continueNormally()
         } else {
           throw new UvmRuntimeException(ctx + "Attempt to extract tag from a tagref64 which is not holding a ref")
@@ -157,17 +145,15 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
       }
 
       case "@uvm.futex.wait" => {
-        val Seq(ty) = typeList
+        val Seq(ty: TypeInt) = typeList
         val Seq(loc, v) = argList
 
-        val len = ty.asInstanceOf[TypeInt].length
-        val bLoc = boxOf(loc).asInstanceOf[BoxIRef]
-        val objRef = bLoc.objRef
-        val offset = bLoc.offset
+        val len = ty.length
+        val (objRef, offset) = loc.asIRef
         val locWord = objRef + offset
-        val bv = boxOf(v).asInstanceOf[BoxInt]
+        val exp = v.asIntRaw
 
-        val equal = MemoryOperations.cmpInt(len, locWord, bv)
+        val equal = MemoryOperations.cmpInt(len, locWord, exp)
 
         if (equal) {
           microVM.threadStackManager.futexManager.futexWaitNoCheck(objRef, offset, curThread, None)
@@ -179,21 +165,18 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
       }
 
       case "@uvm.futex.wait_timeout" => {
-        val Seq(ty) = typeList
+        val Seq(ty: TypeInt) = typeList
         val Seq(loc, v, timeout) = argList
 
-        val len = ty.asInstanceOf[TypeInt].length
-        val bLoc = boxOf(loc).asInstanceOf[BoxIRef]
-        val objRef = bLoc.objRef
-        val offset = bLoc.offset
+        val len = ty.length
+        val (objRef, offset) = loc.asIRef
         val locWord = objRef + offset
-        val bv = boxOf(v).asInstanceOf[BoxInt]
-        val bto = boxOf(timeout).asInstanceOf[BoxInt]
-        val toVal = OpHelper.prepareSigned(bto.value, 64).longValue
+        val toVal = timeout.asSInt64.longValue
+        val exp = v.asIntRaw
 
         if (toVal < 0L) throw new UvmRefImplException(ctx + "This refimpl treats timeout as signed due to restriction of Java.")
 
-        val equal = MemoryOperations.cmpInt(len, locWord, bv)
+        val equal = MemoryOperations.cmpInt(len, locWord, exp)
 
         if (equal) {
           microVM.threadStackManager.futexManager.futexWaitNoCheck(objRef, offset, curThread, Some(toVal))
@@ -205,15 +188,13 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
       }
 
       case "@uvm.futex.wake" => {
-        val Seq(ty) = typeList
+        val Seq(ty: TypeInt) = typeList
         val Seq(loc, nthread) = argList
 
-        val len = ty.asInstanceOf[TypeInt].length
-        val bLoc = boxOf(loc).asInstanceOf[BoxIRef]
-        val objRef = bLoc.objRef
-        val offset = bLoc.offset
+        val len = ty.length
+        val (objRef, offset) = loc.asIRef
         val locWord = objRef + offset
-        val nth = OpHelper.prepareSigned(boxOf(nthread).asInstanceOf[BoxInt].value, 32).intValue
+        val nth = nthread.asSInt32.intValue
 
         if (nth < 0) throw new UvmRuntimeException(ctx + "nthread must not be negative")
 
@@ -226,14 +207,14 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
         val Seq(locSrc, locDst, expected, nthread) = argList
 
         val len = ty.asInstanceOf[TypeInt].length
-        val (objRefSrc, offsetSrc) = boxOf(locSrc).asInstanceOf[BoxIRef].oo
-        val (objRefDst, offsetDst) = boxOf(locDst).asInstanceOf[BoxIRef].oo
-        val bExp = boxOf(expected).asInstanceOf[BoxInt]
-        val nth = OpHelper.prepareSigned(boxOf(nthread).asInstanceOf[BoxInt].value, 32).intValue
+        val (objRefSrc, offsetSrc) = locSrc.asIRef
+        val (objRefDst, offsetDst) = locDst.asIRef
+        val exp = expected.asIntRaw
+        val nth = nthread.asSInt32.intValue
 
         if (nth < 0) throw new UvmRuntimeException(ctx + "nthread must not be negative")
 
-        val equal = MemoryOperations.cmpInt(len, objRefSrc + offsetSrc, bExp)
+        val equal = MemoryOperations.cmpInt(len, objRefSrc + offsetSrc, exp)
 
         if (equal) {
           val nWoken = microVM.threadStackManager.futexManager.futexRequeue(objRefSrc, offsetSrc, objRefDst, offsetDst, nth)
@@ -255,8 +236,8 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
         val Seq(r) = argList
 
         val (addr, offset) = ty match {
-          case TypeRef(_) => (boxOf(r).asInstanceOf[BoxRef].objRef, 0L)
-          case TypeIRef(_) => boxOf(r).asInstanceOf[BoxIRef].oo
+          case TypeRef(_)  => (r.asRef, 0L)
+          case TypeIRef(_) => r.asIRef
         }
 
         pin(addr)
@@ -270,8 +251,8 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
         val Seq(r) = argList
 
         val addr = ty match {
-          case TypeRef(_) => boxOf(r).asInstanceOf[BoxRef].objRef
-          case TypeIRef(_) => boxOf(r).asInstanceOf[BoxIRef].objRef
+          case TypeRef(_)  => r.asRef
+          case TypeIRef(_) => r.asIRef._1
         }
 
         unpin(addr)
@@ -284,11 +265,11 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
         val Seq(sig) = sigList
         val Seq(func, cookie) = argList
 
-        val f = boxOf(func).asInstanceOf[BoxFunc].func.getOrElse {
+        val f = func.asFunc.getOrElse {
           throw new UvmRuntimeException(ctx + "Attempt to expose NULL Mu function")
         }
 
-        val c = boxOf(cookie).asInstanceOf[BoxInt].value.toLong
+        val c = boxOf(cookie).asSInt64.longValue
 
         val addr = microVM.nativeCallHelper.exposeFuncDynamic(f, c)
 
@@ -301,7 +282,7 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
         val Seq(callConv) = flagList
         val Seq(addr) = argList
 
-        val a = boxOf(addr).asInstanceOf[BoxPointer].addr
+        val a = addr.asPtr
 
         microVM.nativeCallHelper.unexposeFunc(a)
 
@@ -310,34 +291,34 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
 
       case "@uvm.native.get_cookie" => {
         val cookie = topDefMu.cookie
-        resultBox(0).asInstanceOf[BoxInt].value = OpHelper.trunc(cookie, 64)
+        results(0).asInt64 = cookie
         continueNormally()
       }
 
       case "@uvm.meta.id_of" => {
         val Seq(name) = argList
-        val nameStr = MemoryOperations.bytesToStr(boxOf(name).asInstanceOf[BoxRef].objRef)
+        val nameStr = MemoryOperations.bytesToStr(name.asRef)
         val theID = microVM.idOf(nameStr)
 
-        resultBox(0).asInstanceOf[BoxInt].value = OpHelper.unprepare(theID, 32)
+        results(0).asInt32 = theID
 
         continueNormally()
       }
 
       case "@uvm.meta.name_of" => {
         val Seq(theID) = argList
-        val idInt = boxOf(theID).asInstanceOf[BoxInt].value.toInt
+        val idInt = theID.asSInt32.toInt
         val name = microVM.nameOf(idInt)
         val bytesRef = MemoryOperations.strToBytes(name)
 
-        resultBox(0).asInstanceOf[BoxRef].objRef = bytesRef
+        results(0).asRef = bytesRef
 
         continueNormally()
       }
 
       case "@uvm.meta.load_bundle" => {
         val Seq(bundle) = argList
-        val bundleStr = MemoryOperations.bytesToStr(boxOf(bundle).asInstanceOf[BoxRef].objRef)
+        val bundleStr = MemoryOperations.bytesToStr(bundle.asRef)
 
         MetaOperations.loadBundle(bundleStr)
 
@@ -346,7 +327,7 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
 
       case "@uvm.meta.load_hail" => {
         val Seq(hailScript) = argList
-        val hailStr = MemoryOperations.bytesToStr(boxOf(hailScript).asInstanceOf[BoxRef].objRef)
+        val hailStr = MemoryOperations.bytesToStr(hailScript.asRef)
 
         MetaOperations.loadHail(hailStr)
 
@@ -358,17 +339,17 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
         ???
       }
 
-      case "@uvm.meta.cur_func_ver" => ???
-      case "@uvm.meta.cur_inst" => ???
-      case "@uvm.meta.dump_keepalives" => ???
+      case "@uvm.meta.cur_func_ver"       => ???
+      case "@uvm.meta.cur_inst"           => ???
+      case "@uvm.meta.dump_keepalives"    => ???
 
-      case "@uvm.meta.pop_frame" => ???
-      case "@uvm.meta.push_frame" => ???
+      case "@uvm.meta.pop_frame"          => ???
+      case "@uvm.meta.push_frame"         => ???
 
-      case "@uvm.meta.enable_watchpoint" => ???
+      case "@uvm.meta.enable_watchpoint"  => ???
       case "@uvm.meta.disable_watchpoint" => ???
 
-      case "@uvm.meta.set_trap_handler" => ???
+      case "@uvm.meta.set_trap_handler"   => ???
 
       // Insert more CommInsts here.
 

@@ -289,6 +289,41 @@ object PrimOpHelpers {
       case _              => throw new UvmRuntimeException(ctx + "Comparison operator %s is not suitable for double.".format(op))
     }
   }
+
+  def refCmp(op: CmpOptr.CmpOptr, op1v: Word, op2v: Word, ctx: => String): Boolean = {
+    op match {
+      case CmpOptr.EQ => op1v == op2v
+      case CmpOptr.NE => op1v != op2v
+      case _          => throw new UvmRuntimeException(ctx + "Comparison operator %s is not suitable for ref.".format(op))
+    }
+  }
+
+  def irefCmp(op: CmpOptr.CmpOptr, op1b: Word, op1o: Word, op2b: Word, op2o: Word, ctx: => String): Boolean = {
+    val a1 = op1b + op1o
+    val a2 = op2b + op2o
+
+    def warnDiffObj() = if (op1b != op2b) throw new UvmRuntimeException(
+      ctx + "Attempt to compare order of irefs in two different objects. lhs: 0x%x+0x%x rhs: 0x%x+0x%x".format(
+        op1b, op1o, op2b, op2o))
+
+    op match {
+      case CmpOptr.EQ  => a1 == a2
+      case CmpOptr.NE  => a1 != a2
+      case CmpOptr.ULT => { warnDiffObj(); a1 < a2 }
+      case CmpOptr.ULE => { warnDiffObj(); a1 <= a2 }
+      case CmpOptr.UGT => { warnDiffObj(); a1 > a2 }
+      case CmpOptr.UGE => { warnDiffObj(); a1 >= a2 }
+      case _           => throw new UvmRuntimeException(ctx + "Comparison operator %s is not suitable for iref.".format(op))
+    }
+  }
+
+  def objCmp[T <: AnyRef](op: CmpOptr.CmpOptr, obj1: T, obj2: T, kind: String, ctx: => String): Boolean = {
+    op match {
+      case CmpOptr.EQ => obj1 eq obj2
+      case CmpOptr.NE => obj1 ne obj2
+      case _          => throw new UvmRuntimeException(ctx + "Comparison operator %s is not suitable for %s.".format(op, kind))
+    }
+  }
 }
 
 object MemoryOperations {
@@ -560,14 +595,14 @@ object MemoryOperations {
   /**
    * Check if a memory location still holds a particular value. Used by futex.
    */
-  def cmpInt(len: Int, loc: Word, expected: BoxInt)(implicit memorySupport: MemorySupport): Boolean = len match {
+  def cmpInt(len: Int, loc: Word, expected: BigInt)(implicit memorySupport: MemorySupport): Boolean = len match {
     case 64 => {
-      val expNum = OpHelper.prepareSigned(expected.value, len).longValue
+      val expNum = OpHelper.prepareSigned(expected, len).longValue
       val actualNum = memorySupport.loadLong(loc)
       expNum == actualNum
     }
     case 32 => {
-      val expNum = OpHelper.prepareSigned(expected.value, len).intValue
+      val expNum = OpHelper.prepareSigned(expected, len).intValue
       val actualNum = memorySupport.loadInt(loc)
       expNum == actualNum
     }
@@ -604,7 +639,7 @@ object MemoryOperations {
     memorySupport.storeLong(loc, bytes.length.toLong)
     val begin = loc + TypeSizes.WORD_SIZE_BYTES
     memorySupport.storeBytes(begin, bytes, 0, len, true)
-    
+
     loc
   }
 }

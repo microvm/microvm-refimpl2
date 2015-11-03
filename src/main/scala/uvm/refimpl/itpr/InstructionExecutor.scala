@@ -29,57 +29,23 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
 
     curInst match {
       case i @ InstBinOp(op, opndTy, op1, op2, excClause) => {
-        def doInt(l: Int, b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
-          val op1v = b1.asInstanceOf[BoxInt].value
-          val op2v = b2.asInstanceOf[BoxInt].value
-
-          val result = PrimOpHelpers.intBinOp(op, l, op1v, op2v, ctx)
-
-          val iBox = br.asInstanceOf[BoxInt]
-          iBox.value = result
-        }
-
-        def doFloat(b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
-          val op1v = b1.asInstanceOf[BoxFloat].value
-          val op2v = b2.asInstanceOf[BoxFloat].value
-
-          val result = PrimOpHelpers.floatBinOp(op, op1v, op2v, ctx)
-
-          val iBox = br.asInstanceOf[BoxFloat]
-          iBox.value = result
-        }
-
-        def doDouble(b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
-          val op1v = b1.asInstanceOf[BoxDouble].value
-          val op2v = b2.asInstanceOf[BoxDouble].value
-
-          val result = PrimOpHelpers.doubleBinOp(op, op1v, op2v, ctx)
-
-          val iBox = br.asInstanceOf[BoxDouble]
-          iBox.value = result
-        }
-
         def doScalar(scalarTy: Type, b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
           scalarTy match {
-            case TypeInt(l)   => doInt(l, b1, b2, br)
-            case TypeFloat()  => doFloat(b1, b2, br)
-            case TypeDouble() => doDouble(b1, b2, br)
-            case _            => throw new UvmRuntimeException(ctx + "BinOp not suitable for type %s".format(opndTy))
+            case TypeInt(l)   => br.asIntRaw = PrimOpHelpers.intBinOp(op, l, b1.asIntRaw, b2.asIntRaw, ctx)
+            case TypeFloat()  => br.asFloat = PrimOpHelpers.floatBinOp(op, b1.asFloat, b2.asFloat, ctx)
+            case TypeDouble() => br.asDouble = PrimOpHelpers.doubleBinOp(op, b1.asDouble, b2.asDouble, ctx)
+            case _            => throw new UvmRuntimeException(ctx + "BinOp not suitable for type %s".format(scalarTy))
           }
         }
 
         try {
           opndTy match {
             case TypeVector(scalarTy, sz) => {
-              val op1Bs = boxOf(op1).asInstanceOf[BoxSeq].values
-              val op2Bs = boxOf(op2).asInstanceOf[BoxSeq].values
-              val rBs = resultBox(0).asInstanceOf[BoxSeq].values
-
-              for (((b1, b2), br) <- ((op1Bs zip op2Bs) zip rBs)) {
+              for (((b1, b2), br) <- ((op1.asSeq zip op2.asSeq) zip results(0).asSeq)) {
                 doScalar(scalarTy, b1, b2, br)
               }
             }
-            case scalarTy => doScalar(scalarTy, boxOf(op1), boxOf(op2), resultBox(0))
+            case scalarTy => doScalar(scalarTy, op1, op2, results(0))
           }
           continueNormally()
         } catch {
@@ -93,102 +59,31 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
       }
 
       case i @ InstCmp(op, opndTy, op1, op2) => {
-        def doInt(l: Int, b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
-          val op1v = b1.asInstanceOf[BoxInt].value
-          val op2v = b2.asInstanceOf[BoxInt].value
-
-          val result = PrimOpHelpers.intCmp(op, l, op1v, op2v, ctx)
-          writeBooleanResult(result, br)
-        }
-
-        def doFloat(b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
-          val op1v = b1.asInstanceOf[BoxFloat].value
-          val op2v = b2.asInstanceOf[BoxFloat].value
-
-          val result = PrimOpHelpers.floatCmp(op, op1v, op2v, ctx)
-          writeBooleanResult(result, br)
-        }
-
-        def doDouble(b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
-          val op1v = b1.asInstanceOf[BoxDouble].value
-          val op2v = b2.asInstanceOf[BoxDouble].value
-
-          val result = PrimOpHelpers.doubleCmp(op, op1v, op2v, ctx)
-          writeBooleanResult(result, br)
-        }
-
-        def doRef(b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
-          val op1v = b1.asInstanceOf[BoxRef].objRef
-          val op2v = b2.asInstanceOf[BoxRef].objRef
-
-          val result = op match {
-            case CmpOptr.EQ => op1v == op2v
-            case CmpOptr.NE => op1v != op2v
-            case _          => throw new UvmRuntimeException(ctx + "Comparison %s not suitable for reference type %s".format(op, opndTy))
-          }
-          writeBooleanResult(result, br)
-        }
-
-        def doIRef(b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
-          val op1v = b1.asInstanceOf[BoxIRef].oo
-          val op2v = b2.asInstanceOf[BoxIRef].oo
-
-          val result = op match {
-            case CmpOptr.EQ => op1v == op2v
-            case CmpOptr.NE => op1v != op2v
-            case _          => throw new UvmRuntimeException(ctx + "Comparison %s not suitable for internal reference type %s".format(op, opndTy))
-          }
-          writeBooleanResult(result, br)
-        }
-
-        def doFunc(b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
-          val op1v = b1.asInstanceOf[BoxFunc].func
-          val op2v = b2.asInstanceOf[BoxFunc].func
-
-          val result = op match {
-            case CmpOptr.EQ => op1v == op2v
-            case CmpOptr.NE => op1v != op2v
-            case _          => throw new UvmRuntimeException(ctx + "Comparison %s not suitable for function type %s".format(op, opndTy))
-          }
-          writeBooleanResult(result, br)
-        }
-
-        def doStack(b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
-          val op1v = b1.asInstanceOf[BoxStack].stack
-          val op2v = b2.asInstanceOf[BoxStack].stack
-
-          val result = op match {
-            case CmpOptr.EQ => op1v == op2v
-            case CmpOptr.NE => op1v != op2v
-            case _          => throw new UvmRuntimeException(ctx + "Comparison %s not suitable for stack type %s".format(op, opndTy))
-          }
-          writeBooleanResult(result, br)
-        }
-
         def doScalar(scalarTy: Type, b1: ValueBox, b2: ValueBox, br: ValueBox): Unit = {
-          scalarTy match {
-            case TypeInt(l)     => doInt(l, b1, b2, br)
-            case TypeFloat()    => doFloat(b1, b2, br)
-            case TypeDouble()   => doDouble(b1, b2, br)
-            case TypeRef(_)     => doRef(b1, b2, br)
-            case TypeIRef(_)    => doIRef(b1, b2, br)
-            case TypeFuncRef(_) => doFunc(b1, b2, br)
-            case TypeStackRef() => doStack(b1, b2, br)
-            case _              => throw new UvmRuntimeException(ctx + "Comparison not suitable for type %s".format(opndTy))
+          br.asBoolean = scalarTy match {
+            case TypeInt(l)      => PrimOpHelpers.intCmp(op, l, b1.asIntRaw, b2.asIntRaw, ctx)
+            case TypeFloat()     => PrimOpHelpers.floatCmp(op, b1.asFloat, b2.asFloat, ctx)
+            case TypeDouble()    => PrimOpHelpers.doubleCmp(op, b1.asDouble, b2.asDouble, ctx)
+            case TypeRef(_)      => PrimOpHelpers.refCmp(op, b1.asRef, b2.asRef, ctx)
+            case TypeFuncRef(_)  => PrimOpHelpers.objCmp(op, b1.asFunc, b2.asFunc, "funcref", ctx)
+            case TypeStackRef()  => PrimOpHelpers.objCmp(op, b1.asStack, b2.asStack, "stackref", ctx)
+            case TypeThreadRef() => PrimOpHelpers.objCmp(op, b1.asThread, b2.asThread, "threadref", ctx)
+            case TypeIRef(_) => {
+              val (op1b, op1o) = b1.asIRef
+              val (op2b, op2o) = b2.asIRef
+              PrimOpHelpers.irefCmp(op, op1b, op1o, op2b, op2o, ctx)
+            }
+            case _ => throw new UvmRuntimeException(ctx + "Comparison not suitable for type %s".format(opndTy))
           }
         }
 
         opndTy match {
           case TypeVector(scalarTy, sz) => {
-            val op1Bs = boxOf(op1).asInstanceOf[BoxSeq].values
-            val op2Bs = boxOf(op2).asInstanceOf[BoxSeq].values
-            val rBs = resultBox(0).asInstanceOf[BoxSeq].values
-
-            for (((b1, b2), br) <- ((op1Bs zip op2Bs) zip rBs)) {
+            for (((b1, b2), br) <- ((op1.asSeq zip op2.asSeq) zip results(0).asSeq)) {
               doScalar(scalarTy, b1, b2, br)
             }
           }
-          case scalarTy => doScalar(scalarTy, boxOf(op1), boxOf(op2), resultBox(0))
+          case scalarTy => doScalar(scalarTy, op1, op2, results(0))
         }
 
         continueNormally()
@@ -198,13 +93,13 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
         def doScalar(scalarFromTy: Type, scalarToTy: Type, bOpnd: ValueBox, br: ValueBox): Unit = {
           def iToI(): Unit = (scalarFromTy, scalarToTy) match {
             case (TypeInt(fl), TypeInt(tl)) => {
-              val od = bOpnd.asInstanceOf[BoxInt].value
+              val od = bOpnd.asIntRaw
               val result = op match {
                 case ConvOptr.TRUNC => OpHelper.trunc(od, tl)
                 case ConvOptr.ZEXT  => OpHelper.zext(od, fl, tl)
                 case ConvOptr.SEXT  => OpHelper.sext(od, fl, tl)
               }
-              br.asInstanceOf[BoxInt].value = result
+              br.asIntRaw = result
             }
             case _ => throw new UvmRuntimeException(ctx + "Expect integer source and dest type. Found %s and %s".format(scalarFromTy, scalarToTy))
           }
@@ -215,11 +110,11 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
               case _          => throw new UvmRuntimeException(ctx + "Expect integer dest type. Found %s".format(scalarToTy))
             }
             val result = scalarFromTy match {
-              case TypeFloat()  => OpHelper.floatToI(bOpnd.asInstanceOf[BoxFloat].value, tl, signed)
-              case TypeDouble() => OpHelper.doubleToI(bOpnd.asInstanceOf[BoxDouble].value, tl, signed)
+              case TypeFloat()  => OpHelper.floatToI(bOpnd.asFloat, tl, signed)
+              case TypeDouble() => OpHelper.doubleToI(bOpnd.asDouble, tl, signed)
               case _            => throw new UvmRuntimeException(ctx + "Expect FP source type. Found %s.".format(scalarFromTy))
             }
-            br.asInstanceOf[BoxInt].value = result
+            br.asIntRaw = result
           }
 
           def iToFP(signed: Boolean): Unit = {
@@ -227,38 +122,20 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
               case TypeInt(l) => l
               case _          => throw new UvmRuntimeException(ctx + "Expect integer source type. Found %s".format(scalarFromTy))
             }
-            val od = bOpnd.asInstanceOf[BoxInt].value
+            val od = bOpnd.asIntRaw
             val extended = if (signed) OpHelper.prepareSigned(od, fl) else OpHelper.prepareUnsigned(od, fl)
             scalarToTy match {
-              case TypeFloat() => {
-                val result = extended.toFloat
-                br.asInstanceOf[BoxFloat].value = result
-              }
-              case TypeDouble() => {
-                val result = extended.toDouble
-                br.asInstanceOf[BoxDouble].value = result
-              }
-              case _ => throw new UvmRuntimeException(ctx + "Expect FP dest type. Found %s.".format(scalarToTy))
+              case TypeFloat()  => br.asFloat = extended.toFloat
+              case TypeDouble() => br.asDouble = extended.toDouble
+              case _            => throw new UvmRuntimeException(ctx + "Expect FP dest type. Found %s.".format(scalarToTy))
             }
           }
 
           def bitcast(): Unit = (scalarFromTy, scalarToTy) match {
-            case (TypeInt(32), TypeFloat()) => {
-              val result = java.lang.Float.intBitsToFloat(bOpnd.asInstanceOf[BoxInt].value.intValue)
-              br.asInstanceOf[BoxFloat].value = result
-            }
-            case (TypeInt(64), TypeDouble()) => {
-              val result = java.lang.Double.longBitsToDouble(bOpnd.asInstanceOf[BoxInt].value.longValue)
-              br.asInstanceOf[BoxDouble].value = result
-            }
-            case (TypeFloat(), TypeInt(32)) => {
-              val result = java.lang.Float.floatToRawIntBits(bOpnd.asInstanceOf[BoxFloat].value)
-              br.asInstanceOf[BoxInt].value = result
-            }
-            case (TypeDouble(), TypeInt(64)) => {
-              val result = java.lang.Double.doubleToRawLongBits(bOpnd.asInstanceOf[BoxDouble].value)
-              br.asInstanceOf[BoxInt].value = result
-            }
+            case (TypeInt(32), TypeFloat())  => br.asFloat = java.lang.Float.intBitsToFloat(bOpnd.asIntRaw.intValue)
+            case (TypeInt(64), TypeDouble()) => br.asDouble = java.lang.Double.longBitsToDouble(bOpnd.asIntRaw.longValue)
+            case (TypeFloat(), TypeInt(32))  => br.asInt32 = java.lang.Float.floatToRawIntBits(bOpnd.asFloat)
+            case (TypeDouble(), TypeInt(64)) => br.asInt64 = java.lang.Double.doubleToRawLongBits(bOpnd.asDouble)
             case _ => throw new UvmRuntimeException(ctx +
               "BITCAST can only convert between int and FP types of the same size. Found %s and %s.".format(scalarFromTy, scalarToTy))
           }
@@ -278,29 +155,21 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
               case _ =>
             }
             val srcAddr: Word = scalarFromTy match {
-              case TypeInt(n)             => bOpnd.asInstanceOf[BoxInt].value.longValue // truncates
-              case _: AbstractPointerType => bOpnd.asInstanceOf[BoxPointer].addr
+              case TypeInt(n)             => bOpnd.getUInt(n).longValue // truncates
+              case _: AbstractPointerType => bOpnd.asPtr
             }
             scalarToTy match {
-              case TypeInt(n)             => br.asInstanceOf[BoxInt].value = OpHelper.trunc(BigInt(srcAddr), Math.min(n, 64))
-              case _: AbstractPointerType => br.asInstanceOf[BoxPointer].addr = srcAddr
+              case TypeInt(n)             => br.setInt(srcAddr, Math.min(n, 64))
+              case _: AbstractPointerType => br.asPtr = srcAddr
             }
           }
 
           op match {
-            case ConvOptr.TRUNC => iToI()
-            case ConvOptr.ZEXT  => iToI()
-            case ConvOptr.SEXT  => iToI()
-            case ConvOptr.FPTRUNC => {
-              val od = bOpnd.asInstanceOf[BoxDouble].value
-              val result = od.toFloat
-              br.asInstanceOf[BoxFloat].value = result
-            }
-            case ConvOptr.FPEXT => {
-              val od = bOpnd.asInstanceOf[BoxFloat].value
-              val result = od.toDouble
-              br.asInstanceOf[BoxDouble].value = result
-            }
+            case ConvOptr.TRUNC   => iToI()
+            case ConvOptr.ZEXT    => iToI()
+            case ConvOptr.SEXT    => iToI()
+            case ConvOptr.FPTRUNC => br.asFloat = bOpnd.asDouble.toFloat
+            case ConvOptr.FPEXT   => br.asDouble = bOpnd.asFloat.toDouble
             case ConvOptr.FPTOUI  => fpToI(signed = false)
             case ConvOptr.FPTOSI  => fpToI(signed = true)
             case ConvOptr.UITOFP  => iToFP(signed = false)
@@ -315,14 +184,11 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
           case (TypeVector(scalarFromTy, sz), TypeVector(scalarToTy, sz2)) => {
             if (sz != sz2) throw new UvmRefImplException(ctx + "The source and dest vector types must have the same length")
 
-            val bOpnds = boxOf(opnd).asInstanceOf[BoxSeq].values
-            val rBs = resultBox(0).asInstanceOf[BoxSeq].values
-
-            for ((bOpnd, br) <- (bOpnds zip rBs)) {
+            for ((bOpnd, br) <- (opnd.asSeq zip results(0).asSeq)) {
               doScalar(scalarFromTy, scalarToTy, bOpnd, br)
             }
           }
-          case _ => doScalar(fromTy, toTy, boxOf(opnd), resultBox(0))
+          case _ => doScalar(fromTy, toTy, opnd, results(0))
         }
 
         incPC()
@@ -330,9 +196,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
 
       case i @ InstSelect(condTy, opndTy, cond, ifTrue, ifFalse) => {
         def doScalar(bCond: ValueBox, bTrue: ValueBox, bFalse: ValueBox, br: ValueBox): Unit = {
-          val c = bCond.asInstanceOf[BoxInt].value
-
-          if (c == 1) {
+          if (bCond.asBoolean) {
             br.copyFrom(bTrue)
           } else {
             br.copyFrom(bFalse)
@@ -341,17 +205,12 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
 
         condTy match {
           case TypeVector(TypeInt(1), sz) => {
-            val bConds = boxOf(cond).asInstanceOf[BoxSeq].values
-            val bTrues = boxOf(ifTrue).asInstanceOf[BoxSeq].values
-            val bFalses = boxOf(ifFalse).asInstanceOf[BoxSeq].values
-            val bResults = resultBox(0).asInstanceOf[BoxSeq].values
-
-            for ((((bCond, bTrue), bFalse), br) <- bConds.zip(bTrues).zip(bFalses).zip(bResults)) {
+            for ((((bCond, bTrue), bFalse), br) <- (cond.asSeq zip ifTrue.asSeq zip ifFalse.asSeq zip results(0).asSeq)) {
               doScalar(bCond, bTrue, bFalse, br)
             }
           }
           case TypeInt(1) => {
-            doScalar(boxOf(cond), boxOf(ifTrue), boxOf(ifFalse), resultBox(0))
+            doScalar(cond, ifTrue, ifFalse, results(0))
           }
           case _ => throw new UvmRefImplException(ctx + "Condition must be either int<1> or a vector of int<1>. Found %s".format(condTy))
         }
@@ -381,7 +240,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
       }
 
       case i @ InstCall(sig, callee, argList, excClause, keepAlives) => {
-        val calleeFunc = boxOf(callee).asInstanceOf[BoxFunc].func.getOrElse {
+        val calleeFunc = callee.asFunc.getOrElse {
           throw new UvmRuntimeException(ctx + "Callee must not be NULL")
         }
 
@@ -389,13 +248,12 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
 
         val shouldIncrementPC = curStack.callMu(calleeFunc, argBoxes)
         if (shouldIncrementPC) {
-          // Impossible because the callee is always fresh. Added here for consistency.
-          continueNormally()
+          throw new UvmRefImplException(ctx + "Should not continue normally immediately after calling")
         }
       }
 
       case i @ InstTailCall(sig, callee, argList) => {
-        val calleeFunc = boxOf(callee).asInstanceOf[BoxFunc].func.getOrElse {
+        val calleeFunc = callee.asFunc.getOrElse {
           throw new UvmRuntimeException(ctx + "Callee must not be NULL")
         }
 
@@ -403,8 +261,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
 
         val shouldIncrementPC = curStack.tailCallMu(calleeFunc, argBoxes)
         if (shouldIncrementPC) {
-          // Impossible because the callee is always fresh. Added here for consistency.
-          continueNormally()
+          throw new UvmRefImplException(ctx + "Should not continue normally immediately after tail-calling")
         }
       }
 
@@ -412,31 +269,24 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
         val rvbs = retVals.map(boxOf)
         val shouldIncrementPC = curStack.retFromMu(rvbs)
         if (shouldIncrementPC) {
-          // This should always be executed, unless Mu is extended again so it is possible to push
-          // a frame on a beginning frame.
           continueNormally()
         }
       }
 
       case i @ InstThrow(excVal) => {
-        val exc = boxOf(excVal).asInstanceOf[BoxRef].objRef
+        val exc = excVal.asRef
         curStack.popFrame()
         catchException(exc)
       }
 
       case i @ InstExtractValue(strTy, index, opnd) => {
-        val ob = boxOf(opnd).asInstanceOf[BoxSeq]
-        val fb = ob.values(index)
-        val ib = resultBox(0)
-        ib.copyFrom(fb)
+        results(0) copyFrom opnd.asSeq(index)
         continueNormally()
       }
 
       case i @ InstInsertValue(strTy, index, opnd, newVal) => {
-        val ob = boxOf(opnd).asInstanceOf[BoxSeq]
         val nvb = boxOf(newVal)
-        val ib = resultBox(0).asInstanceOf[BoxSeq]
-        for (((ofb, ifb), ind) <- (ob.values zip ib.values).zipWithIndex) {
+        for (((ofb, ifb), ind) <- (opnd.asSeq zip results(0).asSeq).zipWithIndex) {
           if (ind == index) {
             ifb.copyFrom(nvb)
           } else {
@@ -447,36 +297,27 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
       }
 
       case i @ InstExtractElement(vecTy, indTy, opnd, index) => {
-        val ob = boxOf(opnd).asInstanceOf[BoxSeq]
-        val indb = boxOf(index).asInstanceOf[BoxInt]
-        val ind = OpHelper.prepareUnsigned(indb.value, indTy.length)
+        val ind = index.getUInt(indTy.length).toLong
 
         if (ind > vecTy.len) {
           throw new UvmRuntimeException(ctx + "Index %d out of range. Vector type: %s".format(ind, vecTy))
         }
 
-        val eb = ob.values(ind.intValue())
-        val ib = resultBox(0)
-        ib.copyFrom(eb)
+        results(0) copyFrom opnd.asSeq(ind.toInt)
         continueNormally()
       }
 
       case i @ InstInsertElement(vecTy, indTy, opnd, index, newVal) => {
-        val ob = boxOf(opnd).asInstanceOf[BoxSeq]
-
-        val indb = boxOf(index).asInstanceOf[BoxInt]
-        val ind = OpHelper.prepareUnsigned(indb.value, indTy.length)
+        val ind = index.getUInt(indTy.length).toLong
 
         if (ind > vecTy.len) {
           throw new UvmRuntimeException(ctx + "Index %d out of range. Vector type: %s".format(ind, vecTy))
         }
 
         val indInt = ind.intValue
-
         val nvb = boxOf(newVal)
-        val ib = resultBox(0).asInstanceOf[BoxSeq]
 
-        for (((oeb, ieb), ind2) <- (ob.values zip ib.values).zipWithIndex) {
+        for (((oeb, ieb), ind2) <- (opnd.asSeq zip results(0).asSeq).zipWithIndex) {
           if (ind2 == indInt) {
             ieb.copyFrom(nvb)
           } else {
@@ -489,17 +330,17 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
       case i @ InstShuffleVector(vecTy, maskTy, vec1, vec2, mask) => {
         val vecLen = vecTy.len.toInt
         val maskIntLen = maskTy.elemTy.asInstanceOf[TypeInt].length
-        val vb1 = boxOf(vec1).asInstanceOf[BoxSeq]
-        val vb2 = boxOf(vec2).asInstanceOf[BoxSeq]
-        val mb = boxOf(mask).asInstanceOf[BoxSeq]
-        val ib = resultBox(0).asInstanceOf[BoxSeq]
+        val v1s = vec1.asSeq
+        val v2s = vec2.asSeq
+        val ms = mask.asSeq
+        val is = results(0).asSeq
 
-        for (((meb, ieb), ind) <- (mb.values zip ib.values).zipWithIndex) {
-          val me = OpHelper.prepareUnsigned(meb.asInstanceOf[BoxInt].value, maskIntLen)
+        for (((meb, ieb), ind) <- (ms zip is).zipWithIndex) {
+          val me = meb.getUInt(maskIntLen).toInt
           if (me < vecLen) {
-            ieb.copyFrom(vb1.values(me.intValue))
+            ieb.copyFrom(v1s(me))
           } else if (vecLen <= me && me < vecLen * 2) {
-            ieb.copyFrom(vb2.values(me.intValue - vecLen))
+            ieb.copyFrom(v2s(me - vecLen))
           } else {
             throw new UvmRuntimeException(ctx + "Index %d as the %d-th element of mask is out of range. Vector type: %s".format(me, ind, vecTy))
           }
@@ -510,19 +351,16 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
       case i @ InstNew(allocTy, excClause) => {
         handleOutOfMemory(excClause) {
           val addr = mutator.newScalar(allocTy)
-          val ib = resultBox(0).asInstanceOf[BoxRef]
-          ib.objRef = addr
+          results(0).asRef = addr
           continueNormally()
         }
       }
 
       case i @ InstNewHybrid(allocTy, lenTy, length, excClause) => {
         handleOutOfMemory(excClause) {
-          val lb = boxOf(length).asInstanceOf[BoxInt]
-          val len = OpHelper.prepareUnsigned(lb.value, lenTy.length)
-          val addr = mutator.newHybrid(allocTy, len.longValue)
-          val ib = resultBox(0).asInstanceOf[BoxRef]
-          ib.objRef = addr
+          val len = length.getUInt(lenTy.length).longValue
+          val addr = mutator.newHybrid(allocTy, len)
+          results(0).asRef = addr
           continueNormally()
         }
       }
@@ -530,62 +368,52 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
       case i @ InstAlloca(allocTy, excClause) => {
         handleOutOfMemory(excClause) {
           val addr = mutator.allocaScalar(curStack.stackMemory, allocTy)
-          val ib = resultBox(0).asInstanceOf[BoxIRef]
-          ib.objRef = 0L
-          ib.offset = addr
+          results(0).asIRef = (0L, addr)
           continueNormally()
         }
       }
 
       case i @ InstAllocaHybrid(allocTy, lenTy, length, excClause) => {
         handleOutOfMemory(excClause) {
-          val lb = boxOf(length).asInstanceOf[BoxInt]
-          val len = OpHelper.prepareUnsigned(lb.value, lenTy.length)
-          val addr = mutator.allocaHybrid(curStack.stackMemory, allocTy, len.longValue)
-          val ib = resultBox(0).asInstanceOf[BoxIRef]
-          ib.objRef = 0L
-          ib.offset = addr
+          val len = length.getUInt(lenTy.length).longValue
+          val addr = mutator.allocaHybrid(curStack.stackMemory, allocTy, len)
+          results(0).asIRef = (0L, addr)
           continueNormally()
         }
       }
 
       case i @ InstGetIRef(referentTy, opnd) => {
-        val ob = boxOf(opnd).asInstanceOf[BoxRef]
-        val ib = resultBox(0).asInstanceOf[BoxIRef]
-        ib.objRef = ob.objRef
-        ib.offset = 0L
+        results(0).asIRef = (opnd.asRef, 0L)
         continueNormally()
       }
 
       case i @ InstGetFieldIRef(ptr, referentTy, index, opnd) => {
         val addrIncr = TypeSizes.fieldOffsetOf(referentTy, index)
 
-        incrementBoxIRefOrPointer(ptr, opnd, i.results(0), addrIncr)
+        incrementBoxIRefOrPointer(ptr, opnd, results(0), addrIncr)
         continueNormally()
       }
 
       case i @ InstGetElemIRef(ptr, referentTy, indTy, opnd, index) => {
-        val indb = boxOf(index).asInstanceOf[BoxInt]
-        val ind = OpHelper.prepareSigned(indb.value, indTy.length)
-        val addrIncr = TypeSizes.elemOffsetOf(referentTy, ind.longValue())
+        val ind = index.getSInt(indTy.length).longValue
+        val addrIncr = TypeSizes.elemOffsetOf(referentTy, ind)
 
-        incrementBoxIRefOrPointer(ptr, opnd, i.results(0), addrIncr)
+        incrementBoxIRefOrPointer(ptr, opnd, results(0), addrIncr)
         continueNormally()
       }
 
       case i @ InstShiftIRef(ptr, referentTy, offTy, opnd, offset) => {
-        val offb = boxOf(offset).asInstanceOf[BoxInt]
-        val off = OpHelper.prepareSigned(offb.value, offTy.length)
-        val addrIncr = TypeSizes.shiftOffsetOf(referentTy, off.longValue())
+        val off = offset.getSInt(offTy.length).longValue
+        val addrIncr = TypeSizes.shiftOffsetOf(referentTy, off)
 
-        incrementBoxIRefOrPointer(ptr, opnd, i.results(0), addrIncr)
+        incrementBoxIRefOrPointer(ptr, opnd, results(0), addrIncr)
         continueNormally()
       }
 
       case i @ InstGetVarPartIRef(ptr, referentTy, opnd) => {
         val addrIncr = TypeSizes.varPartOffsetOf(referentTy)
 
-        incrementBoxIRefOrPointer(ptr, opnd, i.results(0), addrIncr)
+        incrementBoxIRefOrPointer(ptr, opnd, results(0), addrIncr)
         continueNormally()
       }
 
@@ -627,7 +455,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
           nullRefError(excClause)
         } else {
           val succ = MemoryOperations.cmpXchg(ptr, uty, addr, eb, db, br)
-          writeBooleanResult(succ, bs)
+          bs.asBoolean = succ
           continueNormally()
         }
       }
@@ -679,7 +507,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
           throw new UvmRefImplException(ctx + "Currently only support the #DEFAULT callConv. %s found.".format(callConv.name))
         }
 
-        val addr = boxOf(callee).asInstanceOf[BoxPointer].addr
+        val addr = callee.asPtr
 
         val argBoxes = argList.map(boxOf)
 
@@ -690,29 +518,28 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
       }
 
       case i @ InstNewThread(stack, newStackAction, excClause) => {
-        val newStack = boxOf(stack).asInstanceOf[BoxStack].stack.getOrElse {
+        val newStack = stack.asStack.getOrElse {
           throw new UvmRuntimeException(ctx + "Attempt to bind to a NULL stack.")
         }
-        
+
         val newThread = newStackAction match {
           case PassValues(argTys, args) => {
             val argBoxes = args.map(boxOf)
             microVM.threadStackManager.newThread(newStack, HowToResume.PassValues(argBoxes))
           }
           case ThrowExc(exc) => {
-            val excBox = boxOf(exc)
-            val excAddr = excBox.asInstanceOf[BoxRef].objRef
+            val excAddr = exc.asRef
             microVM.threadStackManager.newThread(newStack, HowToResume.ThrowExc(excAddr))
           }
         }
-        resultBox(0).asInstanceOf[BoxThread].thread = Some(newThread)
-        
+        results(0).asThread = Some(newThread)
+
         continueNormally()
       }
 
       case i @ InstSwapStack(swappee, curStackAction, newStackAction, excClause, keepAlives) => {
         val oldStack = curStack
-        val newStack = boxOf(swappee).asInstanceOf[BoxStack].stack.getOrElse {
+        val newStack = swappee.asStack.getOrElse {
           throw new UvmRuntimeException(ctx + "Swappee must not be NULL.")
         }
 
@@ -732,9 +559,9 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
             rebindPassValues(newStack, argBoxes)
           }
           case ThrowExc(exc) => {
-            val excBox = boxOf(exc)
+            val excBox = boxOf(exc) // need to get the box before the stack is destroyed.
             handleOldStack()
-            rebindThrowExc(newStack, excBox)
+            rebindThrowExc(newStack, excBox.asRef)
           }
         }
       }
