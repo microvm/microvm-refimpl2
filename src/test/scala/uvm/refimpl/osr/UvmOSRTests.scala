@@ -134,4 +134,41 @@ class UvmOSRTests extends UvmBundleTesterBase {
 
     ctx.closeContext()
   }
+
+  /**
+   * @param funcs many functions. funcs(0) is the bottom function.
+   * @param args arguments to the top function
+   */
+  def testFuncMulti(ctx: MuCtx, funcs: Seq[MuFuncRefValue], args: Seq[MuValue])(handler: TrapHandlerFunction): Unit = {
+    microVM.setTrapHandler(new MockTrapHandler(handler))
+    val hStack = ctx.newStack(funcs(0))
+    for (f <- funcs.tail) {
+      ctx.pushFrame(hStack, f)
+    }
+    val hThread = ctx.newThread(hStack, uvm.refimpl.HowToResume.PassValues(args))
+    microVM.execute()
+  }
+
+  "The return values" should "become the parameters of the previous frame" in {
+    val ctx = microVM.newContext()
+
+    val func1 = ctx.handleFromFunc("@consecutive_push_main")
+    val func2 = ctx.handleFromFunc("@forty_two_returner")
+
+    val arg0 = ctx.handleFromInt64(8)
+
+    testFuncMulti(ctx, Seq(func1, func2), Seq()) { (ctx, th, st, wp) =>
+      nameOf(ctx.curInst(st, 0)) match {
+        case "@consecutive_push_main.v1.entry.trap" => {
+          val Seq(n: MuIntValue) = ctx.dumpKeepalives(st, 0)
+
+          ctx.handleToUInt(n) shouldBe 42
+          
+          returnFromTrap(st)
+        }
+      }
+    }
+
+    ctx.closeContext()
+  }
 }

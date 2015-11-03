@@ -59,3 +59,16 @@
         [%trap_opt] TRAP <> KEEPALIVE(%n %i %s)
         THROW @NULLREF // unreachable
 }
+
+.funcdef @consecutive_push_main VERSION %v1 <@i_i> {
+    %entry(<@i64> %n):
+        [%trap] TRAP <> KEEPALIVE(%n)
+        COMMINST @uvm.thread_exit
+}
+
+.const @I64_42 <@i64> = 42
+
+.funcdef @forty_two_returner VERSION %v1 <@v_i> {
+    %entry():
+        RET @I64_42
+}
