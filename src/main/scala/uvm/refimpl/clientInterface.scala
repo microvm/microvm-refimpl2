@@ -716,8 +716,21 @@ class MuCtx(_mutator: Mutator)(
 }
 
 object RichMuCtx {
+  /** Allow you to use the `val h = x << ctx.makeSomeHandle()` or `val h = x(ctx.makeSomeHandle())`
+   *  syntax to dispose it later*/
+  class DelayedDisposer(garbageList: Buffer[MuValue]) {
+    def apply[T <: MuValue](v: T): T = {
+      garbageList += v
+      v
+    }
+    def <<[T <: MuValue](v: T): T = {
+      garbageList += v
+      v
+    }
+  }
+
   /** Extensions to the MuCtx interface. Not officially part of the client API. */
-  implicit class RichMuCtx(ctx: MuCtx) {
+  implicit class RichMuCtx(val ctx: MuCtx) extends AnyVal {
     def handleFromBoolean(b: Boolean) = ctx.handleFromInt(if (b) 1 else 0, 1)
     def handleFromInt1(num: BigInt) = ctx.handleFromInt(num, 1)
     def handleFromInt6(num: BigInt) = ctx.handleFromInt(num, 6)
@@ -727,17 +740,6 @@ object RichMuCtx {
     def handleFromInt52(num: BigInt) = ctx.handleFromInt(num, 52)
     def handleFromInt64(num: BigInt) = ctx.handleFromInt(num, 64)
     def deleteValue(vs: MuValue*) = vs.foreach(ctx.deleteValue)
-
-    class DelayedDisposer(garbageList: Buffer[MuValue]) {
-      def apply[T <: MuValue](v: T): T = {
-        garbageList += v
-        v
-      }
-      def <<[T <: MuValue](v: T): T = {
-        garbageList += v
-        v
-      }
-    }
 
     def autoDispose[T](f: DelayedDisposer => T) = {
       val garbages = ArrayBuffer[MuValue]()

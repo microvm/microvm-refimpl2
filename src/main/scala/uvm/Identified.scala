@@ -21,7 +21,7 @@ trait IdentifiedSettable extends Identified {
 }
 
 object RichIdentifiedSettable {
-  implicit class RichIdentifiedSettable[T <: IdentifiedSettable](val is: T) {
+  implicit class RichIdentifiedSettable[T <: IdentifiedSettable](val is: T) extends AnyVal {
     def :=(p: Int): T = {
       is.id = p
       is

@@ -25,7 +25,7 @@
 .const @I8_o  <@i8> = 0x6f
 .const @I8_NL <@i8> = 0x0a
 
-.funcsig @writetest_sig = (@write_fp) -> (@void)
+.funcsig @writetest_sig = (@write_fp) -> ()
 .funcdef @writetest VERSION @writetest_v1 <@writetest_sig> {
     %entry(<@write_fp> %fp):
         %buf = NEWHYBRID <@CharBuf @i64> @I64_6
@@ -116,8 +116,8 @@
 .typedef @irefstruct_baz = iref<@struct_baz>
 .typedef @ptrstruct_baz = uptr<@struct_baz>
 
-.funcsig @foo_func_sig = (@struct_foo @ptri64 @ptri32 @ptri16 @ptri8) -> (@void)
-.funcsig @bar_func_sig = (@struct_bar @ptrptrvoid @ptrfpv_v) -> (@void)
+.funcsig @foo_func_sig = (@struct_foo @ptri64 @ptri32 @ptri16 @ptri8) -> ()
+.funcsig @bar_func_sig = (@struct_bar @ptrptrvoid @ptrfpv_v) -> ()
 .funcsig @baz_func_sig = (@struct_baz @ptrfloat @ptri32 @ptrdouble @ptrstruct_baz) -> (@struct_baz)
 .typedef @foo_func_fp = ufuncptr<@foo_func_sig>
 .typedef @bar_func_fp = ufuncptr<@bar_func_sig>
@@ -143,7 +143,7 @@
         %pc = COMMINST @uvm.native.pin <@irefi16> (%ac)
         %pd = COMMINST @uvm.native.pin <@irefi8 > (%ad)
 
-        %rv = CCALL #DEFAULT <@foo_func_fp @foo_func_sig> %fp (@o_foo %pa %pb %pc %pd)
+        [%call] CCALL #DEFAULT <@foo_func_fp @foo_func_sig> %fp (@o_foo %pa %pb %pc %pd)
 
         COMMINST @uvm.native.unpin <@irefi8 > (%ad)
         COMMINST @uvm.native.unpin <@irefi16> (%ac)
@@ -155,7 +155,7 @@
         %c = LOAD <@i64> %ac
         %d = LOAD <@i64> %ad
 
-        [%trap] TRAP <> KEEPALIVE (%fp %rv %a %b %c %d)
+        [%trap] TRAP <> KEEPALIVE (%fp %a %b %c %d)
         COMMINST @uvm.thread_exit
 }
 
@@ -174,7 +174,7 @@
         %pa = COMMINST @uvm.native.pin <@irefptrvoid> (%aa)
         %pb = COMMINST @uvm.native.pin <@ireffpv_v> (%ab)
 
-        %rv = CCALL #DEFAULT <@bar_func_fp @bar_func_sig> %fp (@o_bar %pa %pb)
+        [%call] CCALL #DEFAULT <@bar_func_fp @bar_func_sig> %fp (@o_bar %pa %pb)
 
         COMMINST @uvm.native.unpin <@ireffpv_v> (%ab)
         COMMINST @uvm.native.unpin <@irefptrvoid> (%aa)
@@ -182,7 +182,7 @@
         %a = LOAD <@ptrvoid> %aa
         %b = LOAD <@fpv_v> %ab
 
-        [%trap] TRAP <> KEEPALIVE (%fp %rv %a %b)
+        [%trap] TRAP <> KEEPALIVE (%fp %a %b)
         COMMINST @uvm.thread_exit
 }
 

@@ -68,18 +68,18 @@ class GlobalBundle extends Bundle {
     for (cand <- newNs.all) {
       try {
         oldNs.add(cand)
-        def assertPresent[T <: Identified](ns: NestedNamespace[T], obj: T): Unit = {
-          assert(ns.get(obj.id) == Some(obj))
-          if (obj.id == 65731) {
-            printf("Obj[65731] found in ns " + ns)
-          }
-          ns.maybeParent match {
-            case None =>
-            case Some(ns2) =>
-              assertPresent(ns2, obj)
-          }
-        }
-        assertPresent(oldNs.asInstanceOf[NestedNamespace[T]], cand)
+//        def assertPresent[T <: Identified](ns: NestedNamespace[T], obj: T): Unit = {
+//          assert(ns.get(obj.id) == Some(obj))
+//          if (obj.id == 65731) {
+//            printf("Obj[65731] found in ns " + ns)
+//          }
+//          ns.maybeParent match {
+//            case None =>
+//            case Some(ns2) =>
+//              assertPresent(ns2, obj)
+//          }
+//        }
+//        assertPresent(oldNs.asInstanceOf[NestedNamespace[T]], cand)
       } catch {
         case e: NameConflictException =>
           throw new IllegalRedefinitionException(

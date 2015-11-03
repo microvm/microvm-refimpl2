@@ -9,7 +9,22 @@ import uvm.ssavariables._
 import uvm.comminsts._
 
 trait ExtraMatchers extends Assertions with Matchers {
-  implicit class AnythingExtraMatchers(val thing: Any) {
+  import ExtraMatchers._
+  implicit def anythingToAnythingExtraMatcher[U](thing: U) = new AnythingExtraMatchers(thing)
+  
+  val thatsIt = { f: Any => }
+  case object nan
+  case class ExactFloat(num: Float)
+  case class ExactDouble(num: Double)
+  def exactly(num: Float) = ExactFloat(num)
+  def exactly(num: Double) = ExactDouble(num)
+  
+  def bitsf(num: Int) = java.lang.Float.intBitsToFloat(num)
+  def bitsd(num: Long) = java.lang.Double.longBitsToDouble(num)
+}
+
+object ExtraMatchers extends ExtraMatchers {
+  implicit class AnythingExtraMatchers[U](val thing: U) extends AnyVal {
     def shouldBeA[T: ClassTag](f: T => Unit): Unit = {
       val ct = classTag[T]
       if (!ct.runtimeClass.isAssignableFrom(thing.getClass)) {
@@ -53,18 +68,5 @@ trait ExtraMatchers extends Assertions with Matchers {
       }
     }
   }
-
-  val thatsIt = { f: Any => }
-  case object nan
-  case class ExactFloat(num: Float)
-  case class ExactDouble(num: Double)
-  def exactly(num: Float) = ExactFloat(num)
-  def exactly(num: Double) = ExactDouble(num)
-  
-  def bitsf(num: Int) = java.lang.Float.intBitsToFloat(num)
-  def bitsd(num: Long) = java.lang.Double.longBitsToDouble(num)
-}
-
-object ExtraMatchers {
 
 }

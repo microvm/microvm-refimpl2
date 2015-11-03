@@ -90,9 +90,6 @@
         COMMINST @uvm.thread_exit
 }
 
-.typedef @refi32 = ref<@i32>
-.typedef @irefi32 = iref<@i32>
-
 .funcsig @futex_gc_waiter_sig = (@refi32) -> ()
 .funcdef @futex_gc_waiter VERSION @futex_gc_waiter_v1 <@futex_gc_waiter_sig> {
     %entry(<@refi32> %ref):

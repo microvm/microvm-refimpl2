@@ -255,7 +255,7 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
         val Seq(r) = argList
 
         val (addr, offset) = ty match {
-          case TypeRef(_)  => (boxOf(r).asInstanceOf[BoxRef].objRef, 0L)
+          case TypeRef(_) => (boxOf(r).asInstanceOf[BoxRef].objRef, 0L)
           case TypeIRef(_) => boxOf(r).asInstanceOf[BoxIRef].oo
         }
 
@@ -270,7 +270,7 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
         val Seq(r) = argList
 
         val addr = ty match {
-          case TypeRef(_)  => boxOf(r).asInstanceOf[BoxRef].objRef
+          case TypeRef(_) => boxOf(r).asInstanceOf[BoxRef].objRef
           case TypeIRef(_) => boxOf(r).asInstanceOf[BoxIRef].objRef
         }
 
@@ -343,7 +343,7 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
 
         continueNormally()
       }
-      
+
       case "@uvm.meta.load_hail" => {
         val Seq(hailScript) = argList
         val hailStr = MemoryOperations.bytesToStr(boxOf(hailScript).asInstanceOf[BoxRef].objRef)
@@ -352,6 +352,23 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
 
         continueNormally()
       }
+
+      case "@uvm.meta.cur_func" => {
+        val Seq(stack) = argList
+        ???
+      }
+
+      case "@uvm.meta.cur_func_ver" => ???
+      case "@uvm.meta.cur_inst" => ???
+      case "@uvm.meta.dump_keepalives" => ???
+
+      case "@uvm.meta.pop_frame" => ???
+      case "@uvm.meta.push_frame" => ???
+
+      case "@uvm.meta.enable_watchpoint" => ???
+      case "@uvm.meta.disable_watchpoint" => ???
+
+      case "@uvm.meta.set_trap_handler" => ???
 
       // Insert more CommInsts here.
 

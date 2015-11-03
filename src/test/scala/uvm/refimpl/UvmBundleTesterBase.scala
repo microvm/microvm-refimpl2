@@ -19,6 +19,26 @@ import uvm.refimpl.HowToResume.PassValues
 
 object UvmBundleTesterBase {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+
+  implicit class MagicalBox(val vb: ValueBox) extends AnyVal {
+    def asInt: BigInt = vb.asInstanceOf[BoxInt].value
+    def asSInt(l: Int): BigInt = OpHelper.prepareSigned(vb.asInstanceOf[BoxInt].value, l)
+    def asUInt(l: Int): BigInt = OpHelper.prepareUnsigned(vb.asInstanceOf[BoxInt].value, l)
+    def asFloat: Float = vb.asInstanceOf[BoxFloat].value
+    def asDouble: Double = vb.asInstanceOf[BoxDouble].value
+    def asRef: Word = vb.asInstanceOf[BoxRef].objRef
+    def asIRef: (Word, Word) = { val b = vb.asInstanceOf[BoxIRef]; (b.objRef, b.offset) }
+    def asIRefAddr: Word = { val b = vb.asInstanceOf[BoxIRef]; b.objRef + b.offset }
+    def asStruct: Seq[ValueBox] = vb.asInstanceOf[BoxSeq].values
+    def asFunc: Option[Function] = vb.asInstanceOf[BoxFunc].func
+    def asThread: Option[InterpreterThread] = vb.asInstanceOf[BoxThread].thread
+    def asStack: Option[InterpreterStack] = vb.asInstanceOf[BoxStack].stack
+    def asTR64Box: BoxTagRef64 = vb.asInstanceOf[BoxTagRef64]
+    def asTR64Raw: Long = vb.asInstanceOf[BoxTagRef64].raw
+    def asSeq: Seq[ValueBox] = vb.asInstanceOf[BoxSeq].values
+    def asVec: Seq[ValueBox] = vb.asInstanceOf[BoxSeq].values
+    def asPointer: Word = vb.asInstanceOf[BoxPointer].addr
+  }
 }
 
 abstract class UvmBundleTesterBase extends FlatSpec with Matchers {
@@ -72,30 +92,13 @@ abstract class UvmBundleTesterBase extends FlatSpec with Matchers {
     val hThread = ctx.newThread(hStack, HowToResume.PassValues(args))
     microVM.execute()
   }
-  
-  implicit def magicalMuValue(mv: MuValue): MagicalBox = MagicalBox(mv.vb)
 
-  implicit class MagicalBox(vb: ValueBox) {
-    def asInt: BigInt = vb.asInstanceOf[BoxInt].value
-    def asSInt(l: Int): BigInt = OpHelper.prepareSigned(vb.asInstanceOf[BoxInt].value, l)
-    def asUInt(l: Int): BigInt = OpHelper.prepareUnsigned(vb.asInstanceOf[BoxInt].value, l)
-    def asFloat: Float = vb.asInstanceOf[BoxFloat].value
-    def asDouble: Double = vb.asInstanceOf[BoxDouble].value
-    def asRef: Word = vb.asInstanceOf[BoxRef].objRef
-    def asIRef: (Word, Word) = { val b = vb.asInstanceOf[BoxIRef]; (b.objRef, b.offset) }
-    def asIRefAddr: Word = { val b = vb.asInstanceOf[BoxIRef]; b.objRef + b.offset }
-    def asStruct: Seq[ValueBox] = vb.asInstanceOf[BoxSeq].values
-    def asFunc: Option[Function] = vb.asInstanceOf[BoxFunc].func
-    def asThread: Option[InterpreterThread] = vb.asInstanceOf[BoxThread].thread
-    def asStack: Option[InterpreterStack] = vb.asInstanceOf[BoxStack].stack
-    def asTR64Box: BoxTagRef64 = vb.asInstanceOf[BoxTagRef64]
-    def asTR64Raw: Long = vb.asInstanceOf[BoxTagRef64].raw
-    def asSeq: Seq[ValueBox] = vb.asInstanceOf[BoxSeq].values
-    def asVec: Seq[ValueBox] = vb.asInstanceOf[BoxSeq].values
-    def asPointer: Word = vb.asInstanceOf[BoxPointer].addr
-  }
-  
+  import UvmBundleTesterBase._
+
+  implicit def magicalMuValue(mv: MuValue): MagicalBox = MagicalBox(mv.vb)
+  implicit def magicalValueBox(vb: ValueBox): MagicalBox = MagicalBox(vb)
+
   implicit def richMuCtx(ctx: MuCtx) = RichMuCtx.RichMuCtx(ctx)
-  
+
   def returnFromTrap(st: MuStackRefValue) = Rebind(st, PassValues(Seq()))
 }

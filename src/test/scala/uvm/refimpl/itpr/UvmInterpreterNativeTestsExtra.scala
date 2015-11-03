@@ -41,7 +41,7 @@ class UvmInterpreterNativeTestsExtra extends UvmBundleTesterBase {
     val a0 = ctx.handleFromInt64( funcAddr)
 
     testFunc(ctx, func, Seq(a0)) { (ctx, th, st, wp) =>
-      val Seq(fp, rv, a, b, c, d) = ctx.dumpKeepalives(st, 0)
+      val Seq(fp, a, b, c, d) = ctx.dumpKeepalives(st, 0)
 
       fp.vb.asPointer shouldEqual funcAddr
 
@@ -69,7 +69,7 @@ class UvmInterpreterNativeTestsExtra extends UvmBundleTesterBase {
     val a0 = ctx.handleFromInt64( funcAddr)
 
     testFunc(ctx, func, Seq(a0)) { (ctx, th, st, wp) =>
-      val Seq(fp, rv, a, b) = ctx.dumpKeepalives(st, 0)
+      val Seq(fp, a, b) = ctx.dumpKeepalives(st, 0)
 
       fp.vb.asPointer shouldEqual funcAddr
 

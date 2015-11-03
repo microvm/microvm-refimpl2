@@ -7,13 +7,12 @@ import uvm.comminsts._
 import uvm.ssavariables._
 import uvm.types._
 
-trait TestingBundlesValidators extends Matchers with ExtraMatchers {
-  
-  implicit class RichStringContext(sc: StringContext) {
+object TestingBundlesValidators {
+  implicit class RichStringContext(val sc: StringContext) extends AnyVal {
     def qw(): Seq[String] = sc.parts(0).split("\\s+")
   }
   
-  implicit class MagicalOur(b: Bundle) {
+  implicit class MagicalOur(val b: Bundle) extends AnyVal {
     def anything(s: String) = b.allNs(s)
     def ty(s: String) = b.typeNs(s)
     def const(s: String) = b.constantNs (s)
@@ -27,18 +26,22 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     def inst(s: String) = b.instNs(s)
   }
   
-  implicit class MagicalThe(c: FuncVer) {
+  implicit class MagicalThe(val c: FuncVer) extends AnyVal {
     def globalName(s: String) = UIRTextReader.globalize(s, c.name.get)
     def bb(s: String) = c.bbNs(UIRTextReader.globalize(s, c.name.get))
   }
   
-  implicit class MagicalMy(d: BasicBlock) {
+  implicit class MagicalMy(val d: BasicBlock) extends AnyVal {
     def globalName(s: String) = UIRTextReader.globalize(s, d.name.get)
     def value(s: String) = d.localVarNs(UIRTextReader.globalize(s, d.name.get))
     def param(s: String) = d.localVarNs(UIRTextReader.globalize(s, d.name.get))
     def ires(s: String) = d.localVarNs(UIRTextReader.globalize(s, d.name.get))
     def inst(s: String) = d.localInstNs(UIRTextReader.globalize(s, d.name.get))
   }
+}
+
+trait TestingBundlesValidators extends Matchers with ExtraMatchers {
+  import TestingBundlesValidators._
 
   def validateTypes(bundle: GlobalBundle) {
     val our = bundle

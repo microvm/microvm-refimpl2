@@ -32,6 +32,11 @@ object OpHelper {
     }
   }
 
+  // The BigInt in a BoxInt is always truncated to len bits.
+  //
+  // "prepare" means sign- or zero-extend the content to get the real math value.
+  // "unprepare" means truncating a math value to len bits to be stored in a BoxInt.
+
   def prepareUnsigned(n: BigInt, len: Int): BigInt = truncFromBigInt(n, len)
 
   def prepareSigned(n: BigInt, len: Int): BigInt = {

@@ -40,7 +40,7 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator
 
   htr match {
     case HowToResume.PassValues(values) => rebindPassValues(initialStack, values)
-    case HowToResume.ThrowExc(exc)      => catchException(exc)
+    case HowToResume.ThrowExc(exc) => catchException(exc)
   }
 }
 
@@ -87,7 +87,7 @@ trait InterpreterThreadState {
   protected def ctx = stack match {
     case None => "(Thred not bound to stack): "
     case Some(s) => s.top match {
-      case f: NativeFrame      => "TID %d, Native frame for function 0x%x: ".format(id, f.func)
+      case f: NativeFrame => "TID %d, Native frame for function 0x%x: ".format(id, f.func)
       case f: UndefinedMuFrame => "TID %d, Function %s (not defined): ".format(id, f.func.repr)
       case f: DefinedMuFrame => {
         val ix = f.curInstIndex
@@ -96,7 +96,7 @@ trait InterpreterThreadState {
         } else {
           "TID %d, FuncVer %s, BB %s, Inst(%d): %s (%s): ".format(id, f.funcVer.repr, curBB.repr, ix, curInst.repr, curInst match {
             case ci: InstCommInst => ci.inst.name.get
-            case _                => curInst.getClass.getSimpleName()
+            case _ => curInst.getClass.getSimpleName()
           })
         }
       }
@@ -106,7 +106,7 @@ trait InterpreterThreadState {
   /** Get the value box of an SSA variable in the current stack. */
   protected def boxOf(v: SSAVariable): ValueBox = v match {
     case g: GlobalVariable => microVM.constantPool.getGlobalVarBox(g)
-    case l: LocalVariable  => topDefMu.boxes(l)
+    case l: LocalVariable => topDefMu.boxes(l)
   }
 
   /** Get the edge-assigned value box of an edge-assigned instruction in the current stack. */
@@ -165,7 +165,7 @@ trait InterpreterActions extends InterpreterThreadState {
     topMu.justCreated = false
 
     topMu match {
-      case f: DefinedMuFrame   => interpretCurrentInstruction()
+      case f: DefinedMuFrame => interpretCurrentInstruction()
       case f: UndefinedMuFrame => executeUndefinedMuFrame()
     }
   }
@@ -176,11 +176,11 @@ trait InterpreterActions extends InterpreterThreadState {
     assert(f.virtInst != UndefinedMuFrame.VIRT_INST_NOT_STARTED)
     f.virtInst match {
       case UndefinedMuFrame.VIRT_INST_TRAP => {
-        logger.debug(ctx+"Executing virtual trap")
+        logger.debug(ctx + "Executing virtual trap")
         doTrap(Seq(), 0)
       }
       case UndefinedMuFrame.VIRT_INST_TAILCALL => {
-        logger.debug(ctx+"Executing virtual tail-call")
+        logger.debug(ctx + "Executing virtual tail-call")
         val calleeFunc = f.func
         val argBoxes = f.boxes
 
@@ -281,7 +281,7 @@ trait InterpreterActions extends InterpreterThreadState {
         maybeDestClause match {
           case Some(dc) => (f, dc)
           case None => f.prev match {
-            case None       => throw new UvmRuntimeException(ctx + "Exception is thrown out of the bottom frame.")
+            case None => throw new UvmRuntimeException(ctx + "Exception is thrown out of the bottom frame.")
             case Some(prev) => unwindUntilCatchable(prev)
           }
 
@@ -312,10 +312,10 @@ trait InterpreterActions extends InterpreterThreadState {
    */
   protected def maybeFindExceptionHandler(inst: Instruction): Option[DestClause] = {
     inst match {
-      case i: InstCall       => i.excClause.map(_.exc)
-      case i: InstTrap       => i.excClause.map(_.exc)
+      case i: InstCall => i.excClause.map(_.exc)
+      case i: InstTrap => i.excClause.map(_.exc)
       case i: InstWatchPoint => i.exc
-      case i: InstSwapStack  => i.excClause.map(_.exc)
+      case i: InstSwapStack => i.excClause.map(_.exc)
       case _ => {
         throw new UvmRefImplException(ctx + "Non-OSR point instruction %s (%s) is in a stack frame when an exception is thrown.".format(inst.repr, inst.getClass.getName))
       }
@@ -447,7 +447,7 @@ trait InterpreterActions extends InterpreterThreadState {
    */
   protected def branchToExcDestOr(excClause: Option[ExcClause])(f: => Unit): Unit = {
     excClause match {
-      case None                      => f
+      case None => f
       case Some(ExcClause(_, excBB)) => branchTo(excBB)
     }
   }
@@ -486,5 +486,20 @@ trait InterpreterActions extends InterpreterThreadState {
       throw new UvmRuntimeException(ctx + "Accessing null reference.")
     }
   }
+
+  import MagicalBox.MagicalBox
+  
+  implicit protected def ssaVariableToMagicalBox(v: SSAVariable) = new MagicalBox(boxOf(v))
+  implicit protected def boxToMagicalBox(b: ValueBox) = new MagicalBox(b)
 }
 
+object MagicalBox {
+  implicit class MagicalBox(val box: ValueBox) extends AnyVal {
+    def getIntRaw(): BigInt = box.asInstanceOf[BoxInt].value
+    def setIntRaw(v: BigInt): Unit = box.asInstanceOf[BoxInt].value = v
+
+    def getSInt(len: Int): BigInt = OpHelper.prepareSigned(box.getIntRaw(), len)
+    def getUInt(len: Int): BigInt = OpHelper.prepareUnsigned(box.getIntRaw(), len)
+    def setInt(v: BigInt, len: Int): Unit = box.setIntRaw(OpHelper.unprepare(v, len))
+  }
+}
