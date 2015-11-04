@@ -42,9 +42,10 @@ class BundleBuilder(baseName: String) {
     newVarName(nextName)
   }
 
-  def newVarName(name: String) = newVarName(name, baseName)
+  def newVarName(name: String): GlobalVarName = newVarName(name, baseName)
 
-  def newVarName(name: String, prefix: String) = GlobalVarName(generateName(prefix, name))
+  def newVarName(name: String, prefix: String): GlobalVarName =
+    GlobalVarName(generateName(prefix, name))
 
   def newTypeName(): TypeName = {
     var nextName: String = null
@@ -223,6 +224,8 @@ class BundleBuilder(baseName: String) {
     paramNames: util.List[String]
   ): FunctionBuilder =
     newFuncVersion(funcName, sigName, versionName, JavaConversions asScalaBuffer paramNames)
+
+  def comment(name: GlobalName, comment: String): Unit = comments.put(name, comment)
 
   def build(): Bundle = new Bundle(
     cTypeDefs = typeDefs,

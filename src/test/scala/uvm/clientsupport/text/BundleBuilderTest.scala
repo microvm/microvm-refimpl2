@@ -52,7 +52,7 @@ class BundleBuilderTest extends FlatSpec with Matchers {
     val abc = Seq(GlobalVarName("a"), GlobalVarName("b"), GlobalVarName("c"))
     def const(constDef: Const): String = {
       val builder = new BundleBuilder("test")
-      builder.const(c, constDef)
+      builder.constDef(c, constDef)
       builder.build().toString.trim
     }
 
@@ -203,7 +203,7 @@ class BundleBuilderTest extends FlatSpec with Matchers {
     val builder = new BundleBuilder("test")
     val t = builder.typeDef(TypeCtor.Int(64))
     val s = builder.funcSig(t, Seq(t, t))
-    val c = builder.const(Const.Int(t, 42L))
+    val c = builder.constDef(Const.Int(t, 42L))
     val g = builder.globalCell(t)
     val fDecl = builder.funcDecl(builder.newVarName("f1"), s)
     builder.exposeFunc(builder.newVarName("nf"), fDecl, new Flag("DEFAULT"), c)

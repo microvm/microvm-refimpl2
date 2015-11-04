@@ -72,9 +72,7 @@ class Bundle(
         import JavaConversions._
         sb append "\n"
         block foreach { case (name, value) =>
-          if (comments containsKey name) {
-            comments get name split '\n' map ("// " + _ + "\n") foreach sb.append
-          }
+          Option(comments get name) foreach (_ split '\n' map ("// " + _ + "\n") foreach sb.append)
           fn(name, value)
         }
       }
