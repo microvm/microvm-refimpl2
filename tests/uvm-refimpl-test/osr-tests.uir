@@ -72,3 +72,10 @@
     %entry():
         RET @I64_42
 }
+
+.funcdef @add_one VERSION %v1 <@i_i> {
+    %entry(<@i64> %n):
+        %n2 = ADD <@i64> %n @I64_1
+        [%trap] TRAP <> KEEPALIVE(%n %n2)
+        RET %n2
+}

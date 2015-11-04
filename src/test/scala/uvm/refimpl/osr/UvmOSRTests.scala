@@ -163,11 +163,47 @@ class UvmOSRTests extends UvmBundleTesterBase {
           val Seq(n: MuIntValue) = ctx.dumpKeepalives(st, 0)
 
           ctx.handleToUInt(n) shouldBe 42
-          
+
           returnFromTrap(st)
         }
       }
     }
+
+    ctx.closeContext()
+  }
+
+  "Multiple consecutively pushed frames" should "pass return values to their respective parent frames" in {
+    val ctx = microVM.newContext()
+
+    val func1 = ctx.handleFromFunc("@consecutive_push_main")
+    val func2 = ctx.handleFromFunc("@forty_two_returner")
+    val func3 = ctx.handleFromFunc("@add_one")
+
+    val arg0 = ctx.handleFromInt64(8)
+
+    var addOneReachCount = 0L
+
+    testFuncMulti(ctx, Seq(func1, func3, func3, func3, func2), Seq()) { (ctx, th, st, wp) =>
+      nameOf(ctx.curInst(st, 0)) match {
+        case "@add_one.v1.entry.trap" => {
+          val Seq(n: MuIntValue, n2: MuIntValue) = ctx.dumpKeepalives(st, 0)
+          ctx.handleToSInt(n).toLong shouldBe (42L + addOneReachCount)
+          ctx.handleToSInt(n2) shouldBe (42L + addOneReachCount + 1L)
+          addOneReachCount += 1L
+          
+          returnFromTrap(st)
+        }
+        case "@consecutive_push_main.v1.entry.trap" => {
+          val Seq(n: MuIntValue) = ctx.dumpKeepalives(st, 0)
+
+          ctx.handleToSInt(n).toLong shouldBe 45L
+
+          returnFromTrap(st)
+        }
+      }
+    }
+    
+    addOneReachCount shouldBe 3L
 
     ctx.closeContext()
   }
