@@ -17,20 +17,20 @@ import java.nio.charset.Charset
 
 object MuValue {
   def apply(ty: Type, vb: ValueBox): MuValue = (ty, vb) match {
-    case (t: TypeInt, v: BoxInt) => MuIntValue(t, v)
-    case (t: TypeFloat, v: BoxFloat) => MuFloatValue(t, v)
-    case (t: TypeDouble, v: BoxDouble) => MuDoubleValue(t, v)
-    case (t: TypeRef, v: BoxRef) => MuRefValue(t, v)
-    case (t: TypeIRef, v: BoxIRef) => MuIRefValue(t, v)
-    case (t: TypeStruct, v: BoxSeq) => MuStructValue(t, v)
-    case (t: TypeArray, v: BoxSeq) => MuArrayValue(t, v)
-    case (t: TypeVector, v: BoxSeq) => MuVectorValue(t, v)
-    case (t: TypeFuncRef, v: BoxFunc) => MuFuncRefValue(t, v)
-    case (t: TypeThreadRef, v: BoxThread) => MuThreadRefValue(t, v)
-    case (t: TypeStackRef, v: BoxStack) => MuStackRefValue(t, v)
+    case (t: TypeInt, v: BoxInt)           => MuIntValue(t, v)
+    case (t: TypeFloat, v: BoxFloat)       => MuFloatValue(t, v)
+    case (t: TypeDouble, v: BoxDouble)     => MuDoubleValue(t, v)
+    case (t: TypeRef, v: BoxRef)           => MuRefValue(t, v)
+    case (t: TypeIRef, v: BoxIRef)         => MuIRefValue(t, v)
+    case (t: TypeStruct, v: BoxSeq)        => MuStructValue(t, v)
+    case (t: TypeArray, v: BoxSeq)         => MuArrayValue(t, v)
+    case (t: TypeVector, v: BoxSeq)        => MuVectorValue(t, v)
+    case (t: TypeFuncRef, v: BoxFunc)      => MuFuncRefValue(t, v)
+    case (t: TypeThreadRef, v: BoxThread)  => MuThreadRefValue(t, v)
+    case (t: TypeStackRef, v: BoxStack)    => MuStackRefValue(t, v)
     case (t: TypeTagRef64, v: BoxTagRef64) => MuTagRef64Value(t, v)
-    case (t: TypeUPtr, v: BoxPointer) => MuUPtrValue(t, v)
-    case (t: TypeUFuncPtr, v: BoxPointer) => MuUFPValue(t, v)
+    case (t: TypeUPtr, v: BoxPointer)      => MuUPtrValue(t, v)
+    case (t: TypeUFuncPtr, v: BoxPointer)  => MuUFPValue(t, v)
     case (t, v) => {
       throw new IllegalArgumentException("Improper type-box pair: %s,%s".format(t.toString, vb.getClass.getSimpleName))
     }
@@ -254,11 +254,11 @@ class MuCtx(_mutator: Mutator)(
 
   /** Compare general reference types for equality. */
   def refEq(lhs: MuGenRefValue, rhs: MuGenRefValue): Boolean = (lhs, rhs) match {
-    case (l: MuRefValue, r: MuRefValue) => l.vb.objRef == r.vb.objRef
-    case (l: MuIRefValue, r: MuIRefValue) => l.vb.oo == r.vb.oo
-    case (l: MuFuncRefValue, r: MuFuncRefValue) => l.vb.func == r.vb.func
+    case (l: MuRefValue, r: MuRefValue)             => l.vb.objRef == r.vb.objRef
+    case (l: MuIRefValue, r: MuIRefValue)           => l.vb.oo == r.vb.oo
+    case (l: MuFuncRefValue, r: MuFuncRefValue)     => l.vb.func == r.vb.func
     case (l: MuThreadRefValue, r: MuThreadRefValue) => l.vb.thread == r.vb.thread
-    case (l: MuStackRefValue, r: MuStackRefValue) => l.vb.stack == r.vb.stack
+    case (l: MuStackRefValue, r: MuStackRefValue)   => l.vb.stack == r.vb.stack
     case (l, r) => {
       throw new IllegalArgumentException("Bad types for refEq: %s and %s".format(
         l.showTy, r.showTy))
@@ -336,8 +336,8 @@ class MuCtx(_mutator: Mutator)(
     val nt = microVM.globalBundle.typeNs(newType)
 
     val nh = (opnd, nt) match {
-      case (MuRefValue(ty, vb), ty2 @ TypeRef(_)) => MuRefValue(ty2, vb)
-      case (MuIRefValue(ty, vb), ty2 @ TypeIRef(_)) => MuIRefValue(ty2, vb)
+      case (MuRefValue(ty, vb), ty2 @ TypeRef(_))         => MuRefValue(ty2, vb)
+      case (MuIRefValue(ty, vb), ty2 @ TypeIRef(_))       => MuIRefValue(ty2, vb)
       case (MuFuncRefValue(ty, vb), ty2 @ TypeFuncRef(_)) => MuFuncRefValue(ty2, vb)
       case _ => {
         throw new IllegalArgumentException("Bad types for refcast: opnd:%s, newType:%s".format(
@@ -481,7 +481,7 @@ class MuCtx(_mutator: Mutator)(
     val sta = microVM.threadStackManager.newStack(funcVal, mutator)
 
     val nb = BoxStack(Some(sta))
-    addHandle(MuStackRefValue(InternalTypes.STACK, nb))
+    addHandle(MuStackRefValue(InternalTypes.STACKREF, nb))
   }
 
   private def getStackNotNull(stack: MuStackRefValue): InterpreterStack = {
@@ -495,12 +495,12 @@ class MuCtx(_mutator: Mutator)(
     val sv = getStackNotNull(stack)
     val itprHtr = htr match {
       case HowToResume.PassValues(values) => ItprHowToResume.PassValues(values.map(_.vb))
-      case HowToResume.ThrowExc(exc) => ItprHowToResume.ThrowExc(exc.vb.objRef)
+      case HowToResume.ThrowExc(exc)      => ItprHowToResume.ThrowExc(exc.vb.objRef)
     }
     val thr = microVM.threadStackManager.newThread(sv, itprHtr)
 
     val nb = BoxThread(Some(thr))
-    addHandle(MuThreadRefValue(InternalTypes.THREAD, nb))
+    addHandle(MuThreadRefValue(InternalTypes.THREADREF, nb))
   }
 
   /** Kill a Mu stack. */
@@ -660,7 +660,7 @@ class MuCtx(_mutator: Mutator)(
 
   def pin(loc: MuValue): MuUPtrValue = {
     val (objTy, (objRef, offset)) = loc match {
-      case MuRefValue(t, vb) => (t, (vb.objRef, 0L))
+      case MuRefValue(t, vb)  => (t, (vb.objRef, 0L))
       case MuIRefValue(t, vb) => (t, vb.oo)
       case _ => {
         throw new IllegalArgumentException("loc must be ref or iref. Found %s".format(loc.ty))
@@ -674,7 +674,7 @@ class MuCtx(_mutator: Mutator)(
 
   def unpin(loc: MuValue): Unit = {
     val (objTy, objRef) = loc match {
-      case MuRefValue(t, vb) => (t, vb.objRef)
+      case MuRefValue(t, vb)  => (t, vb.objRef)
       case MuIRefValue(t, vb) => (t, vb.objRef)
       case _ => {
         throw new IllegalArgumentException("loc must be ref or iref. Found %s".format(loc.ty))
@@ -703,21 +703,29 @@ class MuCtx(_mutator: Mutator)(
   // Internal methods for the micro VM
 
   def handleFromInterpreterThread(thr: Option[InterpreterThread]): MuThreadRefValue = {
-    val t = InternalTypes.THREAD
+    val t = InternalTypes.THREADREF
     val box = BoxThread(thr)
     addHandle(MuThreadRefValue(t, box))
   }
 
   def handleFromInterpreterStack(sta: Option[InterpreterStack]): MuStackRefValue = {
-    val s = InternalTypes.STACK
+    val s = InternalTypes.STACKREF
     val box = BoxStack(sta)
     addHandle(MuStackRefValue(s, box))
+  }
+
+  def handleFromAddr(addr: Long): MuRefValue = {
+    val t = InternalTypes.REF_VOID
+    val box = BoxRef(addr)
+    addHandle(MuRefValue(t, box))
   }
 }
 
 object RichMuCtx {
-  /** Allow you to use the `val h = x << ctx.makeSomeHandle()` or `val h = x(ctx.makeSomeHandle())`
-   *  syntax to dispose it later*/
+  /**
+   * Allow you to use the `val h = x << ctx.makeSomeHandle()` or `val h = x(ctx.makeSomeHandle())`
+   *  syntax to dispose it later
+   */
   class DelayedDisposer(garbageList: Buffer[MuValue]) {
     def apply[T <: MuValue](v: T): T = {
       garbageList += v

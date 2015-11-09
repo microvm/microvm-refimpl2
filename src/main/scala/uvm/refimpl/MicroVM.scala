@@ -48,6 +48,13 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
     globalBundle.typeNs.add(InternalTypes.BYTES_R)
     globalBundle.typeNs.add(InternalTypes.REFS)
     globalBundle.typeNs.add(InternalTypes.REFS_R)
+    
+    // Some internal constants needed
+    constantPool.addGlobalVar(InternalTypes.NULL_REF_VOID)
+    constantPool.addGlobalVar(InternalTypes.NULL_IREF_VOID)
+    constantPool.addGlobalVar(InternalTypes.NULL_FUNCREF_VV)
+    constantPool.addGlobalVar(InternalTypes.NULL_THREADREF)
+    constantPool.addGlobalVar(InternalTypes.NULL_STACKREF)
   }
 
   /**

@@ -35,15 +35,25 @@ object InternalTypes {
   val BYTE_ARRAY = TypeHybrid(Seq(), BYTE) := internal("byte_array")
 
   val REF_VOID = TypeRef(VOID) := internal("ref_void")
+  val IREF_VOID = TypeIRef(VOID) := internal("iref_void")
 
-  val STACK = TypeStackRef() := internal("stack")
-  val THREAD = TypeThreadRef() := internal("thread")
+  val SIG_VV = FuncSig(Seq(), Seq()) := internal("sig_vv")
+  val FUNCREF_VV = TypeFuncRef(SIG_VV) := internal("funcref_vv")
+  
+  val STACKREF = TypeStackRef() := internal("stackref")
+  val THREADREF = TypeThreadRef() := internal("threadref")
   val TAGREF64 = TypeTagRef64() := internal("tagref64")
 
   val BYTES = TypeHybrid(Seq(I64), I8) := (0x260, "@uvm.meta.bytes")
   val BYTES_R = TypeRef(BYTES) := (0x261, "@uvm.meta.bytes_r")
   val REFS = TypeHybrid(Seq(I64), REF_VOID) := (0x262, "@uvm.meta.refs")
   val REFS_R = TypeRef(BYTES) := (0x263, "@uvm.meta.refs_r")
+
+  val NULL_REF_VOID = ConstNull(REF_VOID) := internal("null_ref_void")
+  val NULL_IREF_VOID = ConstNull(IREF_VOID) := internal("null_iref_void")
+  val NULL_FUNCREF_VV = ConstNull(FUNCREF_VV) := internal("null_funcref_vv")
+  val NULL_THREADREF = ConstNull(STACKREF) := internal("null_threadref")
+  val NULL_STACKREF = ConstNull(THREADREF) := internal("null_stackref")
 }
 
 object InternalTypePool {
@@ -122,16 +132,16 @@ object TypeInferer {
     case i: InstTrap => i.retTys
     case i: InstWatchPoint => i.retTys
     case i: InstCCall => i.sig.retTys
-    case i: InstNewThread => Seq(THREAD)
+    case i: InstNewThread => Seq(THREADREF)
     case i: InstSwapStack => i.curStackAction match {
       case RetWith(t) => t
       case _: KillOld => Seq()
     }
     case i: InstCommInst => i.inst.name.get match {
-      case "@uvm.new_stack" => Seq(STACK)
+      case "@uvm.new_stack" => Seq(STACKREF)
       case "@uvm.kill_stack" => Seq()
       case "@uvm.thread_exit" => Seq()
-      case "@uvm.current_stack" => Seq(STACK)
+      case "@uvm.current_stack" => Seq(STACKREF)
       case "@uvm.tr64.is_fp" => Seq(I1)
       case "@uvm.tr64.is_int" => Seq(I1)
       case "@uvm.tr64.is_ref" => Seq(I1)
