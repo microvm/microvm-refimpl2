@@ -2,9 +2,12 @@ package uvm.refimpl.hail
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.HashMap
+
 import org.antlr.v4.runtime.ANTLRInputStream
 import org.antlr.v4.runtime.CommonTokenStream
 import org.antlr.v4.runtime.ParserRuleContext
+
+import uvm.Function
 import uvm.ir.textinput.TextIRParsingException
 import uvm.ir.textinput.gen.HAILLexer
 import uvm.ir.textinput.gen.HAILParser
@@ -13,9 +16,9 @@ import uvm.refimpl._
 import uvm.refimpl.mem.HeaderUtils
 import uvm.refimpl.mem.MemorySupport
 import uvm.ssavariables._
+import uvm.ssavariables.MemoryOrder.NOT_ATOMIC
 import uvm.types._
 import uvm.utils.AntlrHelpers._
-import uvm.ssavariables.MemoryOrder.NOT_ATOMIC
 
 class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) {
   def loadHail(hailScript: String): Unit = {
@@ -184,6 +187,8 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
     val lir = lv.iref
     val lty = lir.ty.ty // LValue referent type.
 
+    // error reporting
+
     def unexpectedRValueError(): Nothing = {
       throw new UvmHailParsingException(inCtx(rv, "Unsuitable RValue for LValue type %s".format(lty)))
     }
@@ -193,19 +198,96 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
         lty, TypeInferer.inferType(gv))))
     }
 
-    (lty, rv) match {
-      case (TypeInt(len), rv) => {
+    // Reused by their types as well as tagref64
+
+    def resForDoubleType(rv: RValueContext)(implicit mc: MuCtx): MuDoubleValue = {
+      rv match {
+        case fl: RVDoubleContext         => mc.handleFromDouble(fl.doubleLiteral)
+        case RVGlobalOf(gv: ConstDouble) => mc.handleFromConst(gv.id).asInstanceOf[MuDoubleValue]
+        case RVGlobalOf(gv)              => unexpectedGlobalTypeError(gv)
+        case _                           => unexpectedRValueError()
+      }
+    }
+
+    def resForIntType(rv: RValueContext, len: Int)(implicit mc: MuCtx): MuIntValue = {
+      rv match {
+        case il: RVIntContext                         => mc.handleFromInt(il.intLiteral, len)
+        case RVGlobalOf(gv @ ConstInt(_: TypeInt, _)) => mc.handleFromConst(gv.id).asInstanceOf[MuIntValue]
+        case RVGlobalOf(gv)                           => unexpectedGlobalTypeError(gv)
+        case _                                        => unexpectedRValueError()
+      }
+    }
+
+    def resForRefType(rv: RValueContext)(implicit mc: MuCtx, hailObjMap: HailObjMap): (MuRefValue, Boolean) = {
+      rv match {
+        case nu: RVNullContext    => (mc.handleFromConst(InternalTypes.NULL_REF_VOID.id).asInstanceOf[MuRefValue], true)
+        case hr: RVHailRefContext => (resRVHailRef(hr), false)
+        case _                    => unexpectedRValueError()
+      }
+    }
+
+    def resForTagRef64Type(rv: RValueContext)(implicit mc: MuCtx, hailObjMap: HailObjMap): MuTagRef64Value = {
+      val (kind, hv) = rv match {
+        case fl: RVDoubleContext         => (1, mc.handleFromDouble(fl.doubleLiteral))
+        case RVGlobalOf(gv: ConstDouble) => (1, mc.handleFromConst(gv.id).asInstanceOf[MuDoubleValue])
+        case il: RVIntContext            => (2, mc.handleFromInt(il.intLiteral, 52))
+        case RVGlobalOf(gv: ConstInt)    => (2, mc.handleFromConst(gv.id).asInstanceOf[MuIntValue])
+        case lst: RVListContext => {
+          val elems = lst.list.rv.toSeq
+          elems match {
+            case Seq(rv1, rv2) => {
+              val (hr, del) = resForRefType(rv1)
+              val ht = resForIntType(rv2, 6)
+              val r = mc.tr64FromRef(hr, ht)
+              if (del) mc.deleteValue(hr)
+              mc.deleteValue(ht)
+              (3, r)
+            }
+            case _ => unexpectedRValueError()
+          }
+        }
+        case RVGlobalOf(gv) => unexpectedGlobalTypeError(gv)
+        case _              => unexpectedRValueError()
+      }
+
+      kind match {
+        case 1 => { val r = mc.tr64FromFp(hv.asInstanceOf[MuDoubleValue]); mc.deleteValue(hv); r }
+        case 2 => { val r = mc.tr64FromInt(hv.asInstanceOf[MuIntValue]); mc.deleteValue(hv); r }
+        case 3 => { hv.asInstanceOf[MuTagRef64Value] }
+      }
+    }
+
+    // actual assigning
+
+    lty match {
+      case TypeInt(len) => {
+        val hi = resForIntType(rv, len)
+        mc.store(NOT_ATOMIC, lir, hi)
+        mc.deleteValue(hi)
+      }
+
+      case TypeUPtr(_) => {
         val hi = rv match {
-          case il: RVIntContext         => mc.handleFromInt(il.intLiteral, len)
-          case RVGlobalOf(gv: ConstInt) => mc.handleFromConst(gv.id)
-          case RVGlobalOf(gv)           => unexpectedGlobalTypeError(gv)
-          case _                        => unexpectedRValueError()
+          case il: RVIntContext                          => mc.handleFromInt(il.intLiteral, 64)
+          case RVGlobalOf(gv @ ConstInt(_: TypeUPtr, _)) => mc.handleFromConst(gv.id).asInstanceOf[MuUPtrValue]
+          case RVGlobalOf(gv)                            => unexpectedGlobalTypeError(gv)
+          case _                                         => unexpectedRValueError()
+        }
+        mc.store(NOT_ATOMIC, lir, hi)
+        mc.deleteValue(hi)
+      }
+      case TypeUFuncPtr(_) => {
+        val hi = rv match {
+          case il: RVIntContext => mc.handleFromInt(il.intLiteral, 64)
+          case RVGlobalOf(gv @ ConstInt(_: TypeUFuncPtr, _)) => mc.handleFromConst(gv.id).asInstanceOf[MuUFPValue]
+          case RVGlobalOf(gv) => unexpectedGlobalTypeError(gv)
+          case _ => unexpectedRValueError()
         }
         mc.store(NOT_ATOMIC, lir, hi)
         mc.deleteValue(hi)
       }
 
-      case (TypeFloat(), rv) => {
+      case TypeFloat() => {
         val hf = rv match {
           case fl: RVFloatContext         => mc.handleFromFloat(fl.floatLiteral)
           case RVGlobalOf(gv: ConstFloat) => mc.handleFromConst(gv.id)
@@ -215,33 +297,69 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
         mc.store(NOT_ATOMIC, lir, hf)
         mc.deleteValue(hf)
       }
-      case (TypeDouble(), rv) => {
-        val hf = rv match {
-          case fl: RVDoubleContext         => mc.handleFromDouble(fl.doubleLiteral)
-          case RVGlobalOf(gv: ConstDouble) => mc.handleFromConst(gv.id)
-          case RVGlobalOf(gv)              => unexpectedGlobalTypeError(gv)
-          case _                           => unexpectedRValueError()
-        }
+      case TypeDouble() => {
+        val hf = resForDoubleType(rv)
         mc.store(NOT_ATOMIC, lir, hf)
         mc.deleteValue(hf)
       }
-      case (TypeRef(ty), rv) => {
-        val (hr, del) = rv match {
-          case nu: RVNullContext => (mc.handleFromConst(InternalTypes.NULL_REF_VOID.id), true)
-          case hr: RVHailRefContext => {
-            val name = hr.HAIL_NAME().getText
-            val href = hailObjMap.getOrElse(name, {
-              throw new UvmHailParsingException(inCtx(rv, "HAIL name %s not defined. It needs to be defined BEFORE this".format(name)))
-            })
-            (href, false)
-          }
-          case _ => unexpectedRValueError()
-        }
+      case _: AbstractObjRefType => {
+        val (hr, del) = resForRefType(rv)
         mc.store(NOT_ATOMIC, lir, hr)
         if (del) mc.deleteValue(hr)
       }
-      case (t: TypeIRef, rv) => {
-        ???
+      case t: TypeIRef => {
+        val hr = rv match {
+          case nu: RVNullContext          => mc.handleFromConst(InternalTypes.NULL_IREF_VOID.id)
+          case io: RVIRefOfContext        => evalLValue(io.lValue()).iref
+          case RVGlobalOf(gv: GlobalCell) => mc.handleFromConst(gv.id)
+          case RVGlobalOf(gv)             => unexpectedGlobalTypeError(gv)
+          case _                          => unexpectedRValueError()
+        }
+        mc.store(NOT_ATOMIC, lir, hr)
+        mc.deleteValue(hr)
+      }
+      case t: TypeFuncRef => {
+        val hr = rv match {
+          case nu: RVNullContext        => mc.handleFromConst(InternalTypes.NULL_FUNCREF_VV.id)
+          case RVGlobalOf(gv: Function) => mc.handleFromConst(gv.id)
+          case RVGlobalOf(gv)           => unexpectedGlobalTypeError(gv)
+          case _                        => unexpectedRValueError()
+        }
+        mc.store(NOT_ATOMIC, lir, hr)
+        mc.deleteValue(hr)
+      }
+      case t: TypeThreadRef => {
+        val hr = rv match {
+          case nu: RVNullContext => mc.handleFromConst(InternalTypes.NULL_THREADREF.id)
+          case _                 => unexpectedRValueError()
+        }
+        mc.store(NOT_ATOMIC, lir, hr)
+        mc.deleteValue(hr)
+      }
+      case t: TypeStackRef => {
+        val hr = rv match {
+          case nu: RVNullContext => mc.handleFromConst(InternalTypes.NULL_STACKREF.id)
+          case _                 => unexpectedRValueError()
+        }
+        mc.store(NOT_ATOMIC, lir, hr)
+        mc.deleteValue(hr)
+      }
+      case t: TypeTagRef64 => {
+        val hr = resForTagRef64Type(rv)
+        mc.store(NOT_ATOMIC, lir, hr)
+        mc.deleteValue(hr)
+      }
+      case _: AbstractCompositeType => {
+        rv match {
+          case lst: RVListContext => {
+            val elems = lst.list.rv.toSeq
+            for ((innerRv, i) <- elems.zipWithIndex) {
+              val innerLv = lv.indexInto(i, innerRv)
+              assign(innerLv, innerRv)
+            }
+          }
+          case _ => unexpectedRValueError()
+        }
       }
       case _ => unexpectedRValueError()
     }
@@ -326,6 +444,18 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
       throw new UvmHailParsingException(inCtx(ctx, "Global variable %s not found".format(name)))
     }
     gv
+  }
+
+  def resRVHailRef(hrc: RVHailRefContext)(implicit mc: MuCtx, hailObjMap: HailObjMap) = {
+    val name = hrc.HAIL_NAME().getText
+    val href = hailObjMap.getOrElse(name, {
+      throw new UvmHailParsingException(inCtx(hrc, "HAIL name %s not defined. It needs to be defined BEFORE this".format(name)))
+    })
+    href
+  }
+
+  def rvListCtxToSeq(rvc: RVListContext): Seq[RValueContext] = {
+    rvc.list.rv.toSeq
   }
 
   object RVGlobalOf {

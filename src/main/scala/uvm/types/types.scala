@@ -14,11 +14,15 @@ abstract class AbstractRefType extends AbstractGenRefType {
   def ty: Type
 }
 
-abstract class AbstractStructType extends Type {
+abstract class AbstractObjRefType extends AbstractRefType
+
+abstract class AbstractCompositeType extends Type
+
+abstract class AbstractStructType extends AbstractCompositeType {
   def fieldTys: Seq[Type]
 }
 
-abstract class AbstractSeqType extends Type {
+abstract class AbstractSeqType extends AbstractCompositeType {
   def elemTy: Type
   def len: Long
 }
@@ -28,9 +32,9 @@ abstract class AbstractPointerType extends Type
 case class TypeInt(var length: Int) extends Type
 case class TypeFloat() extends FPType
 case class TypeDouble() extends FPType
-case class TypeRef(var ty: Type) extends AbstractRefType
+case class TypeRef(var ty: Type) extends AbstractObjRefType
 case class TypeIRef(var ty: Type) extends AbstractRefType
-case class TypeWeakRef(var ty: Type) extends AbstractRefType
+case class TypeWeakRef(var ty: Type) extends AbstractObjRefType
 case class TypeStruct(var fieldTys: Seq[Type]) extends AbstractStructType
 case class TypeArray(var elemTy: Type, var len: Long) extends AbstractSeqType
 case class TypeHybrid(var fieldTys: Seq[Type], var varTy: Type) extends AbstractStructType
