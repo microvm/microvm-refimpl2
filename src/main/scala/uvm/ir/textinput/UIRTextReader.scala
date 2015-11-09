@@ -13,6 +13,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.immutable.Stream
 import java.io.StringWriter
 import java.nio.CharBuffer
+import uvm.utils.AntlrHelpers._
 
 class UIRTextReader(val idFactory: IDFactory) {
   import UIRTextReader._
@@ -38,23 +39,6 @@ class UIRTextReader(val idFactory: IDFactory) {
     }
 
     read(sb.toString(), globalBundle)
-  }
-
-  class AccumulativeAntlrErrorListener(source: String) extends BaseErrorListener {
-    val buf = new ArrayBuffer[String]()
-    var hasError = false
-
-    lazy val sourceLines = ArrayBuffer(source.lines.toSeq: _*)
-
-    override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: Object,
-                             line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
-      val theLine = sourceLines(line - 1)
-      val marker = " " * charPositionInLine + "^"
-      buf.add("line %d:%d %s\n%s\n%s".format(line, charPositionInLine, msg, theLine, marker))
-      hasError = true
-    }
-
-    def getMessages(): String = buf.mkString("\n")
   }
 
   def read(source: String, ais: ANTLRInputStream, globalBundle: GlobalBundle): TrantientBundle = {
@@ -89,12 +73,12 @@ class UIRTextReader(val idFactory: IDFactory) {
         val neg = sign match {
           case "+" => false
           case "-" => true
-          case ""  => false
+          case "" => false
         }
         val abs = prefix match {
           case "0x" => BigInt(nums, 16)
-          case "0"  => if (nums == "") BigInt(0) else BigInt(nums, 8)
-          case ""   => BigInt(nums, 10)
+          case "0" => if (nums == "") BigInt(0) else BigInt(nums, 8)
+          case "" => BigInt(nums, 10)
         }
         return if (neg) -abs else abs
       }
@@ -108,7 +92,7 @@ class UIRTextReader(val idFactory: IDFactory) {
         java.lang.Float.NEGATIVE_INFINITY
       else java.lang.Float.POSITIVE_INFINITY
     }
-    case _: FloatNanContext     => java.lang.Float.NaN
+    case _: FloatNanContext => java.lang.Float.NaN
     case bits: FloatBitsContext => java.lang.Float.intBitsToFloat(bits.intLiteral().intValue())
   }
 
@@ -119,7 +103,7 @@ class UIRTextReader(val idFactory: IDFactory) {
         java.lang.Double.NEGATIVE_INFINITY
       else java.lang.Double.POSITIVE_INFINITY
     }
-    case _: DoubleNanContext     => java.lang.Double.NaN
+    case _: DoubleNanContext => java.lang.Double.NaN
     case bits: DoubleBitsContext => java.lang.Double.longBitsToDouble(bits.intLiteral().longValue())
   }
 
@@ -128,15 +112,6 @@ class UIRTextReader(val idFactory: IDFactory) {
 
   // Printing context information (line, column, near some token)
 
-  def inCtx(ctx: ParserRuleContext, s: String): String = nearTok(ctx.getStart, s)
-  def inCtx(ctx: TerminalNode, s: String): String = nearTok(ctx.getSymbol, s)
-
-  def nearTok(tok: Token, s: String): String = {
-    val line = tok.getLine()
-    val column = tok.getCharPositionInLine()
-    val near = tok.getText()
-    return "At %d:%d near '%s': %s".format(line, column, near, s)
-  }
 
   def catchIn[T](ctx: ParserRuleContext, s: String)(func: => T): T = try {
     func
@@ -234,24 +209,24 @@ class UIRTextReader(val idFactory: IDFactory) {
 
     def mkType(tc: TypeConstructorContext): Type = {
       val ty = tc match {
-        case t: TypeIntContext       => TypeInt(t.length.intValue())
-        case t: TypeFloatContext     => TypeFloat()
-        case t: TypeDoubleContext    => TypeDouble()
-        case t: TypeRefContext       => TypeRef(null).later(phase1) { _.ty = t.ty }
-        case t: TypeIRefContext      => TypeIRef(null).later(phase1) { _.ty = t.ty }
-        case t: TypeWeakRefContext   => TypeWeakRef(null).later(phase1) { _.ty = t.ty }
-        case t: TypeStructContext    => TypeStruct(null).later(phase1) { _.fieldTys = t.fieldTys.map(resTy) }
-        case t: TypeArrayContext     => TypeArray(null, t.length.longValue()).later(phase1) { _.elemTy = t.ty }
-        case t: TypeHybridContext    => TypeHybrid(null, null).later(phase1) { tt => tt.fieldTys = t.fieldTys.map(resTy); tt.varTy = t.varTy }
-        case t: TypeVoidContext      => TypeVoid()
-        case t: TypeFuncRefContext   => TypeFuncRef(null).later(phase1) { _.sig = t.funcSig() }
+        case t: TypeIntContext => TypeInt(t.length.intValue())
+        case t: TypeFloatContext => TypeFloat()
+        case t: TypeDoubleContext => TypeDouble()
+        case t: TypeRefContext => TypeRef(null).later(phase1) { _.ty = t.ty }
+        case t: TypeIRefContext => TypeIRef(null).later(phase1) { _.ty = t.ty }
+        case t: TypeWeakRefContext => TypeWeakRef(null).later(phase1) { _.ty = t.ty }
+        case t: TypeStructContext => TypeStruct(null).later(phase1) { _.fieldTys = t.fieldTys.map(resTy) }
+        case t: TypeArrayContext => TypeArray(null, t.length.longValue()).later(phase1) { _.elemTy = t.ty }
+        case t: TypeHybridContext => TypeHybrid(null, null).later(phase1) { tt => tt.fieldTys = t.fieldTys.map(resTy); tt.varTy = t.varTy }
+        case t: TypeVoidContext => TypeVoid()
+        case t: TypeFuncRefContext => TypeFuncRef(null).later(phase1) { _.sig = t.funcSig() }
         case t: TypeThreadRefContext => TypeThreadRef()
-        case t: TypeStackRefContext  => TypeStackRef()
-        case t: TypeTagRef64Context  => TypeTagRef64()
-        case t: TypeVectorContext    => TypeVector(null, t.length.longValue()).later(phase1) { _.elemTy = t.ty }
-        case t: TypeUPtrContext      => TypeUPtr(null).later(phase1) { _.ty = t.ty }
-        case t: TypeUFuncPtrContext  => TypeUFuncPtr(null).later(phase1) { _.sig = t.funcSig }
-        case _                       => throw new TextIRParsingException("foo")
+        case t: TypeStackRefContext => TypeStackRef()
+        case t: TypeTagRef64Context => TypeTagRef64()
+        case t: TypeVectorContext => TypeVector(null, t.length.longValue()).later(phase1) { _.elemTy = t.ty }
+        case t: TypeUPtrContext => TypeUPtr(null).later(phase1) { _.ty = t.ty }
+        case t: TypeUFuncPtrContext => TypeUFuncPtr(null).later(phase1) { _.sig = t.funcSig }
+        case _ => throw new TextIRParsingException("foo")
       }
       return ty
     }
@@ -286,8 +261,8 @@ class UIRTextReader(val idFactory: IDFactory) {
 
     def mkConst(t: Type, c: ConstConstructorContext): Constant = {
       val con = c match {
-        case cc: CtorIntContext    => ConstInt(t, cc.intLiteral)
-        case cc: CtorFloatContext  => ConstFloat(t, cc.floatLiteral)
+        case cc: CtorIntContext => ConstInt(t, cc.intLiteral)
+        case cc: CtorFloatContext => ConstFloat(t, cc.floatLiteral)
         case cc: CtorDoubleContext => ConstDouble(t, cc.doubleLiteral)
         case cc: CtorListContext => ConstSeq(t, null).later(phase2) {
           _.elems = for (gn <- cc.GLOBAL_NAME()) yield resGlobalVar(gn)
@@ -471,7 +446,7 @@ class UIRTextReader(val idFactory: IDFactory) {
         implicit def resNewStackClause(nsc: NewStackClauseContext): NewStackAction = {
           nsc match {
             case a: NewStackPassValueContext => PassValues(a.typeList(), a.argList())
-            case a: NewStackThrowExcContext  => ThrowExc(a.exc)
+            case a: NewStackThrowExcContext => ThrowExc(a.exc)
           }
         }
 
@@ -651,7 +626,7 @@ class UIRTextReader(val idFactory: IDFactory) {
 
           inst.id = idFactory.getID()
           inst.name = Option(instDef.name).map(n => globalize(n.getText, bbName))
-          
+
           bb.localInstNs.add(inst)
 
           val instRess: Seq[InstResult] = Option(instDef.instResults) match {
@@ -700,7 +675,7 @@ object UIRTextReader {
     sigil match {
       case '@' => name
       case '%' => parentName + "." + name.substring(1)
-      case _   => throw new UvmException("Illegal name '%s'. Name must begin with either '@' or '%%'".format(name))
+      case _ => throw new UvmException("Illegal name '%s'. Name must begin with either '@' or '%%'".format(name))
     }
   }
 }
