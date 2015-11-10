@@ -1,0 +1,20 @@
+// hail
+
+.init @g_uptr1  = 42
+.init @g_uptr2  = @P1
+
+.init @g_ufp1   = 43
+.init @g_ufp2   = @P2
+.init @g_ufp3   = @foo_native
+
+.init @g_tr1    = 3.14d
+.init @g_tr2    = 0xfedcba9876543
+.init @g_tr3    = {NULL 31}
+.init @g_tr4    = @D_7
+.init @g_tr5    = @I52_99
+
+.new $empty <@void>
+
+.init @g_tr6    = {$empty @I6_15}
+.init @g_empty  = $empty
+

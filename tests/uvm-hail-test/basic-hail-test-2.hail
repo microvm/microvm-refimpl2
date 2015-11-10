@@ -1,0 +1,32 @@
+// hail
+
+.new $h_i8       <@i8>
+.new $h_i16      <@i16>
+.new $h_i32      <@i32>
+.new $h_i64      <@i64>
+.new $h_float    <@float>
+.new $h_double   <@double>
+.new $h_rv       <@refvoid>
+.new $h_irv      <@irefvoid>
+.new $h_frv_v    <@frv_v>
+
+.init $h_i8       = @I8_42
+.init $h_i16      = @I16_43
+.init $h_i32      = @I32_4
+.init $h_i64      = @I64_5
+.init $h_float    = @F_6
+.init $h_double   = @D_7
+.init $h_rv       = $h_rv
+.init $h_irv      = @g_rirv
+.init $h_frv_v    = @foo
+
+.init @g_ri8       = $h_i8    
+.init @g_ri16      = $h_i16   
+.init @g_ri32      = $h_i32   
+.init @g_ri64      = $h_i64   
+.init @g_rfloat    = $h_float 
+.init @g_rdouble   = $h_double
+.init @g_rrv       = $h_rv    
+.init @g_rirv      = $h_irv   
+.init @g_rfrv_v    = $h_frv_v 
+

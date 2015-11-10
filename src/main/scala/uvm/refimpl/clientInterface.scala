@@ -45,7 +45,7 @@ abstract class MuValue {
   def ty: Type
   def vb: ValueBox
 
-  def showTy: String = "%s: %s".format(this.getClass.getSimpleName, ty.repr)
+  def showTy: String = "%s: %s".format(this.getClass.getSimpleName, ty)
 }
 
 abstract class MuSeqValue extends MuValue {
@@ -418,6 +418,7 @@ class MuCtx(_mutator: Mutator)(
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
     }
+    
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
     val nb = ValueBox.makeBoxForType(uty)

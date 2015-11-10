@@ -14,6 +14,7 @@ import scala.collection.immutable.Stream
 import java.io.StringWriter
 import java.nio.CharBuffer
 import uvm.utils.AntlrHelpers._
+import uvm.utils.IOHelpers
 
 class UIRTextReader(val idFactory: IDFactory) {
   import UIRTextReader._
@@ -25,20 +26,7 @@ class UIRTextReader(val idFactory: IDFactory) {
   }
 
   def read(ir: java.io.Reader, globalBundle: GlobalBundle): TrantientBundle = {
-    val sb = new StringBuilder()
-    val cb = new Array[Char](4096)
-
-    var finished = false
-    while (!finished) {
-      val actualRead = ir.read(cb, 0, 4096)
-      if (actualRead > 0) {
-        sb.appendAll(cb, 0, actualRead)
-      } else {
-        finished = true
-      }
-    }
-
-    read(sb.toString(), globalBundle)
+    read(IOHelpers.slurp(ir), globalBundle)
   }
 
   def read(source: String, ais: ANTLRInputStream, globalBundle: GlobalBundle): TrantientBundle = {

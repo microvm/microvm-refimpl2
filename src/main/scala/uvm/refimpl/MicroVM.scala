@@ -1,12 +1,14 @@
 package uvm.refimpl
 
+import scala.collection.mutable.HashSet
+
 import uvm._
+import uvm.ir.textinput.IDFactory
+import uvm.ir.textinput.UIRTextReader
+import uvm.refimpl.hail.HailScriptLoader
 import uvm.refimpl.itpr._
 import uvm.refimpl.mem._
 import uvm.refimpl.mem.TypeSizes.Word
-import scala.collection.mutable.HashSet
-import uvm.ir.textinput.UIRTextReader
-import uvm.ir.textinput.IDFactory
 import uvm.refimpl.nat.NativeCallHelper
 
 object MicroVM {
@@ -16,8 +18,8 @@ object MicroVM {
 }
 
 class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
-              globalSize: Word = MicroVM.DEFAULT_GLOBAL_SIZE,
-              stackSize: Word = MicroVM.DEFAULT_STACK_SIZE) {
+    globalSize: Word = MicroVM.DEFAULT_GLOBAL_SIZE,
+    stackSize: Word = MicroVM.DEFAULT_STACK_SIZE) {
 
   // implicitly injected resources
   private implicit val microVM = this
@@ -35,26 +37,26 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
   val contexts = new HashSet[MuCtx]()
 
   val irReader = new UIRTextReader(new IDFactory())
+  val hailScriptLoader = new HailScriptLoader()
 
   {
-    // The micro VM allocates stacks on the heap in the large object space. It is represented as a bug chunk of byte array.
+    // VOID, BYTE, BYTE_ARRAY: The micro VM allocates stacks on the heap in the large object space.
+    // It is represented as a big chunk of byte array.
     // So the GC must know about this type because the GC looks up the globalBundle for types.
-    globalBundle.typeNs.add(InternalTypes.VOID)
-    globalBundle.typeNs.add(InternalTypes.BYTE)
-    globalBundle.typeNs.add(InternalTypes.BYTE_ARRAY)
+
+    // BYTES, BYTES_R, REFS, REFS_R: Types for the @uvm.meta.* common instructions.
+
+    import InternalTypes._
+    for (ty <- Seq(VOID, BYTE, BYTE_ARRAY, BYTES, BYTES_R, REFS, REFS_R)) {
+      globalBundle.typeNs.add(ty)
+    }
+
+    // Some internal constants needed by the HAIL loader
     
-    // Types for the @uvm.meta.* common instructions.
-    globalBundle.typeNs.add(InternalTypes.BYTES)
-    globalBundle.typeNs.add(InternalTypes.BYTES_R)
-    globalBundle.typeNs.add(InternalTypes.REFS)
-    globalBundle.typeNs.add(InternalTypes.REFS_R)
-    
-    // Some internal constants needed
-    constantPool.addGlobalVar(InternalTypes.NULL_REF_VOID)
-    constantPool.addGlobalVar(InternalTypes.NULL_IREF_VOID)
-    constantPool.addGlobalVar(InternalTypes.NULL_FUNCREF_VV)
-    constantPool.addGlobalVar(InternalTypes.NULL_THREADREF)
-    constantPool.addGlobalVar(InternalTypes.NULL_STACKREF)
+    for (c <- Seq(NULL_REF_VOID, NULL_IREF_VOID, NULL_FUNCREF_VV, NULL_THREADREF, NULL_STACKREF)) {
+      globalBundle.constantNs.add(c)
+      constantPool.addGlobalVar(c)
+    }
   }
 
   /**
@@ -101,7 +103,7 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
   } catch {
     case e: NoSuchElementException => throw new UvmRefImplException("No Mu entity has ID %d".format(id), e)
   }
-  
+
   /**
    * Set the trap handler.
    */

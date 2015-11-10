@@ -1,0 +1,67 @@
+// uir
+// require "../uvm-refimpl-test/primitives.uir"
+
+.typedef @refrefvoid        = ref<@refvoid>
+.typedef @refirefvoid       = ref<@irefvoid>
+.typedef @refweakrefvoid    = ref<@weakrefvoid>
+.typedef @reffrv_v          = ref<@frv_v>
+.typedef @refthread         = ref<@thread>
+.typedef @refstack          = ref<@stack>
+
+.global @g_ri8      <@refi8>
+.global @g_ri16     <@refi16>
+.global @g_ri32     <@refi32>
+.global @g_ri64     <@refi64>
+.global @g_rfloat   <@reffloat>
+.global @g_rdouble  <@refdouble>
+.global @g_rrv      <@refrefvoid>
+.global @g_rirv     <@refirefvoid>
+.global @g_rwrv     <@refweakrefvoid>
+.global @g_rfrv_v   <@reffrv_v>
+.global @g_rthread  <@refthread>
+.global @g_rstack   <@refstack>
+
+.const @I8_42 <@i8> = 42
+.const @I16_43 <@i16> = 43
+
+.funcdecl @foo <@v_v>
+.expose @foo_native = @foo #DEFAULT @I64_2
+
+.const @P1 <@ptrvoid> = 0x123456789abcdef0
+.const @P2 <@fpv_v> = 0xfedcba9876543210
+
+.global @g_uptr1    <@ptrvoid>
+.global @g_uptr2    <@ptrvoid>
+
+.global @g_ufp1     <@fpv_v>
+.global @g_ufp2     <@fpv_v>
+.global @g_ufp3     <@fpv_v>
+
+.global @g_tr1      <@tagref64>
+.global @g_tr2      <@tagref64>
+.global @g_tr3      <@tagref64>
+.global @g_tr4      <@tagref64>
+.global @g_tr5      <@tagref64>
+.global @g_tr6      <@tagref64>
+
+.global @g_empty    <@refvoid>
+
+.const @I52_99 <@i52> = 99
+.const @I6_15 <@i6> = 15
+
+.typedef @small_struct  = struct <@i8 @i16 @i32 @i64>
+.typedef @big_struct    = struct <@float @small_struct @double>
+.typedef @small_array   = array <@i32 6>
+
+.global @g_small_struct     <@small_struct>
+.global @g_big_struct       <@big_struct>
+.global @g_small_array      <@small_array>
+.global @g_vector   <@4xfloat>
+.global @g_big_struct2      <@big_struct>
+.global @g_small_array2     <@small_array>
+
+.typedef @my_hybrid     = hybrid <@i64 @double @i8>
+.typedef @my_hybrid_r   = ref<@my_hybrid>
+
+.global @g_my_hybrid_r  <@my_hybrid_r>
+

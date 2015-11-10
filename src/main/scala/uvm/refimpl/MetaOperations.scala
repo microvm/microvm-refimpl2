@@ -1,6 +1,7 @@
 package uvm.refimpl
 
 import java.io.Reader
+
 import uvm.refimpl.mem.Mutator
 
 /** Common implementations of operations on the MicroVM. Used by both the MuCtx and many comminsts. */
@@ -16,10 +17,14 @@ object MetaOperations {
     val bundle = microVM.irReader.read(s, microVM.globalBundle)
     microVM.addBundle(bundle)
   }
-  
-  /** Load a HAIL script */
-  def loadHail(r: Reader)(implicit microVM: MicroVM, mutator: Mutator): Unit = ???
 
   /** Load a HAIL script */
-  def loadHail(s: String)(implicit microVM: MicroVM, mutator: Mutator): Unit = ???
+  def loadHail(r: Reader)(implicit microVM: MicroVM, mutator: Mutator): Unit = {
+    microVM.hailScriptLoader.loadHail(r)
+  }
+
+  /** Load a HAIL script */
+  def loadHail(s: String)(implicit microVM: MicroVM, mutator: Mutator): Unit = {
+    microVM.hailScriptLoader.loadHail(s)
+  }
 }

@@ -1,12 +1,13 @@
 package uvm.refimpl.hail
 
+import java.io.Reader
 import scala.collection.JavaConversions._
 import scala.collection.mutable.HashMap
-
 import org.antlr.v4.runtime.ANTLRInputStream
 import org.antlr.v4.runtime.CommonTokenStream
 import org.antlr.v4.runtime.ParserRuleContext
-
+import org.slf4j.LoggerFactory
+import com.typesafe.scalalogging.Logger
 import uvm.Function
 import uvm.ir.textinput.TextIRParsingException
 import uvm.ir.textinput.gen.HAILLexer
@@ -19,8 +20,20 @@ import uvm.ssavariables._
 import uvm.ssavariables.MemoryOrder.NOT_ATOMIC
 import uvm.types._
 import uvm.utils.AntlrHelpers._
+import uvm.utils.IOHelpers
+import uvm.utils.AdvancedAntlrHelper
+
+object HailScriptLoader {
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+}
 
 class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) {
+  import HailScriptLoader._
+
+  def loadHail(hailScript: Reader): Unit = {
+    loadHail(IOHelpers.slurp(hailScript))
+  }
+
   def loadHail(hailScript: String): Unit = {
     val ais = new ANTLRInputStream(hailScript)
     val ea = new AccumulativeAntlrErrorListener(hailScript)
@@ -37,55 +50,71 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
       throw new TextIRParsingException("Syntax error:\n" + ea.getMessages)
     }
 
-    loadTopLevel(ast)
-  }
-
-  private type HailObjMap = HashMap[String, MuRefValue]
-
-  private def loadTopLevel(ast: HailContext): Unit = {
-    implicit val mc = microVM.newContext()
+    val mc = microVM.newContext()
+    val ihsl = new InstanceHailScriptLoader(microVM, memorySupport, mc, hailScript)
     try {
-      implicit val hailObjMap = new HailObjMap
-
-      ast.topLevelDef.map(_.getChild(0)) foreach {
-        case tl: FixedAllocContext => {
-          val hailName = tl.nam.toString
-          val ty = resTy(tl.ty)
-          if (ty.isInstanceOf[TypeHybrid]) {
-            throw new UvmHailParsingException(inCtx(tl, "Cannot allocate hybrid using '.new'. Found: %s".format(ty)))
-          }
-          val obj = mc.newFixed(ty.id)
-          if (hailObjMap.contains(hailName)) {
-            throw new UvmHailParsingException(inCtx(tl, "HAIL name %s already used.".format(hailName)))
-          }
-          hailObjMap(hailName) = obj
-        }
-        case tl: HybridAllocContext => {
-          val hailName = tl.nam.toString
-          val ty = resTy(tl.ty)
-          if (!ty.isInstanceOf[TypeHybrid]) {
-            throw new UvmHailParsingException(inCtx(tl, "hybrid required. Found %s".format(ty)))
-          }
-          val len: Long = evalIntExpr(tl.len).toLong
-          val obj = mc.newFixed(ty.id)
-          if (hailObjMap.contains(hailName)) {
-            throw new UvmHailParsingException(inCtx(tl, "HAIL name %s already used.".format(hailName)))
-          }
-          hailObjMap(hailName) = obj
-        }
-        case init: MemInitContext => {
-          val lv = evalLValue(init.lv)
-          assign(lv, init.rv)
-        }
-      }
-
+      ihsl.loadTopLevel(ast)
     } finally {
       mc.closeContext()
     }
+
+  }
+}
+
+class InstanceHailScriptLoader(microVM: MicroVM, memorySupport: MemorySupport, mc: MuCtx, source: String) extends AdvancedAntlrHelper {
+  import HailScriptLoader._
+
+  val sourceLines = source.lines.toIndexedSeq
+
+  private type HailObjMap = HashMap[String, MuRefValue]
+  val hailObjMap = new HailObjMap
+
+  def loadTopLevel(ast: HailContext): Unit = {
+    ast.topLevelDef.map(_.getChild(0)) foreach {
+      case tl: FixedAllocContext => {
+        val hailName = tl.nam.getText
+
+        logger.debug("Executing fixed alloc: %s".format(tl.getText))
+
+        val ty = resTy(tl.ty)
+        if (ty.isInstanceOf[TypeHybrid]) {
+          throw new UvmHailParsingException(inCtx(tl, "Cannot allocate hybrid using '.new'. Found: %s".format(ty)))
+        }
+        val obj = mc.newFixed(ty.id)
+        if (hailObjMap.contains(hailName)) {
+          throw new UvmHailParsingException(inCtx(tl, "HAIL name %s already used.".format(hailName)))
+        }
+        hailObjMap(hailName) = obj
+      }
+      case tl: HybridAllocContext => {
+        val hailName = tl.nam.getText
+
+        logger.debug("Executing hybrid alloc: %s".format(tl.getText))
+
+        val ty = resTy(tl.ty)
+        if (!ty.isInstanceOf[TypeHybrid]) {
+          throw new UvmHailParsingException(inCtx(tl, "hybrid required. Found %s".format(ty)))
+        }
+        val len: Long = evalIntExpr(tl.len).toLong
+        val hLen = mc.handleFromInt(len, 64)
+        val obj = mc.newHybrid(ty.id, hLen)
+        mc.deleteValue(hLen)
+        if (hailObjMap.contains(hailName)) {
+          throw new UvmHailParsingException(inCtx(tl, "HAIL name %s already used.".format(hailName)))
+        }
+        hailObjMap(hailName) = obj
+      }
+      case init: MemInitContext => {
+        logger.debug("Executing init: %s".format(init.getText))
+        val lv = evalLValue(init.lv)
+        assign(lv, init.rv)
+      }
+    }
+
   }
 
   class LValue private (val iref: MuIRefValue, val varLen: Option[Long], val baseCtx: ParserRuleContext, val curCtx: ParserRuleContext) {
-    def indexInto(index: Long, ctx: ParserRuleContext)(implicit mc: MuCtx): LValue = {
+    def indexInto(index: Long, ctx: ParserRuleContext): LValue = {
       val (newIRef, newVarLen) = varLen match {
         case None => { // not in the var-part of a hybrid
           iref.ty.ty match {
@@ -101,13 +130,13 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
             case t: TypeHybrid => {
               val ii = index.toInt
               if (ii < 0 || ii > t.fieldTys.length) {
-                throw new UvmHailParsingException(inCtx(ctx, "Index out of bound. Hybrid %s has %d fields. Found index: %d".format(
-                  t, t.fieldTys.length, ii)))
+                throw new UvmHailParsingException(inCtx(ctx, "Index out of bound. Hybrid %s has %d fields (%d-%d). Var part index is %d. Found index: %d".format(
+                  t, t.fieldTys.length, 0, t.fieldTys.length - 1, t.fieldTys.length, ii)))
               }
               if (ii == t.fieldTys.length) {
                 val nir = mc.getVarPartIRef(iref)
                 // For debug purpose, we keep the upperbound recorded. Out-of-bound access has undefined behaviour.
-                val len = HeaderUtils.getVarLength(iref.vb.objRef)
+                val len = HeaderUtils.getVarLength(iref.vb.objRef)(memorySupport)
                 (nir, Some(len))
               } else {
                 val nir = mc.getFieldIRef(iref, index.toInt)
@@ -145,7 +174,7 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
   }
 
   object LValue {
-    def forName(name: String, baseCtx: ParserRuleContext)(implicit mc: MuCtx, hailObjMap: HailObjMap): LValue = {
+    def forName(name: String, baseCtx: ParserRuleContext): LValue = {
       val base = name.charAt(0) match {
         case '@' => {
           val global = microVM.globalBundle.globalCellNs.get(name).getOrElse {
@@ -155,9 +184,7 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
           gc
         }
         case '$' => {
-          val ref = hailObjMap.getOrElse(name, {
-            throw new UvmHailParsingException(inCtx(baseCtx, "HAIL name %s not defined. It needs to be defined BEFORE this".format(name)))
-          })
+          val ref = resHailRef(name, baseCtx)
           val iref = mc.getIRef(ref)
           iref
         }
@@ -167,7 +194,7 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
     }
   }
 
-  def evalLValue(lv: LValueContext)(implicit mc: MuCtx, hailObjMap: HailObjMap): LValue = {
+  def evalLValue(lv: LValueContext): LValue = {
     val base = LValue.forName(lv.nam.getText, lv)
 
     var cur: LValue = base
@@ -183,14 +210,14 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
     cur
   }
 
-  def assign(lv: LValue, rv: RValueContext)(implicit mc: MuCtx, hailObjMap: HailObjMap): Unit = {
+  def assign(lv: LValue, rv: RValueContext): Unit = {
     val lir = lv.iref
     val lty = lir.ty.ty // LValue referent type.
 
     // error reporting
 
     def unexpectedRValueError(): Nothing = {
-      throw new UvmHailParsingException(inCtx(rv, "Unsuitable RValue for LValue type %s".format(lty)))
+      throw new UvmHailParsingException(inCtx(rv, "Unsuitable RValue %s for LValue type %s".format(rv.getText, lty)))
     }
 
     def unexpectedGlobalTypeError(gv: GlobalVariable): Nothing = {
@@ -200,7 +227,7 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
 
     // Reused by their types as well as tagref64
 
-    def resForDoubleType(rv: RValueContext)(implicit mc: MuCtx): MuDoubleValue = {
+    def resForDoubleType(rv: RValueContext): MuDoubleValue = {
       rv match {
         case fl: RVDoubleContext         => mc.handleFromDouble(fl.doubleLiteral)
         case RVGlobalOf(gv: ConstDouble) => mc.handleFromConst(gv.id).asInstanceOf[MuDoubleValue]
@@ -209,7 +236,7 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
       }
     }
 
-    def resForIntType(rv: RValueContext, len: Int)(implicit mc: MuCtx): MuIntValue = {
+    def resForIntType(rv: RValueContext, len: Int): MuIntValue = {
       rv match {
         case il: RVIntContext                         => mc.handleFromInt(il.intLiteral, len)
         case RVGlobalOf(gv @ ConstInt(_: TypeInt, _)) => mc.handleFromConst(gv.id).asInstanceOf[MuIntValue]
@@ -218,7 +245,7 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
       }
     }
 
-    def resForRefType(rv: RValueContext)(implicit mc: MuCtx, hailObjMap: HailObjMap): (MuRefValue, Boolean) = {
+    def resForRefType(rv: RValueContext): (MuRefValue, Boolean) = {
       rv match {
         case nu: RVNullContext    => (mc.handleFromConst(InternalTypes.NULL_REF_VOID.id).asInstanceOf[MuRefValue], true)
         case hr: RVHailRefContext => (resRVHailRef(hr), false)
@@ -226,7 +253,7 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
       }
     }
 
-    def resForTagRef64Type(rv: RValueContext)(implicit mc: MuCtx, hailObjMap: HailObjMap): MuTagRef64Value = {
+    def resForTagRef64Type(rv: RValueContext): MuTagRef64Value = {
       val (kind, hv) = rv match {
         case fl: RVDoubleContext         => (1, mc.handleFromDouble(fl.doubleLiteral))
         case RVGlobalOf(gv: ConstDouble) => (1, mc.handleFromConst(gv.id).asInstanceOf[MuDoubleValue])
@@ -259,109 +286,111 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
 
     // actual assigning
 
-    lty match {
-      case TypeInt(len) => {
-        val hi = resForIntType(rv, len)
-        mc.store(NOT_ATOMIC, lir, hi)
-        mc.deleteValue(hi)
-      }
-
-      case TypeUPtr(_) => {
-        val hi = rv match {
-          case il: RVIntContext                          => mc.handleFromInt(il.intLiteral, 64)
-          case RVGlobalOf(gv @ ConstInt(_: TypeUPtr, _)) => mc.handleFromConst(gv.id).asInstanceOf[MuUPtrValue]
-          case RVGlobalOf(gv)                            => unexpectedGlobalTypeError(gv)
-          case _                                         => unexpectedRValueError()
-        }
-        mc.store(NOT_ATOMIC, lir, hi)
-        mc.deleteValue(hi)
-      }
-      case TypeUFuncPtr(_) => {
-        val hi = rv match {
-          case il: RVIntContext => mc.handleFromInt(il.intLiteral, 64)
-          case RVGlobalOf(gv @ ConstInt(_: TypeUFuncPtr, _)) => mc.handleFromConst(gv.id).asInstanceOf[MuUFPValue]
-          case RVGlobalOf(gv) => unexpectedGlobalTypeError(gv)
-          case _ => unexpectedRValueError()
-        }
-        mc.store(NOT_ATOMIC, lir, hi)
-        mc.deleteValue(hi)
-      }
-
-      case TypeFloat() => {
-        val hf = rv match {
-          case fl: RVFloatContext         => mc.handleFromFloat(fl.floatLiteral)
-          case RVGlobalOf(gv: ConstFloat) => mc.handleFromConst(gv.id)
-          case RVGlobalOf(gv)             => unexpectedGlobalTypeError(gv)
-          case _                          => unexpectedRValueError()
-        }
-        mc.store(NOT_ATOMIC, lir, hf)
-        mc.deleteValue(hf)
-      }
-      case TypeDouble() => {
-        val hf = resForDoubleType(rv)
-        mc.store(NOT_ATOMIC, lir, hf)
-        mc.deleteValue(hf)
-      }
-      case _: AbstractObjRefType => {
-        val (hr, del) = resForRefType(rv)
-        mc.store(NOT_ATOMIC, lir, hr)
-        if (del) mc.deleteValue(hr)
-      }
-      case t: TypeIRef => {
-        val hr = rv match {
-          case nu: RVNullContext          => mc.handleFromConst(InternalTypes.NULL_IREF_VOID.id)
-          case io: RVIRefOfContext        => evalLValue(io.lValue()).iref
-          case RVGlobalOf(gv: GlobalCell) => mc.handleFromConst(gv.id)
-          case RVGlobalOf(gv)             => unexpectedGlobalTypeError(gv)
-          case _                          => unexpectedRValueError()
-        }
-        mc.store(NOT_ATOMIC, lir, hr)
-        mc.deleteValue(hr)
-      }
-      case t: TypeFuncRef => {
-        val hr = rv match {
-          case nu: RVNullContext        => mc.handleFromConst(InternalTypes.NULL_FUNCREF_VV.id)
-          case RVGlobalOf(gv: Function) => mc.handleFromConst(gv.id)
-          case RVGlobalOf(gv)           => unexpectedGlobalTypeError(gv)
-          case _                        => unexpectedRValueError()
-        }
-        mc.store(NOT_ATOMIC, lir, hr)
-        mc.deleteValue(hr)
-      }
-      case t: TypeThreadRef => {
-        val hr = rv match {
-          case nu: RVNullContext => mc.handleFromConst(InternalTypes.NULL_THREADREF.id)
-          case _                 => unexpectedRValueError()
-        }
-        mc.store(NOT_ATOMIC, lir, hr)
-        mc.deleteValue(hr)
-      }
-      case t: TypeStackRef => {
-        val hr = rv match {
-          case nu: RVNullContext => mc.handleFromConst(InternalTypes.NULL_STACKREF.id)
-          case _                 => unexpectedRValueError()
-        }
-        mc.store(NOT_ATOMIC, lir, hr)
-        mc.deleteValue(hr)
-      }
-      case t: TypeTagRef64 => {
-        val hr = resForTagRef64Type(rv)
-        mc.store(NOT_ATOMIC, lir, hr)
-        mc.deleteValue(hr)
-      }
-      case _: AbstractCompositeType => {
-        rv match {
-          case lst: RVListContext => {
-            val elems = lst.list.rv.toSeq
-            for ((innerRv, i) <- elems.zipWithIndex) {
-              val innerLv = lv.indexInto(i, innerRv)
-              assign(innerLv, innerRv)
-            }
+    if (lv.varLen.isDefined || lty.isInstanceOf[AbstractCompositeType]) {
+      rv match {
+        case lst: RVListContext => {
+          val elems = lst.list.rv.toSeq
+          for ((innerRv, i) <- elems.zipWithIndex) {
+            val innerLv = lv.indexInto(i, innerRv)
+            assign(innerLv, innerRv)
           }
-          case _ => unexpectedRValueError()
         }
+        case _ => unexpectedRValueError()
       }
-      case _ => unexpectedRValueError()
+    } else {
+      lty match {
+        case TypeInt(len) => {
+          val hi = resForIntType(rv, len)
+          mc.store(NOT_ATOMIC, lir, hi)
+          mc.deleteValue(hi)
+        }
+
+        case t @ TypeUPtr(_) => {
+          val hi = rv match {
+            case il: RVIntContext                          => mc.handleFromPtr(t.id, il.intLiteral.toLong)
+            case RVGlobalOf(gv @ ConstInt(_: TypeUPtr, _)) => mc.handleFromConst(gv.id).asInstanceOf[MuUPtrValue]
+            case RVGlobalOf(gv)                            => unexpectedGlobalTypeError(gv)
+            case _                                         => unexpectedRValueError()
+          }
+          mc.store(NOT_ATOMIC, lir, hi)
+          mc.deleteValue(hi)
+        }
+        case t @ TypeUFuncPtr(_) => {
+          val hi = rv match {
+            case il: RVIntContext => mc.handleFromFP(t.id, il.intLiteral.toLong)
+            case RVGlobalOf(gv @ ConstInt(_: TypeUFuncPtr, _)) => mc.handleFromConst(gv.id).asInstanceOf[MuUFPValue]
+            case RVGlobalOf(gv: ExposedFunc) => mc.handleFromExpose(gv.id).asInstanceOf[MuUFPValue]
+            case RVGlobalOf(gv) => unexpectedGlobalTypeError(gv)
+            case _ => unexpectedRValueError()
+          }
+          mc.store(NOT_ATOMIC, lir, hi)
+          mc.deleteValue(hi)
+        }
+
+        case TypeFloat() => {
+          val hf = rv match {
+            case fl: RVFloatContext         => mc.handleFromFloat(fl.floatLiteral)
+            case RVGlobalOf(gv: ConstFloat) => mc.handleFromConst(gv.id)
+            case RVGlobalOf(gv)             => unexpectedGlobalTypeError(gv)
+            case _                          => unexpectedRValueError()
+          }
+          mc.store(NOT_ATOMIC, lir, hf)
+          mc.deleteValue(hf)
+        }
+        case TypeDouble() => {
+          val hf = resForDoubleType(rv)
+          mc.store(NOT_ATOMIC, lir, hf)
+          mc.deleteValue(hf)
+        }
+        case _: AbstractObjRefType => {
+          val (hr, del) = resForRefType(rv)
+          mc.store(NOT_ATOMIC, lir, hr)
+          if (del) mc.deleteValue(hr)
+        }
+        case t: TypeIRef => {
+          val hr = rv match {
+            case nu: RVNullContext          => mc.handleFromConst(InternalTypes.NULL_IREF_VOID.id)
+            case io: RVIRefOfContext        => evalLValue(io.lValue()).iref
+            case RVGlobalOf(gv: GlobalCell) => mc.handleFromGlobal(gv.id)
+            case RVGlobalOf(gv)             => unexpectedGlobalTypeError(gv)
+            case _                          => unexpectedRValueError()
+          }
+          mc.store(NOT_ATOMIC, lir, hr)
+          mc.deleteValue(hr)
+        }
+        case t: TypeFuncRef => {
+          val hr = rv match {
+            case nu: RVNullContext        => mc.handleFromConst(InternalTypes.NULL_FUNCREF_VV.id)
+            case RVGlobalOf(gv: Function) => mc.handleFromFunc(gv.id)
+            case RVGlobalOf(gv)           => unexpectedGlobalTypeError(gv)
+            case _                        => unexpectedRValueError()
+          }
+          mc.store(NOT_ATOMIC, lir, hr)
+          mc.deleteValue(hr)
+        }
+        case t: TypeThreadRef => {
+          val hr = rv match {
+            case nu: RVNullContext => mc.handleFromConst(InternalTypes.NULL_THREADREF.id)
+            case _                 => unexpectedRValueError()
+          }
+          mc.store(NOT_ATOMIC, lir, hr)
+          mc.deleteValue(hr)
+        }
+        case t: TypeStackRef => {
+          val hr = rv match {
+            case nu: RVNullContext => mc.handleFromConst(InternalTypes.NULL_STACKREF.id)
+            case _                 => unexpectedRValueError()
+          }
+          mc.store(NOT_ATOMIC, lir, hr)
+          mc.deleteValue(hr)
+        }
+        case t: TypeTagRef64 => {
+          val hr = resForTagRef64Type(rv)
+          mc.store(NOT_ATOMIC, lir, hr)
+          mc.deleteValue(hr)
+        }
+        case _ => unexpectedRValueError()
+      }
     }
   }
 
@@ -446,12 +475,15 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
     gv
   }
 
-  def resRVHailRef(hrc: RVHailRefContext)(implicit mc: MuCtx, hailObjMap: HailObjMap) = {
-    val name = hrc.HAIL_NAME().getText
-    val href = hailObjMap.getOrElse(name, {
-      throw new UvmHailParsingException(inCtx(hrc, "HAIL name %s not defined. It needs to be defined BEFORE this".format(name)))
+  def resHailRef(name: String, ctx: ParserRuleContext): MuRefValue = {
+    hailObjMap.getOrElse(name, {
+      throw new UvmHailParsingException(inCtx(ctx, "HAIL name %s not defined. It needs to be defined BEFORE use.".format(name)))
     })
-    href
+  }
+
+  def resRVHailRef(hrc: RVHailRefContext): MuRefValue = {
+    val name = hrc.HAIL_NAME().getText
+    resHailRef(name, hrc)
   }
 
   def rvListCtxToSeq(rvc: RVListContext): Seq[RValueContext] = {
@@ -464,5 +496,4 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
       Some(gv)
     }
   }
-
 }

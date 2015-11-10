@@ -49,23 +49,23 @@ case class TypeUFuncPtr(var sig: FuncSig) extends AbstractPointerType
 
 object Type {
   def prettyPrint(ty: Type): String = ty match {
-    case TypeInt(length)                => "int<%d>".format(length)
-    case TypeFloat()                    => "float"
-    case TypeDouble()                   => "double"
-    case TypeRef(ty)                    => "ref<%s>".format(ty.repr)
-    case TypeIRef(ty)                   => "iref<%s>".format(ty.repr)
-    case TypeWeakRef(ty)                => "weakref<%s>".format(ty.repr)
-    case TypeStruct(fieldTy)            => "struct<%s>".format(fieldTy.map(_.repr).mkString(" "))
-    case TypeArray(elemTy, len)         => "array<%s %d>".format(elemTy.repr, len)
-    case TypeHybrid(fixedPart, varPart) => "hybrid<%s %s>".format(fixedPart.repr, varPart.repr)
-    case TypeVoid()                     => "void"
-    case TypeFuncRef(sig)               => "funcref<%s>".format(sig.repr)
-    case TypeThreadRef()                => "threadref"
-    case TypeStackRef()                 => "stackref"
-    case TypeTagRef64()                 => "tagref64"
-    case TypeVector(elemTy, len)        => "vector<%s %d>".format(elemTy.repr, len)
-    case TypeUPtr(ty)                   => "uptr<%s>".format(ty.repr)
-    case TypeUFuncPtr(sig)              => "ufuncptr<%s>".format(sig.repr)
-    case _                              => "unknown type " + ty.getClass.getName
+    case TypeInt(length)               => "int<%d>".format(length)
+    case TypeFloat()                   => "float"
+    case TypeDouble()                  => "double"
+    case TypeRef(ty)                   => "ref<%s>".format(ty.repr)
+    case TypeIRef(ty)                  => "iref<%s>".format(ty.repr)
+    case TypeWeakRef(ty)               => "weakref<%s>".format(ty.repr)
+    case TypeStruct(fieldTys)          => "struct<%s>".format(fieldTys.map(_.repr).mkString(" "))
+    case TypeArray(elemTy, len)        => "array<%s %d>".format(elemTy.repr, len)
+    case TypeHybrid(fieldTys, varPart) => "hybrid<%s %s>".format(fieldTys.map(_.repr).mkString(" "), varPart.repr)
+    case TypeVoid()                    => "void"
+    case TypeFuncRef(sig)              => "funcref<%s>".format(sig.repr)
+    case TypeThreadRef()               => "threadref"
+    case TypeStackRef()                => "stackref"
+    case TypeTagRef64()                => "tagref64"
+    case TypeVector(elemTy, len)       => "vector<%s %d>".format(elemTy.repr, len)
+    case TypeUPtr(ty)                  => "uptr<%s>".format(ty.repr)
+    case TypeUFuncPtr(sig)             => "ufuncptr<%s>".format(sig.repr)
+    case _                             => "unknown type " + ty.getClass.getName
   }
 }

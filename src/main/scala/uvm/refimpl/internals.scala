@@ -52,8 +52,8 @@ object InternalTypes {
   val NULL_REF_VOID = ConstNull(REF_VOID) := internal("null_ref_void")
   val NULL_IREF_VOID = ConstNull(IREF_VOID) := internal("null_iref_void")
   val NULL_FUNCREF_VV = ConstNull(FUNCREF_VV) := internal("null_funcref_vv")
-  val NULL_THREADREF = ConstNull(STACKREF) := internal("null_threadref")
-  val NULL_STACKREF = ConstNull(THREADREF) := internal("null_stackref")
+  val NULL_THREADREF = ConstNull(THREADREF) := internal("null_threadref")
+  val NULL_STACKREF = ConstNull(STACKREF) := internal("null_stackref")
 }
 
 object InternalTypePool {
@@ -82,6 +82,7 @@ object TypeInferer {
     case c: Constant => c.constTy
     case g: GlobalCell => irefOf(g.cellTy)
     case f: Function => funcOf(f.sig)
+    case e: ExposedFunc => funcPtrOf(e.func.sig)
     case p: NorParam => p.ty
     case p: ExcParam => REF_VOID
     case r: InstResult => {
