@@ -80,3 +80,10 @@
 .global @g_irvoid   <@irefvoid>
 .global @g_irvoid2  <@irefvoid>
 
+// test-6
+
+.global @g_slot_predef <@refi64>
+
+.global @g_slot1    <@refi64>
+.global @g_slot2    <@refi64>
+.global @g_slot3    <@refi64>

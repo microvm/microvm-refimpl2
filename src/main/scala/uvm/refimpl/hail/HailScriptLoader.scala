@@ -108,6 +108,7 @@ class InstanceHailScriptLoader(microVM: MicroVM, memorySupport: MemorySupport, m
         logger.debug("Executing init: %s".format(init.getText))
         val lv = evalLValue(init.lv)
         assign(lv, init.rv)
+        mc.deleteValue(lv.iref)
       }
     }
 
@@ -297,6 +298,17 @@ class InstanceHailScriptLoader(microVM: MicroVM, memorySupport: MemorySupport, m
         }
         case _ => unexpectedRValueError()
       }
+    } else if (rv.isInstanceOf[RVValueOfContext]) {
+      val vo = rv.asInstanceOf[RVValueOfContext]
+      val rir = evalLValue(vo.lValue()).iref
+      val rval = mc.load(NOT_ATOMIC, rir)
+      try {
+        mc.store(NOT_ATOMIC, lir, rval)
+      } catch {
+        case e: Exception => throw new UvmHailParsingException(inCtx(rv, "Failed to store to LValue. Actual RValue: %s".format(rval)), e)
+      }
+      mc.deleteValue(rir)
+      mc.deleteValue(rval)
     } else {
       lty match {
         case TypeInt(len) => {

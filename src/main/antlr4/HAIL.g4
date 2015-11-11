@@ -34,6 +34,7 @@ rValue
     |   'NULL'          # RVNull
     |   HAIL_NAME       # RVHailRef
     |   '&' lValue      # RVIRefOf
+    |   '*' lValue      # RVValueOf
     |   list            # RVList
     ;
     

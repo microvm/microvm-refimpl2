@@ -259,7 +259,7 @@ class UvmHailBasicTest extends UvmHailTesterBase {
 
   it should "recognise the '&' expression to assign internal references" in {
     val mc = microVM.newContext()
-    
+
     loadHailFromFile(mc, "tests/uvm-hail-test/basic-hail-test-5.hail")
 
     val hBar = mc.loadGlobal("@g_my_hybrid_r").asInstanceOf[MuRefValue]
@@ -273,16 +273,46 @@ class UvmHailBasicTest extends UvmHailTesterBase {
 
     assertIREqual("@g_iri64", mc.getFieldIRef(hBarIr, 0))
     assertIREqual("@g_irdouble", mc.getFieldIRef(hBarIr, 1))
-    
+
     val hBarIr_vp = mc.getVarPartIRef(hBarIr)
-    
+
     assertIREqual("@g_iri8", hBarIr_vp)
-    
+
     val hBarIr_vp_2 = mc.shiftIRef(hBarIr_vp, mc.handleFromInt(2, 64))
     val hBarIr_vp_3 = mc.shiftIRef(hBarIr_vp, mc.handleFromInt(3, 64))
 
     assertIREqual("@g_iri8_2", hBarIr_vp_2)
     assertIREqual("@g_irvoid", hBarIr_vp_3)
+
+    mc.closeContext()
+  }
+
+  it should "recognise the '*' expression to assign existing values" in {
+    val mc = microVM.newContext()
+
+    val hPredef = mc.newFixed("@i64")
+    val hPredefIr = mc.getIRef(hPredef)
+    val h9 = mc.handleFromInt(9, 64)
+    mc.store(NOT_ATOMIC, hPredefIr, h9)
+    
+    val hslotpredef = mc.handleFromGlobal("@g_slot_predef")
+    mc.store(NOT_ATOMIC, hslotpredef, hPredef)
+
+    loadHailFromFile(mc, "tests/uvm-hail-test/basic-hail-test-6.hail")
+
+    val hslot1v = mc.loadGlobal("@g_slot1").asInstanceOf[MuRefValue]
+    val hslot2v = mc.loadGlobal("@g_slot2").asInstanceOf[MuRefValue]
+    val hslot3v = mc.loadGlobal("@g_slot3").asInstanceOf[MuRefValue]
+    mc.refEq(hslot1v, hslot2v)
+    mc.refEq(hslot3v, hPredef)
+
+    val v1 = { val ir = mc.getIRef(hslot1v); val hi = mc.loadInt(NOT_ATOMIC, ir); mc.handleToSInt(hi) }
+    val v2 = { val ir = mc.getIRef(hslot2v); val hi = mc.loadInt(NOT_ATOMIC, ir); mc.handleToSInt(hi) }
+    val v3 = { val ir = mc.getIRef(hslot3v); val hi = mc.loadInt(NOT_ATOMIC, ir); mc.handleToSInt(hi) }
+    
+    v1 shouldBe 42
+    v2 shouldBe 42
+    v3 shouldBe 9
 
     mc.closeContext()
   }
