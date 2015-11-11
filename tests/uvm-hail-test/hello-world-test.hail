@@ -1,0 +1,8 @@
+// hail
+
+.newhybrid $hw <@string> 13
+
+// "Hello world!\n"
+.init $hw = {13 {72 101 108 108 111 32 119 111 114 108 100 33 10}}
+
+.init @conststr_helloworld = $hw
