@@ -1,0 +1,12 @@
+// hail
+
+.newhybrid $bar <@my_hybrid> 5
+
+.init @g_my_hybrid_r    = $bar
+
+.init @g_iri64          = &$bar[0]
+.init @g_irdouble       = &$bar[1]
+.init @g_iri8           = &$bar[2]
+.init @g_iri8_2         = &$bar[2][2]
+.init @g_irvoid         = &$bar[2][3]           // implicit refcast
+.init @g_irvoid2        = &@g_big_struct[2]     // implicit refcast

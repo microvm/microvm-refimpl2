@@ -26,6 +26,8 @@ lazy val root = (project in file(".")).settings(
         "org.scalatest" %% "scalatest" % "2.2.4" % "test",
         "junit" % "junit" % "4.12" % "test"
     ),
+
+    testOptions in Test += Tests.Argument("-oF"), // print full stack trace when testing
             
     antlr4Settings,
 

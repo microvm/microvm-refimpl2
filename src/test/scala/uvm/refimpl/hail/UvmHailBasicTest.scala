@@ -125,7 +125,7 @@ class UvmHailBasicTest extends UvmHailTesterBase {
 
     assertTR64FP("@g_tr1", 3.14)
     assertTR64Int("@g_tr2", 0xfedcba9876543L)
-    
+
     val nullref = mc.handleFromConst("@NULLREF").asInstanceOf[MuRefValue]
     assertTR64Ref("@g_tr3", nullref, 31)
 
@@ -254,6 +254,36 @@ class UvmHailBasicTest extends UvmHailTesterBase {
       }
 
     }
+    mc.closeContext()
+  }
+
+  it should "recognise the '&' expression to assign internal references" in {
+    val mc = microVM.newContext()
+    
+    loadHailFromFile(mc, "tests/uvm-hail-test/basic-hail-test-5.hail")
+
+    val hBar = mc.loadGlobal("@g_my_hybrid_r").asInstanceOf[MuRefValue]
+    val hBarIr = mc.getIRef(hBar)
+
+    def assertIREqual(globalID: Int, expected: MuIRefValue): Unit = {
+      val hIr = mc.loadGlobal(globalID).asInstanceOf[MuIRefValue]
+      // printf("found offset: 0x%x expected offset: 0x%x\n", hIr.vb.offset, expected.vb.offset)
+      mc.refEq(hIr, expected) shouldBe true
+    }
+
+    assertIREqual("@g_iri64", mc.getFieldIRef(hBarIr, 0))
+    assertIREqual("@g_irdouble", mc.getFieldIRef(hBarIr, 1))
+    
+    val hBarIr_vp = mc.getVarPartIRef(hBarIr)
+    
+    assertIREqual("@g_iri8", hBarIr_vp)
+    
+    val hBarIr_vp_2 = mc.shiftIRef(hBarIr_vp, mc.handleFromInt(2, 64))
+    val hBarIr_vp_3 = mc.shiftIRef(hBarIr_vp, mc.handleFromInt(3, 64))
+
+    assertIREqual("@g_iri8_2", hBarIr_vp_2)
+    assertIREqual("@g_irvoid", hBarIr_vp_3)
+
     mc.closeContext()
   }
 }

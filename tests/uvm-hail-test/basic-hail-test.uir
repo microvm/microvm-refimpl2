@@ -1,6 +1,8 @@
 // uir
 // require "../uvm-refimpl-test/primitives.uir"
 
+// test-1-2
+
 .typedef @refrefvoid        = ref<@refvoid>
 .typedef @refirefvoid       = ref<@irefvoid>
 .typedef @refweakrefvoid    = ref<@weakrefvoid>
@@ -27,6 +29,8 @@
 .funcdecl @foo <@v_v>
 .expose @foo_native = @foo #DEFAULT @I64_2
 
+// test-3
+
 .const @P1 <@ptrvoid> = 0x123456789abcdef0
 .const @P2 <@fpv_v> = 0xfedcba9876543210
 
@@ -49,6 +53,8 @@
 .const @I52_99 <@i52> = 99
 .const @I6_15 <@i6> = 15
 
+// test-4
+
 .typedef @small_struct  = struct <@i8 @i16 @i32 @i64>
 .typedef @big_struct    = struct <@float @small_struct @double>
 .typedef @small_array   = array <@i32 6>
@@ -64,4 +70,13 @@
 .typedef @my_hybrid_r   = ref<@my_hybrid>
 
 .global @g_my_hybrid_r  <@my_hybrid_r>
+
+// test-5
+
+.global @g_iri64    <@irefi64>
+.global @g_irdouble <@irefdouble>
+.global @g_iri8     <@irefi8>
+.global @g_iri8_2   <@irefi8>
+.global @g_irvoid   <@irefvoid>
+.global @g_irvoid2  <@irefvoid>
 
