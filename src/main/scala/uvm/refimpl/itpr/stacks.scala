@@ -30,7 +30,7 @@ object FrameState {
  * Implements a Mu Stack. Contains both Mu frames and native frames.
  */
 class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFunc: Function)(
-    implicit nativeCallHelper: NativeCallHelper) {
+    implicit nativeCallHelper: NativeCallHelper) extends HasID {
   var gcMark: Boolean = false // Mark for GC.
 
   private var _top: InterpreterFrame = InterpreterFrame.forMuFunc(stackMemory.top, stackBottomFunc, 0L, None)
@@ -331,6 +331,8 @@ class NativeFrame(val func: Word, prev: Option[InterpreterFrame]) extends Interp
   override def curFuncID: Int = 0
   override def curFuncVerID: Int = 0
   override def curInstID: Int = 0
+  
+  override def toString(): String = "NativeFrame(func=0x%x)".format(func)
 }
 
 abstract class MuFrame(val func: Function, prev: Option[InterpreterFrame]) extends InterpreterFrame(prev) {
@@ -416,6 +418,7 @@ class UndefinedMuFrame(func: Function, prev: Option[InterpreterFrame]) extends M
     }
   }
 
+  override def toString(): String = "UndefinedMuFrame(func=%s)".format(func.repr)
 }
 
 object DefinedMuFrame {
@@ -554,5 +557,20 @@ class DefinedMuFrame(val savedStackPointer: Word, val funcVer: FuncVer, val cook
     !wasJustCreated
   }
 
+  override def toString(): String = "DefinedMuFrame(func=%s, funcVer=%s)".format(func.repr, funcVer.repr)
 }
 
+/**
+ * A mutable cursor that iterates through stack frames.
+ */
+class FrameCursor(val id: Int, val stack: InterpreterStack, val frame: InterpreterFrame) extends HasID {
+  /** The current frame it refers to. */
+  var curFrame = frame
+  
+  def nextFrame(): Unit = {
+    curFrame = curFrame.prev.getOrElse {
+      throw new UvmRuntimeException("Attempt to go below the stack-bottom frame. Stack id: %d, Frame: %s".format(
+          stack.id, curFrame.toString))
+    }
+  }
+}

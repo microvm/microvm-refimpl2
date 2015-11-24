@@ -71,6 +71,7 @@ case class MuStackRefValue(ty: TypeStackRef, vb: BoxStack) extends MuGenRefValue
 case class MuTagRef64Value(ty: TypeTagRef64, vb: BoxTagRef64) extends MuValue
 case class MuUPtrValue(ty: TypeUPtr, vb: BoxPointer) extends MuValue
 case class MuUFPValue(ty: TypeUFuncPtr, vb: BoxPointer) extends MuValue
+case class MuFrameCursorRefValue(ty: TypeFrameCursorRef, vb: BoxFrameCursor) extends MuValue
 
 abstract class TrapHandlerResult
 object TrapHandlerResult {

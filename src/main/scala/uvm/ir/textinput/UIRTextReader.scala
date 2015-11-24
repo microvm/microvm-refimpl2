@@ -15,6 +15,7 @@ import java.io.StringWriter
 import java.nio.CharBuffer
 import uvm.utils.AntlrHelpers._
 import uvm.utils.IOHelpers
+import uvm.utils.IDFactory
 
 class UIRTextReader(val idFactory: IDFactory) {
   import UIRTextReader._

@@ -65,6 +65,10 @@ case class BoxStack(var stack: Option[InterpreterStack]) extends ObjectBox[Inter
   def obj = stack
   def obj_=(other: Option[InterpreterStack]): Unit = { stack = other }
 }
+case class BoxFrameCursor(var cursor: Option[FrameCursor]) extends ObjectBox[FrameCursor] {
+  def obj = cursor
+  def obj_=(other: Option[FrameCursor]): Unit = { cursor = other }
+}
 case class BoxTagRef64(var raw: Long) extends HasObjRef {
   def copyFrom(other: ValueBox): Unit = { this.raw = other.asInstanceOf[BoxTagRef64].raw }
   def hasObjRef() = OpHelper.tr64IsRef(raw)
@@ -97,6 +101,7 @@ object ValueBox {
     case _: TypeFuncRef => BoxFunc(None)
     case _: TypeStackRef => BoxStack(None)
     case _: TypeThreadRef => BoxThread(None)
+    case _: TypeFrameCursorRef => BoxFrameCursor(None)
     case _: TypeTagRef64 => BoxTagRef64(0L)
     case _: TypeUPtr => BoxPointer(0L)
     case _: TypeUFuncPtr => BoxPointer(0L)

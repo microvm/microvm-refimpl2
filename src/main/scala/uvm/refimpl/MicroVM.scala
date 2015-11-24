@@ -3,7 +3,7 @@ package uvm.refimpl
 import scala.collection.mutable.HashSet
 
 import uvm._
-import uvm.ir.textinput.IDFactory
+import uvm.utils.IDFactory
 import uvm.ir.textinput.UIRTextReader
 import uvm.refimpl.hail.HailScriptLoader
 import uvm.refimpl.itpr._
@@ -15,6 +15,8 @@ object MicroVM {
   val DEFAULT_HEAP_SIZE: Word = 4L * 1024L * 1024L; // 4MiB
   val DEFAULT_GLOBAL_SIZE: Word = 1L * 1024L * 1024L; // 1MiB
   val DEFAULT_STACK_SIZE: Word = 63L * 1024L; // 60KiB per stack
+  
+  val FIRST_CLIENT_USABLE_ID: Int = 65536
 }
 
 class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
@@ -33,10 +35,11 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
   implicit val nativeCallHelper = new NativeCallHelper()
 
   val threadStackManager = new ThreadStackManager()
+  
   val trapManager = new TrapManager()
   val contexts = new HashSet[MuCtx]()
 
-  val irReader = new UIRTextReader(new IDFactory())
+  val irReader = new UIRTextReader(new IDFactory(MicroVM.FIRST_CLIENT_USABLE_ID))
   val hailScriptLoader = new HailScriptLoader()
 
   {

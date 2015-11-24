@@ -112,7 +112,7 @@ object MemoryDataScanner extends StrictLogging {
         val maybeToStack = if (toStackID == 0) {
           None
         } else {
-          val toStack = microVM.threadStackManager.getStackByID(toStackID.toInt).getOrElse {
+          val toStack = microVM.threadStackManager.stackRegistry.get(toStackID.toInt).getOrElse {
             throw new UvmRefImplException("Memory location 0x%x referring to non-existing stack %d".format(iRef, toStackID))
           }
           Some(toStack)

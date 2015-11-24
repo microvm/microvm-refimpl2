@@ -377,12 +377,12 @@ object MemoryOperations {
       case _: TypeThreadRef =>
         noAccessViaPointer(ptr, ty)
         val tid = memorySupport.loadLong(loc).toInt
-        val thr = microVM.threadStackManager.getThreadByID(tid)
+        val thr = microVM.threadStackManager.threadRegistry.get(tid)
         br.asInstanceOf[BoxThread].thread = thr
       case _: TypeStackRef =>
         noAccessViaPointer(ptr, ty)
         val sid = memorySupport.loadLong(loc).toInt
-        val sta = microVM.threadStackManager.getStackByID(sid)
+        val sta = microVM.threadStackManager.stackRegistry.get(sid)
         br.asInstanceOf[BoxStack].stack = sta
       case _: TypeTagRef64 =>
         noAccessViaPointer(ptr, ty)
@@ -512,7 +512,7 @@ object MemoryOperations {
         val el = eb.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0).toLong
         val dl = db.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0).toLong
         val (succ, rl) = memorySupport.cmpXchgLong(loc, el, dl)
-        val rt = microVM.threadStackManager.getThreadByID(rl.toInt)
+        val rt = microVM.threadStackManager.threadRegistry.get(rl.toInt)
         br.asInstanceOf[BoxThread].thread = rt
         succ
       case _: TypeStackRef =>
@@ -520,7 +520,7 @@ object MemoryOperations {
         val el = eb.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0).toLong
         val dl = db.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0).toLong
         val (succ, rl) = memorySupport.cmpXchgLong(loc, el, dl)
-        val rs = microVM.threadStackManager.getStackByID(rl.toInt)
+        val rs = microVM.threadStackManager.stackRegistry.get(rl.toInt)
         br.asInstanceOf[BoxStack].stack = rs
         succ
       case _: TypeUPtr | _: TypeUFuncPtr =>
@@ -568,13 +568,13 @@ object MemoryOperations {
               noAccessViaPointer(ptr, ty)
               val ol = ob.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0).toLong
               val rl = memorySupport.atomicRMWLong(op, loc, ol)
-              val rt = microVM.threadStackManager.getThreadByID(rl.toInt)
+              val rt = microVM.threadStackManager.threadRegistry.get(rl.toInt)
               br.asInstanceOf[BoxThread].thread = rt
             case _: TypeStackRef =>
               noAccessViaPointer(ptr, ty)
               val ol = ob.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0).toLong
               val rl = memorySupport.atomicRMWLong(op, loc, ol)
-              val rs = microVM.threadStackManager.getStackByID(rl.toInt)
+              val rs = microVM.threadStackManager.stackRegistry.get(rl.toInt)
               br.asInstanceOf[BoxStack].stack = rs
             case _: TypeTagRef64 =>
               noAccessViaPointer(ptr, ty)

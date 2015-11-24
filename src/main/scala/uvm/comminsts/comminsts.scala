@@ -45,17 +45,22 @@ object CommInsts extends SimpleNamespace[CommInst] {
   commInst(0x252, "@uvm.meta.load_bundle")
   commInst(0x253, "@uvm.meta.load_hail")
   
-  commInst(0x254, "@uvm.meta.cur_func")
-  commInst(0x255, "@uvm.meta.cur_func_ver")
-  commInst(0x256, "@uvm.meta.cur_inst")
-  commInst(0x257, "@uvm.meta.dump_keepalives")
+  commInst(0x254, "@uvm.meta.new_cursor")
+  commInst(0x255, "@uvm.meta.next_frame")
+  commInst(0x256, "@uvm.meta.copy_cursor")
+  commInst(0x257, "@uvm.meta.close_cursor")
   
-  commInst(0x258, "@uvm.meta.pop_frame")
-  commInst(0x259, "@uvm.meta.push_frame")
+  commInst(0x258, "@uvm.meta.cur_func")
+  commInst(0x259, "@uvm.meta.cur_func_ver")
+  commInst(0x25a, "@uvm.meta.cur_inst")
+  commInst(0x25b, "@uvm.meta.dump_keepalives")
   
-  commInst(0x25a, "@uvm.meta.enable_watchpoint")
-  commInst(0x25b, "@uvm.meta.disable_watchpoint")
+  commInst(0x25c, "@uvm.meta.pop_frames_to")
+  commInst(0x25d, "@uvm.meta.push_frame")
   
-  commInst(0x25c, "@uvm.meta.set_trap_handler")
+  commInst(0x25e, "@uvm.meta.enable_watchpoint")
+  commInst(0x25f, "@uvm.meta.disable_watchpoint")
+  
+  commInst(0x260, "@uvm.meta.set_trap_handler")
 
 }

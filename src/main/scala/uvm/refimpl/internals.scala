@@ -4,7 +4,7 @@ import uvm._
 import uvm.types._
 import uvm.ssavariables._
 import uvm.utils.LazyPool
-import uvm.ir.textinput.IDFactory
+import uvm.utils.IDFactory
 import scala.collection.mutable.HashMap
 import uvm.FuncSig
 import uvm.IdentifiedSettable
@@ -42,6 +42,7 @@ object InternalTypes {
   
   val STACKREF = TypeStackRef() := internal("stackref")
   val THREADREF = TypeThreadRef() := internal("threadref")
+  val FRAMECURSORREF = TypeFrameCursorRef() := internal("framecursorref")
   val TAGREF64 = TypeTagRef64() := internal("tagref64")
 
   val BYTES = TypeHybrid(Seq(I64), I8) := (0x260, "@uvm.meta.bytes")
@@ -172,12 +173,17 @@ object TypeInferer {
       case "@uvm.meta.load_bundle" => Seq(BYTES_R)
       case "@uvm.meta.load_hail" => Seq(BYTES_R)
 
+      case "@uvm.meta.new_cursor" => Seq(FRAMECURSORREF)
+      case "@uvm.meta.next_frame" => Seq()
+      case "@uvm.meta.copy_cursor" => Seq(FRAMECURSORREF)
+      case "@uvm.meta.close_cursor" => Seq()
+      
       case "@uvm.meta.cur_func" => Seq(I32)
       case "@uvm.meta.cur_func_ver" => Seq(I32)
       case "@uvm.meta.cur_inst" => Seq(I32)
       case "@uvm.meta.dump_keepalives" => Seq(REFS_R)
 
-      case "@uvm.meta.pop_frame" => Seq()
+      case "@uvm.meta.pop_frames_to" => Seq()
       case "@uvm.meta.push_frame" => Seq()
 
       case "@uvm.meta.enable_watchpoint" => Seq()

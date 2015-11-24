@@ -6,7 +6,7 @@ import org.scalatest.Matchers
 import org.scalatest.matchers.{ Matcher, MatchResult }
 import TextIRWriter._
 import uvm.ir.textinput.UIRTextReader
-import uvm.ir.textinput.IDFactory
+import uvm.utils.IDFactory
 
 class TextIRWriterTest extends FlatSpec with Matchers {
 
@@ -717,6 +717,6 @@ class TextIRWriterTest extends FlatSpec with Matchers {
     
     println(ir)
     
-    val muBundle = new UIRTextReader(new IDFactory).read(ir, new uvm.GlobalBundle())
+    val muBundle = new UIRTextReader(new IDFactory(65536)).read(ir, new uvm.GlobalBundle())
   }
 }

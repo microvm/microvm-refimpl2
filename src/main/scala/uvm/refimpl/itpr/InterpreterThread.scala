@@ -28,7 +28,7 @@ object HowToResume {
  * A thread that interprets Mu instruction.
  */
 class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator: Mutator, htr: HowToResume)(
-    implicit protected val microVM: MicroVM) extends InstructionExecutor {
+    implicit protected val microVM: MicroVM) extends InstructionExecutor with HasID {
   import InterpreterThread._
 
   // Injectable resources (used by memory access instructions)
