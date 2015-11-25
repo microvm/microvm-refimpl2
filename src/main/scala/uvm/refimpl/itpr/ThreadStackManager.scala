@@ -24,7 +24,7 @@ trait HasID {
 
 /**
  * Keep HasID objects and allow looking them up by their IDs.
- * 
+ *
  * @param kind A name that indicates what kind of object it holds. For debugging.
  */
 class IDObjectKeeper[T <: HasID](val kind: String) {
@@ -43,10 +43,10 @@ class IDObjectKeeper[T <: HasID](val kind: String) {
       throw new UvmRuntimeException("%s of ID %s already exists.".format(kind, obj.id))
     }
   }
-  
+
   /** Iterate through all objects. */
   def values: Iterable[T] = registry.values
-  
+
   /** Remove an object from the registry. */
   def remove(obj: T): Unit = {
     val old = registry.remove(obj.id)
@@ -54,7 +54,7 @@ class IDObjectKeeper[T <: HasID](val kind: String) {
       throw new UvmRuntimeException("The %s removed is not the same object as the argument. ID: %d".format(kind, obj.id))
     }
   }
-  
+
   /** Create an ID for a new object of this type. */
   def getID() = idFactory.getID()
 }
@@ -72,6 +72,7 @@ class ThreadStackManager(implicit microVM: MicroVM, nativeCallHelper: NativeCall
 
   val stackRegistry = new IDObjectKeeper[InterpreterStack]("stack")
   val threadRegistry = new IDObjectKeeper[InterpreterThread]("thread")
+  val frameCursorRegistry = new IDObjectKeeper[FrameCursor]("framecursor")
 
   def iterateAllLiveStacks: Iterable[InterpreterStack] = stackRegistry.values.filter(_.state != FrameState.Dead)
   def iterateAllLiveThreads: Iterable[InterpreterThread] = threadRegistry.values.filter(_.isRunning)
@@ -110,6 +111,45 @@ class ThreadStackManager(implicit microVM: MicroVM, nativeCallHelper: NativeCall
     thr
   }
 
+  //// Frame cursors related operations
+
+  private def createAndAddFrameCursor(id: Int, stack: InterpreterStack, frame: InterpreterFrame): FrameCursor = {
+    val fc = new FrameCursor(id, stack, frame)
+    frameCursorRegistry.put(fc)
+    stack.frameCursors.add(fc)
+    fc
+
+  }
+
+  /**
+   * Create a new frame cursor for a stack.
+   */
+  def newFrameCursor(stack: InterpreterStack): FrameCursor = {
+    val id = frameCursorRegistry.getID()
+    val frame = stack.top
+    createAndAddFrameCursor(id, stack, frame)
+  }
+
+  /**
+   * Copy a frame cursor.
+   */
+  def copyCursor(cursor: FrameCursor): FrameCursor = {
+    val id = frameCursorRegistry.getID()
+    val stack = cursor.stack
+    val frame = cursor.frame
+    createAndAddFrameCursor(id, stack, frame)
+  }
+
+  /**
+   * Copy a frame cursor.
+   */
+  def closeCursor(cursor: FrameCursor): Unit = {
+    cursor.stack.frameCursors.remove(cursor)
+    frameCursorRegistry.remove(cursor)
+  }
+  
+  //// Execution
+
   /**
    * Execute one instruction in each currently executable thread.
    */
@@ -138,7 +178,7 @@ class ThreadStackManager(implicit microVM: MicroVM, nativeCallHelper: NativeCall
       if (someWaiting) {
         futexManager.nextWakeup match {
           case Some(nextWakeup) => {
-            val now = System.currentTimeMillis() * 1000000L
+            val now = System.nanoTime()
             val sleep = nextWakeup - now
             val sleepMillis = sleep / 1000000L
             val sleepNanos = sleep % 1000000L

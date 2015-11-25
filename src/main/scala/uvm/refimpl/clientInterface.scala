@@ -17,20 +17,21 @@ import java.nio.charset.Charset
 
 object MuValue {
   def apply(ty: Type, vb: ValueBox): MuValue = (ty, vb) match {
-    case (t: TypeInt, v: BoxInt)           => MuIntValue(t, v)
-    case (t: TypeFloat, v: BoxFloat)       => MuFloatValue(t, v)
-    case (t: TypeDouble, v: BoxDouble)     => MuDoubleValue(t, v)
-    case (t: TypeRef, v: BoxRef)           => MuRefValue(t, v)
-    case (t: TypeIRef, v: BoxIRef)         => MuIRefValue(t, v)
-    case (t: TypeStruct, v: BoxSeq)        => MuStructValue(t, v)
-    case (t: TypeArray, v: BoxSeq)         => MuArrayValue(t, v)
-    case (t: TypeVector, v: BoxSeq)        => MuVectorValue(t, v)
-    case (t: TypeFuncRef, v: BoxFunc)      => MuFuncRefValue(t, v)
-    case (t: TypeThreadRef, v: BoxThread)  => MuThreadRefValue(t, v)
-    case (t: TypeStackRef, v: BoxStack)    => MuStackRefValue(t, v)
-    case (t: TypeTagRef64, v: BoxTagRef64) => MuTagRef64Value(t, v)
-    case (t: TypeUPtr, v: BoxPointer)      => MuUPtrValue(t, v)
-    case (t: TypeUFuncPtr, v: BoxPointer)  => MuUFPValue(t, v)
+    case (t: TypeInt, v: BoxInt)                    => MuIntValue(t, v)
+    case (t: TypeFloat, v: BoxFloat)                => MuFloatValue(t, v)
+    case (t: TypeDouble, v: BoxDouble)              => MuDoubleValue(t, v)
+    case (t: TypeRef, v: BoxRef)                    => MuRefValue(t, v)
+    case (t: TypeIRef, v: BoxIRef)                  => MuIRefValue(t, v)
+    case (t: TypeStruct, v: BoxSeq)                 => MuStructValue(t, v)
+    case (t: TypeArray, v: BoxSeq)                  => MuArrayValue(t, v)
+    case (t: TypeVector, v: BoxSeq)                 => MuVectorValue(t, v)
+    case (t: TypeFuncRef, v: BoxFunc)               => MuFuncRefValue(t, v)
+    case (t: TypeThreadRef, v: BoxThread)           => MuThreadRefValue(t, v)
+    case (t: TypeStackRef, v: BoxStack)             => MuStackRefValue(t, v)
+    case (t: TypeTagRef64, v: BoxTagRef64)          => MuTagRef64Value(t, v)
+    case (t: TypeUPtr, v: BoxPointer)               => MuUPtrValue(t, v)
+    case (t: TypeUFuncPtr, v: BoxPointer)           => MuUFPValue(t, v)
+    case (t: TypeFrameCursorRef, v: BoxFrameCursor) => MuFCRefValue(t, v)
     case (t, v) => {
       throw new IllegalArgumentException("Improper type-box pair: %s,%s".format(t.toString, vb.getClass.getSimpleName))
     }
@@ -71,7 +72,7 @@ case class MuStackRefValue(ty: TypeStackRef, vb: BoxStack) extends MuGenRefValue
 case class MuTagRef64Value(ty: TypeTagRef64, vb: BoxTagRef64) extends MuValue
 case class MuUPtrValue(ty: TypeUPtr, vb: BoxPointer) extends MuValue
 case class MuUFPValue(ty: TypeUFuncPtr, vb: BoxPointer) extends MuValue
-case class MuFrameCursorRefValue(ty: TypeFrameCursorRef, vb: BoxFrameCursor) extends MuValue
+case class MuFCRefValue(ty: TypeFrameCursorRef, vb: BoxFrameCursor) extends MuValue
 
 abstract class TrapHandlerResult
 object TrapHandlerResult {
@@ -419,7 +420,7 @@ class MuCtx(_mutator: Mutator)(
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
     }
-    
+
     val uty = InternalTypePool.unmarkedOf(ty)
     val addr = MemoryOperations.addressOf(ptr, loc.vb)
     val nb = ValueBox.makeBoxForType(uty)
@@ -443,7 +444,7 @@ class MuCtx(_mutator: Mutator)(
 
   /** Perform compare exchange on a location. */
   def cmpXchg(ordSucc: MemoryOrder, ordFail: MemoryOrder, weak: Boolean,
-    loc: MuIRefValue, expected: MuValue, desired: MuValue): (MuValue, Boolean) = {
+              loc: MuIRefValue, expected: MuValue, desired: MuValue): (MuValue, Boolean) = {
     val (ptr, ty) = loc.ty match {
       case TypeIRef(t) => (false, t)
     }
@@ -512,34 +513,67 @@ class MuCtx(_mutator: Mutator)(
     sv.kill()
   }
 
+  private def getCursorNotNull(cursor: MuFCRefValue): FrameCursor = {
+    cursor.vb.cursor.getOrElse {
+      throw new UvmRuntimeException("Frame cursor argument cannot be a NULL framecursorref value.")
+    }
+  }
+
+  /** Create a frame cursor. */
+  def newCursor(stack: MuStackRefValue): MuFCRefValue = {
+    val s = getStackNotNull(stack)
+    val c = microVM.threadStackManager.newFrameCursor(s)
+    val nb = BoxFrameCursor(Some(c))
+    addHandle(MuFCRefValue(InternalTypes.FRAMECURSORREF, nb))
+  }
+
+  /** Move cursor to the frame below the current frame. */
+  def nextFrame(cursor: MuFCRefValue): Unit = {
+    getCursorNotNull(cursor).nextFrame()
+  }
+
+  /** Copy a frame cursor. */
+  def copyCursor(cursor: MuFCRefValue): MuFCRefValue = {
+    val c = getCursorNotNull(cursor)
+    val nc = microVM.threadStackManager.copyCursor(c)
+    val nb = BoxFrameCursor(Some(nc))
+    addHandle(MuFCRefValue(InternalTypes.FRAMECURSORREF, nb))
+  }
+
+  /** Close a frame cursor. */
+  def closeCursor(cursor: MuFCRefValue): Unit = {
+    val c = getCursorNotNull(cursor)
+    microVM.threadStackManager.closeCursor(c)
+  }
+
   /** Get the ID of the current function of a frame. Return 0 for native frames. */
-  def curFunc(stack: MuStackRefValue, frame: Int): Int = {
-    val sv = getStackNotNull(stack)
-    sv.nthFrame(frame).curFuncID
+  def curFunc(cursor: MuFCRefValue): Int = {
+    val c = getCursorNotNull(cursor)
+    c.frame.curFuncID
   }
 
   /**
    * Get the ID of the current function version of a frame. Return 0 for native frames
    *  or Mu frames of undefined functions
    */
-  def curFuncVer(stack: MuStackRefValue, frame: Int): Int = {
-    val sv = getStackNotNull(stack)
-    sv.nthFrame(frame).curFuncVerID
+  def curFuncVer(cursor: MuFCRefValue): Int = {
+    val c = getCursorNotNull(cursor)
+    c.frame.curFuncVerID
   }
 
   /**
    * Get the ID of the current instruction of a frame. Return 0 for native frames, Mu frames for undefined
    *  functions, or if the frame is just created by newStack or pushFrame.
    */
-  def curInst(stack: MuStackRefValue, frame: Int): Int = {
-    val sv = getStackNotNull(stack)
-    sv.nthFrame(frame).curInstID
+  def curInst(cursor: MuFCRefValue): Int = {
+    val c = getCursorNotNull(cursor)
+    c.frame.curInstID
   }
 
   /** Dump keep-alive variables of the current instruction. */
-  def dumpKeepalives(stack: MuStackRefValue, frame: Int): Seq[MuValue] = {
-    val sv = getStackNotNull(stack)
-    val fr = sv.nthFrame(frame)
+  def dumpKeepalives(cursor: MuFCRefValue): Seq[MuValue] = {
+    val c = getCursorNotNull(cursor)
+    val fr = c.frame
     fr match {
       case f: NativeFrame => {
         throw new UvmRefImplException("Attempt to dump keepalives from a native frame. Funciton 0x%x".format(f.func))
@@ -569,9 +603,10 @@ class MuCtx(_mutator: Mutator)(
   }
 
   /** Pop the top frame of a Mu stack. */
-  def popFrame(stack: MuStackRefValue): Unit = {
-    val st = getStackNotNull(stack)
-    st.popFrame()
+  def popFramesTo(cursor: MuFCRefValue): Unit = {
+    val c = getCursorNotNull(cursor)
+
+    c.stack.popFramesTo(c)
   }
 
   /** Create a new frame for a Mu function and push it to the top of a stack. */
@@ -798,6 +833,62 @@ object RichMuCtx {
       val bytesArray = byteValues.toArray
       val str = new String(bytesArray, MuCtx.US_ASCII)
       str
+    }
+
+    // legacy support
+
+    /** Get the ID of the current function of a frame. Return 0 for native frames. */
+    def curFunc(stack: MuStackRefValue, frame: Int): Int = {
+      val cursor = ctx.newCursor(stack)
+      for (i <- 0 until frame) {
+        ctx.nextFrame(cursor)
+      }
+      val id = ctx.curFunc(cursor)
+      ctx.closeCursor(cursor)
+      ctx.deleteValue(cursor)
+      id
+    }
+
+    /**
+     * Get the ID of the current function version of a frame. Return 0 for native frames
+     *  or Mu frames of undefined functions
+     */
+    def curFuncVer(stack: MuStackRefValue, frame: Int): Int = {
+      val cursor = ctx.newCursor(stack)
+      for (i <- 0 until frame) {
+        ctx.nextFrame(cursor)
+      }
+      val id = ctx.curFuncVer(cursor)
+      ctx.closeCursor(cursor)
+      ctx.deleteValue(cursor)
+      id
+    }
+
+    /**
+     * Get the ID of the current instruction of a frame. Return 0 for native frames, Mu frames for undefined
+     *  functions, or if the frame is just created by newStack or pushFrame.
+     */
+    def curInst(stack: MuStackRefValue, frame: Int): Int = {
+      val cursor = ctx.newCursor(stack)
+      for (i <- 0 until frame) {
+        ctx.nextFrame(cursor)
+      }
+      val id = ctx.curInst(cursor)
+      ctx.closeCursor(cursor)
+      ctx.deleteValue(cursor)
+      id
+    }
+
+    /** Dump keep-alive variables of the current instruction. */
+    def dumpKeepalives(stack: MuStackRefValue, frame: Int): Seq[MuValue] = {
+      val cursor = ctx.newCursor(stack)
+      for (i <- 0 until frame) {
+        ctx.nextFrame(cursor)
+      }
+      val kas = ctx.dumpKeepalives(cursor)
+      ctx.closeCursor(cursor)
+      ctx.deleteValue(cursor)
+      kas
     }
   }
 }

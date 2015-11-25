@@ -34,19 +34,27 @@ class UvmOSRTests extends UvmBundleTesterBase {
     val arg0 = ctx.handleFromInt64(3)
 
     testFunc(ctx, func, Seq(arg0)) { (ctx, th, st, wp) =>
-      nameOf(ctx.curInst(st, 0)) match {
+      val fc = ctx.newCursor(st)
+      nameOf(ctx.curInst(fc)) match {
         case "@intro_rec_v1.zero.trap_rec" => {
-          val Seq(n0) = ctx.dumpKeepalives(st, 0)
-          ctx.handleToUInt(n0.asInstanceOf[MuIntValue]) shouldBe 0
+          val Seq(n0: MuIntValue) = ctx.dumpKeepalives(fc)
+
+          ctx.handleToUInt(n0) shouldBe 0
 
           for (i <- 1 to 3) {
-            nameOf(ctx.curInst(st, i)) shouldBe "@intro_rec_v1.nz.call"
-            val Seq(ni, nm1i) = ctx.dumpKeepalives(st, i)
-            ctx.handleToUInt(ni.asInstanceOf[MuIntValue]) shouldBe i
-            ctx.handleToUInt(nm1i.asInstanceOf[MuIntValue]) shouldBe (i - 1)
+            ctx.nextFrame(fc)
+            nameOf(ctx.curFunc(fc)) shouldBe "@intro_rec"
+            nameOf(ctx.curFuncVer(fc)) shouldBe "@intro_rec_v1"
+            nameOf(ctx.curInst(fc)) shouldBe "@intro_rec_v1.nz.call"
+            val Seq(ni: MuIntValue, nm1i: MuIntValue) = ctx.dumpKeepalives(st, i)
+            ctx.handleToUInt(ni) shouldBe i
+            ctx.handleToUInt(nm1i) shouldBe (i - 1)
           }
 
-          nameOf(ctx.curInst(st, 4)) shouldBe "@intro_test_base_v1.entry.call"
+          ctx.nextFrame(fc)
+          nameOf(ctx.curInst(fc)) shouldBe "@intro_test_base_v1.entry.call"
+
+          ctx.closeCursor(fc)
 
           Rebind(st, PassValues(Seq(n0)))
         }
@@ -64,10 +72,13 @@ class UvmOSRTests extends UvmBundleTesterBase {
     val arg0 = ctx.handleFromInt64(4)
 
     testFunc(ctx, func, Seq(arg0)) { (ctx, th, st, wp) =>
-      nameOf(ctx.curInst(st, 0)) match {
+      val fc = ctx.newCursor(st)
+      nameOf(ctx.curInst(fc)) match {
         case "@osr_test_base_v1.entry.trap_base_exit" => {
-          val Seq(rv) = ctx.dumpKeepalives(st, 0)
-          ctx.handleToUInt(rv.asInstanceOf[MuIntValue]) shouldBe 6
+          val Seq(rv: MuIntValue) = ctx.dumpKeepalives(fc)
+          ctx.closeCursor(fc)
+
+          ctx.handleToUInt(rv) shouldBe 6
 
           returnFromTrap(st)
         }
@@ -85,13 +96,15 @@ class UvmOSRTests extends UvmBundleTesterBase {
     val arg0 = ctx.handleFromInt64(8)
 
     testFunc(ctx, func, Seq(arg0)) { (ctx, th, st, wp) =>
-      nameOf(ctx.curInst(st, 0)) match {
+      val fc = ctx.newCursor(st)
+      nameOf(ctx.curInst(fc)) match {
         case "@sum_v1.opt.trap_opt" => {
-          val Seq(n, i, s) = ctx.dumpKeepalives(st, 0)
+          val Seq(n:MuIntValue, i:MuIntValue, s:MuIntValue) = ctx.dumpKeepalives(fc)
+          ctx.closeCursor(fc)
 
-          ctx.handleToUInt(s.asInstanceOf[MuIntValue]) shouldBe 10
-          ctx.handleToUInt(i.asInstanceOf[MuIntValue]) shouldBe 5
-          ctx.handleToUInt(n.asInstanceOf[MuIntValue]) shouldBe 8
+          ctx.handleToUInt(s) shouldBe 10
+          ctx.handleToUInt(i) shouldBe 5
+          ctx.handleToUInt(n) shouldBe 8
 
           // Emulate optimising compiling by loading a pre-optimised version.
           val r = new FileReader("tests/uvm-refimpl-test/osr-tests-part2.uir")
@@ -102,7 +115,9 @@ class UvmOSRTests extends UvmBundleTesterBase {
           }
 
           // OSR
-          ctx.popFrame(st)
+          ctx.nextFrame(fc)
+          ctx.popFramesTo(fc)
+          ctx.closeCursor(fc)
 
           val oneShotFunc = ctx.handleFromFunc("@sum_osr_oneshot")
           ctx.pushFrame(st, oneShotFunc)
@@ -111,8 +126,10 @@ class UvmOSRTests extends UvmBundleTesterBase {
           Rebind(st, PassValues(Seq(s, i, n)))
         }
         case "@osr_test_base_v1.entry.trap_base_exit" => {
-          val Seq(rv) = ctx.dumpKeepalives(st, 0)
-          ctx.handleToUInt(rv.asInstanceOf[MuIntValue]) shouldBe 28
+          val Seq(rv: MuIntValue) = ctx.dumpKeepalives(fc)
+          ctx.closeCursor(fc)
+
+          ctx.handleToUInt(rv) shouldBe 28
 
           returnFromTrap(st)
         }
@@ -122,10 +139,13 @@ class UvmOSRTests extends UvmBundleTesterBase {
     // The second time when it is called, it should call the second version
     // and OSR should be unnecessary.
     testFunc(ctx, func, Seq(arg0)) { (ctx, th, st, wp) =>
-      nameOf(ctx.curInst(st, 0)) match {
+      val fc = ctx.newCursor(st)
+      nameOf(ctx.curInst(fc)) match {
         case "@osr_test_base_v1.entry.trap_base_exit" => {
-          val Seq(rv) = ctx.dumpKeepalives(st, 0)
-          ctx.handleToUInt(rv.asInstanceOf[MuIntValue]) shouldBe 28
+          val Seq(rv: MuIntValue) = ctx.dumpKeepalives(fc)
+          ctx.closeCursor(fc)
+
+          ctx.handleToUInt(rv) shouldBe 28
 
           returnFromTrap(st)
         }
@@ -158,9 +178,11 @@ class UvmOSRTests extends UvmBundleTesterBase {
     val arg0 = ctx.handleFromInt64(8)
 
     testFuncMulti(ctx, Seq(func1, func2), Seq()) { (ctx, th, st, wp) =>
-      nameOf(ctx.curInst(st, 0)) match {
+      val fc = ctx.newCursor(st)
+      nameOf(ctx.curInst(fc)) match {
         case "@consecutive_push_main.v1.entry.trap" => {
-          val Seq(n: MuIntValue) = ctx.dumpKeepalives(st, 0)
+          val Seq(n: MuIntValue) = ctx.dumpKeepalives(fc)
+          ctx.closeCursor(fc)
 
           ctx.handleToUInt(n) shouldBe 42
 
@@ -184,17 +206,21 @@ class UvmOSRTests extends UvmBundleTesterBase {
     var addOneReachCount = 0L
 
     testFuncMulti(ctx, Seq(func1, func3, func3, func3, func2), Seq()) { (ctx, th, st, wp) =>
-      nameOf(ctx.curInst(st, 0)) match {
+      val fc = ctx.newCursor(st)
+      nameOf(ctx.curInst(fc)) match {
         case "@add_one.v1.entry.trap" => {
-          val Seq(n: MuIntValue, n2: MuIntValue) = ctx.dumpKeepalives(st, 0)
+          val Seq(n: MuIntValue, n2: MuIntValue) = ctx.dumpKeepalives(fc)
+          ctx.closeCursor(fc)
+
           ctx.handleToSInt(n).toLong shouldBe (42L + addOneReachCount)
           ctx.handleToSInt(n2) shouldBe (42L + addOneReachCount + 1L)
           addOneReachCount += 1L
-          
+
           returnFromTrap(st)
         }
         case "@consecutive_push_main.v1.entry.trap" => {
-          val Seq(n: MuIntValue) = ctx.dumpKeepalives(st, 0)
+          val Seq(n: MuIntValue) = ctx.dumpKeepalives(fc)
+          ctx.closeCursor(fc)
 
           ctx.handleToSInt(n).toLong shouldBe 45L
 
@@ -202,7 +228,7 @@ class UvmOSRTests extends UvmBundleTesterBase {
         }
       }
     }
-    
+
     addOneReachCount shouldBe 3L
 
     ctx.closeContext()

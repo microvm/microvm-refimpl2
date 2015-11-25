@@ -13,6 +13,7 @@ import uvm.refimpl.nat.NativeCallResult
 import uvm.refimpl.nat.NativeCallHelper
 import org.slf4j.LoggerFactory
 import com.typesafe.scalalogging.Logger
+import scala.collection.mutable.HashSet
 
 /** The state of a frame. */
 abstract class FrameState
@@ -37,6 +38,16 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
   /** The top frame */
   def top = _top
   private def top_=(f: InterpreterFrame) = _top = f
+
+  /** A list of frame cursors on this stack for sanity check. */
+  var frameCursors = new HashSet[FrameCursor]()
+
+  private def ensureNoCursors(action: String): Unit = {
+    if (!frameCursors.isEmpty) {
+      throw new UvmRuntimeException("Attempt to %s when there are frame cursors not closed. Stack: %d, Cursors: %s".format(
+        action, id, frameCursors.map(_.id).mkString(" ")))
+    }
+  }
 
   /** The state of the stack (i.e. state of the top frame) */
   def state = top.state
@@ -232,6 +243,9 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
     if (!state.isInstanceOf[FrameState.Ready]) {
       throw new UvmRuntimeException("Attempt to bind to a stack not in the ready state. Actual state: %s".format(state))
     }
+
+    ensureNoCursors("bind to a stack")
+
     top match {
       case mf: MuFrame => {
         mf.resumeNormally(args)
@@ -250,6 +264,8 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
 
   /** Kill the stack */
   def kill(): Unit = {
+    ensureNoCursors("kill a stack")
+
     for (f <- frames) {
       f.state = FrameState.Dead
     }
@@ -259,27 +275,49 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
   }
 
   /**
-   * Return the n-th frame of the current stack.
+   * Ensure there is no native frame from the top frame until the frame cursor (exclusive), or any frames until the
+   *  cursor happen to be referred by other frame cursors.
    */
-  def nthFrame(n: Int): InterpreterFrame = {
-    val dropped = frames.drop(n)
-    if (dropped.hasNext) {
-      dropped.next
-    } else {
-      throw new UvmRuntimeException("The stack %d only has %d frames, but the %d-th frame is requested.".format(id, n))
-    }
-  }
-
-  /** Pop a frame. Part of the API. Also used by THROW */
-  def popFrame(): Unit = {
-    top match {
-      case f: NativeFrame => throw new UnimplementedOprationException("Popping native frames is not supported.")
-      case f: MuFrame => f.prev match {
-        case None       => throw new UvmRuntimeException("Attempting to pop the last frame of a stack.")
-        case Some(prev) => popMuFrame()
+  private def ensurePoppableUntil(cursor: FrameCursor): Unit = {
+    val toFrame = cursor.frame
+    for ((curFrame, i) <- frames.takeWhile(_ != toFrame).zipWithIndex) {
+      if (curFrame.isInstanceOf[NativeFrame]) {
+        throw new UnimplementedOprationException(
+          "Popping native frames is not supported. Found native frame at depth %d in stack %d".format(i, id))
       }
 
+      for (c2 <- frameCursors if c2 != cursor) {
+        if (c2.frame == curFrame) {
+          throw new UnimplementedOprationException(
+            "Frame %s at depth %d in stack %d is referred by another frame cursor %d. Current cursor: %d".format(
+                c2.frame.toString, i, id, c2.id, cursor.id))
+        }
+      }
     }
+  }
+  
+  /** Pop the current Mu frame. Used by THROW. */
+  def popMuFrameForThrow(): Unit = {
+    popMuFrame()
+  }
+  
+
+  /** Pop all frames until cursor. Part of the API. */
+  def popFramesTo(cursor: FrameCursor): Unit = {
+    if (cursor.stack != this) {
+      throw new UvmRefImplException(
+        "Frame cursor %d refers to frame %s in a different stack %d. Current stack: %d".format(
+          cursor.frame.toString, cursor.stack.id, this.id))
+    }
+    ensurePoppableUntil(cursor)
+    
+    val toFrame = cursor.frame
+    
+    for (f <- frames.takeWhile(_ != toFrame) if f.isInstanceOf[DefinedMuFrame]) {
+      stackMemory.rewind(f.asInstanceOf[DefinedMuFrame].savedStackPointer)
+    }
+
+    top = cursor.frame
   }
 
   /** Push a Mu frame. Part of the API. */
@@ -331,7 +369,7 @@ class NativeFrame(val func: Word, prev: Option[InterpreterFrame]) extends Interp
   override def curFuncID: Int = 0
   override def curFuncVerID: Int = 0
   override def curInstID: Int = 0
-  
+
   override def toString(): String = "NativeFrame(func=0x%x)".format(func)
 }
 
@@ -382,7 +420,7 @@ class UndefinedMuFrame(func: Function, prev: Option[InterpreterFrame]) extends M
   var virtInst = VIRT_INST_NOT_STARTED
 
   override def scannableBoxes = boxes
-  
+
   override def curFuncID: Int = func.id
   override def curFuncVerID: Int = 0
   override def curInstID: Int = 0
@@ -480,7 +518,7 @@ class DefinedMuFrame(val savedStackPointer: Word, val funcVer: FuncVer, val cook
       edgeAssignedBoxes.put(lv.asInstanceOf[Parameter], ValueBox.makeBoxForType(ty))
     }
   }
-  
+
   override def curFuncID: Int = func.id
   override def curFuncVerID: Int = funcVer.id
   override def curInstID: Int = if (justCreated) 0 else curInst.id
@@ -563,14 +601,11 @@ class DefinedMuFrame(val savedStackPointer: Word, val funcVer: FuncVer, val cook
 /**
  * A mutable cursor that iterates through stack frames.
  */
-class FrameCursor(val id: Int, val stack: InterpreterStack, val frame: InterpreterFrame) extends HasID {
-  /** The current frame it refers to. */
-  var curFrame = frame
-  
+class FrameCursor(val id: Int, val stack: InterpreterStack, var frame: InterpreterFrame) extends HasID {
   def nextFrame(): Unit = {
-    curFrame = curFrame.prev.getOrElse {
+    frame = frame.prev.getOrElse {
       throw new UvmRuntimeException("Attempt to go below the stack-bottom frame. Stack id: %d, Frame: %s".format(
-          stack.id, curFrame.toString))
+        stack.id, frame.toString))
     }
   }
 }

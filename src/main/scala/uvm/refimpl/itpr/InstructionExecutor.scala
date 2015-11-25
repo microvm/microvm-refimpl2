@@ -275,7 +275,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
 
       case i @ InstThrow(excVal) => {
         val exc = excVal.asRef
-        curStack.popFrame()
+        curStack.popMuFrameForThrow()
         catchException(exc)
       }
 
