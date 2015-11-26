@@ -17,12 +17,12 @@ lazy val root = (project in file(".")).settings(
     scalaVersion := "2.11.7",
 
     libraryDependencies ++= Seq(
-        "org.antlr" % "antlr4" % "4.5.1",
+        "org.antlr" % "antlr4" % "4.5.1-1",
         "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0",
         "ch.qos.logback" % "logback-classic" % "1.1.3",
-        "com.github.jnr" % "jnr-ffi" % "2.0.3",
-        "com.github.jnr" % "jffi" % "1.2.9",
-        "com.github.jnr" % "jnr-posix" % "3.0.17",
+        "com.github.jnr" % "jnr-ffi" % "2.0.7",
+        "com.github.jnr" % "jffi" % "1.2.10",
+        "com.github.jnr" % "jnr-posix" % "3.0.23",
         "org.scalatest" %% "scalatest" % "2.2.4" % "test",
         "junit" % "junit" % "4.12" % "test"
     ),
