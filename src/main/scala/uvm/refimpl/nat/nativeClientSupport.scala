@@ -249,4 +249,12 @@ object NativeClientSupport {
    * alive so that the native program can access them.
    */
   val stringPool = HashMap[String, Pointer]()
+  
+  // Expose and unexpose objects
+  def exposeMicroVM(microVM: MicroVM): Word = microVMs.add(microVM).address()
+  def exposeMuCtx(muCtx: MuCtx): Word = muCtxs.add(muCtx).address()
+  def exposeMuValue(muValue: MuValue): Word = muValues.add(muValue).address()
+  def unexposeMicroVM(addr: Long): Unit = microVMs.remove(jnrMemoryManager.newPointer(addr))
+  def unexposeMuCtx(addr: Long): Unit = muCtxs.remove(jnrMemoryManager.newPointer(addr))
+  def unexposeMuValue(addr: Long): Unit = muValues.remove(jnrMemoryManager.newPointer(addr))
 }
