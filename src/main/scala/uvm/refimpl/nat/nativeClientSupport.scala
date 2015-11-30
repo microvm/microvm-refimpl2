@@ -1,26 +1,23 @@
 package uvm.refimpl.nat
 
 import java.nio.charset.StandardCharsets
-
 import scala.collection.mutable.HashMap
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe
 import scala.reflect.runtime.{ universe => ru }
-
 import org.slf4j.LoggerFactory
-
 import com.kenai.jffi.CallingConvention
 import com.kenai.jffi.Closure
 import com.kenai.jffi.Closure.Buffer
 import com.kenai.jffi.{ Type => JType }
 import com.typesafe.scalalogging.Logger
-
 import NativeSupport._
 import PlatformConstants.WORD_SIZE_BYTES
 import PlatformConstants.Word
 import jnr.ffi.ObjectReferenceManager
 import jnr.ffi.Pointer
 import uvm.refimpl._
+import scala.collection.mutable.HashSet
 
 /**
  * This object calls a C function to handle the trap.
@@ -41,13 +38,38 @@ object NativeMuVM {
 
   def new_context(microVM: MicroVM): MuCtxPtr = {
     val ctx = microVM.newContext()
-    val ptr = NativeClientSupport.muCtxs.add(ctx)
-    ptr.address()
+    val ptr = NativeClientSupport.exposeMuCtx(ctx)
+    ptr
   }
   def id_of(microVM: MicroVM, name: String): Int = microVM.idOf(name)
   def name_of(microVM: MicroVM, id: Int): String = microVM.nameOf(id)
   def set_trap_handler(microVM: MicroVM, trap_handler: Word, userdata: Word): Unit = {
     microVM.setTrapHandler(new NativeTrapHandler(trap_handler, userdata))
+  }
+}
+
+/**
+ * This object routes calls from native clients to a MuCtx object.
+ */
+object NativeMuCtx {
+  // Syntax sugar for MuCtx and MuValue return values, which are pointers
+  type MuCtxPtr = Word
+  type MuValuePtr = Word
+
+  def id_of(ctx: MuCtx, name: String): Int = ctx.idOf(name)
+  def name_of(ctx: MuCtx, id: Int): String = ctx.nameOf(id)
+
+  /**
+   * NOTE: Should have taken MuCtx as the first parameter, but we need to de-allocate
+   * the function table, too.
+   */
+  def close_context(funcTableAddr: Word): Unit = {
+    val ctx = NativeClientSupport.getObjNotNull(funcTableAddr, NativeClientSupport.muCtxs)
+    for (muValueAddr <- NativeClientSupport.muCtxToMuValues.remove(ctx).get) {
+      NativeClientSupport.unexposeMuValue(muValueAddr)
+    }
+    NativeClientSupport.unexposeMuCtx(funcTableAddr)
+    ctx.closeContext()
   }
 }
 
@@ -109,13 +131,8 @@ object ClientAccessibleClassExposer {
   }
 
   private def getObj[T](buffer: Buffer, index: Int, orm: ObjectReferenceManager[T]): T = {
-    val arg0 = buffer.getLong(index)
-    val objAddr = theMemory.getAddress(arg0)
-    val obj = orm.get(jnrMemoryManager.newPointer(objAddr))
-    if (obj == null) {
-      throw new UvmRefImplException("Exposed object not found. Address: %d 0x%x".format(objAddr, objAddr))
-    }
-    obj
+    val funcTableAddr = buffer.getLong(index)
+    NativeClientSupport.getObjNotNull(funcTableAddr, orm)
   }
 
   // Reflection utils.
@@ -217,21 +234,26 @@ class ClientAccessibleClassExposer[T: ru.TypeTag: ClassTag](obj: T) {
   /**
    * Allocate and populate a native function table,
    * i.e. the in-memory structure of struct MuVM and struct MuCtx in the client interface.
+   *
+   * @param objAddr The "address" of the object, created by the ObjectReferenceManager.
+   * This will be the first field of the table.
+   *
+   * @return The address of the function table.
    */
-  def makeFuncTable(instance: Word): Word = {
+  def makeFuncTable(objAddr: Word): Word = {
     val nMethods = closureHandles.size
     val structSizeWords = nMethods + 1
     val structSizeBytes = structSizeWords * WORD_SIZE_BYTES.toInt
     val s = jnrMemoryManager.allocateDirect(structSizeBytes)
-    s.putLong(0L, instance)
+    s.putLong(0L, objAddr)
     for ((handle, i) <- closureHandles.zipWithIndex) {
       val offset = (i + 1) * WORD_SIZE_BYTES
       val funcAddr = handle.getAddress()
       s.putLong(offset, funcAddr)
     }
-    val addr = s.address()
-    NativeClientSupport.funcTableToPointer(addr) = s
-    addr
+    val funcTableAddr = s.address()
+    NativeClientSupport.funcTableToPointer(funcTableAddr) = s
+    funcTableAddr
   }
 }
 
@@ -243,6 +265,18 @@ object NativeClientSupport {
   val microVMs = jnrRuntime.newObjectReferenceManager[MicroVM]()
   val muCtxs = jnrRuntime.newObjectReferenceManager[MuCtx]()
   val muValues = jnrRuntime.newObjectReferenceManager[MuValue]()
+  
+  /** Map each MuCtx to all of its current MuValues. This is needed when closing a MuCtx. */
+  val muCtxToMuValues = HashMap[MuCtx, HashSet[Word]]()
+
+  def getObjNotNull[T](funcTableAddr: Word, orm: ObjectReferenceManager[T]): T = {
+    val objAddr = theMemory.getAddress(funcTableAddr)
+    val obj = orm.get(jnrMemoryManager.newPointer(objAddr))
+    if (obj == null) {
+      throw new UvmRefImplException("Exposed object not found. Address: %d 0x%x".format(objAddr, objAddr))
+    }
+    obj
+  }
 
   /**
    * Map function table addresses to Pointer so they can be closed. JFFI uses the TrantientNativeMemory (wrapped
@@ -255,12 +289,47 @@ object NativeClientSupport {
    * alive so that the native program can access them.
    */
   val stringPool = HashMap[String, Pointer]()
-  
+
+  // These "exposer" can repeatedly generate function tables.
+  val muVMExposer = new ClientAccessibleClassExposer(NativeMuVM)
+  val muCtxExposer = new ClientAccessibleClassExposer(NativeMuCtx)
+
   // Expose and unexpose objects
-  def exposeMicroVM(microVM: MicroVM): Word = microVMs.add(microVM).address()
-  def exposeMuCtx(muCtx: MuCtx): Word = muCtxs.add(muCtx).address()
+  /** Expose a MicroVM. Return a pointer to the C MuVM structure. */
+  def exposeMicroVM(microVM: MicroVM): Word = {
+    val objAddr = microVMs.add(microVM).address()
+    val funcTableAddr = muVMExposer.makeFuncTable(objAddr)
+    funcTableAddr
+  }
+  /** Expose a MuCtx. Return a pointer to the C MuCtx structure. */
+  def exposeMuCtx(muCtx: MuCtx): Word = {
+    require(!muCtxToMuValues.contains(muCtx), "Context %s is already exposed.".format(muCtx))
+    muCtxToMuValues(muCtx) = HashSet()
+    val objAddr = muCtxs.add(muCtx).address()
+    val funcTableAddr = muCtxExposer.makeFuncTable(objAddr)
+    funcTableAddr
+  }
+  /** Expose a MuValue. Return an "object pointer", i.e. faked by ObjectReferenceManager. */
   def exposeMuValue(muValue: MuValue): Word = muValues.add(muValue).address()
-  def unexposeMicroVM(addr: Long): Unit = microVMs.remove(jnrMemoryManager.newPointer(addr))
-  def unexposeMuCtx(addr: Long): Unit = muCtxs.remove(jnrMemoryManager.newPointer(addr))
+
+  /** Unexpose a MicroVM. Remove the faked pointer and deallocate the function table (by removing the Pointer). */
+  def unexposeMicroVM(funcTableAddr: Word): Unit = {
+    require(funcTableToPointer.contains(funcTableAddr),
+      "MuVM struct pointer %d 0x%x does not exist".format(funcTableAddr, funcTableAddr))
+    val obj = getObjNotNull(funcTableAddr, microVMs)
+    val objAddr = theMemory.getAddress(funcTableAddr)
+    microVMs.remove(jnrMemoryManager.newPointer(objAddr))
+    funcTableToPointer.remove(funcTableAddr)
+  }
+  /** Unexpose a MuCtx. Remove the faked pointer and deallocate the function table (by removing the Pointer). */
+  def unexposeMuCtx(funcTableAddr: Long): Unit = {
+    require(funcTableToPointer.contains(funcTableAddr),
+      "MuCtx struct pointer %d 0x%x does not exist".format(funcTableAddr, funcTableAddr))
+    val obj = getObjNotNull(funcTableAddr, muCtxs)
+    val objAddr = theMemory.getAddress(funcTableAddr)
+    muCtxs.remove(jnrMemoryManager.newPointer(objAddr))
+    funcTableToPointer.remove(funcTableAddr)
+  }
+  /** Unexpose a MuValue by removing it from the ORM. */
   def unexposeMuValue(addr: Long): Unit = muValues.remove(jnrMemoryManager.newPointer(addr))
 }

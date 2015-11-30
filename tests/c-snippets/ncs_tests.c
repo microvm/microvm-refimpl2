@@ -27,3 +27,25 @@ int test_basic(MuVM *mvm, int theID, char *theName) {
     return 1;
 }
 
+int test_with_ctx(MuVM *mvm, int theID, char *theName) {
+    MuCtx *ctx = mvm->new_context(mvm);
+
+    int id = ctx->id_of(ctx, theName);
+    printf("[C] id = %d\n", id);
+    if (id != theID) {
+        printf("[C] ID %d is not equal to %d\n", id, theID);
+        return 0;
+    }
+
+    char *name = ctx->name_of(ctx, theID);
+    printf("[C] name = %s\n", name);
+    if (strcmp(name, theName) != 0) {
+        printf("[C] name %s is not equal to %s\n", name, theName);
+        return 0;
+    }
+
+
+    ctx->close_context(ctx);
+
+    return 1;
+}

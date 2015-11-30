@@ -21,18 +21,17 @@ class NativeClientSupportTest extends UvmBundleTesterBase {
 
   trait NcsTestsLib {
     def test_basic(mvm: Word, theID: Int, theName: String): Int
+    def test_with_ctx(mvm: Word, theID: Int, theName: String): Int
   }
 
   val ncs_tests = LibraryLoader.create(classOf[NcsTestsLib]).load(fileName)
 
-  "The ClientAccessibleClassExposer" should "enumerate declared methods" in {
-    val cace = new ClientAccessibleClassExposer(NativeMuVM)
+  val microVMFuncTableAddr = NativeClientSupport.exposeMicroVM(microVM)
 
-    val microVMAddr = NativeClientSupport.exposeMicroVM(microVM)
-
-    val funcTable = cace.makeFuncTable(microVMAddr)
-
-    val funcTablePtr = NativeClientSupport.funcTableToPointer(funcTable)
+  behavior of "The ClientAccessibleClassExposer"
+  
+  it should "be able to access the exposed MicroVM" in {
+    val funcTablePtr = jnrMemoryManager.newPointer(microVMFuncTableAddr)
     val header = funcTablePtr.getAddress(0)
     val mvm = NativeClientSupport.microVMs.get(jnrMemoryManager.newPointer(header))
 
@@ -41,7 +40,19 @@ class NativeClientSupportTest extends UvmBundleTesterBase {
     val theName = "@i64"
     val theID = microVM.idOf(theName)
 
-    val result = ncs_tests.test_basic(funcTable, theID, theName)
+    val result = ncs_tests.test_basic(microVMFuncTableAddr, theID, theName)
+    if (result == 0) {
+      fail("Failed in the native program.")
+    }
+  }
+    
+  it should "be able to create MuCtx and use it" in {
+    val funcTablePtr = jnrMemoryManager.newPointer(microVMFuncTableAddr)
+
+    val theName = "@double"
+    val theID = microVM.idOf(theName)
+
+    val result = ncs_tests.test_with_ctx(microVMFuncTableAddr, theID, theName)
     if (result == 0) {
       fail("Failed in the native program.")
     }
