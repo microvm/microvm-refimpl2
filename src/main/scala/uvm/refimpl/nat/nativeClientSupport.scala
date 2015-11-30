@@ -101,15 +101,21 @@ object ClientAccessibleClassExposer {
     val ptr = NativeClientSupport.stringPool.getOrElseUpdate(str, {
       val bytes = str.getBytes(StandardCharsets.US_ASCII)
       val newPtr = jnrMemoryManager.allocateDirect(bytes.size + 1)
-      newPtr.put(0L, bytes, 0, 0)
+      newPtr.put(0L, bytes, 0, bytes.length)
+      newPtr.putByte(bytes.length, 0)
       newPtr
     })
     ptr.address()
   }
 
   private def getObj[T](buffer: Buffer, index: Int, orm: ObjectReferenceManager[T]): T = {
-    val addr = buffer.getLong(index)
-    orm.get(jnrMemoryManager.newPointer(addr))
+    val arg0 = buffer.getLong(index)
+    val objAddr = theMemory.getAddress(arg0)
+    val obj = orm.get(jnrMemoryManager.newPointer(objAddr))
+    if (obj == null) {
+      throw new UvmRefImplException("Exposed object not found. Address: %d 0x%x".format(objAddr, objAddr))
+    }
+    obj
   }
 
   // Reflection utils.
