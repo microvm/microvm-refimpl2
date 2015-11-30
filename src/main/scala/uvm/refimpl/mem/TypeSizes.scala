@@ -2,6 +2,7 @@ package uvm.refimpl.mem
 
 import uvm.types._
 import uvm.refimpl.UvmRefImplException
+import uvm.refimpl.nat.PlatformConstants
 
 /**
  * Responsible for object layout.
@@ -45,11 +46,11 @@ import uvm.refimpl.UvmRefImplException
  * </pre>
  */
 object TypeSizes {
-  type Word = Long
+  type Word = PlatformConstants.Word
 
-  val WORD_SIZE_LOG: Word = 6L
-  val WORD_SIZE_BITS: Word = 1L << WORD_SIZE_LOG
-  val WORD_SIZE_BYTES: Word = 1L << (WORD_SIZE_LOG - 3L)
+  val WORD_SIZE_LOG: Word = PlatformConstants.WORD_SIZE_LOG
+  val WORD_SIZE_BITS: Word = PlatformConstants.WORD_SIZE_BITS
+  val WORD_SIZE_BYTES: Word = PlatformConstants.WORD_SIZE_BYTES
 
   val GC_HEADER_SIZE_SCALAR: Word = 8L;
   val GC_HEADER_SIZE_HYBRID: Word = 16L;

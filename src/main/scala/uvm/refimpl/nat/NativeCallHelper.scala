@@ -316,7 +316,7 @@ class NativeCallHelper {
     val jRetTy = getNativeReturnType(sig.retTys)
 
     val clos = new MuCallbackClosure(muFunc, cookie)
-    val handle = NativeSupport.closureManager.newClosure(clos, jRetTy, jParamTypes.toArray, CallingConvention.DEFAULT)
+    val handle = NativeSupport.jffiClosureManager.newClosure(clos, jRetTy, jParamTypes.toArray, CallingConvention.DEFAULT)
     val addr = handle.getAddress
 
     val efr = new ExpFuncRec(muFunc, cookie, clos, handle, isDynamic)
