@@ -31,8 +31,8 @@ case class BoxFloat(var value: Float) extends ValueBox {
 case class BoxDouble(var value: Double) extends ValueBox {
   def copyFrom(other: ValueBox): Unit = { this.value = other.asInstanceOf[BoxDouble].value }
 }
-case class BoxVector(var values: Seq[ValueBox]) extends ValueBox {
-  def copyFrom(other: ValueBox): Unit = { for ((t, o) <- this.values.zip(other.asInstanceOf[BoxVector].values)) t.copyFrom(o) }
+case class BoxSeq(var values: Seq[ValueBox]) extends ValueBox {
+  def copyFrom(other: ValueBox): Unit = { for ((t, o) <- this.values.zip(other.asInstanceOf[BoxSeq].values)) t.copyFrom(o) }
 }
 case class BoxRef(var objRef: Word) extends HasObjRef {
   def copyFrom(other: ValueBox): Unit = { this.objRef = other.asInstanceOf[BoxRef].objRef }
@@ -53,12 +53,6 @@ case class BoxIRef(var objRef: Word, var offset: Word) extends HasObjRef {
   def oo: (Word, Word) = (objRef, offset)
   def oo_=(newVal: (Word, Word)): Unit = { objRef = newVal._1; offset = newVal._2 }
 }
-case class BoxStruct(var values: Seq[ValueBox]) extends ValueBox {
-  def copyFrom(other: ValueBox): Unit = { for ((t, o) <- this.values.zip(other.asInstanceOf[BoxStruct].values)) t.copyFrom(o) }
-}
-case class BoxVoid() extends ValueBox {
-  def copyFrom(other: ValueBox): Unit = {}
-}
 case class BoxFunc(var func: Option[Function]) extends ObjectBox[Function] {
   def obj = func
   def obj_=(other: Option[Function]): Unit = { func = other }
@@ -70,6 +64,10 @@ case class BoxThread(var thread: Option[InterpreterThread]) extends ObjectBox[In
 case class BoxStack(var stack: Option[InterpreterStack]) extends ObjectBox[InterpreterStack] {
   def obj = stack
   def obj_=(other: Option[InterpreterStack]): Unit = { stack = other }
+}
+case class BoxFrameCursor(var cursor: Option[FrameCursor]) extends ObjectBox[FrameCursor] {
+  def obj = cursor
+  def obj_=(other: Option[FrameCursor]): Unit = { cursor = other }
 }
 case class BoxTagRef64(var raw: Long) extends HasObjRef {
   def copyFrom(other: ValueBox): Unit = { this.raw = other.asInstanceOf[BoxTagRef64].raw }
@@ -93,20 +91,20 @@ object ValueBox {
     case _: TypeInt => BoxInt(0)
     case _: TypeFloat => BoxFloat(0.0f)
     case _: TypeDouble => BoxDouble(0.0d)
-    case TypeVector(elemTy, len) => BoxVector(Seq.fill(len.toInt)(makeBoxForType(elemTy)))
+    case TypeVector(elemTy, len) => BoxSeq(Seq.fill(len.toInt)(makeBoxForType(elemTy)))
     case _: TypeRef => BoxRef(0L)
     case _: TypeIRef => BoxIRef(0L, 0L)
     case _: TypeWeakRef => throw new UvmRefImplException("weakref cannot be an SSA variable type")
-    case TypeStruct(fieldTys) => BoxStruct(fieldTys.map(makeBoxForType))
-    case _: TypeArray => throw new UvmRefImplException("array cannot be an SSA variable type")
+    case TypeStruct(fieldTys) => BoxSeq(fieldTys.map(makeBoxForType))
+    case TypeArray(elemTy, len) => BoxSeq(Seq.fill(len.toInt)(makeBoxForType(elemTy)))
     case _: TypeHybrid => throw new UvmRefImplException("hybrid cannot be an SSA variable type")
-    case _: TypeVoid => BoxVoid()
-    case _: TypeFunc => BoxFunc(None)
-    case _: TypeStack => BoxStack(None)
-    case _: TypeThread => BoxThread(None)
+    case _: TypeFuncRef => BoxFunc(None)
+    case _: TypeStackRef => BoxStack(None)
+    case _: TypeThreadRef => BoxThread(None)
+    case _: TypeFrameCursorRef => BoxFrameCursor(None)
     case _: TypeTagRef64 => BoxTagRef64(0L)
-    case _: TypePtr => BoxPointer(0L)
-    case _: TypeFuncPtr => BoxPointer(0L)
+    case _: TypeUPtr => BoxPointer(0L)
+    case _: TypeUFuncPtr => BoxPointer(0L)
   }
 
 }

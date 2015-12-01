@@ -6,11 +6,15 @@ import uvm.ssavariables.AtomicRMWOptr._
 import jnr.ffi.{ Runtime, Memory, Pointer }
 import uvm.refimpl.UvmRuntimeException
 import uvm.refimpl.UvmIllegalMemoryAccessException
+import uvm.refimpl.nat.NativeSupport
 
 /**
  * Support for native memory access. Backed by JNR-FFI.
  */
 class MemorySupport(val muMemorySize: Word) {
+  val jnrRuntime = NativeSupport.jnrRuntime
+  val theMemory = NativeSupport.theMemory
+
   val SIZE_LIMIT: Word = Int.MaxValue.toLong
 
   if (muMemorySize > SIZE_LIMIT) {
@@ -18,12 +22,9 @@ class MemorySupport(val muMemorySize: Word) {
       " Due to the limitation of JNR-FFI, the maximum available memory size is %d bytes.".format(muMemorySize, SIZE_LIMIT))
   }
 
-  val jnrRuntime = Runtime.getSystemRuntime
   val muMemory = Memory.allocateDirect(jnrRuntime, muMemorySize.toInt, true)
   val muMemoryBegin = muMemory.address()
   val muMemoryEnd = muMemoryBegin + muMemorySize
-
-  val theMemory = Pointer.wrap(jnrRuntime, 0L)
 
   def isInMuMemory(addr: Word): Boolean = muMemoryBegin <= addr && addr < muMemoryEnd
 
@@ -128,8 +129,24 @@ class MemorySupport(val muMemorySize: Word) {
     storeI128(addr, desired, inMu)
     return oldVal
   }
-  
+
   def memset(addr: Word, size: Word, value: Byte): Unit = {
     theMemory.setMemory(addr, size, value)
+  }
+
+  def loadBytes(addr: Word, dest: Array[Byte], index: Int, len: Word, inMu: Boolean = true): Unit = {
+    assertInMuMemory(inMu, addr)
+    assertInMuMemory(inMu, addr + len - 1)
+    assert(index >= 0, "Index is negative")
+    assert(index + len <= dest.length, "array too small. dest.size=%d, len=%d".format(dest.size, len))
+    theMemory.get(addr, dest, 0, len.toInt)
+  }
+
+  def storeBytes(addr: Word, dest: Array[Byte], index: Int, len: Word, inMu: Boolean = true): Unit = {
+    assertInMuMemory(inMu, addr)
+    assertInMuMemory(inMu, addr + len - 1)
+    assert(index >= 0, "Index is negative")
+    assert(index + len <= dest.length, "array too small. dest.size=%d, len=%d".format(dest.size, len))
+    theMemory.put(addr, dest, 0, len.toInt)
   }
 }

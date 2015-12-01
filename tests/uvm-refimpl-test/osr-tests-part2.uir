@@ -1,27 +1,27 @@
 // loaded after "osr-tests.uir" when doing OSR
 
 // Calculate the sum of 0..(n-1) by n*(n-1)/2
-.funcdef @sum VERSION @sum_v2 <@i_i> (%n) {
-    %entry:
+.funcdef @sum VERSION @sum_v2 <@i_i> {
+    %entry(<@i64> %n):
         %nm1 = SUB <@i64> %n @I64_1
         %ntnm1 = MUL <@i64> %n %nm1
         %rv = SDIV <@i64> %ntnm1 @I64_2
-        RET <@i64> %rv
+        RET %rv
 }
 
-.funcsig @sum_osr_oneshot_sig = @i64 (@i64 @i64 @i64)
+.funcsig @sum_osr_oneshot_sig = (@i64 @i64 @i64) -> (@i64)
 
 // Calculate the remaining sum.
 // Given s, i, n, the result is s + (n-i)*(n+i-1)/2
 .funcdef @sum_osr_oneshot VERSION @sum_osr_oneshot_v1
-        <@sum_osr_oneshot_sig> (%s %i %n) {
-    %entry:
+        <@sum_osr_oneshot_sig> {
+    %entry(<@i64> %s <@i64> %i <@i64> %n):
         %nmi = SUB <@i64> %n %i
         %npi = ADD <@i64> %n %i
         %npim1 = SUB <@i64> %npi @I64_1
         %nmitnpim1 = MUL <@i64> %nmi %npim1
         %remsum = SDIV <@i64> %nmitnpim1 @I64_2
         %rv = ADD <@i64> %s %remsum
-        RET <@i64> %rv
+        RET %rv
 }
 

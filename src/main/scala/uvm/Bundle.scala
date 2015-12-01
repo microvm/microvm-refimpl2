@@ -2,12 +2,13 @@ package uvm
 
 import uvm.types._
 import uvm.ssavariables._
+import scala.collection.mutable.HashMap
 
-class Bundle {
+abstract class Bundle {
   /*
    * There is a hierarchy of namespaces. A subnode is a subset of the parent.
    * 
-   * + allNs                // All Identified entities
+   * + allNs                // All globally Identified entities
    *   + typeNs             // All types
    *   + funcSigNs          // All function signatures
    *   + funcVerNs          // All function versions
@@ -17,90 +18,107 @@ class Bundle {
    *       + globalCellNs   // Global cells
    *       + funcNs         // Functions
    *       + expFuncNs      // Exposed functions
-   *     + localVarNs       // Local variables (per function version)
+   *     + localVarNs       // Local variables (per basic block)
    *   + bbNs               // Basic blocks (per function version)
+   *   + instNs							// All instructions
+   *   	 + localInstNs  		// Instructions in a basic block (per basic block)
    * 
-   * TODO: Should there be a global "basic block ns for all function versions"?
+   * bbNs and localVarNs are part of particular FuncVers and BBs.
    */
 
-  val allNs = new SimpleNamespace[Identified]()
+  val allNs = new NestedNamespace[Identified](None)
 
-  val typeNs = new SimpleNamespace[Type]()
-  val funcSigNs = new SimpleNamespace[FuncSig]()
-  val funcVerNs = new SimpleNamespace[FuncVer]()
+  val typeNs = allNs.makeSubSpace[Type]()
+  val funcSigNs = allNs.makeSubSpace[FuncSig]()
+  val funcVerNs = allNs.makeSubSpace[FuncVer]()
+  val varNs = allNs.makeSubSpace[SSAVariable]()
 
-  val varNs = new SimpleNamespace[SSAVariable]()
-  val globalVarNs = new SimpleNamespace[GlobalVariable]()
-  val constantNs = new SimpleNamespace[Constant]()
-  val globalCellNs = new SimpleNamespace[GlobalCell]()
-  val funcNs = new SimpleNamespace[Function]()
-  val expFuncNs = new SimpleNamespace[ExposedFunc]()
+  val globalVarNs = varNs.makeSubSpace[GlobalVariable]()
+  val constantNs = globalVarNs.makeSubSpace[Constant]()
+  val globalCellNs = globalVarNs.makeSubSpace[GlobalCell]()
+  val funcNs = globalVarNs.makeSubSpace[Function]()
+  val expFuncNs = globalVarNs.makeSubSpace[ExposedFunc]()
+  
+  val instNs = allNs.makeSubSpace[Instruction]()
+}
 
+/**
+ * This kind of bundle is generated when parsing a .UIR file.
+ * <p>
+ * In this kind of bundle, a Function does not have a FuncVer as its version.
+ * The funcNs only contains new functions declared in this bundle, not existing
+ * functions declared previously. When this bundle is merged with the global bundle,
+ * both funcNs and funcVerNs are simply merged, and new FuncVer objects become the
+ * newest version of the Function, whether the Function is newly declared or not.
+ */
+class TrantientBundle extends Bundle {
   /**
-   * Add an identified entity to its appropriate global namespaces.
+   * All functions (declared here or previously) that are defined in this bundle.
+   * <p>
+   * Mainly for debugging purpose.
    */
-  def add(obj: Identified): Unit = {
-    allNs.add(obj)
-    if (obj.isInstanceOf[Type]) typeNs.add(obj.asInstanceOf[Type])
-    if (obj.isInstanceOf[FuncSig]) funcSigNs.add(obj.asInstanceOf[FuncSig])
-    if (obj.isInstanceOf[FuncVer]) funcVerNs.add(obj.asInstanceOf[FuncVer])
-    if (obj.isInstanceOf[SSAVariable]) varNs.add(obj.asInstanceOf[SSAVariable])
-    if (obj.isInstanceOf[GlobalVariable]) globalVarNs.add(obj.asInstanceOf[GlobalVariable])
-    if (obj.isInstanceOf[Constant]) constantNs.add(obj.asInstanceOf[Constant])
-    if (obj.isInstanceOf[GlobalCell]) globalCellNs.add(obj.asInstanceOf[GlobalCell])
-    if (obj.isInstanceOf[Function]) funcNs.add(obj.asInstanceOf[Function])
-    if (obj.isInstanceOf[ExposedFunc]) expFuncNs.add(obj.asInstanceOf[ExposedFunc])
-  }
+  //val defFuncNs = new SimpleNamespace[Function]
+}
 
+/**
+ * This kind of bundle holds the global state. Functions and versions are fully merged.
+ */
+class GlobalBundle extends Bundle {
   private def simpleMerge[T <: Identified](oldNs: Namespace[T], newNs: Namespace[T]) {
     for (cand <- newNs.all) {
-      if (!cand.isInstanceOf[Function] || oldNs.get(cand.id) == None) {
-        // Function merging happens separately. Only add a function if it does not redefine an old one.
-        try {
-          oldNs.add(cand)
-        } catch {
-          case e: NameConflictException =>
-            throw new IllegalRedefinitionException(
-              "Redefinition of type, function signature, constant or" +
-                " global cell is not allowed", e);
-        }
+      try {
+        oldNs.add(cand)
+//        def assertPresent[T <: Identified](ns: NestedNamespace[T], obj: T): Unit = {
+//          assert(ns.get(obj.id) == Some(obj))
+//          if (obj.id == 65731) {
+//            printf("Obj[65731] found in ns " + ns)
+//          }
+//          ns.maybeParent match {
+//            case None =>
+//            case Some(ns2) =>
+//              assertPresent(ns2, obj)
+//          }
+//        }
+//        assertPresent(oldNs.asInstanceOf[NestedNamespace[T]], cand)
+      } catch {
+        case e: NameConflictException =>
+          throw new IllegalRedefinitionException(
+            "Redefinition of type, function signature, constant or" +
+              " global cell is not allowed: %s".format(cand.repr), e);
       }
     }
   }
 
-  private def mergeFunc(oldNs: Namespace[Function], newNs: Namespace[Function]) {
-    for (cand <- newNs.all) {
-      val id = cand.id
-      oldNs.get(id) match {
-        case None         => oldNs.add(cand)
-        case Some(oldObj) =>
-          oldObj.versions = cand.versions.head :: oldObj.versions
-          cand.versions.head.func = oldObj
+  private def redefineFunctions(newNs: Namespace[FuncVer]) {
+    for (fv <- newNs.all) {
+      fv.func.versions = fv :: fv.func.versions
+    }
+  }
+  
+  private def mergeLocalNamespaces(newBundle: TrantientBundle) {
+    for (fv <- newBundle.funcVerNs.all) {
+      fv.bbNs.reparent(allNs)
+      for (bb <- fv.bbs) {
+        bb.localVarNs.reparent(allNs)
+        bb.localInstNs.reparent(allNs)
       }
     }
   }
 
-  private def fixExpFuncs(oldNs: Namespace[Function], newNs: Namespace[ExposedFunc]) {
-    for (expFunc <- newNs.all) {
-      val funcID = expFunc.func.id
-      oldNs.get(funcID) match {
-        case None          =>
-        case Some(oldFunc) => expFunc.func = oldFunc
-      }
-    }
-  }
-
-  def merge(newBundle: Bundle) {
-    simpleMerge(allNs, newBundle.allNs)
+  def merge(newBundle: TrantientBundle) {
+    // Only merge leaves
     simpleMerge(typeNs, newBundle.typeNs)
     simpleMerge(funcSigNs, newBundle.funcSigNs)
     simpleMerge(funcVerNs, newBundle.funcVerNs)
-    simpleMerge(varNs, newBundle.varNs)
-    simpleMerge(globalVarNs, newBundle.globalVarNs)
     simpleMerge(constantNs, newBundle.constantNs)
     simpleMerge(globalCellNs, newBundle.globalCellNs)
-    mergeFunc(funcNs, newBundle.funcNs)
+    simpleMerge(funcNs, newBundle.funcNs)
     simpleMerge(expFuncNs, newBundle.expFuncNs)
-    fixExpFuncs(funcNs, newBundle.expFuncNs)
+    simpleMerge(instNs, newBundle.instNs)
+
+    redefineFunctions(newBundle.funcVerNs)
+    
+    mergeLocalNamespaces(newBundle)
   }
+
 }

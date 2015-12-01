@@ -1,91 +1,89 @@
-// require primitives.uir
+// require "primitives.uir"
 
 // Factorial
 
-.funcdef @factorial_rec VERSION @factorial_rec_v1 <@i_i> (%n) {
-    %entry:
+.funcdef @factorial_rec VERSION @factorial_rec_v1 <@i_i> {
+    %entry(<@i64> %n):
         %zero = EQ <@i64> %n @I64_0
-        BRANCH2 %zero %iszero %notzero
+        BRANCH2 %zero %iszero() %notzero(%n)
         
-    %iszero:
-        RET <@i64> @I64_1
+    %iszero():
+        RET @I64_1
 
-    %notzero:
+    %notzero(<@i64> %n):
         %nm1 = SUB <@i64> %n @I64_1
         %rec = CALL <@i_i> @factorial_rec (%nm1)
         %result = MUL <@i64> %n %rec
-        RET <@i64> %result
+        RET %result
 }
 
-.funcdef @factorial_iter VERSION @factorial_iter_v1 <@i_i> (%n) {
-    %entry:
-        BRANCH %head
+.funcdef @factorial_iter VERSION @factorial_iter_v1 <@i_i> {
+    %entry(<@i64> %n):
+        BRANCH %head(%n @I64_1 @I64_1)
 
-    %head:
-        %i = PHI <@i64> { %entry: @I64_1; %next: %i2; }
-        %prod = PHI <@i64> { %entry: @I64_1; %next: %prod2; }
+    %head(<@i64> %n <@i64> %i <@i64> %prod):
         %cmp = SLE <@i64> %i %n
-        BRANCH2 %cmp %body %exit
+        BRANCH2 %cmp %body(%n %i %prod) %exit(%prod)
 
-    %body:
+    %body(<@i64> %n <@i64> %i <@i64> %prod):
         %prod2 = MUL <@i64> %prod %i
         %i2 = ADD <@i64> %i @I64_1
-        BRANCH %next
+        BRANCH %next(%n %i2 %prod2)
 
-    %next:
-        BRANCH %head
+    %next(<@i64> %n <@i64> %i <@i64> %prod):
+        BRANCH %head(%n %i %prod)
 
-    %exit:
-        RET <@i64> %prod
+    %exit(<@i64> %prod):
+        RET %prod
 }
 
-.funcdef @factorial_tailrec VERSION @factorial_tailrec_v1 <@i_ii> (%n %prod) {
-    %entry:
+.funcdef @factorial_tailrec VERSION @factorial_tailrec_v1 <@ii_i> {
+    %entry(<@i64> %n <@i64> %prod):
        %zero = EQ <@i64> %n @I64_1
-        BRANCH2 %zero %iszero %notzero
+        BRANCH2 %zero %iszero(%prod) %notzero(%n %prod)
         
-    %iszero:
-        RET <@i64> %prod
+    %iszero(<@i64> %prod):
+        RET %prod
 
-    %notzero:
+    %notzero(<@i64> %n <@i64> %prod):
         %nm1 = SUB <@i64> %n @I64_1
         %mul = MUL <@i64> %n %prod
-        TAILCALL <@i_ii> @factorial_tailrec (%nm1 %mul)
+        TAILCALL <@ii_i> @factorial_tailrec (%nm1 %mul)
 }
 
-.funcdef @test_fac VERSION @test_fac_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @test_fac VERSION @test_fac_v1 <@v_v> {
+    %entry():
         %r1 = CALL <@i_i> @factorial_rec (@I64_10)
         %r2 = CALL <@i_i> @factorial_iter (@I64_10)
-        %r3 = CALL <@i_ii> @factorial_tailrec (@I64_10 @I64_1)
-        %checktrap = TRAP <@void> KEEPALIVE (%r1 %r2 %r3)
+        %r3 = CALL <@ii_i> @factorial_tailrec (@I64_10 @I64_1)
+        [%checktrap] TRAP <> KEEPALIVE (%r1 %r2 %r3)
         COMMINST @uvm.thread_exit
 }
 
 // Fibonacci
 
-.funcdef @fibonacci_rec VERSION @fibonacci_rec_v1 <@i_i> (%n) {
-    %entry:
+.funcdef @fibonacci_rec VERSION @fibonacci_rec_v1 <@i_i> {
+    %entry(<@i64> %n):
         %zero = EQ <@i64> %n @I64_0
-        BRANCH2 %zero %iszero %notzero
+        BRANCH2 %zero %iszero() %notzero(%n)
         
-    %iszero:
-        RET <@i64> @I64_0
+    %iszero():
+        RET @I64_0
         
-    %notzero:
+    %notzero(<@i64> %n):
         %one = EQ <@i64> %n @I64_1
-        BRANCH2 %one %isone %notone
+        BRANCH2 %one %isone() %notone(%n)
         
-    %isone:
-        RET <@i64> @I64_1
+    %isone():
+        RET @I64_1
 
-    %notone:
+    %notone(<@i64> %n):
         %nm1 = SUB <@i64> %n @I64_1
         %nm2 = SUB <@i64> %n @I64_2
         %rec1 = CALL <@i_i> @fibonacci_rec (%nm1)
         %rec2 = CALL <@i_i> @fibonacci_rec (%nm2)
         %result = ADD <@i64> %rec1 %rec2
-        RET <@i64> %result
+        RET %result
 }
 
 // M(n) = [F_{n+1} F_n  ;
@@ -95,30 +93,29 @@
 //         1 0]
 // M(0) = [1 0;
 //         0 1]
-.funcdef @fibonacci_mat VERSION @fibonacci_mat_v1 <@i_i> (%n) {
-    %entry:
-        BRANCH %head
+.funcdef @fibonacci_mat VERSION @fibonacci_mat_v1 <@i_i> {
+    %entry(<@i64> %n):
+        BRANCH %head(@I64_1 @I64_1 @I64_1 @I64_0 @I64_1 @I64_0 @I64_0 @I64_1 %n)
         
-    %head:
-        %a = PHI <@i64> { %entry: @I64_1; %next: %a2; }
-        %b = PHI <@i64> { %entry: @I64_1; %next: %b2; }
-        %c = PHI <@i64> { %entry: @I64_1; %next: %c2; }
-        %d = PHI <@i64> { %entry: @I64_0; %next: %d2; }
-        %aa = PHI <@i64> { %entry: @I64_1; %next: %aa2; }
-        %bb = PHI <@i64> { %entry: @I64_0; %next: %bb2; }
-        %cc = PHI <@i64> { %entry: @I64_0; %next: %cc2; }
-        %dd = PHI <@i64> { %entry: @I64_1; %next: %dd2; }
-        %nn = PHI <@i64> { %entry: %n; %next: %nn2; }
-        %watch = TRAP <@void> KEEPALIVE (%a %b %c %d %aa %bb %cc %dd %nn)
+    %head(<@i64> %a <@i64> %b <@i64> %c <@i64> %d
+          <@i64> %aa <@i64> %bb <@i64> %cc <@i64> %dd <@i64> %nn
+            ):
+        [%watch] TRAP <> KEEPALIVE (%a %b %c %d %aa %bb %cc %dd %nn)
         %nn0 = EQ <@i64> %nn @I64_0
-        BRANCH2 %nn0 %exit %body
+        BRANCH2 %nn0 %exit(%bb) %body(%a %b %c %d %aa %bb %cc %dd %nn)
         
-    %body:
+    %body(<@i64> %a <@i64> %b <@i64> %c <@i64> %d
+          <@i64> %aa <@i64> %bb <@i64> %cc <@i64> %dd <@i64> %nn
+            ):
         %nnm2 = AND <@i64> %nn @I64_1
         %nodd = EQ <@i64> %nnm2 @I64_1
-        BRANCH2 %nodd %odd %even
+        BRANCH2 %nodd
+            %odd    (%a %b %c %d %aa %bb %cc %dd %nn)
+            %even   (%a %b %c %d %aa %bb %cc %dd %nn)
 
-    %odd:
+    %odd(<@i64> %a <@i64> %b <@i64> %c <@i64> %d
+          <@i64> %aa <@i64> %bb <@i64> %cc <@i64> %dd <@i64> %nn
+            ):
         %aa_a = MUL <@i64> %aa %a
         %bb_c = MUL <@i64> %bb %c
         %aa_b = MUL <@i64> %aa %b
@@ -128,21 +125,20 @@
         %cc_b = MUL <@i64> %cc %b
         %dd_d = MUL <@i64> %dd %d
 
-        %aa3 = ADD <@i64> %aa_a %bb_c
-        %bb3 = ADD <@i64> %aa_b %bb_d
-        %cc3 = ADD <@i64> %cc_a %dd_c
-        %dd3 = ADD <@i64> %cc_b %dd_d
-        BRANCH %next
+        %aa2 = ADD <@i64> %aa_a %bb_c
+        %bb2 = ADD <@i64> %aa_b %bb_d
+        %cc2 = ADD <@i64> %cc_a %dd_c
+        %dd2 = ADD <@i64> %cc_b %dd_d
+        BRANCH %next(%a %b %c %d %aa2 %bb2 %cc2 %dd2 %nn)
         
-    %even:
-        BRANCH %next
+    %even(<@i64> %a <@i64> %b <@i64> %c <@i64> %d
+          <@i64> %aa <@i64> %bb <@i64> %cc <@i64> %dd <@i64> %nn
+            ):
+        BRANCH %next(%a %b %c %d %aa %bb %cc %dd %nn)
         
-    %next:
-        %aa2 = PHI <@i64> { %odd: %aa3; %even: %aa; }
-        %bb2 = PHI <@i64> { %odd: %bb3; %even: %bb; }
-        %cc2 = PHI <@i64> { %odd: %cc3; %even: %cc; }
-        %dd2 = PHI <@i64> { %odd: %dd3; %even: %dd; }
-        
+    %next(<@i64> %a <@i64> %b <@i64> %c <@i64> %d
+          <@i64> %aa2 <@i64> %bb2 <@i64> %cc2 <@i64> %dd2 <@i64> %nn
+            ):
         %a_a = MUL <@i64> %a %a
         %a_b = MUL <@i64> %a %b
         %a_c = MUL <@i64> %a %c
@@ -155,17 +151,17 @@
         %c2 = ADD <@i64> %a_c %c_d
         %d2 = ADD <@i64> %b_c %d_d
         %nn2 = ASHR <@i64> %nn @I64_1
-        BRANCH %head
+        BRANCH %head(%a2 %b2 %c2 %d2 %aa2 %bb2 %cc2 %dd2 %nn2)
         
-    %exit:
-        RET <@i64> %bb
+    %exit(<@i64> %bb):
+        RET %bb
 }
 
-.funcdef @test_fib VERSION @test_fib_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @test_fib VERSION @test_fib_v1 <@v_v> {
+    %entry():
         %r1 = CALL <@i_i> @fibonacci_rec (@I64_10)
         %r2 = CALL <@i_i> @fibonacci_mat (@I64_10)
-        %checktrap = TRAP <@void> KEEPALIVE (
+        [%checktrap] TRAP <> KEEPALIVE (
                         %r1
                         %r2
                         )
@@ -176,124 +172,118 @@
 
 .global @StopIteration <@refvoid>
 
-.funcsig @itersig = @void (@i64 @stack)
+.funcsig @itersig = (@i64 @stack) -> ()
 
-.funcdef @rangeiter VERSION @rangeiter_v1 <@itersig> (%n %src) {
-    %entry:
-        BRANCH %head
+.funcdef @rangeiter VERSION @rangeiter_v1 <@itersig> {
+    %entry (<@i64> %n <@stack> %src):
+        [%init_ss] SWAPSTACK %src RET_WITH <> PASS_VALUES <> ()
+        BRANCH %head(%n %src @I64_0)
 
-    %head:
-        %i = PHI <@i64> {
-            %entry: @I64_0;
-            %body: %i2;
-            }
+    %head(<@i64> %n <@stack> %src <@i64> %i):
         %lt = SLT <@i64> %i %n
-        BRANCH2 %lt %body %exit
+        BRANCH2 %lt %body(%n %src %i) %exit(%src)
         
-    %body:
-        SWAPSTACK %src RET_WITH <@void> PASS_VALUE <@i64> %i
+    %body(<@i64> %n <@stack> %src <@i64> %i):
+        SWAPSTACK %src RET_WITH <> PASS_VALUES <@i64> (%i)
         %i2 = ADD <@i64> %i @I64_1
-        BRANCH %head
+        BRANCH %head(%n %src %i2)
 
-    %exit:
+    %exit(<@stack> %src):
         %stop_iteration = LOAD <@refvoid> @StopIteration
         SWAPSTACK %src KILL_OLD THROW_EXC %stop_iteration
 }
 
-.funcdef @test_coroutine VERSION @test_coroutine_v1 <@noparamsnoret> () {
-    %entry:
+.funcdef @test_coroutine VERSION @test_coroutine_v1 <@v_v> {
+    %entry():
         %stop_iteration = NEW <@void>
         STORE <@refvoid> @StopIteration %stop_iteration
 
         %curstack = COMMINST @uvm.current_stack
-        %coro = NEWSTACK <@itersig> @rangeiter (@I64_10 %curstack)
+        %coro = COMMINST @uvm.new_stack <[@itersig]> (@rangeiter)
+        [%init_ss] SWAPSTACK %coro RET_WITH <> PASS_VALUES <@i64 @stack> (@I64_10 %curstack)
 
-        BRANCH %head
+        BRANCH %head(%coro)
 
-    %head:
-        %val = SWAPSTACK %coro RET_WITH <@i64> PASS_VOID EXC(%body %exit)
+    %head(<@stack> %coro):
+        %val = SWAPSTACK %coro RET_WITH <@i64> PASS_VALUES <> () EXC(%body(%coro %val) %exit())
 
-    %body:
-        %trap_body = TRAP <@void> KEEPALIVE(%val)
-        BRANCH %head
+    %body(<@stack> %coro <@i64> %val):
+        [%trap_body] TRAP <> KEEPALIVE(%val)
+        BRANCH %head(%coro)
     
-    %exit:
-        %exc = LANDINGPAD
-        %trap_exit = TRAP <@void> KEEPALIVE(%exc)
+    %exit() [%exc]:
+        [%trap_exit] TRAP <> KEEPALIVE(%exc)
         COMMINST @uvm.thread_exit
 }
 
 // Multi-threading
 
-.typedef @LongAry = hybrid <@void @i64>
+.typedef @LongAry = hybrid <@i64>
 
-.funcsig @summingslave_sig = @void (@irefi64 @i64 @irefi64)
+.funcsig @summingslave_sig = (@irefi64 @i64 @irefi64) -> ()
 
-.funcdef @summingslave VERSION @summingslave_v1 <@summingslave_sig> (%ary %sz %result) {
-%entry:
-    BRANCH %head
+.funcdef @summingslave VERSION @summingslave_v1 <@summingslave_sig> {
+    %entry(<@irefi64> %ary <@i64> %sz <@irefi64> %result):
+        BRANCH %head(%ary %sz %result @I64_0 @I64_0)
+        
+    %head(<@irefi64> %ary <@i64> %sz <@irefi64> %result <@i64> %sum <@i64> %i):
+        %cmp = SLT <@i64> %i %sz
+        BRANCH2 %cmp %body(%ary %sz %result %sum %i) %exit(%result %sum)
     
-%head:
-    %sum = PHI <@i64> { %entry: @I64_0; %body: %sum2; }
-    %i   = PHI <@i64> { %entry: @I64_0; %body: %i2; }
-    %cmp = SLT <@i64> %i %sz
-    BRANCH2 %cmp %body %exit
-
-%body:
-    %curptr = SHIFTIREF <@i64 @i64> %ary %i
-    %curnum = LOAD <@i64> %curptr
-    %sum2 = ADD <@i64> %sum %curnum
-    %i2 = ADD <@i64> %i @I64_1
-    BRANCH %head
-
-%exit:
-    STORE SEQ_CST <@i64> %result %sum
-    COMMINST @uvm.thread_exit
+    %body(<@irefi64> %ary <@i64> %sz <@irefi64> %result <@i64> %sum <@i64> %i):
+        %curptr = SHIFTIREF <@i64 @i64> %ary %i
+        %curnum = LOAD <@i64> %curptr
+        %sum2 = ADD <@i64> %sum %curnum
+        %i2 = ADD <@i64> %i @I64_1
+        BRANCH %head(%ary %sz %result %sum2 %i2)
+    
+    %exit(<@irefi64> %result <@i64> %sum):
+        STORE SEQ_CST <@i64> %result %sum
+        COMMINST @uvm.thread_exit
 }
 
-.funcdef @test_multithreading VERSION @test_multithreading_v1 <@noparamsnoret> () {
-%entry:
-    %ary_r = NEWHYBRID <@LongAry @i64> @I64_100
-    %ary_ir = GETIREF <@LongAry> %ary_r
-    %ary0_ir = GETVARPARTIREF <@LongAry> %ary_ir
-    BRANCH %head
+.funcdef @test_multithreading VERSION @test_multithreading_v1 <@v_v> {
+    %entry():
+        %ary_r = NEWHYBRID <@LongAry @i64> @I64_100
+        %ary_ir = GETIREF <@LongAry> %ary_r
+        %ary0_ir = GETVARPARTIREF <@LongAry> %ary_ir
+        BRANCH %head(%ary0_ir @I64_0)
 
-%head:
-    %i = PHI <@i64> { %entry: @I64_0; %body: %i2; }
-    %cmp = SLT <@i64> %i @I64_100
-    BRANCH2 %cmp %body %next
+    %head(<@irefi64> %ary0_ir <@i64> %i):
+        %cmp = SLT <@i64> %i @I64_100
+        BRANCH2 %cmp %body(%ary0_ir %i) %next(%ary0_ir)
 
-%body:
-    %aryi_ir = SHIFTIREF <@i64 @i64> %ary0_ir %i
-    STORE <@i64> %aryi_ir %i
-    %i2 = ADD <@i64> %i @I64_1
-    BRANCH %head
-    
-%next:
-    %result0 = ALLOCA <@i64>
-    %sta0 = NEWSTACK <@summingslave_sig> @summingslave (%ary0_ir @I64_50 %result0)
-    %result1 = ALLOCA <@i64>
-    %ary50_ir = SHIFTIREF <@i64 @i64> %ary0_ir @I64_50
-    %sta1 = NEWSTACK <@summingslave_sig> @summingslave (%ary50_ir @I64_50 %result1)
-    
-    %thr0 = COMMINST @uvm.new_thread (%sta0)
-    %thr1 = COMMINST @uvm.new_thread (%sta1)
-    
-    BRANCH %wait0
+    %body(<@irefi64> %ary0_ir <@i64> %i):
+        %aryi_ir = SHIFTIREF <@i64 @i64> %ary0_ir %i
+        STORE <@i64> %aryi_ir %i
+        %i2 = ADD <@i64> %i @I64_1
+        BRANCH %head(%ary0_ir %i2)
+        
+    %next(<@irefi64> %ary0_ir):
+        %result0 = ALLOCA <@i64>
+        %sta0 = COMMINST @uvm.new_stack <[@summingslave_sig]> (@summingslave)
+        %result1 = ALLOCA <@i64>
+        %ary50_ir = SHIFTIREF <@i64 @i64> %ary0_ir @I64_50
+        %sta1 = COMMINST @uvm.new_stack <[@summingslave_sig]> (@summingslave)
+        
+        %thr0 = NEWTHREAD %sta0 PASS_VALUES <@irefi64 @i64 @irefi64> (%ary0_ir @I64_50 %result0)
+        %thr1 = NEWTHREAD %sta1 PASS_VALUES <@irefi64 @i64 @irefi64> (%ary50_ir @I64_50 %result1)
 
-%wait0:
-    %res0val = LOAD SEQ_CST <@i64> %result0
-    %cz0 = EQ <@i64> %res0val @I64_0
-    BRANCH2 %cz0 %wait0 %wait1
-    
-%wait1:
-    %res1val = LOAD SEQ_CST <@i64> %result1
-    %cz1 = EQ <@i64> %res1val @I64_0
-    BRANCH2 %cz1 %wait1 %getresult
-    
-%getresult:
-    %sum = ADD <@i64> %res0val %res1val
-    %trap_result = TRAP <@void> KEEPALIVE (%sum)
-    COMMINST @uvm.thread_exit
+        BRANCH %wait0(%result0 %result1)
+
+    %wait0(<@irefi64> %result0 <@irefi64> %result1):
+        %res0val = LOAD SEQ_CST <@i64> %result0
+        %cz0 = EQ <@i64> %res0val @I64_0
+        BRANCH2 %cz0 %wait0(%result0 %result1) %wait1(%result0 %result1 %res0val)
+        
+    %wait1(<@irefi64> %result0 <@irefi64> %result1 <@i64> %res0val):
+        %res1val = LOAD SEQ_CST <@i64> %result1
+        %cz1 = EQ <@i64> %res1val @I64_0
+        BRANCH2 %cz1 %wait1(%result0 %result1 %res0val) %getresult(%res0val %res1val)
+        
+    %getresult(<@i64> %res0val <@i64> %res1val):
+        %sum = ADD <@i64> %res0val %res1val
+        [%trap_result] TRAP <> KEEPALIVE (%sum)
+        COMMINST @uvm.thread_exit
 }
 

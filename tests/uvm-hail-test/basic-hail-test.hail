@@ -1,0 +1,40 @@
+// hail
+
+.new $h_i8       <@i8>
+.new $h_i16      <@i16>
+.new $h_i32      <@i32>
+.new $h_i64      <@i64>
+.new $h_float    <@float>
+.new $h_double   <@double>
+.new $h_rv       <@refvoid>
+.new $h_irv      <@irefvoid>
+.new $h_wrv      <@weakrefvoid>
+.new $h_frv_v    <@frv_v>
+.new $h_thread   <@thread>
+.new $h_stack    <@stack>
+
+.init $h_i8       = 0x5a
+.init $h_i16      = 0x55aa
+.init $h_i32      = 0x55aa55aa
+.init $h_i64      = 0x5a5a55aa5a5a55aa
+.init $h_float    = 3.14f
+.init $h_double   = 6.28d
+.init $h_rv       = NULL
+.init $h_irv      = NULL
+.init $h_wrv      = NULL
+.init $h_frv_v    = NULL
+.init $h_thread   = NULL
+.init $h_stack    = NULL
+
+.init @g_ri8       = $h_i8    
+.init @g_ri16      = $h_i16   
+.init @g_ri32      = $h_i32   
+.init @g_ri64      = $h_i64   
+.init @g_rfloat    = $h_float 
+.init @g_rdouble   = $h_double
+.init @g_rrv       = $h_rv    
+.init @g_rirv      = $h_irv   
+.init @g_rwrv      = $h_wrv   
+.init @g_rfrv_v    = $h_frv_v 
+.init @g_rthread   = $h_thread
+.init @g_rstack    = $h_stack 

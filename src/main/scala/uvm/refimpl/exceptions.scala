@@ -23,3 +23,6 @@ class UvmDivisionByZeroException(message: String = null, cause: Throwable = null
 
 /** Thrown when accessing Mu memory but the address is outside the allocated region. */
 class UvmIllegalMemoryAccessException(message: String = null, cause: Throwable = null) extends UvmRuntimeException(message, cause)
+
+/** Thrown on syntax errors in HAIL scripts. */
+class UvmHailParsingException(message: String = null, cause: Throwable = null) extends UvmRefImplException(message, cause)

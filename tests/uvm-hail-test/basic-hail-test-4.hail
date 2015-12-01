@@ -1,0 +1,17 @@
+// hail
+
+.init @g_small_struct   = {1 2 3 4}
+.init @g_big_struct     = {5.0f {6 7 8 9} 10.0d}
+.init @g_small_array    = {1 2 3 4 5 6}
+.init @g_vector         = {@F_1 @F_2 @F_3 @F_4}
+
+.init @g_big_struct2        = {3.14f}
+.init @g_big_struct2[1][2]  = 3
+.init @g_small_array2       = {1 2 3}
+.init @g_small_array2[5]    = 6
+
+.newhybrid $hy <@my_hybrid> 3
+
+.init $hy = {1 2.0d {3 4 5}}
+
+.init @g_my_hybrid_r = $hy

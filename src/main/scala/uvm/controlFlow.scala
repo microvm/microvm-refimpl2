@@ -3,11 +3,15 @@ package uvm
 import uvm.types._
 import uvm.ssavariables._
 
-case class FuncSig(var retTy: Type, var paramTy: Seq[Type]) extends IdentifiedSettable
+case class FuncSig(var paramTys: Seq[Type], var retTys: Seq[Type]) extends IdentifiedSettable {
+  override final def toString: String = FuncSig.prettyPrint(this)
+}
 
 object FuncSig {
-  def prettyPrint(sig: FuncSig): String =
-    "%s (%s)".format(sig.retTy.repr, sig.paramTy.map(_.repr).mkString(" "))
+  def prettyPrint(sig: FuncSig): String = {
+    def mkReprList(is: Seq[Identified]): String = is.map(_.repr).mkString(" ")
+    "(%s) -> (%s)".format(mkReprList(sig.paramTys), mkReprList(sig.retTys))
+  }
 }
 
 class Function extends GlobalVariable {
@@ -22,14 +26,17 @@ class FuncVer extends IdentifiedSettable {
   var func: Function = null
   var bbs: Seq[BasicBlock] = null
   var entry: BasicBlock = null
-  var params: Seq[Parameter] = null
 
-  val bbNs: Namespace[BasicBlock] = new SimpleNamespace[BasicBlock]()
-  val localVarNs: Namespace[LocalVariable] = new SimpleNamespace[LocalVariable]()
-  
   def sig: FuncSig = func.sig
+
+  var bbNs: NestedNamespace[BasicBlock] = null  // sub-namespace of allNs
 }
 
 class BasicBlock extends IdentifiedSettable {
+  var norParams: Seq[NorParam] = null
+  var excParam: Option[ExcParam] = null
   var insts: Seq[Instruction] = null
+
+  var localVarNs: NestedNamespace[LocalVariable] = null // sub-namespace of allNs
+  var localInstNs: NestedNamespace[Instruction] = null // sub-namespace of allNs
 }

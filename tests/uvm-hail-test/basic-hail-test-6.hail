@@ -1,0 +1,8 @@
+// hail
+
+.new $x <@i64>
+.init $x = 42
+
+.init @g_slot1 = $x
+.init @g_slot2 = *@g_slot1
+.init @g_slot3 = *@g_slot_predef

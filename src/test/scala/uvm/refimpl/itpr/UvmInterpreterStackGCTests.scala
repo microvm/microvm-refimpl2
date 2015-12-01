@@ -19,7 +19,7 @@ class UvmInterpreterStackGCTests extends UvmBundleTesterBase {
     "uvm.refimpl.itpr" -> DEBUG,
     "uvm.refimpl.mem" -> DEBUG)
 
-  preloadBundles("tests/uvm-refimpl-test/gc-tests.uir")
+  preloadBundles("tests/uvm-refimpl-test/primitives.uir", "tests/uvm-refimpl-test/gc-tests.uir")
 
   def gc() = microVM.memoryManager.heap.mutatorTriggerAndWaitForGCEnd(false)
 
@@ -43,20 +43,20 @@ class UvmInterpreterStackGCTests extends UvmBundleTesterBase {
   override def makeMicroVM = new MicroVM(heapSize = 2L * 1024L * 1024L, stackSize = 63L * 1024L)
 
   "The memory manager" should "collect unreachable stacks." in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
     
-    val nStacks = ca.putInt("@i64", 13)
+    val nStacks = ctx.handleFromInt64( 13)
 
-    val func = ca.putFunction("@stackcollecttest")
-    testFunc(ca, func, Seq(nStacks)) { (ca, th, st, wp) =>
-      nameOf(ca.currentInstruction(st, 0)) match {
-        case "@stackcollecttest_v1.trap" => {
+    val func = ctx.handleFromFunc("@stackcollecttest")
+    testFunc(ctx, func, Seq(nStacks)) { (ctx, th, st, wp) =>
+      nameOf(ctx.curInst(st, 0)) match {
+        case "@stackcollecttest_v1.endloop.trap" => {
           gc()
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
       }
     }
 
-    ca.close()
+    ctx.closeContext()
   }
 }

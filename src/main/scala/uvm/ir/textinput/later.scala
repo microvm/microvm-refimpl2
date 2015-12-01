@@ -24,7 +24,7 @@ class Later {
 }
 
 object Later {
-  implicit class Laterable[T](val anything: T) {
+  implicit class Laterable[T](val anything: T) extends AnyVal {
     def later(lat: Later)(job: T => Unit): T = {
       lat(() => job(anything))
       anything

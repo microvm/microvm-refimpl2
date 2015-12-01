@@ -1,11 +1,15 @@
 package uvm.refimpl.itpr
 
-import uvm.types._
-import uvm.ssavariables._
+import java.nio.charset.Charset
+
 import uvm.refimpl._
-import uvm.refimpl.mem.TypeSizes._
 import uvm.refimpl.mem.MemorySupport
-import AtomicRMWOptr._
+import uvm.refimpl.mem.Mutator
+import uvm.refimpl.mem.TypeSizes._
+import uvm.refimpl.mem.TypeSizes
+import uvm.ssavariables._
+import uvm.ssavariables.AtomicRMWOptr._
+import uvm.types._
 
 object OpHelper {
 
@@ -27,6 +31,11 @@ object OpHelper {
       n & (mask(len - 1))
     }
   }
+
+  // The BigInt in a BoxInt is always truncated to len bits.
+  //
+  // "prepare" means sign- or zero-extend the content to get the real math value.
+  // "unprepare" means truncating a math value to len bits to be stored in a BoxInt.
 
   def prepareUnsigned(n: BigInt, len: Int): BigInt = truncFromBigInt(n, len)
 
@@ -280,6 +289,41 @@ object PrimOpHelpers {
       case _              => throw new UvmRuntimeException(ctx + "Comparison operator %s is not suitable for double.".format(op))
     }
   }
+
+  def refCmp(op: CmpOptr.CmpOptr, op1v: Word, op2v: Word, ctx: => String): Boolean = {
+    op match {
+      case CmpOptr.EQ => op1v == op2v
+      case CmpOptr.NE => op1v != op2v
+      case _          => throw new UvmRuntimeException(ctx + "Comparison operator %s is not suitable for ref.".format(op))
+    }
+  }
+
+  def irefCmp(op: CmpOptr.CmpOptr, op1b: Word, op1o: Word, op2b: Word, op2o: Word, ctx: => String): Boolean = {
+    val a1 = op1b + op1o
+    val a2 = op2b + op2o
+
+    def warnDiffObj() = if (op1b != op2b) throw new UvmRuntimeException(
+      ctx + "Attempt to compare order of irefs in two different objects. lhs: 0x%x+0x%x rhs: 0x%x+0x%x".format(
+        op1b, op1o, op2b, op2o))
+
+    op match {
+      case CmpOptr.EQ  => a1 == a2
+      case CmpOptr.NE  => a1 != a2
+      case CmpOptr.ULT => { warnDiffObj(); a1 < a2 }
+      case CmpOptr.ULE => { warnDiffObj(); a1 <= a2 }
+      case CmpOptr.UGT => { warnDiffObj(); a1 > a2 }
+      case CmpOptr.UGE => { warnDiffObj(); a1 >= a2 }
+      case _           => throw new UvmRuntimeException(ctx + "Comparison operator %s is not suitable for iref.".format(op))
+    }
+  }
+
+  def objCmp[T <: AnyRef](op: CmpOptr.CmpOptr, obj1: T, obj2: T, kind: String, ctx: => String): Boolean = {
+    op match {
+      case CmpOptr.EQ => obj1 eq obj2
+      case CmpOptr.NE => obj1 ne obj2
+      case _          => throw new UvmRuntimeException(ctx + "Comparison operator %s is not suitable for %s.".format(op, kind))
+    }
+  }
 }
 
 object MemoryOperations {
@@ -292,7 +336,7 @@ object MemoryOperations {
       lb.objRef + lb.offset
     }
   }
-  
+
   def noAccessViaPointer(ptr: Boolean, ty: Type) {
     if (ptr) {
       throw new UvmIllegalMemoryAccessException("Cannot access type %s via pointer".format(ty.repr))
@@ -325,26 +369,26 @@ object MemoryOperations {
         val base = memorySupport.loadLong(loc)
         val offset = memorySupport.loadLong(loc + WORD_SIZE_BYTES)
         br.asInstanceOf[BoxIRef].oo = (base, offset)
-      case _: TypeFunc =>
+      case _: TypeFuncRef =>
         noAccessViaPointer(ptr, ty)
         val fid = memorySupport.loadLong(loc).toInt
         val func = microVM.globalBundle.funcNs.get(fid)
         br.asInstanceOf[BoxFunc].func = func
-      case _: TypeThread =>
+      case _: TypeThreadRef =>
         noAccessViaPointer(ptr, ty)
         val tid = memorySupport.loadLong(loc).toInt
-        val thr = microVM.threadStackManager.getThreadByID(tid)
+        val thr = microVM.threadStackManager.threadRegistry.get(tid)
         br.asInstanceOf[BoxThread].thread = thr
-      case _: TypeStack =>
+      case _: TypeStackRef =>
         noAccessViaPointer(ptr, ty)
         val sid = memorySupport.loadLong(loc).toInt
-        val sta = microVM.threadStackManager.getStackByID(sid)
+        val sta = microVM.threadStackManager.stackRegistry.get(sid)
         br.asInstanceOf[BoxStack].stack = sta
       case _: TypeTagRef64 =>
         noAccessViaPointer(ptr, ty)
         val raw = memorySupport.loadLong(loc)
         br.asInstanceOf[BoxTagRef64].raw = raw
-      case _: TypePtr | _: TypeFuncPtr =>
+      case _: TypeUPtr | _: TypeUFuncPtr =>
         val addr = memorySupport.loadLong(loc, !ptr)
         br.asInstanceOf[BoxPointer].addr = addr
       case _ => throw new UnimplementedOprationException("Loading of type %s is not supporing".format(ty.getClass.getName))
@@ -352,7 +396,7 @@ object MemoryOperations {
 
     ty match {
       case TypeVector(ety, len) =>
-        val brs = br.asInstanceOf[BoxVector].values
+        val brs = br.asInstanceOf[BoxSeq].values
         val elemSkip = alignUp(sizeOf(ety), alignOf(ety))
         for ((brElem, i) <- brs.zipWithIndex) {
           loadScalar(ety, loc + elemSkip * i, brElem)
@@ -361,8 +405,8 @@ object MemoryOperations {
     }
   }
 
-  def store(ptr: Boolean, ty: Type, loc: Word, nvb: ValueBox, br: ValueBox)(implicit memorySupport: MemorySupport): Unit = {
-    def storeScalar(ty: Type, loc: Word, nvb: ValueBox, br: ValueBox): Unit = ty match {
+  def store(ptr: Boolean, ty: Type, loc: Word, nvb: ValueBox)(implicit memorySupport: MemorySupport): Unit = {
+    def storeScalar(ty: Type, loc: Word, nvb: ValueBox): Unit = ty match {
       case TypeInt(l) =>
         val bi = nvb.asInstanceOf[BoxInt].value
         l match {
@@ -387,15 +431,15 @@ object MemoryOperations {
         val BoxIRef(base, offset) = nvb.asInstanceOf[BoxIRef]
         memorySupport.storeLong(loc, base)
         memorySupport.storeLong(loc + WORD_SIZE_BYTES, offset)
-      case _: TypeFunc =>
+      case _: TypeFuncRef =>
         noAccessViaPointer(ptr, ty)
         val fid = nvb.asInstanceOf[BoxFunc].func.map(_.id).getOrElse(0)
         memorySupport.storeLong(loc, fid.toLong & 0xFFFFFFFFL)
-      case _: TypeThread =>
+      case _: TypeThreadRef =>
         noAccessViaPointer(ptr, ty)
         val tid = nvb.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0)
         memorySupport.storeLong(loc, tid.toLong & 0xFFFFFFFFL)
-      case _: TypeStack =>
+      case _: TypeStackRef =>
         noAccessViaPointer(ptr, ty)
         val sid = nvb.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0)
         memorySupport.storeLong(loc, sid.toLong & 0xFFFFFFFFL)
@@ -403,7 +447,7 @@ object MemoryOperations {
         noAccessViaPointer(ptr, ty)
         val raw = nvb.asInstanceOf[BoxTagRef64].raw
         memorySupport.storeLong(loc, raw)
-      case _: TypePtr | _: TypeFuncPtr =>
+      case _: TypeUPtr | _: TypeUFuncPtr =>
         val addr = nvb.asInstanceOf[BoxPointer].addr
         memorySupport.storeLong(loc, addr, !ptr)
       case _ => throw new UnimplementedOprationException("Storing of type %s is not supporing".format(ty.getClass.getName))
@@ -411,13 +455,12 @@ object MemoryOperations {
 
     ty match {
       case TypeVector(ety, len) =>
-        val nvbs = nvb.asInstanceOf[BoxVector].values
-        val brs = br.asInstanceOf[BoxVector].values
+        val nvbs = nvb.asInstanceOf[BoxSeq].values
         val elemSkip = alignUp(sizeOf(ety), alignOf(ety))
-        for (((brElem, nvbElem), i) <- (brs zip nvbs).zipWithIndex) {
-          storeScalar(ety, loc + elemSkip * i, nvbElem, brElem)
+        for ((nvbElem, i) <- nvbs.zipWithIndex) {
+          storeScalar(ety, loc + elemSkip * i, nvbElem)
         }
-      case sty => storeScalar(sty, loc, nvb, br)
+      case sty => storeScalar(sty, loc, nvb)
     }
   }
 
@@ -456,7 +499,7 @@ object MemoryOperations {
         val (succ, (rl, rh)) = memorySupport.cmpXchgI128(loc, (el, eh), (dl, dh))
         br.asInstanceOf[BoxIRef].oo = (rl, rh)
         succ
-      case _: TypeFunc =>
+      case _: TypeFuncRef =>
         noAccessViaPointer(ptr, ty)
         val el = eb.asInstanceOf[BoxFunc].func.map(_.id).getOrElse(0).toLong
         val dl = db.asInstanceOf[BoxFunc].func.map(_.id).getOrElse(0).toLong
@@ -464,23 +507,23 @@ object MemoryOperations {
         val rf = microVM.globalBundle.funcNs.get(rl.toInt)
         br.asInstanceOf[BoxFunc].func = rf
         succ
-      case _: TypeThread =>
+      case _: TypeThreadRef =>
         noAccessViaPointer(ptr, ty)
         val el = eb.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0).toLong
         val dl = db.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0).toLong
         val (succ, rl) = memorySupport.cmpXchgLong(loc, el, dl)
-        val rt = microVM.threadStackManager.getThreadByID(rl.toInt)
+        val rt = microVM.threadStackManager.threadRegistry.get(rl.toInt)
         br.asInstanceOf[BoxThread].thread = rt
         succ
-      case _: TypeStack =>
+      case _: TypeStackRef =>
         noAccessViaPointer(ptr, ty)
         val el = eb.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0).toLong
         val dl = db.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0).toLong
         val (succ, rl) = memorySupport.cmpXchgLong(loc, el, dl)
-        val rs = microVM.threadStackManager.getStackByID(rl.toInt)
+        val rs = microVM.threadStackManager.stackRegistry.get(rl.toInt)
         br.asInstanceOf[BoxStack].stack = rs
         succ
-      case _: TypePtr | _: TypeFuncPtr =>
+      case _: TypeUPtr | _: TypeUFuncPtr =>
         val el = eb.asInstanceOf[BoxPointer].addr
         val dl = db.asInstanceOf[BoxPointer].addr
         val (succ, rl) = memorySupport.cmpXchgLong(loc, el, dl, !ptr)
@@ -515,30 +558,30 @@ object MemoryOperations {
               val BoxIRef(ol, oh) = ob.asInstanceOf[BoxIRef]
               val (rl, rh) = memorySupport.xchgI128(loc, (ol, oh))
               br.asInstanceOf[BoxIRef].oo = (rl, rh)
-            case _: TypeFunc =>
+            case _: TypeFuncRef =>
               noAccessViaPointer(ptr, ty)
               val ol = ob.asInstanceOf[BoxFunc].func.map(_.id).getOrElse(0).toLong
               val rl = memorySupport.atomicRMWLong(op, loc, ol)
               val rf = microVM.globalBundle.funcNs.get(rl.toInt)
               br.asInstanceOf[BoxFunc].func = rf
-            case _: TypeThread =>
+            case _: TypeThreadRef =>
               noAccessViaPointer(ptr, ty)
               val ol = ob.asInstanceOf[BoxThread].thread.map(_.id).getOrElse(0).toLong
               val rl = memorySupport.atomicRMWLong(op, loc, ol)
-              val rt = microVM.threadStackManager.getThreadByID(rl.toInt)
+              val rt = microVM.threadStackManager.threadRegistry.get(rl.toInt)
               br.asInstanceOf[BoxThread].thread = rt
-            case _: TypeStack =>
+            case _: TypeStackRef =>
               noAccessViaPointer(ptr, ty)
               val ol = ob.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0).toLong
               val rl = memorySupport.atomicRMWLong(op, loc, ol)
-              val rs = microVM.threadStackManager.getStackByID(rl.toInt)
+              val rs = microVM.threadStackManager.stackRegistry.get(rl.toInt)
               br.asInstanceOf[BoxStack].stack = rs
             case _: TypeTagRef64 =>
               noAccessViaPointer(ptr, ty)
               val ol = ob.asInstanceOf[BoxTagRef64].raw
               val rl = memorySupport.atomicRMWLong(op, loc, ol)
               br.asInstanceOf[BoxTagRef64].raw = rl
-            case _: TypePtr | _: TypeFuncPtr =>
+            case _: TypeUPtr | _: TypeUFuncPtr =>
               val ol = ob.asInstanceOf[BoxPointer].addr
               val rl = memorySupport.atomicRMWLong(op, loc, ol, !ptr)
               br.asInstanceOf[BoxPointer].addr = rl
@@ -552,18 +595,52 @@ object MemoryOperations {
   /**
    * Check if a memory location still holds a particular value. Used by futex.
    */
-  def cmpInt(len: Int, loc: Word, expected: BoxInt)(implicit memorySupport: MemorySupport): Boolean = len match {
+  def cmpInt(len: Int, loc: Word, expected: BigInt)(implicit memorySupport: MemorySupport): Boolean = len match {
     case 64 => {
-      val expNum = OpHelper.prepareSigned(expected.value, len).longValue
+      val expNum = OpHelper.prepareSigned(expected, len).longValue
       val actualNum = memorySupport.loadLong(loc)
       expNum == actualNum
     }
     case 32 => {
-      val expNum = OpHelper.prepareSigned(expected.value, len).intValue
+      val expNum = OpHelper.prepareSigned(expected, len).intValue
       val actualNum = memorySupport.loadInt(loc)
       expNum == actualNum
     }
     case _ => throw new UnimplementedOprationException("Futex of %d bit int is not supported".format(len))
+  }
+
+  val US_ASCII = Charset.forName("US-ASCII")
+
+  /**
+   * Read an ASCII string from the memory.
+   *
+   * @param loc A ref to a @uvm.meta.bytes object.
+   */
+  def bytesToStr(loc: Word)(implicit memorySupport: MemorySupport): String = {
+    // It is a hybrid<@i64 @i8> object. The length is determined by the fixed part. 
+    val len = memorySupport.loadLong(loc)
+    val bytes = new Array[Byte](len.toInt)
+    val begin = loc + TypeSizes.WORD_SIZE_BYTES
+    memorySupport.loadBytes(begin, bytes, 0, len, true)
+
+    val result = new String(bytes, US_ASCII)
+    result
+  }
+
+  /**
+   * Create a Mu @uvm.meta.bytes object to hold an ASCII string.
+   *
+   * @return The address of the allocated object.
+   */
+  def strToBytes(str: String)(implicit memorySupport: MemorySupport, mutator: Mutator): Word = {
+    val bytes = str.getBytes(US_ASCII)
+    val len = bytes.length
+    val loc = mutator.newHybrid(InternalTypes.BYTES, len)
+    memorySupport.storeLong(loc, bytes.length.toLong)
+    val begin = loc + TypeSizes.WORD_SIZE_BYTES
+    memorySupport.storeBytes(begin, bytes, 0, len, true)
+
+    loc
   }
 }
 

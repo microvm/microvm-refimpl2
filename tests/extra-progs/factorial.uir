@@ -6,34 +6,30 @@
 .typedef @int_8 = int<8>
 .typedef @int_32 = int<32>
 .const @int_64_1 <@int_64> = 1
-.funcsig @fac_sig = @int_64 (@int_64)
-.funcdef @fac VERSION @fac_v1 <@fac_sig> (%n_3)
+.funcsig @fac_sig = (@int_64) -> (@int_64)
+.funcdef @fac VERSION @fac_v1 <@fac_sig>
 {
-%blk_0:
+%blk_0(<@int_64> %n_3):
     %v48 = EQ <@int_64> %n_3 @int_64_1
-    BRANCH2 %v48 %blk_2 %blk_1
+    BRANCH2 %v48 %blk_2(@int_64_1) %blk_1(%n_3)
 
-%blk_2:
-    %v53 = PHI <@int_64> {
-        %blk_1: %v52;
-        %blk_0: @int_64_1;
-    }
-    RET <@int_64> %v53
+%blk_2(<@int_64> %v53):
+    RET %v53
 
-%blk_1:
+%blk_1(<@int_64> %n_3):
     %v50 = SUB <@int_64> %n_3 @int_64_1
     %v51 = CALL <@fac_sig> @fac (%v50)
     %v52 = MUL <@int_64> %n_3 %v51
-    BRANCH %blk_2
+    BRANCH %blk_2(%v52)
 
 }
 
 .const @int_64_10 <@int_32> = 10
 
-.funcsig @main_sig = @void ()
-.funcdef @main VERSION @main_v1 <@main_sig> () {
-    %entry:
+.funcsig @main_sig = () -> ()
+.funcdef @main VERSION @main_v1 <@main_sig> {
+    %entry():
         %rv = CALL <@fac_sig> @fac (@int_64_10)
-        %main_trap = TRAP <@void> KEEPALIVE (%rv)
+        [%main_trap] TRAP <> KEEPALIVE (%rv)
         COMMINST @uvm.thread_exit
 }

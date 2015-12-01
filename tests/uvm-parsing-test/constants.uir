@@ -45,10 +45,10 @@
 .typedef @rv        = ref<@void>
 .typedef @irv       = iref<@void>
 .typedef @wrv       = weakref<@void>
-.funcsig @sig0      = @void ()
-.typedef @func0     = func <@sig0>
-.typedef @thread    = thread
-.typedef @stack     = stack
+.funcsig @sig0      = () -> ()
+.typedef @func0     = funcref <@sig0>
+.typedef @thread    = threadref
+.typedef @stack     = stackref
 
 .const @cr  <@rv>       = NULL
 .const @cir <@irv>      = NULL
@@ -71,9 +71,9 @@
 .const @D_1 <@float> = 1.0d
 .const @D_2 <@float> = 2.0d
 
-.const @cv4f <@4xfloat>  = VEC {@F_1 @F_2 @F_3 @F_4}
-.const @cv4i <@4xi32>    = VEC {@I32_1 @I32_2 @I32_3 @I32_4}
-.const @cv4d <@2xdouble> = VEC {@D_1 @D_2}
+.const @cv4f <@4xfloat>  = {@F_1 @F_2 @F_3 @F_4}
+.const @cv4i <@4xi32>    = {@I32_1 @I32_2 @I32_3 @I32_4}
+.const @cv4d <@2xdouble> = {@D_1 @D_2}
 
 .global @gi64 <@i64>
 .funcdecl @fdummy <@sig0>
@@ -83,8 +83,11 @@
 
 .const @sgf <@sgf_t> = {@gi64 @fdummy}
 
-.typedef @i32_p = ptr<@i32>
-.typedef @sig0_fp = funcptr<@sig0>
+.typedef @i32_p = uptr<@i32>
+.typedef @sig0_fp = ufuncptr<@sig0>
 
 .const @I32P_PTR1   <@i32_p>   = 0x123456789abcdef0
 .const @SIG0FP_PTR1 <@sig0_fp> = 0xfedcba9876543210
+
+.typedef @i32_3_ary = array<@i32 3>
+.const @ary1 <@i32_3_ary> = {@I32_1 @I32_2 @I32_3}

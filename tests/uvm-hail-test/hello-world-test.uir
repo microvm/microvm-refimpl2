@@ -1,0 +1,40 @@
+// uir
+// require "../uvm-refimpl-test/primitives.uir"
+
+.typedef @size_t = int<64>
+.funcsig @write.sig = (@i32 @ptrvoid @size_t) -> (@size_t)
+.typedef @write.fp  = ufuncptr<@write.sig>
+
+.global @write <@write.fp>
+
+.typedef @string    = hybrid<@i64 @i8>
+.typedef @string.r  = ref<@string>
+
+.global @conststr_helloworld <@string.r>
+
+.const @STDOUT <@i32> = 1
+
+.funcsig @main.sig = () -> ()
+.funcdef @main VERSION %1 <@main.sig> {
+    %entry():
+        %str    = LOAD <@string.r> @conststr_helloworld
+        %str.ir = GETIREF <@string> %str
+        %str.l  = GETFIELDIREF <@string 0> %str.ir
+
+        %len    = LOAD <@i64> %str.l    // @i64 is the same as @size_t
+
+        %str.v  = GETVARPARTIREF <@string> %str.ir
+
+        %write  = LOAD <@write.fp> @write
+
+        %buf    = COMMINST @uvm.native.pin <@irefi8> (%str.v)
+
+        %rv     = CCALL #DEFAULT <@write.fp @write.sig> %write (@STDOUT %buf %len)
+
+        COMMINST @uvm.native.unpin <@irefi8> (%str.v)
+
+        [%trap] TRAP <> KEEPALIVE(%rv)
+
+        COMMINST @uvm.thread_exit
+}
+

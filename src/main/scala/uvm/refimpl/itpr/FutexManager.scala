@@ -33,8 +33,8 @@ class FutexManager {
 
     val loc = objRef + offset
     val autoWakeup = maybeTimeout.map { timeout =>
-      val now = System.currentTimeMillis()
-      timeout + now * 1000000L
+      val now = System.nanoTime()
+      timeout + now
     }
     val wr = WaitRecord(objRef, offset, loc, thread, autoWakeup)
 
@@ -110,7 +110,7 @@ class FutexManager {
 
   /** Wake up all threads with their timeout expired. */
   def futexWakeTimeout(): Unit = {
-    val now = System.currentTimeMillis() * 1000000L
+    val now = System.nanoTime()
 
     for (wr <- timeoutSet.takeWhile(_.autoWakeup.get <= now)) {
       wakeThread(wr, -3)
@@ -118,7 +118,7 @@ class FutexManager {
     }
   }
 
-  /** Return the time the next thread wakes up (in the unit of currentTimeMillis * 1000000L) */
+  /** Return the time the next thread wakes up (in the unit of nanoTime) */
   def nextWakeup(): Option[Long] = {
     if (!timeoutSet.isEmpty) {
       Some(timeoutSet.firstKey.autoWakeup.get)

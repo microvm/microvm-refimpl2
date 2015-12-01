@@ -11,7 +11,7 @@ topLevelDef
     |   globalDef
     |   funcDecl
     |   funcDef
-    |   exposeDef
+    |   funcExpDef
     ;
 
 typeDef
@@ -35,44 +35,43 @@ funcDecl
     ;
     
 funcDef
-    :   '.funcdef' nam=GLOBAL_NAME 'VERSION' ver=GLOBAL_NAME '<' sig=funcSig '>' params=paramList body=funcBody
+    :   '.funcdef' nam=GLOBAL_NAME 'VERSION' ver=name '<' sig=funcSig '>' body=funcBody
     ;
     
-exposeDef
+funcExpDef
     :   '.expose' nam=GLOBAL_NAME '=' funcName=GLOBAL_NAME callConv=flag cookie=GLOBAL_NAME
     ;
 
 typeConstructor
-    :   'int' '<' length=intLiteral '>'                         # TypeInt
+    :   'int'    	'<' length=intLiteral '>'                	# TypeInt
     |   'float'                                                 # TypeFloat
     |   'double'                                                # TypeDouble
-    |   'ref' '<' type '>'                                      # TypeRef
-    |   'iref' '<' type '>'                                     # TypeIRef
-    |   'weakref' '<' type '>'                                  # TypeWeakRef
-    |   'struct' '<' type+ '>'                                  # TypeStruct
-    |   'array' '<' type length=intLiteral '>'                  # TypeArray
-    |   'hybrid' '<' fixedTy=type varTy=type '>'                # TypeHybrid
+    |   'ref'	 	'<' ty=type '>'                             # TypeRef
+    |   'iref' 		'<' ty=type '>'                             # TypeIRef
+    |   'weakref' 	'<' ty=type '>'                             # TypeWeakRef
+    |   'struct' 	'<' fieldTys+=type+ '>'                     # TypeStruct
+    |   'array' 	'<' ty=type length=intLiteral '>'           # TypeArray
+    |   'hybrid' 	'<' fieldTys+=type* varTy=type '>'          # TypeHybrid
     |   'void'                                                  # TypeVoid
-    |   'func' '<' funcSig '>'                                  # TypeFunc
-    |   'thread'                                                # TypeThread
-    |   'stack'                                                 # TypeStack
+    |   'funcref' 	'<' funcSig '>'                             # TypeFuncRef
+    |   'threadref'                                             # TypeThreadRef
+    |   'stackref'                                              # TypeStackRef
     |   'tagref64'                                              # TypeTagRef64
-    |   'vector' '<' type length=intLiteral '>'                 # TypeVector
-    |   'ptr' '<' type '>'                                      # TypePtr
-    |   'funcptr' '<' funcSig '>'                               # TypeFuncPtr
+    |   'vector' 	'<' ty=type length=intLiteral '>'           # TypeVector
+    |   'uptr' 		'<' ty=type '>'                             # TypeUPtr
+    |   'ufuncptr' 	'<' funcSig '>'                             # TypeUFuncPtr
     ;
 
 funcSigConstructor
-    :   retTy=type '(' (paramTy+=type*) ')'
+    :   '(' paramTys+=type* ')' '->' '(' retTys+=type* ')'
     ;
 
 constConstructor
-    :   intLiteral                  # ConstInt
-    |   floatLiteral                # ConstFloat
-    |   doubleLiteral               # ConstDouble
-    |   '{' GLOBAL_NAME* '}'        # ConstStruct
-    |   'NULL'                      # ConstNull
-    |   'VEC' '{' constant* '}'     # ConstVector
+    :   intLiteral                  # CtorInt
+    |   floatLiteral                # CtorFloat
+    |   doubleLiteral               # CtorDouble
+    |   '{' GLOBAL_NAME* '}'        # CtorList
+    |   'NULL'                      # CtorNull
     ;
 
 type
@@ -100,19 +99,32 @@ basicBlock
     ;
 
 label
-    :   name ':'
+    :   name '(' bbParam* ')' excParam? ':'
+    ;
+	
+bbParam
+	: 	'<' ty=type '>' name
+	;
+	
+excParam
+	: 	'[' name ']'
+	;
+	
+instResults
+    :   results+=name
+    |   '(' results+=name* ')'
     ;
 
 inst
-    :   (name '=')? instBody
+    :   (instResults '=')? ('[' name ']')? instBody
     ;
 
 instBody
     // Integer/FP Arithmetic
-    :   binop '<' type '>' op1=value op2=value excClause                # InstBinOp
+    :   binop '<' ty=type '>' op1=value op2=value excClause                # InstBinOp
 
     // Integer/FP Comparison
-    |   cmpop '<' type '>' op1=value op2=value                          # InstCmp
+    |   cmpop '<' ty=type '>' op1=value op2=value                          # InstCmp
 
     // Conversions
     |   convop  '<' fromTy=type toTy=type '>' opnd=value                # InstConversion
@@ -121,28 +133,24 @@ instBody
     |   'SELECT' '<' condTy=type resTy=type '>' cond=value ifTrue=value ifFalse=value       # InstSelect
 
     // Intra-function Control Flow
-    |   'BRANCH' bbName                                                 # InstBranch
-    |   'BRANCH2' cond=value ifTrue=bbName ifFalse=bbName               # InstBranch2
-    |   'SWITCH' '<' type '>' opnd=value defDest=bbName '{'
-            (caseVal+=value ':' caseDest+=bbName ';')* '}'              # InstSwitch
-    |   'PHI' '<' type '>' '{'
-            (caseSrc+=bbName ':' caseVal+=value ';')* '}'               # InstPhi
+    |   'BRANCH' dest=destClause                                        # InstBranch
+    |   'BRANCH2' cond=value ifTrue=destClause ifFalse=destClause       # InstBranch2
+    |   'SWITCH' '<' ty=type '>' opnd=value defDest=destClause '{'
+            (caseVal+=value caseDest+=destClause )* '}'                 # InstSwitch
 
     // Inter-function Control Flow
     |   'CALL' funcCallBody excClause keepAliveClause                   # InstCall
     |   'TAILCALL' funcCallBody                     # InstTailCall
 
-    |   'RET' '<' type '>' retVal=value             # InstRet
-    |   'RETVOID'                                   # InstRetVoid
+    |   'RET' retVals                               # InstRet
     |   'THROW' exc=value                           # InstThrow
-    |   'LANDINGPAD'                                # InstLandingPad
 
     // Aggregate Operations
-    |   'EXTRACTVALUE' '<' type intLiteral '>' opnd=value               # InstExtractValue
-    |   'INSERTVALUE' '<' type intLiteral '>' opnd=value newVal=value   # InstInsertValue
-    |   'EXTRACTELEMENT' '<' vecTy=type indTy=type '>' opnd=value index=value                           # InstExtractElement
-    |   'INSERTELEMENT' '<' vecTy=type indTy=type '>' opnd=value index=value newVal=value               # InstInsertElement
-    |   'SHUFFLEVECTOR' '<' vecTy=type maskTy=type '>' vec1=value vec2=value mask=value                 # InstShuffleVector
+    |   'EXTRACTVALUE' 		'<' ty=type intLiteral '>' 		opnd=value               				# InstExtractValue
+    |   'INSERTVALUE' 		'<' ty=type intLiteral '>' 		opnd=value newVal=value   				# InstInsertValue
+    |   'EXTRACTELEMENT' 	'<' seqTy=type indTy=type '>' 	opnd=value index=value                  # InstExtractElement
+    |   'INSERTELEMENT' 	'<' seqTy=type indTy=type '>' 	opnd=value index=value newVal=value     # InstInsertElement
+    |   'SHUFFLEVECTOR' 	'<' vecTy=type maskTy=type '>' 	vec1=value vec2=value  mask=value       # InstShuffleVector
 
     // Memory Operations
     |   'NEW'           '<' allocTy=type '>' excClause                              # InstNew
@@ -155,7 +163,6 @@ instBody
     |   'GETFIELDIREF'      (ptr='PTR'?) '<' refTy=type index=intLiteral '>' opnd=value          # InstGetFieldIRef
     |   'GETELEMIREF'       (ptr='PTR'?) '<' refTy=type indTy=type '>' opnd=value index=value    # InstGetElemIRef
     |   'SHIFTIREF'         (ptr='PTR'?) '<' refTy=type offTy=type '>' opnd=value offset=value   # InstShiftIRef
-    |   'GETFIXEDPARTIREF'  (ptr='PTR'?) '<' refTy=type '>' opnd=value                           # InstGetFixedPartIRef
     |   'GETVARPARTIREF'    (ptr='PTR'?) '<' refTy=type '>' opnd=value                           # InstGetVarPartIRef
     
     |   'LOAD'      (ptr='PTR'?) memord? '<' type '>' loc=value excClause                        # InstLoad
@@ -167,24 +174,34 @@ instBody
     |   'FENCE' memord                                                              # InstFence
 
     // Trap
-    |   'TRAP' '<' type '>' excClause keepAliveClause                               # InstTrap
-    |   'WATCHPOINT' wpid=intLiteral '<' type '>'
-            dis=bbName ena=bbName ('WPEXC' '(' wpExc=bbName ')')? keepAliveClause   # InstWatchPoint
+    |   'TRAP' typeList excClause keepAliveClause                               # InstTrap
+    |   'WATCHPOINT' wpid=intLiteral typeList
+            dis=destClause ena=destClause ('WPEXC' '(' wpExc=destClause ')')? keepAliveClause    # InstWatchPoint
+    |   'WPBRANCH' wpid=intLiteral dis=destClause ena=destClause                # InstWPBranch
 
     // Foreign Function Interface
-    |   'CCALL' callConv=flag '<' funcTy=type funcSig '>' callee=value argList keepAliveClause   # InstCCall
+    |   'CCALL' callConv=flag '<' funcTy=type funcSig '>' callee=value argList excClause keepAliveClause   # InstCCall
 
     // Thread and Stack Operations
-    |   'NEWSTACK' funcCallBody excClause                                                   # InstNewStack
+    |   'NEWTHREAD' stack=value newStackClause excClause                                     # InstNewThread
     |   'SWAPSTACK' swappee=value curStackClause newStackClause excClause keepAliveClause   # InstSwapStack
 
     // Common Instructions
     |   'COMMINST' nam=GLOBAL_NAME flagList? typeList? funcSigList? argList? excClause keepAliveClause     # InstCommInst
     ;
-
-bbName
-    :   name
+    
+retVals
+    :   '(' vals+=value* ')'
+    |   vals+=value
     ;
+
+destClause
+    :   bb argList
+    ;
+    
+bb
+	:	name
+	;
 
 value
     :   name
@@ -195,7 +212,7 @@ funcCallBody
     ;
 
 excClause
-    :   ('EXC' '(' nor=bbName exc=bbName ')')?
+    :   ('EXC' '(' nor=destClause exc=destClause ')')?
     ;
 
 keepAliveClause
@@ -219,13 +236,12 @@ argList
     ;
 
 curStackClause
-    :   'RET_WITH' '<' type '>'     # CurStackRetWith
-    |   'KILL_OLD'                  # CurStackKillOld
+    :   'RET_WITH' typeList             # CurStackRetWith
+    |   'KILL_OLD'                      # CurStackKillOld
     ;
 
 newStackClause
-    :   'PASS_VALUE' '<' type '>' value     # NewStackPassValue
-    |   'PASS_VOID'                         # NewStackPassVoid
+    :   'PASS_VALUES' typeList argList      # NewStackPassValue
     |   'THROW_EXC' exc=value               # NewStackThrowExc
     ;
 

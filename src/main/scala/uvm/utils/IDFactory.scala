@@ -1,6 +1,6 @@
-package uvm.ir.textinput
+package uvm.utils
 
-class IDFactory(val initialID: Int = 65536) {
+class IDFactory(initialID: Int) {
   private var id: Int = initialID
 
   def getID(): Int = {

@@ -20,22 +20,24 @@ class ConstantPool(implicit microVM: MicroVM) {
   }
 
   def makeBox(g: GlobalVariable): ValueBox = g match {
-    case ConstInt(ty, num) => BoxInt(OpHelper.unprepare(num, ty.asInstanceOf[TypeInt].length))
-    case ConstFloat(ty, num) => BoxFloat(num)
-    case ConstDouble(ty, num) => BoxDouble(num)
-    case ConstStruct(ty, flds) => BoxStruct(flds.map(maybeMakeBox))
-    case ConstNull(ty) => ty match {
-      case _:TypeRef => BoxRef(0L)
-      case _:TypeIRef => BoxIRef(0L, 0L)
-      case _:TypeFunc => BoxFunc(None)
-      case _:TypeThread => BoxThread(None)
-      case _:TypeStack => BoxStack(None)
+    case ConstInt(ty, num) => ty match {
+      case TypeInt(l)             => BoxInt(OpHelper.unprepare(num, l))
+      case _: AbstractPointerType => BoxPointer(num.toLong)
     }
-    case ConstVector(ty, elems) => BoxVector(elems.map(maybeMakeBox))
-    case ConstPointer(ty, addr) => BoxPointer(addr)
-    case gc:GlobalCell => BoxIRef(0L, microVM.memoryManager.globalMemory.addrForGlobalCell(gc))
-    case f:Function => BoxFunc(Some(f))
+    case ConstFloat(ty, num)  => BoxFloat(num)
+    case ConstDouble(ty, num) => BoxDouble(num)
+    case ConstSeq(ty, elems)  => BoxSeq(elems.map(maybeMakeBox))
+    case ConstNull(ty) => ty match {
+      case _: TypeRef       => BoxRef(0L)
+      case _: TypeIRef      => BoxIRef(0L, 0L)
+      case _: TypeFuncRef   => BoxFunc(None)
+      case _: TypeThreadRef => BoxThread(None)
+      case _: TypeStackRef  => BoxStack(None)
+    }
+    case gc: GlobalCell  => BoxIRef(0L, microVM.memoryManager.globalMemory.addrForGlobalCell(gc))
+    case f: Function     => BoxFunc(Some(f))
+    case ef: ExposedFunc => BoxPointer(microVM.nativeCallHelper.getStaticExpFuncAddr(ef))
   }
-  
+
   def getGlobalVarBox(g: GlobalVariable): ValueBox = globalVarBoxes(g)
 }

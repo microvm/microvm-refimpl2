@@ -21,25 +21,34 @@ object MemoryDataScanner extends StrictLogging {
     val tag = HeaderUtils.getTag(objRef)
     logger.debug("Obj 0x%x, tag 0x%x".format(objRef, tag))
     val ty = HeaderUtils.getType(microVM, tag)
-    logger.debug("Type: %s".format(ty.repr))
+    logger.debug {
+      if (ty.isInstanceOf[TypeHybrid]) {
+        val len = HeaderUtils.getVarLength(objRef)
+        val size = TypeSizes.hybridSizeOf(ty.asInstanceOf[TypeHybrid], len)
+        "Type: %s, varLen: %d, hybridSizeOf: %d".format(ty.repr, len, size)
+      } else {
+        "Type: %s".format(ty.repr)
+      }
+    }
     scanField(ty, objRef, objRef, handler)
   }
 
   def scanField(ty: Type, objRef: Word, iRef: Word, handler: RefFieldHandler)(implicit microVM: MicroVM, memorySupport: MemorySupport) {
+    def logField(kind: String, toObj: Word): String = "%s field [0x%x + 0x%x] = 0x%x -> 0x%x".format(kind, objRef, iRef - objRef, iRef, toObj)
     ty match {
       case t: TypeRef => {
         val toObj = memorySupport.loadLong(iRef)
-        logger.debug(s"Ref field ${iRef} -> ${toObj}")
+        logger.debug(logField("Ref", toObj))
         handler.memToHeap(objRef, iRef, toObj, false, false)
       }
       case t: TypeIRef => {
         val toObj = memorySupport.loadLong(iRef)
-        logger.debug(s"IRef field ${iRef} -> ${toObj}")
+        logger.debug(logField("IRef", toObj))
         handler.memToHeap(objRef, iRef, toObj, false, false)
       }
       case t: TypeWeakRef => {
         val toObj = memorySupport.loadLong(iRef)
-        logger.debug(s"WeakRef field ${iRef} -> ${toObj}")
+        logger.debug(logField("WeakRef", toObj))
         handler.memToHeap(objRef, iRef, toObj, true, false)
       }
       case t: TypeTagRef64 => {
@@ -47,22 +56,22 @@ object MemoryDataScanner extends StrictLogging {
         if (paranoiaLogger.underlying.isDebugEnabled()) {
           paranoiaLogger.debug(s"Tagref bits ${bits}")
           if (OpHelper.tr64IsFp(bits)) {
-            paranoiaLogger.debug(s"Tagref is FP: ${OpHelper.tr64ToFp(bits)}")
+            paranoiaLogger.debug("Tagref is FP: %f".format(OpHelper.tr64ToFp(bits)))
           } else if (OpHelper.tr64IsInt(bits)) {
-            paranoiaLogger.debug(s"Tagref is Int: ${OpHelper.tr64ToInt(bits)}")
+            paranoiaLogger.debug("Tagref is Int: %d".format(OpHelper.tr64ToInt(bits)))
           } else if (OpHelper.tr64IsRef(bits)) {
-            paranoiaLogger.debug(s"Tagref is Ref: ${OpHelper.tr64ToRef(bits)} tag: ${OpHelper.tr64ToTag(bits)}")
+            paranoiaLogger.debug("Tagref is Ref: 0x%x tag: %d".format(OpHelper.tr64ToRef(bits), OpHelper.tr64ToTag(bits)))
           }
         }
         if (OpHelper.tr64IsRef(bits)) {
           val toObj = OpHelper.tr64ToRef(bits)
-          logger.debug(s"TagRef64 field ${iRef} -> ${toObj} tag: ${OpHelper.tr64ToTag(bits)}")
+          logger.debug(logField("TagRef64", toObj))
           handler.memToHeap(objRef, iRef, toObj, false, true)
         }
       }
       case t: TypeStruct => {
         var fieldAddr = iRef
-        for (fieldTy <- t.fieldTy) {
+        for (fieldTy <- t.fieldTys) {
           val fieldAlign = TypeSizes.alignOf(fieldTy)
           fieldAddr = TypeSizes.alignUp(fieldAddr, fieldAlign)
           scanField(fieldTy, objRef, fieldAddr, handler)
@@ -81,27 +90,29 @@ object MemoryDataScanner extends StrictLogging {
 
       }
       case t: TypeHybrid => {
-        val fixedTy = t.fixedTy
         val varTy = t.varTy
-        val fixedSize = TypeSizes.sizeOf(fixedTy)
-        val fixedAlign = TypeSizes.alignOf(fixedTy)
         val varSize = TypeSizes.sizeOf(varTy)
         val varAlign = TypeSizes.alignOf(varTy)
-        var curAddr = iRef
         val varLength = HeaderUtils.getVarLength(iRef)
-        scanField(fixedTy, objRef, curAddr, handler)
-        curAddr = TypeSizes.alignUp(curAddr + fixedSize, fixedAlign)
+        var curAddr = iRef
+        for (fieldTy <- t.fieldTys) {
+          val fieldAlign = TypeSizes.alignOf(fieldTy)
+          curAddr = TypeSizes.alignUp(curAddr, fieldAlign)
+          scanField(fieldTy, objRef, curAddr, handler)
+          curAddr += TypeSizes.sizeOf(fieldTy)
+        }
+        curAddr = TypeSizes.alignUp(curAddr, varAlign)
         for (i <- 0L until varLength) {
           scanField(varTy, objRef, curAddr, handler)
           curAddr = TypeSizes.alignUp(curAddr + varSize, varAlign)
         }
       }
-      case t: TypeStack => {
+      case t: TypeStackRef => {
         val toStackID = memorySupport.loadLong(iRef)
         val maybeToStack = if (toStackID == 0) {
           None
         } else {
-          val toStack = microVM.threadStackManager.getStackByID(toStackID.toInt).getOrElse {
+          val toStack = microVM.threadStackManager.stackRegistry.get(toStackID.toInt).getOrElse {
             throw new UvmRefImplException("Memory location 0x%x referring to non-existing stack %d".format(iRef, toStackID))
           }
           Some(toStack)

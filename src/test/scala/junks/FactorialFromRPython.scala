@@ -1,42 +1,48 @@
 package junks
 
 import uvm.refimpl._
+import uvm.refimpl.TrapHandlerResult.Rebind
+import uvm.refimpl.HowToResume.PassValues
 
 object FactorialFromRPython extends App {
+  import uvm.refimpl.RichMuCtx._
   val microVM = new MicroVM()
 
-  val ca = microVM.newClientAgent()
+  val ctx = microVM.newContext()
 
   val r = new java.io.FileReader("tests/extra-progs/factorial.uir")
-  ca.loadBundle(r)
+  ctx.loadBundle(r)
   r.close()
 
-  val m = ca.putFunction(microVM.idOf("@main"))
+  val m = ctx.handleFromFunc(microVM.idOf("@main"))
 
-  microVM.trapManager.trapHandler = new TrapHandler {
-    override def handleTrap(ca: ClientAgent, thread: Handle, stack: Handle, watchPointID: Int): TrapHandlerResult = {
-      val curInst = ca.currentInstruction(stack, 0)
+  microVM.setTrapHandler(new TrapHandler {
+    override def handleTrap(ctx: MuCtx, thread: MuThreadRefValue, stack: MuStackRefValue, watchPointID: Int): TrapHandlerResult = {
+      val fc = ctx.newCursor(stack)
+      val curInst = ctx.curInst(fc)
       val trapName = microVM.nameOf(curInst)
 
-      if (trapName == "@main_v1.main_trap") {
-        val kas = ca.dumpKeepalives(stack, 0)
+      if (trapName == "@main_v1.entry.main_trap") {
+        val kas = ctx.dumpKeepalives(fc)
         val Seq(rv) = kas
 
-        val i = ca.toInt(rv, signExt = true)
+        val i = ctx.handleToSInt(rv.asInstanceOf[MuIntValue])
 
         println(i)
       } else {
         throw new RuntimeException("Hit the wrong trap: " + trapName)
       }
 
-      TrapRebindPassVoid(stack) // continue
+      ctx.closeCursor(fc)
+      Rebind(stack, PassValues(Seq())) // continue
+
     }
-  }
+  })
 
-  val sta = ca.newStack(m, Seq())
-  val thr = ca.newThread(sta)
+  val sta = ctx.newStack(m)
+  val thr = ctx.newThread(sta, PassValues(Seq()))
 
-  microVM.threadStackManager.joinAll() // run until all threads stop
+  microVM.execute() // run until all threads stop
 
-  ca.close()
+  ctx.closeContext()
 }

@@ -2,6 +2,7 @@ package uvm.refimpl.mem
 
 import uvm.types._
 import uvm.refimpl.UvmRefImplException
+import uvm.refimpl.nat.PlatformConstants
 
 /**
  * Responsible for object layout.
@@ -45,11 +46,11 @@ import uvm.refimpl.UvmRefImplException
  * </pre>
  */
 object TypeSizes {
-  type Word = Long
+  type Word = PlatformConstants.Word
 
-  val WORD_SIZE_LOG: Word = 6L
-  val WORD_SIZE_BITS: Word = 1L << WORD_SIZE_LOG
-  val WORD_SIZE_BYTES: Word = 1L << (WORD_SIZE_LOG - 3L)
+  val WORD_SIZE_LOG: Word = PlatformConstants.WORD_SIZE_LOG
+  val WORD_SIZE_BITS: Word = PlatformConstants.WORD_SIZE_BITS
+  val WORD_SIZE_BYTES: Word = PlatformConstants.WORD_SIZE_BYTES
 
   val GC_HEADER_SIZE_SCALAR: Word = 8L;
   val GC_HEADER_SIZE_HYBRID: Word = 16L;
@@ -68,17 +69,17 @@ object TypeSizes {
     case _: TypeRef            => WORD_SIZE_BYTES
     case _: TypeIRef           => 2L * WORD_SIZE_BYTES
     case _: TypeWeakRef        => WORD_SIZE_BYTES
-    case t @ TypeStruct(ftys)  => structPrefixSizeOf(t, ftys.size)
+    case t @ TypeStruct(ftys)  => structPrefixSizeOf(t, ftys.size)
     case t @ TypeArray(et, l)  => seqPrefixSizeOf(t, l)
     case _: TypeHybrid         => throw new IllegalArgumentException("Hybrid should use hybridSizeOf to probe size")
     case _: TypeVoid           => 0L
-    case _: TypeFunc           => WORD_SIZE_BYTES
-    case _: TypeThread         => WORD_SIZE_BYTES
-    case _: TypeStack          => WORD_SIZE_BYTES
+    case _: TypeFuncRef        => WORD_SIZE_BYTES
+    case _: TypeThreadRef      => WORD_SIZE_BYTES
+    case _: TypeStackRef       => WORD_SIZE_BYTES
     case _: TypeTagRef64       => 8L
     case t @ TypeVector(et, l) => seqPrefixSizeOf(t, l)
-    case _: TypePtr            => WORD_SIZE_BYTES
-    case _: TypeFuncPtr        => WORD_SIZE_BYTES
+    case _: TypeUPtr           => WORD_SIZE_BYTES
+    case _: TypeUFuncPtr       => WORD_SIZE_BYTES
   }
 
   def alignOf(ty: Type): Word = ty match {
@@ -90,7 +91,7 @@ object TypeSizes {
   }
 
   def hybridSizeOf(ty: TypeHybrid, len: Word): Word = {
-    val fixedSize = sizeOf(ty.fixedTy)
+    val fixedSize = structPrefixSizeOf(ty, ty.fieldTys.size)
     val varAlign = alignOf(ty.varTy)
     val varSize = shiftOffsetOf(ty.varTy, len)
     val size = alignUp(fixedSize, varAlign) + varSize
@@ -98,16 +99,16 @@ object TypeSizes {
   }
 
   def hybridAlignOf(ty: TypeHybrid, len: Word): Word = {
-    val fixedAlign = alignOf(ty.fixedTy)
+    val fieldAligns = ty.fieldTys.map(alignOf)
     val varAlign = alignOf(ty.varTy)
-    val align = Math.max(fixedAlign, varAlign)
+    val align = fieldAligns.foldLeft(varAlign)(Math.max)
     return align
   }
 
-  def fieldOffsetOf(ty: TypeStruct, index: Int): Word = {
-    val fieldType = ty.fieldTy(index)
+  def fieldOffsetOf(ty: AbstractStructType, index: Int): Word = {
+    val fieldType = ty.fieldTys(index)
     val fieldAlign = alignOf(fieldType)
-    val prefixSize = structPrefixSizeOf(ty, index)
+    val prefixSize = structPrefixSizeOf(ty, index)
     val offset = alignUp(prefixSize, fieldAlign)
     return offset
   }
@@ -120,14 +121,12 @@ object TypeSizes {
     return alignUp(sizeOf(ty), alignOf(ty)) * index
   }
 
-  def fixedPartOffsetOf(ty: TypeHybrid): Word = 0L
-
   def varPartOffsetOf(ty: TypeHybrid): Word = {
-    return alignUp(sizeOf(ty.fixedTy), alignOf(ty.varTy))
+    return alignUp(structPrefixSizeOf(ty, ty.fieldTys.length), alignOf(ty.varTy))
   }
 
-  def structPrefixSizeOf(ty: TypeStruct, prefixLen: Int): Word = {
-    val sz = ty.fieldTy.take(prefixLen).foldLeft(0L) { (oldSz, nextTy) =>
+  def structPrefixSizeOf(ty: AbstractStructType, prefixLen: Int): Word = {
+    val sz = ty.fieldTys.take(prefixLen).foldLeft(0L) { (oldSz, nextTy) =>
       alignUp(oldSz, alignOf(nextTy)) + sizeOf(nextTy)
     }
     return sz

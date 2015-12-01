@@ -12,6 +12,8 @@ import AtomicRMWOptr._
 import uvm.refimpl.mem.TypeSizes.Word
 import ch.qos.logback.classic.Level._
 import uvm.refimpl.UvmBundleTesterBase
+import uvm.refimpl.TrapHandlerResult.{ ThreadExit, Rebind }
+import uvm.refimpl.HowToResume.{ PassValues, ThrowExc }
 
 class UvmInterpreterFutexTests extends UvmBundleTesterBase {
   setLogLevels(
@@ -22,150 +24,150 @@ class UvmInterpreterFutexTests extends UvmBundleTesterBase {
     "tests/uvm-refimpl-test/futex-tests.uir")
 
   "Futex" should "wake up the waiting thread" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@futex_setter")
+    val func = ctx.handleFromFunc("@futex_setter")
 
     var trapWaiterReached = false
     var trapSetterReached = false
 
-    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      val trapName = nameOf(ca.currentInstruction(st, 0))
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      val trapName = nameOf(ctx.curInst(st, 0))
 
       trapName match {
-        case "@futex_waiter_v1.trap_waiter" => {
-          val Seq(rv, sv) = ca.dumpKeepalives(st, 0)
+        case "@futex_waiter_v1.entry.trap_waiter" => {
+          val Seq(rv, sv) = ctx.dumpKeepalives(st, 0)
 
-          ca.toInt(rv, signExt = true) shouldBe 0
-          ca.toInt(sv, signExt = true) shouldBe 42
+          ctx.handleToSInt(rv.asInstanceOf[MuIntValue]) shouldBe 0
+          ctx.handleToSInt(sv.asInstanceOf[MuIntValue]) shouldBe 42
 
           trapWaiterReached = true
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
-        case "@futex_setter_v1.trap_setter" => {
+        case "@futex_setter_v1.wait_exit.trap_setter" => {
           trapSetterReached = true
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case _ => fail("Should not hit " + trapName)
       }
     }
 
-    ca.close()
+    ctx.closeContext()
 
     trapWaiterReached shouldBe true
     trapSetterReached shouldBe true
   }
 
   "Futex" should "wake up if not explicitly woken within the give timeout" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@futex_delayer")
+    val func = ctx.handleFromFunc("@futex_delayer")
 
     var trapDelayerReached = false
 
-    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      val trapName = nameOf(ca.currentInstruction(st, 0))
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      val trapName = nameOf(ctx.curInst(st, 0))
 
       trapName match {
-        case "@futex_delayer_v1.trap_delayer" => {
-          val Seq(rv) = ca.dumpKeepalives(st, 0)
+        case "@futex_delayer_v1.entry.trap_delayer" => {
+          val Seq(rv) = ctx.dumpKeepalives(st, 0)
 
-          ca.toInt(rv, signExt = true) shouldBe -3
+          ctx.handleToSInt(rv.asInstanceOf[MuIntValue]) shouldBe -3
 
           trapDelayerReached = true
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case _ => fail("Should not hit " + trapName)
       }
     }
 
-    ca.close()
+    ctx.closeContext()
 
     trapDelayerReached shouldBe true
   }
 
   "Futex" should "not sleep if the memory location does not hold the expected value" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@futex_no_sleep")
+    val func = ctx.handleFromFunc("@futex_no_sleep")
 
     var trapNoSleepReached = false
 
-    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      val trapName = nameOf(ca.currentInstruction(st, 0))
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      val trapName = nameOf(ctx.curInst(st, 0))
 
       trapName match {
-        case "@futex_no_sleep_v1.trap_no_sleep" => {
-          val Seq(rv) = ca.dumpKeepalives(st, 0)
+        case "@futex_no_sleep_v1.entry.trap_no_sleep" => {
+          val Seq(rv) = ctx.dumpKeepalives(st, 0)
 
-          ca.toInt(rv, signExt = true) shouldBe -1
+          ctx.handleToSInt(rv.asInstanceOf[MuIntValue]) shouldBe -1
 
           trapNoSleepReached = true
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case _ => fail("Should not hit " + trapName)
       }
     }
 
-    ca.close()
+    ctx.closeContext()
 
     trapNoSleepReached shouldBe true
   }
 
   "Futex" should "wake up requeued threads" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@futex_requeue_test")
+    val func = ctx.handleFromFunc("@futex_requeue_test")
 
     var mainExit = false
     var subExit = 0
 
-    testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-      val trapName = nameOf(ca.currentInstruction(st, 0))
+    testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      val trapName = nameOf(ctx.curInst(st, 0))
 
       trapName match {
-        case "@futex_requeue_waiter_v1.trap_requeue_waiter" => {
-          val Seq(rv) = ca.dumpKeepalives(st, 0)
+        case "@futex_requeue_waiter_v1.entry.trap_requeue_waiter" => {
+          val Seq(rv) = ctx.dumpKeepalives(st, 0)
 
-          ca.toInt(rv, signExt = true) shouldBe 0
+          ctx.handleToSInt(rv.asInstanceOf[MuIntValue]) shouldBe 0
 
           subExit += 1
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
-        case "@futex_requeue_test_v1.trap_wait" => {
-          val Seq(nt, nt2) = ca.dumpKeepalives(st, 0)
+        case "@futex_requeue_test_v1.wait_body.trap_wait" => {
+          val Seq(nt, nt2) = ctx.dumpKeepalives(st, 0)
 
           val nthr = nt.vb.asThread.get
           val nthr2 = nt2.vb.asThread.get
 
           if (nthr.isFutexWaiting && nthr2.isFutexWaiting) {
-            val one = ca.putInt("@i32", 1)
-            TrapRebindPassValue(st, one)
+            val one = ctx.handleFromInt32(1)
+            Rebind(st, PassValues(Seq(one)))
           } else {
-            val zero = ca.putInt("@i32", 0)
-            TrapRebindPassValue(st, zero)
+            val zero = ctx.handleFromInt32(0)
+            Rebind(st, PassValues(Seq(zero)))
           }
         }
-        case "@futex_requeue_test_v1.trap_setter" => {
-          val Seq(nwakes, nwakes2) = ca.dumpKeepalives(st, 0)
+        case "@futex_requeue_test_v1.wait_exit.trap_setter" => {
+          val Seq(nwakes, nwakes2) = ctx.dumpKeepalives(st, 0)
 
-          ca.toInt(nwakes, signExt = true) shouldBe 1
-          ca.toInt(nwakes2, signExt = true) shouldBe 1
+          ctx.handleToSInt(nwakes.asInstanceOf[MuIntValue]) shouldBe 1
+          ctx.handleToSInt(nwakes2.asInstanceOf[MuIntValue]) shouldBe 1
 
           mainExit = true
 
-          TrapRebindPassVoid(st)
+          returnFromTrap(st)
         }
         case _ => fail("Should not hit " + trapName)
       }
     }
 
-    ca.close()
+    ctx.closeContext()
 
     mainExit shouldBe true
     subExit shouldBe 2
@@ -185,60 +187,60 @@ class UvmInterpreterFutexTests extends UvmBundleTesterBase {
   }
 
   "Futex" should "work across GC" in {
-    val ca = microVM.newClientAgent()
+    val ctx = microVM.newContext()
 
-    val func = ca.putFunction("@futex_with_gc")
+    val func = ctx.handleFromFunc("@futex_with_gc")
 
     var mainExit = false
     var subExit = false
 
     verboseGC {
 
-      testFunc(ca, func, Seq()) { (ca, th, st, wp) =>
-        val trapName = nameOf(ca.currentInstruction(st, 0))
+      testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+        val trapName = nameOf(ctx.curInst(st, 0))
 
         trapName match {
-          case "@futex_gc_waiter_v1.trap_gc_waiter" => {
-            val Seq(rv) = ca.dumpKeepalives(st, 0)
+          case "@futex_gc_waiter_v1.entry.trap_gc_waiter" => {
+            val Seq(rv) = ctx.dumpKeepalives(st, 0)
 
-            ca.toInt(rv, signExt = true) shouldBe 0
+            ctx.handleToSInt(rv.asInstanceOf[MuIntValue]) shouldBe 0
 
             subExit = true
 
-            TrapRebindPassVoid(st)
+            returnFromTrap(st)
           }
-          case "@futex_with_gc_v1.trap_wait" => {
-            val Seq(nt) = ca.dumpKeepalives(st, 0)
+          case "@futex_with_gc_v1.wait_body.trap_wait" => {
+            val Seq(nt) = ctx.dumpKeepalives(st, 0)
 
             val nthr = nt.vb.asThread.get
 
             if (nthr.isFutexWaiting) {
-              val one = ca.putInt("@i32", 1)
-              TrapRebindPassValue(st, one)
+              val one = ctx.handleFromInt32(1)
+              Rebind(st, PassValues(Seq(one)))
             } else {
-              val zero = ca.putInt("@i32", 0)
-              TrapRebindPassValue(st, zero)
+              val zero = ctx.handleFromInt32(0)
+              Rebind(st, PassValues(Seq(zero)))
             }
           }
-          case "@futex_with_gc_v1.trap_gc" => {
+          case "@futex_with_gc_v1.wait_exit.trap_gc" => {
             gc()
 
-            TrapRebindPassVoid(st)
+            returnFromTrap(st)
           }
-          case "@futex_with_gc_v1.trap_exit" => {
-            val Seq(nwakes) = ca.dumpKeepalives(st, 0)
+          case "@futex_with_gc_v1.wait_exit.trap_exit" => {
+            val Seq(nwakes) = ctx.dumpKeepalives(st, 0)
 
-            ca.toInt(nwakes, signExt = true) shouldBe 1
+            ctx.handleToSInt(nwakes.asInstanceOf[MuIntValue]) shouldBe 1
 
             mainExit = true
 
-            TrapRebindPassVoid(st)
+            returnFromTrap(st)
           }
           case _ => fail("Should not hit " + trapName)
         }
       }
 
-      ca.close()
+      ctx.closeContext()
     }
 
     mainExit shouldBe true

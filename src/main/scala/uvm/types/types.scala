@@ -4,20 +4,25 @@ import uvm._
 
 abstract class Type extends IdentifiedSettable {
   override final def toString: String = Type.prettyPrint(this)
-  override def hashCode(): Int = System.identityHashCode(this)
-  override def equals(that: Any): Boolean = that match {
-    case v: AnyRef => this eq v
-    case _         => false
-  }
 }
 
 abstract class FPType extends Type
 
-abstract class AbstractRefType extends Type {
+abstract class AbstractGenRefType extends Type
+
+abstract class AbstractRefType extends AbstractGenRefType {
   def ty: Type
 }
 
-abstract class AbstractSeqType extends Type {
+abstract class AbstractObjRefType extends AbstractRefType
+
+abstract class AbstractCompositeType extends Type
+
+abstract class AbstractStructType extends AbstractCompositeType {
+  def fieldTys: Seq[Type]
+}
+
+abstract class AbstractSeqType extends AbstractCompositeType {
   def elemTy: Type
   def len: Long
 }
@@ -27,54 +32,42 @@ abstract class AbstractPointerType extends Type
 case class TypeInt(var length: Int) extends Type
 case class TypeFloat() extends FPType
 case class TypeDouble() extends FPType
-case class TypeRef(var ty: Type) extends AbstractRefType
+case class TypeRef(var ty: Type) extends AbstractObjRefType
 case class TypeIRef(var ty: Type) extends AbstractRefType
-case class TypeWeakRef(var ty: Type) extends AbstractRefType
-case class TypeStruct(var fieldTy: Seq[Type]) extends Type
+case class TypeWeakRef(var ty: Type) extends AbstractObjRefType
+case class TypeStruct(var fieldTys: Seq[Type]) extends AbstractStructType
 case class TypeArray(var elemTy: Type, var len: Long) extends AbstractSeqType
-case class TypeHybrid(var fixedTy: Type, var varTy: Type) extends Type
+case class TypeHybrid(var fieldTys: Seq[Type], var varTy: Type) extends AbstractStructType
 case class TypeVoid() extends Type
-case class TypeFunc(var sig: FuncSig) extends Type
-case class TypeThread() extends Type
-case class TypeStack() extends Type
+case class TypeFuncRef(var sig: FuncSig) extends AbstractGenRefType
+case class TypeThreadRef() extends AbstractGenRefType
+case class TypeStackRef() extends AbstractGenRefType
 case class TypeTagRef64() extends Type
 case class TypeVector(var elemTy: Type, var len: Long) extends AbstractSeqType
-case class TypePtr(var ty: Type) extends AbstractPointerType
-case class TypeFuncPtr(var sig: FuncSig) extends AbstractPointerType
+case class TypeUPtr(var ty: Type) extends AbstractPointerType
+case class TypeUFuncPtr(var sig: FuncSig) extends AbstractPointerType
+case class TypeFrameCursorRef() extends AbstractGenRefType
 
 object Type {
   def prettyPrint(ty: Type): String = ty match {
-    case TypeInt(length)                => "int<%d>".format(length)
-    case TypeFloat()                    => "float"
-    case TypeDouble()                   => "double"
-    case TypeRef(ty)                    => "ref<%s>".format(ty.repr)
-    case TypeIRef(ty)                   => "iref<%s>".format(ty.repr)
-    case TypeWeakRef(ty)                => "weakref<%s>".format(ty.repr)
-    case TypeStruct(fieldTy)            => "struct<%s>".format(fieldTy.map(_.repr).mkString(" "))
-    case TypeArray(elemTy, len)         => "array<%s %d>".format(elemTy.repr, len)
-    case TypeHybrid(fixedPart, varPart) => "hybrid<%s %s>".format(fixedPart.repr, varPart.repr)
-    case TypeVoid()                     => "void"
-    case TypeFunc(sig)                  => "func<%s>".format(FuncSig.prettyPrint(sig))
-    case TypeThread()                   => "thread"
-    case TypeStack()                    => "stack"
-    case TypeTagRef64()                 => "tagref64"
-    case TypeVector(elemTy, len)        => "vector<%s %d>".format(elemTy.repr, len)
-    case TypePtr(ty)                    => "ptr<%s>".format(ty.repr)
-    case TypeFuncPtr(sig)               => "funcptr<%s>".format(FuncSig.prettyPrint(sig))
-    case _                              => "unknown type " + ty.getClass.getName
+    case TypeInt(length)               => "int<%d>".format(length)
+    case TypeFloat()                   => "float"
+    case TypeDouble()                  => "double"
+    case TypeRef(ty)                   => "ref<%s>".format(ty.repr)
+    case TypeIRef(ty)                  => "iref<%s>".format(ty.repr)
+    case TypeWeakRef(ty)               => "weakref<%s>".format(ty.repr)
+    case TypeStruct(fieldTys)          => "struct<%s>".format(fieldTys.map(_.repr).mkString(" "))
+    case TypeArray(elemTy, len)        => "array<%s %d>".format(elemTy.repr, len)
+    case TypeHybrid(fieldTys, varPart) => "hybrid<%s %s>".format(fieldTys.map(_.repr).mkString(" "), varPart.repr)
+    case TypeVoid()                    => "void"
+    case TypeFuncRef(sig)              => "funcref<%s>".format(sig.repr)
+    case TypeThreadRef()               => "threadref"
+    case TypeStackRef()                => "stackref"
+    case TypeTagRef64()                => "tagref64"
+    case TypeVector(elemTy, len)       => "vector<%s %d>".format(elemTy.repr, len)
+    case TypeUPtr(ty)                  => "uptr<%s>".format(ty.repr)
+    case TypeUFuncPtr(sig)             => "ufuncptr<%s>".format(sig.repr)
+    case TypeFrameCursorRef()          => "framecursorref"
+    case _                             => "unknown type " + ty.getClass.getName
   }
-}
-
-object CommonTypes {
-  val I1 = TypeInt(1)
-  val I8 = TypeInt(8)
-  val I16 = TypeInt(16)
-  val I32 = TypeInt(32)
-  val I64 = TypeInt(64)
-  val FLOAT = TypeFloat()
-  val DOUBLE = TypeDouble()
-  val VOID = TypeVoid()
-  val REFVOID = TypeRef(VOID)
-  val THREAD = TypeThread()
-  val STACK = TypeStack()
 }
