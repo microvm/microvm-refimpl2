@@ -1,23 +1,27 @@
 package uvm.refimpl.nat
 
 import java.nio.charset.StandardCharsets
+
 import scala.collection.mutable.HashMap
+import scala.collection.mutable.HashSet
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe
 import scala.reflect.runtime.{ universe => ru }
+
 import org.slf4j.LoggerFactory
+
 import com.kenai.jffi.CallingConvention
 import com.kenai.jffi.Closure
 import com.kenai.jffi.Closure.Buffer
 import com.kenai.jffi.{ Type => JType }
 import com.typesafe.scalalogging.Logger
+
 import NativeSupport._
 import PlatformConstants.WORD_SIZE_BYTES
 import PlatformConstants.Word
 import jnr.ffi.ObjectReferenceManager
 import jnr.ffi.Pointer
 import uvm.refimpl._
-import scala.collection.mutable.HashSet
 
 /**
  * This object calls a C function to handle the trap.
@@ -32,17 +36,16 @@ class NativeTrapHandler(val funcAddr: Long, val userdata: Long) extends TrapHand
  * This object routes calls from native clients to the MicroVM object.
  */
 object NativeMuVM {
-  // Syntax sugar for MuCtx and MuValue return values, which are pointers
-  type MuCtxPtr = Word
-  type MuValuePtr = Word
+  import NativeMuHelpers._
+  import NativeClientSupport._
 
   def new_context(microVM: MicroVM): MuCtxPtr = {
     val ctx = microVM.newContext()
-    val ptr = NativeClientSupport.exposeMuCtx(ctx)
+    val ptr = exposeMuCtx(ctx)
     ptr
   }
-  def id_of(microVM: MicroVM, name: String): Int = microVM.idOf(name)
-  def name_of(microVM: MicroVM, id: Int): String = microVM.nameOf(id)
+  def id_of(microVM: MicroVM, name: MuName): MuID = microVM.idOf(name)
+  def name_of(microVM: MicroVM, id: MuID): MuName = microVM.nameOf(id)
   def set_trap_handler(microVM: MicroVM, trap_handler: Word, userdata: Word): Unit = {
     microVM.setTrapHandler(new NativeTrapHandler(trap_handler, userdata))
   }
@@ -50,26 +53,98 @@ object NativeMuVM {
 
 /**
  * This object routes calls from native clients to a MuCtx object.
+ * <p>
+ * Parameters are usually auto-converted from low-level types (pointers to function tables or C MuValue pointer), but
+ * return values are usually explicitly converted to pointers by the "expose*" methods, such as exposeMuValue.
  */
 object NativeMuCtx {
-  // Syntax sugar for MuCtx and MuValue return values, which are pointers
-  type MuCtxPtr = Word
-  type MuValuePtr = Word
+  import NativeMuHelpers._
+  import NativeClientSupport._
 
-  def id_of(ctx: MuCtx, name: String): Int = ctx.idOf(name)
-  def name_of(ctx: MuCtx, id: Int): String = ctx.nameOf(id)
+  def id_of(ctx: MuCtx, name: MuName): MuID = ctx.idOf(name)
+  def name_of(ctx: MuCtx, id: MuID): MuName = ctx.nameOf(id)
 
   /**
    * NOTE: Should have taken MuCtx as the first parameter, but we need to de-allocate
    * the function table, too.
    */
   def close_context(funcTableAddr: Word): Unit = {
-    val ctx = NativeClientSupport.getObjNotNull(funcTableAddr, NativeClientSupport.muCtxs)
-    for (muValueAddr <- NativeClientSupport.muCtxToMuValues.remove(ctx).get) {
-      NativeClientSupport.unexposeMuValue(muValueAddr)
-    }
-    NativeClientSupport.unexposeMuCtx(funcTableAddr)
+    val ctx = getObjFromFuncTableAddrNotNull(funcTableAddr, NativeClientSupport.muCtxs)
+    unexposeMuCtx(funcTableAddr)
     ctx.closeContext()
+  }
+
+  def load_bundle(ctx: MuCtx, buf: Word, sz: Int): Unit = {
+    val str = theMemory.getString(buf, sz, StandardCharsets.US_ASCII)
+    ctx.loadBundle(str)
+  }
+
+  def load_hail(ctx: MuCtx, buf: Word, sz: Int): Unit = {
+    val str = theMemory.getString(buf, sz, StandardCharsets.US_ASCII)
+    ctx.loadHail(str)
+  }
+
+  def handle_from_sint8(ctx: MuCtx, num: Byte, len: Int): MuValuePtr = handleFromInt(ctx, num, len)
+  def handle_from_uint8(ctx: MuCtx, num: Byte, len: Int): MuValuePtr = handleFromInt(ctx, trunc(num, 8), len)
+  def handle_from_sint16(ctx: MuCtx, num: Short, len: Int): MuValuePtr = handleFromInt(ctx, num, len)
+  def handle_from_uint16(ctx: MuCtx, num: Short, len: Int): MuValuePtr = handleFromInt(ctx, trunc(num, 16), len)
+  def handle_from_sint32(ctx: MuCtx, num: Int, len: Int): MuValuePtr = handleFromInt(ctx, num, len)
+  def handle_from_uint32(ctx: MuCtx, num: Int, len: Int): MuValuePtr = handleFromInt(ctx, trunc(num, 32), len)
+  def handle_from_sint64(ctx: MuCtx, num: Long, len: Int): MuValuePtr = handleFromInt(ctx, num, len)
+  def handle_from_uint64(ctx: MuCtx, num: Long, len: Int): MuValuePtr = handleFromInt(ctx, trunc(num, 64), len)
+  def handle_from_float(ctx: MuCtx, num: Float): MuValuePtr = exposeMuValue(ctx, ctx.handleFromFloat(num))
+  def handle_from_double(ctx: MuCtx, num: Double): MuValuePtr = exposeMuValue(ctx, ctx.handleFromDouble(num))
+  def handle_from_ptr(ctx: MuCtx, mu_type: MuID, ptr: MuCPtr): MuValuePtr = exposeMuValue(ctx, ctx.handleFromPtr(mu_type, ptr))
+  def handle_from_fp(ctx: MuCtx, mu_type: MuID, fp: MuCFP): MuValuePtr = exposeMuValue(ctx, ctx.handleFromFP(mu_type, fp))
+
+  def handle_to_sint8(ctx: MuCtx, opnd: MuIntValue): Byte = ctx.handleToSInt(opnd).toByte
+  def handle_to_uint8(ctx: MuCtx, opnd: MuIntValue): Byte = ctx.handleToUInt(opnd).toByte
+  def handle_to_sint16(ctx: MuCtx, opnd: MuIntValue): Short = ctx.handleToSInt(opnd).toShort
+  def handle_to_uint16(ctx: MuCtx, opnd: MuIntValue): Short = ctx.handleToUInt(opnd).toShort
+  def handle_to_sint32(ctx: MuCtx, opnd: MuIntValue): Int = ctx.handleToSInt(opnd).toInt
+  def handle_to_uint32(ctx: MuCtx, opnd: MuIntValue): Int = ctx.handleToUInt(opnd).toInt
+  def handle_to_sint64(ctx: MuCtx, opnd: MuIntValue): Long = ctx.handleToSInt(opnd).toLong
+  def handle_to_uint64(ctx: MuCtx, opnd: MuIntValue): Long = ctx.handleToUInt(opnd).toLong
+  def handle_to_float(ctx: MuCtx, opnd: MuFloatValue): Float = ctx.handleToFloat(opnd)
+  def handle_to_double(ctx: MuCtx, opnd: MuDoubleValue): Double = ctx.handleToDouble(opnd)
+  def handle_to_ptr(ctx: MuCtx, opnd: MuUPtrValue): MuCPtr = ctx.handleToPtr(opnd)
+  def handle_to_fp(ctx: MuCtx, opnd: MuUFPValue): MuCFP = ctx.handleToFP(opnd)
+
+  def handle_from_const(ctx: MuCtx, id: MuID): MuValuePtr = exposeMuValue(ctx, ctx.handleFromConst(id))
+  def handle_from_global(ctx: MuCtx, id: MuID): MuValuePtr = exposeMuValue(ctx, ctx.handleFromGlobal(id))
+  def handle_from_func(ctx: MuCtx, id: MuID): MuValuePtr = exposeMuValue(ctx, ctx.handleFromFunc(id))
+  def handle_from_expose(ctx: MuCtx, id: MuID): MuValuePtr = exposeMuValue(ctx, ctx.handleFromExpose(id))
+
+  /** Need to dispose the value manually. */
+  def delete_value(ctx: MuCtx, opnd: MuValuePtr): Unit = {
+    logger.debug("Deleting %d 0x%x".format(opnd, opnd))
+    val muVal = getMuValueNotNull(opnd)
+    unexposeMuValue(ctx, opnd)
+    ctx.deleteValue(muVal)
+  }
+
+}
+
+/**
+ * These functions are not exposed.
+ */
+object NativeMuHelpers {
+  import NativeClientSupport._
+
+  val ONE = BigInt(1)
+
+  /**
+   * Convert unsigned integer to BigInt.
+   * <p>
+   * NOTE: Scala implicitly converts Byte, Short, Int or Long to BigInt using sign-extension.
+   * But when zero-extension is desired (unsigned native arguments), we must truncate the BigInt.
+   *
+   * @param len The number of bits in the INPUT number (not the output Mu int).
+   */
+  def trunc(num: BigInt, len: Int): BigInt = num & ((ONE << len) - ONE)
+
+  def handleFromInt(ctx: MuCtx, num: BigInt, len: Int): MuValuePtr = {
+    exposeMuValue(ctx, ctx.handleFromInt(num, len))
   }
 }
 
@@ -100,9 +175,9 @@ object ClientAccessibleClassExposer {
   def paramFloat(index: Int)(buffer: Buffer): Any = buffer.getFloat(index)
   def paramDouble(index: Int)(buffer: Buffer): Any = buffer.getDouble(index)
   def paramString(index: Int)(buffer: Buffer): Any = getStr(buffer, index)
-  def paramMicroVM(index: Int)(buffer: Buffer): Any = getObj(buffer, index, NativeClientSupport.microVMs)
-  def paramMuCtx(index: Int)(buffer: Buffer): Any = getObj(buffer, index, NativeClientSupport.muCtxs)
-  def paramMuValue(index: Int)(buffer: Buffer): Any = getObj(buffer, index, NativeClientSupport.muValues)
+  def paramMicroVM(index: Int)(buffer: Buffer): Any = getObjFromFuncTableAddr(buffer, index, NativeClientSupport.microVMs)
+  def paramMuCtx(index: Int)(buffer: Buffer): Any = getObjFromFuncTableAddr(buffer, index, NativeClientSupport.muCtxs)
+  def paramMuValue(index: Int)(buffer: Buffer): Any = getMuValue(buffer, index)
 
   def retVoid(buffer: Buffer, v: Any): Unit = {}
   def retByte(buffer: Buffer, v: Any): Unit = buffer.setByteReturn(v.asInstanceOf[Byte])
@@ -119,6 +194,11 @@ object ClientAccessibleClassExposer {
     str
   }
 
+  private def getMuValue(buffer: Buffer, index: Int): MuValue = {
+    val addr = buffer.getAddress(index)
+    NativeClientSupport.getMuValueNotNull(addr)
+  }
+
   private def exposeStr(str: String): Word = {
     val ptr = NativeClientSupport.stringPool.getOrElseUpdate(str, {
       val bytes = str.getBytes(StandardCharsets.US_ASCII)
@@ -130,9 +210,9 @@ object ClientAccessibleClassExposer {
     ptr.address()
   }
 
-  private def getObj[T](buffer: Buffer, index: Int, orm: ObjectReferenceManager[T]): T = {
+  private def getObjFromFuncTableAddr[T](buffer: Buffer, index: Int, orm: ObjectReferenceManager[T]): T = {
     val funcTableAddr = buffer.getLong(index)
-    NativeClientSupport.getObjNotNull(funcTableAddr, orm)
+    NativeClientSupport.getObjFromFuncTableAddrNotNull(funcTableAddr, orm)
   }
 
   // Reflection utils.
@@ -150,7 +230,7 @@ object ClientAccessibleClassExposer {
     case t if t =:= TString  => JType.POINTER
     case t if t =:= TMicroVM => JType.POINTER
     case t if t =:= TMuCtx   => JType.POINTER
-    case t if t =:= TMuValue => JType.POINTER
+    case t if t <:< TMuValue => JType.POINTER
   }
 
   /**
@@ -158,16 +238,16 @@ object ClientAccessibleClassExposer {
    */
   class ExposedMethodClosure(method: ru.MethodMirror, paramGetters: Seq[Buffer => Any], returnSetter: (Buffer, Any) => Unit) extends Closure {
     def invoke(buffer: Buffer): Unit = {
-      val params = paramGetters.map(_(buffer))
-      val rv = try {
-        method.apply(params: _*)
+      try {
+        val params = paramGetters.map(_(buffer))
+        val rv = method.apply(params: _*)
+        returnSetter(buffer, rv)
       } catch {
         case e: Throwable => {
           logger.error("Exception thrown before returning to native. This is fatal", e)
           throw e
         }
       }
-      returnSetter(buffer, rv)
     }
   }
 }
@@ -201,7 +281,7 @@ class ClientAccessibleClassExposer[T: ru.TypeTag: ClassTag](obj: T) {
         case t if t =:= TString  => paramString(i) _
         case t if t =:= TMicroVM => paramMicroVM(i) _
         case t if t =:= TMuCtx   => paramMuCtx(i) _
-        case t if t =:= TMuValue => paramMuValue(i) _
+        case t if t <:< TMuValue => paramMuValue(i) _
       }
 
       val returnSetter = returnType match {
@@ -259,17 +339,44 @@ class ClientAccessibleClassExposer[T: ru.TypeTag: ClassTag](obj: T) {
 
 /**
  * Support for native clients (such as C programs).
+ * <p>
+ * MicroVM, MuCtx and MuValue instances can be exposed to native programs.
+ * <p>
+ * An exposed MicroVM has a function table (the MuVM struct in C) and a fake pointer (managed by the
+ * ObjectReferenceManager) referring to the Scala MicroVM instance. The former is kept in the funcTableToPtr map,
+ * and the latter is kept in the microVMs ORM. The fake pointer is stored in the header field of the MuVM struct.
+ * <p>
+ * An exposed MuCtx has a function table, a fake pointer, and a hash set containing all exposed MuValues derived from
+ * that MuCtx, held in muCtxToMuValue(theCtx). Unexposing a MuCtx automatically unexposes all of its MuValues. The fake
+ * pointer is the header of the MuCtx struct.
+ * <p>
+ * An exposed MuValue only has a fake pointer, held in muValues. The pointer is also stored in muCtxToMuValues(ctx) for
+ * its context ctx.
  */
 object NativeClientSupport {
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+
+  // Syntax sugar for MuCtx and MuValue return values, which are pointers
+  type FuncTablePtr = Word
+  type MuVMPtr = FuncTablePtr
+  type MuCtxPtr = FuncTablePtr
+  type MuValuePtr = Word
+
+  type MuID = Int
+  type MuName = String
+  type MuCPtr = Word
+  type MuCFP = Word
+
   // Give exposed objects a random "memory address" so native programs can pass them back to Mu as parameters.
   val microVMs = jnrRuntime.newObjectReferenceManager[MicroVM]()
   val muCtxs = jnrRuntime.newObjectReferenceManager[MuCtx]()
   val muValues = jnrRuntime.newObjectReferenceManager[MuValue]()
-  
-  /** Map each MuCtx to all of its current MuValues. This is needed when closing a MuCtx. */
-  val muCtxToMuValues = HashMap[MuCtx, HashSet[Word]]()
 
-  def getObjNotNull[T](funcTableAddr: Word, orm: ObjectReferenceManager[T]): T = {
+  /** Map each MuCtx to all of its current MuValues. This is needed when closing a MuCtx. */
+  val muCtxToMuValues = HashMap[MuCtx, HashSet[MuValuePtr]]()
+
+  /** Given a function table pointer, get an object from a ObjectReferenceManager. Assert it is not null. */
+  def getObjFromFuncTableAddrNotNull[T](funcTableAddr: FuncTablePtr, orm: ObjectReferenceManager[T]): T = {
     val objAddr = theMemory.getAddress(funcTableAddr)
     val obj = orm.get(jnrMemoryManager.newPointer(objAddr))
     if (obj == null) {
@@ -278,11 +385,20 @@ object NativeClientSupport {
     obj
   }
 
+  /** Get the MuValue instance form a C MuValue (a pointer). */
+  def getMuValueNotNull(addr: MuValuePtr): MuValue = {
+    val muVal = muValues.get(jnrMemoryManager.newPointer(addr))
+    if (muVal == null) {
+      throw new UvmRefImplException("Exposed MuValue not found. Address: %d 0x%x".format(addr, addr))
+    }
+    muVal
+  }
+
   /**
    * Map function table addresses to Pointer so they can be closed. JFFI uses the TrantientNativeMemory (wrapped
    * in the Pointer object) to keep the allocated native memory alive.
    */
-  val funcTableToPointer = HashMap[Word, Pointer]()
+  val funcTableToPointer = HashMap[FuncTablePtr, Pointer]()
 
   /**
    * Map Java strings (currently only names of Identified objects in MU) to Pointers to keep the allocated strings
@@ -295,12 +411,14 @@ object NativeClientSupport {
   val muCtxExposer = new ClientAccessibleClassExposer(NativeMuCtx)
 
   // Expose and unexpose objects
+
   /** Expose a MicroVM. Return a pointer to the C MuVM structure. */
   def exposeMicroVM(microVM: MicroVM): Word = {
     val objAddr = microVMs.add(microVM).address()
     val funcTableAddr = muVMExposer.makeFuncTable(objAddr)
     funcTableAddr
   }
+
   /** Expose a MuCtx. Return a pointer to the C MuCtx structure. */
   def exposeMuCtx(muCtx: MuCtx): Word = {
     require(!muCtxToMuValues.contains(muCtx), "Context %s is already exposed.".format(muCtx))
@@ -309,27 +427,43 @@ object NativeClientSupport {
     val funcTableAddr = muCtxExposer.makeFuncTable(objAddr)
     funcTableAddr
   }
+
   /** Expose a MuValue. Return an "object pointer", i.e. faked by ObjectReferenceManager. */
-  def exposeMuValue(muValue: MuValue): Word = muValues.add(muValue).address()
+  def exposeMuValue(muCtx: MuCtx, muValue: MuValue): Word = {
+    val addr = muValues.add(muValue).address()
+    muCtxToMuValues(muCtx).add(addr)
+    addr
+  }
 
   /** Unexpose a MicroVM. Remove the faked pointer and deallocate the function table (by removing the Pointer). */
   def unexposeMicroVM(funcTableAddr: Word): Unit = {
     require(funcTableToPointer.contains(funcTableAddr),
       "MuVM struct pointer %d 0x%x does not exist".format(funcTableAddr, funcTableAddr))
-    val obj = getObjNotNull(funcTableAddr, microVMs)
-    val objAddr = theMemory.getAddress(funcTableAddr)
-    microVMs.remove(jnrMemoryManager.newPointer(objAddr))
+    val objPtr = theMemory.getPointer(funcTableAddr)
+    microVMs.remove(objPtr).ensuring(_ == true)
     funcTableToPointer.remove(funcTableAddr)
   }
-  /** Unexpose a MuCtx. Remove the faked pointer and deallocate the function table (by removing the Pointer). */
+
+  /**
+   * Unexpose a MuCtx. Remove the faked pointer and deallocate the function table (by removing the Pointer).
+   *  Also unexpose all MuValues held by the MuCtx.
+   */
   def unexposeMuCtx(funcTableAddr: Long): Unit = {
     require(funcTableToPointer.contains(funcTableAddr),
       "MuCtx struct pointer %d 0x%x does not exist".format(funcTableAddr, funcTableAddr))
-    val obj = getObjNotNull(funcTableAddr, muCtxs)
-    val objAddr = theMemory.getAddress(funcTableAddr)
-    muCtxs.remove(jnrMemoryManager.newPointer(objAddr))
+    val objPtr = theMemory.getPointer(funcTableAddr)
+    val muCtx = muCtxs.get(objPtr).ensuring { _ != null }
+    for (muValueAddr <- muCtxToMuValues.remove(muCtx).ensuring(_.isDefined).get) {
+      // Don't remove it from muCtxToMuValues(muCtx) because the whole HashSet has just been detached.  
+      muValues.remove(jnrMemoryManager.newPointer(muValueAddr)).ensuring(_ == true)
+    }
+    muCtxs.remove(objPtr)
     funcTableToPointer.remove(funcTableAddr)
   }
+
   /** Unexpose a MuValue by removing it from the ORM. */
-  def unexposeMuValue(addr: Long): Unit = muValues.remove(jnrMemoryManager.newPointer(addr))
+  def unexposeMuValue(muCtx: MuCtx, addr: Long): Unit = {
+    muCtxToMuValues(muCtx).remove(addr)
+    muValues.remove(jnrMemoryManager.newPointer(addr)).ensuring(_ == true)
+  }
 }

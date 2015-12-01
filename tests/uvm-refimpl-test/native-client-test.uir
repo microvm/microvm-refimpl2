@@ -1,0 +1,11 @@
+// require "primitives.uir"
+
+.global @g_i64 <@i64>
+
+.funcdef @plus_one VERSION %v1 <@i_i> {
+    %entry(<@i64> %n):
+        %rv = ADD <@i64> %n @I64_1
+        RET %rv
+}
+
+.expose @plus_one_native = @plus_one #DEFAULT @I64_0

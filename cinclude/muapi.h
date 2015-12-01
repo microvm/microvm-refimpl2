@@ -134,13 +134,13 @@ struct MuCtx {
     void        (*load_hail  )(MuCtx *ctx, char *buf, int sz);
 
     // Convert from C values to Mu values
-    MuIntValue      (*handle_from_int8  )(MuCtx *ctx, int8_t   num, int len);
+    MuIntValue      (*handle_from_sint8 )(MuCtx *ctx, int8_t   num, int len);
     MuIntValue      (*handle_from_uint8 )(MuCtx *ctx, uint8_t  num, int len);
-    MuIntValue      (*handle_from_int16 )(MuCtx *ctx, int16_t  num, int len);
+    MuIntValue      (*handle_from_sint16)(MuCtx *ctx, int16_t  num, int len);
     MuIntValue      (*handle_from_uint16)(MuCtx *ctx, uint16_t num, int len);
-    MuIntValue      (*handle_from_int32 )(MuCtx *ctx, int32_t  num, int len);
+    MuIntValue      (*handle_from_sint32)(MuCtx *ctx, int32_t  num, int len);
     MuIntValue      (*handle_from_uint32)(MuCtx *ctx, uint32_t num, int len);
-    MuIntValue      (*handle_from_int64 )(MuCtx *ctx, int64_t  num, int len);
+    MuIntValue      (*handle_from_sint64)(MuCtx *ctx, int64_t  num, int len);
     MuIntValue      (*handle_from_uint64)(MuCtx *ctx, uint64_t num, int len);
     MuFloatValue    (*handle_from_float )(MuCtx *ctx, float    num);
     MuDoubleValue   (*handle_from_double)(MuCtx *ctx, double   num);
