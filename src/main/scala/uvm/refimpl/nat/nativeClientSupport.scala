@@ -22,13 +22,129 @@ import uvm.ssavariables.MemoryOrder
 import uvm.ssavariables.AtomicRMWOptr
 import uvm.ssavariables.Flag
 import uvm.ssavariables.Flag
+import com.kenai.jffi.Invoker
+import com.kenai.jffi.CallContext
+import com.kenai.jffi.HeapInvocationBuffer
+import NativeClientSupport._
+
+object NativeTrapHandler {
+  val jffiInvoker = Invoker.getInstance
+  val trapHandlerCallContext = new CallContext(
+    JType.VOID, // return value
+    // input params
+    JType.POINTER, //MuCtx *ctx, 
+    JType.POINTER, //MuThreadRefValue thread,
+    JType.POINTER, //MuStackRefValue stack,
+    JType.SINT32, //int wpid,
+    // output params
+    JType.POINTER, //MuTrapHandlerResult *result,
+    JType.POINTER, //MuStackRefValue *new_stack,
+    JType.POINTER, //MuValue **values,
+    JType.POINTER, //int *nvalues,
+    JType.POINTER, //MuValuesFreer *freer, 
+    JType.POINTER, //MuCPtr *freerdata, 
+    JType.POINTER, //MuRefValue *exception,
+    // user data
+    JType.POINTER //MuCPtr userdata
+    );
+
+  val freerCallContext = new CallContext(
+    JType.VOID, // return value
+    // input params
+    JType.POINTER, // MuValue *values,
+    JType.POINTER //MuCPtr freerdata
+    )
+
+  def callFreer(freerFP: MuValuesFreerFP, valuesPtr: MuValueFakArrayPtr, freerData: MuCPtr): Unit = {
+    val freerFunc = new com.kenai.jffi.Function(freerFP, freerCallContext)
+    logger.debug("Calling freer: 0x%x with args (0x%x, 0x%x)".format(freerFP, valuesPtr, freerData))
+    jffiInvoker.invokeLLrL(freerFunc, valuesPtr, freerData)
+    logger.debug("Returned from freer")
+  }
+
+}
 
 /**
  * This object calls a C function to handle the trap.
  */
-class NativeTrapHandler(val funcAddr: Long, val userdata: Long) extends TrapHandler {
+class NativeTrapHandler(val funcAddr: MuTrapHandlerFP, val userdata: MuCPtr) extends TrapHandler {
+  import NativeTrapHandler._
+  import NativeMuHelpers._
+
+  val jffiFunction = new com.kenai.jffi.Function(funcAddr, trapHandlerCallContext)
+
   def handleTrap(ctx: MuCtx, thread: MuThreadRefValue, stack: MuStackRefValue, watchPointID: Int): TrapHandlerResult = {
-    ???
+    logger.debug("Trapped. Prepare to call native trap handler: %d 0x%x".format(funcAddr, funcAddr))
+
+    val hib = new HeapInvocationBuffer(jffiFunction)
+
+    // input args
+    val ctxFak = exposeMuCtx(ctx) // It is a fresh context.
+    hib.putAddress(ctxFak)
+
+    val threadFak = exposeMuValue(ctx, thread) // It is a fresh handle, too.
+    hib.putAddress(threadFak)
+
+    val stackFak = exposeMuValue(ctx, stack) // It is a fresh handle, too.
+    hib.putAddress(stackFak)
+
+    hib.putInt(watchPointID)
+
+    // output args
+    val nOutArgs = 7
+    val outBuf = jnrMemoryManager.allocateDirect((7L * WORD_SIZE_BYTES).toInt, true) // output values are received here.
+    val outBufAddr = outBuf.address()
+    for (i <- 0 until nOutArgs) {
+      val outAddr = outBufAddr + i * WORD_SIZE_BYTES
+      logger.debug("The %d-th out arg: 0x%x".format(i, outAddr))
+      hib.putAddress(outAddr)
+    }
+
+    // user data
+    hib.putAddress(userdata)
+
+    // Call
+    logger.debug("Calling native trap handler: 0x%x".format(funcAddr))
+    jffiInvoker.invokeLong(jffiFunction, hib)
+    logger.debug("Returned from native trap handler: 0x%x".format(funcAddr))
+
+    // Inspect return value
+    val result = outBuf.getInt(0L)
+
+    val scalaResult: TrapHandlerResult = result match {
+      case MU_THREAD_EXIT => TrapHandlerResult.ThreadExit()
+      case MU_REBIND_PASS_VALUES => {
+        val nsFak = outBuf.getAddress(1 * WORD_SIZE_BYTES)
+        val newStack = getMuValueNotNull(nsFak).asInstanceOf[MuStackRefValue]
+        val valuesPtr = outBuf.getAddress(2 * WORD_SIZE_BYTES)
+        val nValues = outBuf.getInt(3 * WORD_SIZE_BYTES)
+        val valueFaks = for (i <- 0 until nValues) yield {
+          theMemory.getAddress(valuesPtr + i * WORD_SIZE_BYTES)
+        }
+
+        val freerFP = outBuf.getAddress(4 * WORD_SIZE_BYTES)
+        if (freerFP != 0L) {
+          val freerData = outBuf.getAddress(5 * WORD_SIZE_BYTES)
+          callFreer(freerFP, valuesPtr, freerData)
+        }
+
+        val values = valueFaks.map(getMuValueNotNull)
+
+        TrapHandlerResult.Rebind(newStack, HowToResume.PassValues(values))
+      }
+      case MU_REBIND_THROW_EXC => {
+        val nsFak = outBuf.getAddress(1 * WORD_SIZE_BYTES)
+        val newStack = getMuValueNotNull(nsFak).asInstanceOf[MuStackRefValue]
+        val excFak = outBuf.getAddress(6 * WORD_SIZE_BYTES)
+        val excVal = getMuValueNotNull(excFak).asInstanceOf[MuRefValue]
+
+        TrapHandlerResult.Rebind(newStack, HowToResume.ThrowExc(excVal))
+      }
+    }
+
+    unexposeMuCtx(ctxFak) // Mu will close the context, but not un-expose it.
+
+    scalaResult
   }
 }
 
@@ -37,7 +153,6 @@ class NativeTrapHandler(val funcAddr: Long, val userdata: Long) extends TrapHand
  */
 object NativeMuVM {
   import NativeMuHelpers._
-  import NativeClientSupport._
 
   def new_context(microVM: MicroVM): MuCtxFak = {
     val ctx = microVM.newContext()
@@ -49,6 +164,7 @@ object NativeMuVM {
   def set_trap_handler(microVM: MicroVM, trap_handler: MuTrapHandlerFP, userdata: MuCPtr): Unit = {
     microVM.setTrapHandler(new NativeTrapHandler(trap_handler, userdata))
   }
+  def execute(microVM: MicroVM): Unit = microVM.execute()
 }
 
 /**
@@ -59,7 +175,6 @@ object NativeMuVM {
  */
 object NativeMuCtx {
   import NativeMuHelpers._
-  import NativeClientSupport._
 
   def id_of(ctx: MuCtx, name: MuName): MuID = ctx.idOf(name)
   def name_of(ctx: MuCtx, id: MuID): MuName = ctx.nameOf(id)
@@ -157,7 +272,10 @@ object NativeMuCtx {
   def fence(ctx: MuCtx, ord: MuMemOrd): Unit = ctx.fence(ord)
 
   def new_stack(ctx: MuCtx, func: MuFuncRefValue): MuValueFak = exposeMuValue(ctx, ctx.newStack(func))
-  def new_thread(ctx: MuCtx, stack: MuStackRefValue, htr: MuHowToResume, vals: MuValueFakArrayPtr, nvals: Int, exc: MuRefValue): MuValueFak = {
+
+  // NOTE: parameter exc must not be a MuValue because this parameter is ignored when htr is MU_REBIND_PASS_VALUE.
+  // Setting the type to MuValue (or MuRefValue) will force the exposer to eagerly resolve the underlying actual MuValue.
+  def new_thread(ctx: MuCtx, stack: MuStackRefValue, htr: MuHowToResume, vals: MuValueFakArrayPtr, nvals: Int, exc: MuValueFak): MuValueFak = {
     val scalaHtr = htr match {
       case MU_REBIND_PASS_VALUES => {
         val values = for (i <- 0L until nvals) yield {
@@ -169,7 +287,8 @@ object NativeMuCtx {
         HowToResume.PassValues(values)
       }
       case MU_REBIND_THROW_EXC => {
-        HowToResume.ThrowExc(exc)
+        val excVal = getMuValueNotNull(exc).asInstanceOf[MuRefValue]
+        HowToResume.ThrowExc(excVal)
       }
     }
     val rv = ctx.newThread(stack, scalaHtr)
@@ -211,10 +330,10 @@ object NativeMuCtx {
 
   def enable_watchpoint(ctx: MuCtx, wpid: Int): Unit = ctx.enableWatchpoint(wpid)
   def disable_watchpoint(ctx: MuCtx, wpid: Int): Unit = ctx.disableWatchpoint(wpid)
-  
+
   def pin(ctx: MuCtx, loc: MuValue): MuValueFak = exposeMuValue(ctx, ctx.pin(loc))
   def unpin(ctx: MuCtx, loc: MuValue): Unit = ctx.unpin(loc)
-  
+
   def expose(ctx: MuCtx, func: MuFuncRefValue, call_conv: MuCallConv, cookie: MuIntValue): MuValueFak = exposeMuValue(ctx, ctx.expose(func, call_conv, cookie))
   def unexpose(ctx: MuCtx, call_conv: MuCallConv, value: MuUFPValue): Unit = ctx.unexpose(call_conv, value)
 }
@@ -223,7 +342,6 @@ object NativeMuCtx {
  * These functions are not exposed.
  */
 object NativeMuHelpers {
-  import NativeClientSupport._
 
   private val ONE = BigInt(1)
 
@@ -264,7 +382,7 @@ object NativeMuHelpers {
   val MU_MIN = 0x08
   val MU_UMAX = 0x09
   val MU_UMIN = 0x0A
-  
+
   val MU_DEFAULT = 0x00
 
   implicit def intToMemOrd(ord: MuMemOrd): MemoryOrder.MemoryOrder = ord match {
@@ -290,14 +408,13 @@ object NativeMuHelpers {
     case MU_UMAX => AtomicRMWOptr.UMAX
     case MU_UMIN => AtomicRMWOptr.UMIN
   }
-  
+
   implicit def intToCallConv(cc: MuCallConv): Flag = cc match {
     case MU_DEFAULT => Flag("#DEFAULT")
   }
 }
 
 object ClientAccessibleClassExposer {
-  import NativeClientSupport._
 
   val MAX_NAME_SIZE = 65536
 
@@ -405,8 +522,6 @@ object ClientAccessibleClassExposer {
  */
 class ClientAccessibleClassExposer[T: ru.TypeTag: ClassTag](obj: T) {
   import ClientAccessibleClassExposer._
-  import NativeSupport._
-  import NativeClientSupport._
 
   /**
    * A list of JFFI closure handles, one for each declared method in obj, in the declared order.
@@ -516,6 +631,7 @@ object NativeClientSupport {
   type CharArrayPtr = Word
   type MuValueFakPtr = Word
   type MuValueFakArrayPtr = Word
+  type MuValuesFreerFP = Word
 
   // Mu API C-level types.
   type MuID = Int

@@ -27,6 +27,7 @@ class NativeClientSupportTest extends UvmBundleTesterBase {
     def test_with_ctx(mvm: Word, theID: Int, theName: String): CBool
     def test_basic_conv(mvm: Word): CBool
     def test_global_vars(mvm: Word, the_plus_one_fp: Word): CBool
+    def test_traps(mvm: Word): CBool
   }
 
   val ncs_tests = LibraryLoader.create(classOf[NcsTestsLib]).load(fileName)
@@ -75,6 +76,11 @@ class NativeClientSupportTest extends UvmBundleTesterBase {
     ctx.closeContext()
     
     val result = ncs_tests.test_global_vars(microVMFuncTableAddr, thePlusOneFP)
+    assertNativeSuccess(result)
+  }
+  
+  it should "support traps" in {
+    val result = ncs_tests.test_traps(microVMFuncTableAddr)
     assertNativeSuccess(result)
   }
 }

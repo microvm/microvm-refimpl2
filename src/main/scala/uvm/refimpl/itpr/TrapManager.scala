@@ -17,14 +17,14 @@ class TrapManager(implicit microVM: MicroVM) {
   object DefaultTrapHandler extends TrapHandler {
     def handleTrap(ctx: MuCtx, thread: MuThreadRefValue, stack: MuStackRefValue, watchPointID: Int): TrapHandlerResult = {
       val thrID = thread.vb.asInstanceOf[BoxThread].thread.get.id
-//      val curFuncID = ctx.
-//      val funcVerID = ca.currentFuncVer(stack, 0)
-//      val funcVer = microVM.globalBundle.funcVerNs(funcVerID)
-//      val instID = ca.currentInstruction(stack, 0)
-//      val inst = microVM.globalBundle.varNs(instID)
-//      throw new UvmRuntimeException("Unhandled trap. Thread %d, funcver %s, trap inst %s, watch point ID %d".format(
-//        thr.id, funcVer.repr, inst.repr, watchPointID))
-      ???
+      val staID = stack.vb.asInstanceOf[BoxStack].stack.get.id
+      val cursor = ctx.newCursor(stack)
+      val curFuncID = ctx.curFunc(cursor)
+      val curFuncVerID = ctx.curFuncVer(cursor)
+      val curInstID = ctx.curInst(cursor)
+      ctx.closeCursor(cursor)
+      throw new UvmRuntimeException("Unhandled trap. thread %d, stack: %d, func: %d, funcver: %d, inst %d, watch point ID %d".format(
+        thrID, staID, curFuncID, curFuncVerID, curInstID, watchPointID))
     }
   }
 

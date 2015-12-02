@@ -9,3 +9,10 @@
 }
 
 .expose @plus_one_native = @plus_one #DEFAULT @I64_0
+
+.funcdef @trapper VERSION %v1 <@i_i> {
+    %entry(<@i64> %n):
+        %v1 = [%trap1] TRAP <@i64> KEEPALIVE (%n)
+        [%trap2] TRAP <> KEEPALIVE (%v1)
+        COMMINST @uvm.thread_exit
+}

@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 #include <muapi.h>
 
@@ -11,7 +12,13 @@
     return false; \
 }
 
+#define MU_ASSERT_EQUALS_TRAP(a, b, f) if (!(a == b)) { \
+    muprintf("%s (%" f ") is not equal to %s (%" f ")\n", #a, a, #b, b); \
+    exit(1); \
+}
+
 #define ID(name) ctx->id_of(ctx, name)
+#define NAME(id) ctx->name_of(ctx, id)
 
 #define muprintf(fmt, ...) printf("[C:%d:%s] " fmt, __LINE__, __func__, ## __VA_ARGS__)
 
@@ -203,6 +210,130 @@ bool test_global_vars(MuVM *mvm, int64_t(*the_plus_one_fp)(int64_t)) {
     //int64_t result = plus_one_fp(42LL);
 
     //MU_ASSERT_EQUALS(result, 43LL, PRId64);
+
+    ctx->close_context(ctx);
+
+    return true;
+}
+
+struct simple_context {
+    int magic;
+};
+
+void malloc_freer(MuValue *values, MuCPtr freerdata) {
+    free(values);
+}
+
+void nop_freer(MuValue *values, MuCPtr freerdata) {
+}
+
+void simple_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
+        MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
+        MuStackRefValue *new_stack, MuValue **values, int *nvalues,
+        MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
+        MuCPtr userdata) {
+
+    muprintf("Hi! I am the native trap handler!\n");
+
+    struct simple_context *userctx = (struct simple_context*)userdata;
+    int magic = userctx->magic;
+    muprintf("My magic is %d\n", magic);
+    MU_ASSERT_EQUALS_TRAP(magic, 42, "d");
+
+    muprintf("I am going to introspect the stack.\n");
+
+    MuFCRefValue *cursor = ctx->new_cursor(ctx, stack);
+    MuID fid  = ctx->cur_func(ctx, cursor);
+    muprintf("Function: %d: %s\n", fid, NAME(fid));
+    MuID fvid = ctx->cur_func_ver(ctx, cursor);
+    muprintf("Version: %d: %s\n", fvid, NAME(fvid));
+    MuID iid  = ctx->cur_inst(ctx, cursor);
+    muprintf("Instruction: %d: %s\n", iid, NAME(iid));
+
+    MuID trap1_id = ID("@trapper.v1.entry.trap1");
+    MuID trap2_id = ID("@trapper.v1.entry.trap2");
+
+    MU_ASSERT_EQUALS_TRAP(fid , ID("@trapper"), "d");
+    MU_ASSERT_EQUALS_TRAP(fvid, ID("@trapper.v1"), "d");
+
+    muprintf("Selecting branch according to the instruction ID: %d\n", iid);
+
+    if (iid == trap1_id) {
+        muprintf("It is %%trap1\n");
+        MuValue kas[1];
+        muprintf("Dumping keep-alives...\n");
+        ctx->dump_keepalives(ctx, cursor, kas);
+        muprintf("Dumped\n");
+        ctx->close_cursor(ctx, cursor);
+
+        int64_t oldKa = ctx->handle_to_sint64(ctx, kas[0]);
+        muprintf("The keep-alive variable is %" PRId64 "\n", oldKa);
+        MU_ASSERT_EQUALS_TRAP(oldKa, 42LL, PRId64);
+
+        int64_t newKa = oldKa + 1;
+
+        muprintf("Prepare to return\n");
+        muprintf("Writing result at %p\n", result);
+        *result = MU_REBIND_PASS_VALUES;
+        muprintf("Writing new_stack at %p\n", new_stack);
+        *new_stack = stack;
+        muprintf("Allocating values array, writing at %p\n", values);
+        *values = (MuValue*)malloc(8);
+        muprintf("Setting the only value. Addr: %p\n", &(*values)[0]);
+        (*values)[0] = ctx->handle_from_sint64(ctx, newKa, 64);
+        muprintf("Writing nvalues at %p\n", nvalues);
+        *nvalues = 1;
+        muprintf("Writing freer at %p\n", freer);
+        *freer = malloc_freer;
+        muprintf("Writing freerdata at %p\n", freerdata);
+        *freerdata = NULL;
+        muprintf("Bye!\n");
+        return;
+    } else if (iid == trap2_id) {
+        muprintf("It is %%trap2\n");
+        MuValue kas[1];
+        ctx->dump_keepalives(ctx, cursor, kas);
+        ctx->close_cursor(ctx, cursor);
+
+        muprintf("Introspect the KAs...\n");
+        int64_t v1 = ctx->handle_to_sint64(ctx, kas[0]);
+        muprintf("KA value %%v1 is %" PRId64 "\n", v1);
+        MU_ASSERT_EQUALS_TRAP(v1, 43LL, PRId64);
+
+        muprintf("Prepare to return from trap handler...\n");
+        *result = MU_REBIND_PASS_VALUES;
+        *new_stack = stack;
+        *values = NULL;
+        *nvalues = 0;
+        *freer = NULL;
+        *freerdata = NULL;
+        muprintf("Bye!\n");
+        return;
+    } else {
+        muprintf("Unknown trap. ID: %d\n", iid);
+        MuName trapName = NAME(iid);
+        muprintf("name: %s\n", trapName);
+        exit(1);
+    }
+
+    return; // Unreachable, but the C compiler may not be smart enough.
+}
+
+bool test_traps(MuVM *mvm) {
+    struct simple_context userctx = { 42 };
+    mvm->set_trap_handler(mvm, simple_trap_handler, &userctx);
+
+    MuCtx *ctx = mvm->new_context(mvm);
+
+    MuValue args[1];
+    args[0] = ctx->handle_from_sint64(ctx, 42LL, 64);
+
+    MuFuncRefValue func = ctx->handle_from_func(ctx, ID("@trapper"));
+    MuStackRefValue stack = ctx->new_stack(ctx, func);
+    MuThreadRefValue thread = ctx->new_thread(ctx, stack, MU_REBIND_PASS_VALUES,
+            args, 1, NULL);
+
+    mvm->execute(mvm);
 
     ctx->close_context(ctx);
 
