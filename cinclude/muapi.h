@@ -43,12 +43,18 @@ typedef void (*MuCFP)();
 
 // Result of a trap handler
 typedef int MuTrapHandlerResult;
+
 // Used by new_thread
 typedef int MuHowToResume;
 
+// Values or MuTrapHandlerResult
 #define MU_THREAD_EXIT          0x00
+// Values or MuTrapHandlerResult and muHowToResume
 #define MU_REBIND_PASS_VALUES   0x01
 #define MU_REBIND_THROW_EXC     0x02
+
+// Used by MuTrapHandler
+typedef void (*MuValuesFreer)(MuValue *values, MuCPtr freerdata);
 
 // Declare the types here because they are used in the following signatures.
 typedef struct MuVM MuVM;
@@ -57,13 +63,14 @@ typedef struct MuCtx MuCtx;
 // Signature of the trap handler
 typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadRefValue thread,
         MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
-        MuStackRefValue *new_stack, MuValue *values, int *nvalues,
-        MuRefValue *exception,
+        MuStackRefValue *new_stack, MuValue **values, int *nvalues,
+        MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
         MuCPtr userdata);
 
 // Memory orders
 typedef int MuMemOrd;
 
+// Values of MuMemOrd
 #define MU_NOT_ATOMIC  0x00
 #define MU_RELAXED     0x01
 #define MU_CONSUME     0x02
@@ -75,6 +82,7 @@ typedef int MuMemOrd;
 // Operations for the atomicrmw API function
 typedef int MuAtomicRMWOp;
 
+// Values of MuAtomicRMWOp
 #define MU_XCHG        0x00
 #define MU_ADD         0x01
 #define MU_SUB         0x02
@@ -213,7 +221,7 @@ struct MuCtx {
     // Thread and stack creation and stack destruction
     MuStackRefValue     (*new_stack )(MuCtx *ctx, MuFuncRefValue func);
     MuThreadRefValue    (*new_thread)(MuCtx *ctx, MuStackRefValue stack,
-                            MuHowToResume *htr, MuValue *vals, int nvals, MuRefValue *exc);
+                            MuHowToResume *htr, MuValue *vals, int nvals, MuRefValue exc);
     void                (*kill_stack)(MuCtx *ctx, MuStackRefValue stack);
 
     // Frame cursor operations
