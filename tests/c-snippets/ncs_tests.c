@@ -679,3 +679,236 @@ bool test_osr(MuVM *mvm) {
 
     return true;
 }
+
+bool test_tr64(MuVM *mvm) {
+    MuCtx *ctx = mvm->new_context(mvm);
+
+    MuDoubleValue hf = ctx->handle_from_double(ctx, 3.14);
+    MuIntValue    hi = ctx->handle_from_sint64(ctx, 0x123456789abcdLL, 52);
+    MuRefValue    hr = ctx->new_fixed(ctx, ID("@i32"));
+    MuIntValue    ht = ctx->handle_from_sint8(ctx, 15, 6);
+
+    MuTagRef64Value tf = ctx->tr64_from_fp (ctx, hf);
+    MuTagRef64Value ti = ctx->tr64_from_int(ctx, hi);
+    MuTagRef64Value tr = ctx->tr64_from_ref(ctx, hr, ht);
+
+    int fisf = ctx->tr64_is_fp (ctx, tf);
+    int fisi = ctx->tr64_is_int(ctx, tf);
+    int fisr = ctx->tr64_is_ref(ctx, tf);
+    int iisf = ctx->tr64_is_fp (ctx, ti);
+    int iisi = ctx->tr64_is_int(ctx, ti);
+    int iisr = ctx->tr64_is_ref(ctx, ti);
+    int risf = ctx->tr64_is_fp (ctx, tr);
+    int risi = ctx->tr64_is_int(ctx, tr);
+    int risr = ctx->tr64_is_ref(ctx, tr);
+
+    MU_ASSERT_EQUALS(fisf, 1, "d");
+    MU_ASSERT_EQUALS(fisi, 0, "d");
+    MU_ASSERT_EQUALS(fisr, 0, "d");
+    MU_ASSERT_EQUALS(iisf, 0, "d");
+    MU_ASSERT_EQUALS(iisi, 1, "d");
+    MU_ASSERT_EQUALS(iisr, 0, "d");
+    MU_ASSERT_EQUALS(risf, 0, "d");
+    MU_ASSERT_EQUALS(risi, 0, "d");
+    MU_ASSERT_EQUALS(risr, 1, "d");
+
+    MuDoubleValue hfb = ctx->tr64_to_fp (ctx, tf);
+    MuIntValue    hib = ctx->tr64_to_int(ctx, ti);
+    MuRefValue    hrb = ctx->tr64_to_ref(ctx, tr);
+    MuIntValue    htb = ctx->tr64_to_tag(ctx, tr);
+
+    double  fb = ctx->handle_to_double(ctx, hfb);
+    int64_t ib = ctx->handle_to_sint64(ctx, hib);
+    int8_t  tb = ctx->handle_to_sint8 (ctx, htb);
+
+    MU_ASSERT_EQUALS(fb, 3.14, "lf");
+    MU_ASSERT_EQUALS(ib, 0x123456789abcdLL, PRIx64);
+    MU_ASSERT_EQUALS(tb, 15, PRId32);   // printf implcitly converts to int.
+
+    if (!ctx->ref_eq(ctx, hrb, hr)) {
+        muprintf("hrb is not equal to hr\n");
+        return false;
+    }
+
+    ctx->close_context(ctx);
+
+    return true;
+}
+
+struct wp_trap_data {
+    int which;
+};
+
+void wp_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
+        MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
+        MuStackRefValue *new_stack, MuValue **values, int *nvalues,
+        MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
+        MuCPtr userdata) {
+
+    muprintf("Hi! I am the native trap handler!\n");
+
+    struct wp_trap_data *data = (struct wp_trap_data*)userdata;
+    int which = data->which;
+
+    MuFCRefValue *cursor = ctx->new_cursor(ctx, stack);
+    MuID iid  = ctx->cur_inst(ctx, cursor);
+    ctx->close_cursor(ctx, cursor);
+
+    if (iid == ID("@wptest.v1.entry.wp")) {
+        MU_ASSERT_EQUALS_TRAP(wpid,  44, "d");
+        MU_ASSERT_EQUALS_TRAP(which,  1, "d");
+
+        muprintf("Prepare to stop thread...\n");
+        *result = MU_THREAD_EXIT;
+        muprintf("Omae wa mou shindeiru!\n");
+    } else if (iid == ID("@wptest.v1.dis.trap")) {
+        MU_ASSERT_EQUALS_TRAP(which,  0, "d");
+
+        muprintf("Prepare to stop thread...\n");
+        *result = MU_THREAD_EXIT;
+        muprintf("Omae wa mou shindeiru!\n");
+    } else {
+        muprintf("Unknown trap. ID: %d\n", iid);
+        MuName trapName = NAME(iid);
+        muprintf("name: %s\n", trapName);
+        exit(1);
+    }
+}
+
+
+bool test_wp(MuVM *mvm) {
+    struct wp_trap_data data = {0};
+
+    mvm->set_trap_handler(mvm, wp_trap_handler, &data);
+
+    MuCtx *ctx = mvm->new_context(mvm);
+
+    MuFuncRefValue func = ctx->handle_from_func(ctx, ID("@wptest"));
+
+    {
+        MuStackRefValue stack = ctx->new_stack(ctx, func);
+        MuThreadRefValue thread = ctx->new_thread(ctx, stack, MU_REBIND_PASS_VALUES,
+                NULL, 0, NULL);
+
+        mvm->execute(mvm);
+    }
+
+    ctx->enable_watchpoint(ctx, 44);
+    data.which = 1;
+
+    {
+        MuStackRefValue stack = ctx->new_stack(ctx, func);
+        MuThreadRefValue thread = ctx->new_thread(ctx, stack, MU_REBIND_PASS_VALUES,
+                NULL, 0, NULL);
+
+        mvm->execute(mvm);
+    }
+
+    ctx->disable_watchpoint(ctx, 44);
+    data.which = 0;
+
+    {
+        MuStackRefValue stack = ctx->new_stack(ctx, func);
+        MuThreadRefValue thread = ctx->new_thread(ctx, stack, MU_REBIND_PASS_VALUES,
+                NULL, 0, NULL);
+
+        mvm->execute(mvm);
+    }
+
+    ctx->close_context(ctx);
+
+    return true;
+}
+
+int (*plus_two)(int n);
+
+int native_callback(int v2) {
+    muprintf("Mu called back. v2=%d\n", v2);
+    MU_ASSERT_EQUALS_TRAP(v2, 43, "d");
+
+    muprintf("Trying to call plus_two(9)\n");
+    int result = plus_two(9);
+    muprintf("plus_two returns %d\n", result);
+    MU_ASSERT_EQUALS_TRAP(result, 11, "d");
+
+    return v2+1;
+}
+
+void native_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
+        MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
+        MuStackRefValue *new_stack, MuValue **values, int *nvalues,
+        MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
+        MuCPtr userdata) {
+
+    muprintf("Hi! I am the native trap handler!\n");
+
+    MuFCRefValue *cursor = ctx->new_cursor(ctx, stack);
+    MuID iid = ctx->cur_inst(ctx, cursor);
+    MU_ASSERT_EQUALS_TRAP(iid, ID("@native_test.v1.entry.trap"), "d");
+
+    MuValue kas[1];
+    ctx->dump_keepalives(ctx, cursor, kas);
+    ctx->close_cursor(ctx, cursor);
+
+    int32_t rv = ctx->handle_to_sint32(ctx, kas[0]);
+    MU_ASSERT_EQUALS_TRAP(rv, 44, PRId32);
+
+    muprintf("Prepare to return from trap handler...\n");
+    *result = MU_REBIND_PASS_VALUES;
+    *new_stack = stack;
+    *values = NULL;
+    *nvalues = 0;
+    *freer = NULL;
+    *freerdata = NULL;
+    muprintf("Bye!\n");
+}
+
+bool test_native(MuVM *mvm) {
+    mvm->set_trap_handler(mvm, native_trap_handler, NULL);
+
+    MuCtx *ctx = mvm->new_context(mvm);
+
+    // Expose the @plus_two Mu function
+
+    MuFuncRefValue hplus_two = ctx->handle_from_func(ctx, ID("@plus_two"));
+    MuIntValue     hcookie   = ctx->handle_from_sint64(ctx, 2LL, 64);
+    MuUFPValue hplus_two_fp  = ctx->expose(ctx, hplus_two, MU_DEFAULT, hcookie);
+
+    MuCFP plus_two_fp = ctx->handle_to_fp(ctx, hplus_two_fp);
+    plus_two = (int(*)(int))plus_two_fp;
+
+    // Prepare the native_callback C function for Mu to call
+    
+    MuIRefValue hg_native_callback  = ctx->handle_from_global(ctx, ID("@g_native_callback"));
+    MuUFPValue  hnative_callback_fp = ctx->handle_from_fp(ctx, ID("@native_callback.fp"), (MuCFP)native_callback);
+    ctx->store(ctx, MU_NOT_ATOMIC, hg_native_callback, hnative_callback_fp);
+
+    // Preapare an object for the @native_test function. Pin the object to write
+    // to it in C assignment expression.
+
+    MuRefValue  obj = ctx->new_fixed(ctx, ID("@i32"));
+    MuUPtrValue ptr = ctx->pin(ctx, obj);
+    
+    int *p = (int*)ctx->handle_to_ptr(ctx, ptr);
+    *p = 42;
+    ctx->unpin(ctx, obj);
+
+    MuValue args[1] = { obj };
+
+    // Prepare to run the test.
+
+    MuFuncRefValue func = ctx->handle_from_func(ctx, ID("@native_test"));
+
+    MuStackRefValue stack = ctx->new_stack(ctx, func);
+    MuThreadRefValue thread = ctx->new_thread(ctx, stack, MU_REBIND_PASS_VALUES,
+            args, 1, NULL);
+
+    mvm->execute(mvm);
+
+    ctx->unexpose(ctx, MU_DEFAULT, hplus_two_fp);
+
+    ctx->close_context(ctx);
+
+    return true;
+}
+

@@ -98,7 +98,7 @@ typedef int MuAtomicRMWOp;
 // Calling conventions.
 typedef int MuCallConv;
 
-#define MU_DEFUALT     0x00
+#define MU_DEFAULT     0x00
 // Concrete Mu implementations may define more calling conventions.
 
 // NOTE: MuVM and MuCtx are structures with many function pointers. This

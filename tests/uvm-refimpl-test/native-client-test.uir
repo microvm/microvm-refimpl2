@@ -24,3 +24,43 @@
 .const @A1 <@a1> = {@I32_2 @I32_3 @I32_4}
 
 .typedef @hyb = hybrid <@i64 @i8>
+
+.funcdef @wptest VERSION %v1 <@v_v> {
+    %entry():
+        [%wp] WATCHPOINT 44 <> %dis() %ena()
+
+    %dis():
+        [%trap] TRAP <>
+        COMMINST @uvm.thread_exit
+
+    %ena():
+        COMMINST @uvm.thread_exit
+}
+
+.funcsig @native_callback.sig = (@i32) -> (@i32)
+.typedef @native_callback.fp = ufuncptr<@native_callback.sig>
+.global  @g_native_callback <@native_callback.fp>
+
+.funcsig @native_test.sig = (@refi32) -> ()
+.funcdef @native_test VERSION %v1 <@native_test.sig> {
+    %entry(<@refi32> %r):
+        %i  = GETIREF <@i32> %r
+        %v  = LOAD <@i32> %i
+        %v2 = ADD <@i32> %v @I32_1
+
+        %fp = LOAD <@native_callback.fp> @g_native_callback
+        %rv = CCALL #DEFAULT <@native_callback.fp @native_callback.sig>
+                %fp (%v2)
+
+        [%trap] TRAP <> KEEPALIVE (%rv)
+        COMMINST @uvm.thread_exit
+}
+
+.funcsig @plus_two.sig = (@i32) -> (@i32)
+.funcdef @plus_two VERSION %v1 <@plus_two.sig> {
+    %entry(<@i32> %n):
+        %cookie = COMMINST @uvm.native.get_cookie
+        %cookie32 = TRUNC <@i64 @i32> %cookie
+        %rv = ADD <@i32> %n %cookie32
+        RET %rv
+}
