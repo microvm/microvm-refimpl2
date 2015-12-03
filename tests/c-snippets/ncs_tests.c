@@ -539,5 +539,143 @@ bool test_memory_ops(MuVM *mvm) {
     ctx->close_context(ctx);
 
     return true;
+}
 
+void osr_bundle_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
+        MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
+        MuStackRefValue *new_stack, MuValue **values, int *nvalues,
+        MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
+        MuCPtr userdata) {
+
+    muprintf("Hi! I am the native trap handler!\n");
+
+    MuFCRefValue *cursor = ctx->new_cursor(ctx, stack);
+    MuID iid  = ctx->cur_inst(ctx, cursor);
+
+    if (iid == ID("@sum_v1.opt.trap_opt")) {
+        MuID fid  = ctx->cur_func(ctx, cursor);
+        MuID fvid = ctx->cur_func_ver(ctx, cursor);
+        MU_ASSERT_EQUALS_TRAP(fid , ID("@sum"), "d");
+        MU_ASSERT_EQUALS_TRAP(fvid, ID("@sum_v1"), "d");
+
+        MuValue kas[3];
+        ctx->dump_keepalives(ctx, cursor, kas);
+
+        int64_t nv = ctx->handle_to_sint64(ctx, kas[0]);
+        int64_t iv = ctx->handle_to_sint64(ctx, kas[1]);
+        int64_t sv = ctx->handle_to_sint64(ctx, kas[2]);
+
+        MU_ASSERT_EQUALS_TRAP(nv, 8LL, PRId64);
+        MU_ASSERT_EQUALS_TRAP(iv, 5LL, PRId64);
+        MU_ASSERT_EQUALS_TRAP(sv, 10LL, PRId64);
+
+        muprintf("Prepare to load new bundle...\n");
+
+        {
+            char bundle[4096];
+
+            muprintf("Opening file...\n");
+            FILE *fp = fopen("tests/uvm-refimpl-test/osr-tests-part2.uir", "r");
+            muprintf("File opened.\n");
+
+            if (fp == NULL) {
+                perror("fp is NULL");
+                exit(1);
+            }
+
+            int already_read = 0;
+
+            while(!feof(fp)) {
+                already_read += fread(bundle+already_read, 1, 4096, fp);
+            }
+
+            fclose(fp);
+
+            muprintf("Loading bundle...\n");
+            ctx->load_bundle(ctx, bundle, already_read);
+        }
+
+        muprintf("Loaded. Perform OSR...\n");
+
+        muprintf("Popping...\n");
+
+        ctx->next_frame(ctx, cursor);
+        ctx->pop_frames_to(ctx, cursor);
+        ctx->close_cursor(ctx, cursor);
+
+        muprintf("Pushing...\n");
+
+        MuFuncRefValue one_shot_func = ctx->handle_from_func(ctx, ID("@sum_osr_oneshot"));
+        ctx->push_frame(ctx, stack, one_shot_func);
+
+        MuValue *rebind_values = (MuValue*)malloc(sizeof(MuValue)*3);
+        rebind_values[0] = kas[2];
+        rebind_values[1] = kas[1];
+        rebind_values[2] = kas[0];
+
+        muprintf("Prepare to return from trap handler...\n");
+        *result = MU_REBIND_PASS_VALUES;
+        *new_stack = stack;
+        *values = rebind_values;
+        *nvalues = 3;
+        *freer = malloc_freer;
+        *freerdata = NULL;
+        muprintf("Bye!\n");
+    } else if (iid == ID("@osr_test_base_v1.entry.trap_base_exit")) {
+        MuValue kas[1];
+        ctx->dump_keepalives(ctx, cursor, kas);
+        ctx->close_cursor(ctx, cursor);
+
+        int64_t rv = ctx->handle_to_sint64(ctx, kas[0]);
+        MU_ASSERT_EQUALS_TRAP(rv, 28LL, PRId64);
+
+        muprintf("Prepare to return from trap handler...\n");
+        *result = MU_REBIND_PASS_VALUES;
+        *new_stack = stack;
+        *values = NULL;
+        *nvalues = 0;
+        *freer = NULL;
+        *freerdata = NULL;
+        muprintf("Bye!\n");
+    } else {
+        muprintf("Unknown trap. ID: %d\n", iid);
+        MuName trapName = NAME(iid);
+        muprintf("name: %s\n", trapName);
+        exit(1);
+    }
+}
+
+bool test_osr(MuVM *mvm) {
+    mvm->set_trap_handler(mvm, osr_bundle_trap_handler, NULL);
+
+    MuCtx *ctx = mvm->new_context(mvm);
+
+    {
+        char bundle[4096];
+
+        FILE *fp = fopen("tests/uvm-refimpl-test/osr-tests.uir", "r");
+        int already_read = 0;
+
+        while(!feof(fp)) {
+            already_read += fread(bundle+already_read, 1, 4096, fp);
+        }
+
+        fclose(fp);
+
+        ctx->load_bundle(ctx, bundle, already_read);
+    }
+
+    MuValue args[1];
+    args[0] = ctx->handle_from_sint64(ctx, 8LL, 64);
+
+    MuFuncRefValue func = ctx->handle_from_func(ctx, ID("@osr_test_base"));
+    MuStackRefValue stack = ctx->new_stack(ctx, func);
+    MuThreadRefValue thread = ctx->new_thread(ctx, stack, MU_REBIND_PASS_VALUES,
+            args, 1, NULL);
+
+    mvm->execute(mvm);
+
+    ctx->close_context(ctx);
+
+    return true;
 }

@@ -32,6 +32,7 @@ class NativeClientSupportTest extends UvmBundleTesterBase {
     def test_load_bundle(mvm: Word): CBool
     def test_comp_types(mvm: Word): CBool
     def test_memory_ops(mvm: Word): CBool
+    def test_osr(mvm: Word): CBool
   }
 
   val ncs_tests = LibraryLoader.create(classOf[NcsTestsLib]).load(fileName)
@@ -100,6 +101,10 @@ class NativeClientSupportTest extends UvmBundleTesterBase {
   
   it should "perform memory operations" in {
     val result = ncs_tests.test_memory_ops(microVMFuncTableAddr)
+    assertNativeSuccess(result)
+  }
+  it should "perform OSR" in {
+    val result = ncs_tests.test_osr(microVMFuncTableAddr)
     assertNativeSuccess(result)
   }
 }
