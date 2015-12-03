@@ -339,3 +339,205 @@ bool test_traps(MuVM *mvm) {
 
     return true;
 }
+
+void load_bundle_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
+        MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
+        MuStackRefValue *new_stack, MuValue **values, int *nvalues,
+        MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
+        MuCPtr userdata) {
+
+    muprintf("Hi! I am the native trap handler!\n");
+
+    MuFCRefValue *cursor = ctx->new_cursor(ctx, stack);
+    MuID fid  = ctx->cur_func(ctx, cursor);
+    MuID fvid = ctx->cur_func_ver(ctx, cursor);
+    MuID iid  = ctx->cur_inst(ctx, cursor);
+
+    MuID trap_id = ID("@made_in_c.v1.entry.trap");
+
+    MU_ASSERT_EQUALS_TRAP(fid , ID("@made_in_c"), "d");
+    MU_ASSERT_EQUALS_TRAP(fvid, ID("@made_in_c.v1"), "d");
+    MU_ASSERT_EQUALS_TRAP(iid , ID("@made_in_c.v1.entry.trap"), "d");
+
+    MuValue kas[1];
+    ctx->dump_keepalives(ctx, cursor, kas);
+    ctx->close_cursor(ctx, cursor);
+
+    int64_t n = ctx->handle_to_sint64(ctx, kas[0]);
+    muprintf("KA value %%n is %" PRId64 "\n", n);
+    MU_ASSERT_EQUALS_TRAP(n, 53LL, PRId64);
+
+    MuIRefValue hg_cmagic_iref = ctx->handle_from_global(ctx, ID("@g_cmagic"));
+    MuIntValue  hg_cmagic_value = ctx->load(ctx, MU_NOT_ATOMIC, hg_cmagic_iref);
+    int64_t g_cmagic = ctx->handle_to_sint64(ctx, hg_cmagic_value);
+    muprintf("Global value @g_cmagic is %" PRId64 "\n", g_cmagic);
+    MU_ASSERT_EQUALS_TRAP(g_cmagic, 52LL, PRId64);
+
+    muprintf("Prepare to return from trap handler...\n");
+    *result = MU_REBIND_PASS_VALUES;
+    *new_stack = stack;
+    *values = NULL;
+    *nvalues = 0;
+    *freer = NULL;
+    *freerdata = NULL;
+    muprintf("Bye!\n");
+
+    return;
+}
+
+bool test_load_bundle(MuVM *mvm) {
+    mvm->set_trap_handler(mvm, load_bundle_trap_handler, NULL);
+
+    MuCtx *ctx = mvm->new_context(mvm);
+
+    char ir[] = ".funcdef @made_in_c VERSION %v1 <@i_i> {\n"
+        "  %entry(<@i64> %n):\n"
+        "    [%trap] TRAP <> KEEPALIVE (%n)\n"
+        "    COMMINST @uvm.thread_exit\n"
+        "}\n"
+        ".global @g_cmagic <@i64>\n"
+        ;
+
+    char hail[] = ".init @g_cmagic = 52\n";
+
+    muprintf("Loading bundle...\n");
+    ctx->load_bundle(ctx, ir, strlen(ir));
+    muprintf("Loading HAIL...\n");
+    ctx->load_hail(ctx, hail, strlen(hail));
+    muprintf("All loaded.\n");
+
+    MuValue args[1];
+    args[0] = ctx->handle_from_sint64(ctx, 53LL, 64);
+
+    MuFuncRefValue func = ctx->handle_from_func(ctx, ID("@made_in_c"));
+    MuStackRefValue stack = ctx->new_stack(ctx, func);
+    MuThreadRefValue thread = ctx->new_thread(ctx, stack, MU_REBIND_PASS_VALUES,
+            args, 1, NULL);
+
+    mvm->execute(mvm);
+
+    ctx->close_context(ctx);
+
+    return true;
+}
+
+bool test_comp_types(MuVM *mvm) {
+    MuCtx *ctx = mvm->new_context(mvm);
+
+    MuStructValue s1  = ctx->handle_from_const(ctx, ID("@S1"));
+    MuIntValue    s10 = ctx->extract_value(ctx, s1, 0);
+    int64_t s10_v = ctx->handle_to_sint64(ctx, s10);
+    MU_ASSERT_EQUALS(s10_v, 6LL, PRId64);
+
+    MuDoubleValue s11 = ctx->extract_value(ctx, s1, 1);
+    double s11_v = ctx->handle_to_double(ctx, s11);
+    MU_ASSERT_EQUALS(s11_v, 7.0, "lf");
+
+    MuIntValue    I64_20 = ctx->handle_from_const(ctx, ID("@I64_20"));
+    MuStructValue s1m    = ctx->insert_value(ctx, s1, 0, I64_20);
+    MuIntValue    s10m   = ctx->extract_value(ctx, s1m, 0);
+    int64_t       s10m_v = ctx->handle_to_sint64(ctx, s10m);
+    MU_ASSERT_EQUALS(s10m_v, 20LL, PRId64);
+
+    MuArrayValue a1 = ctx->handle_from_const(ctx, ID("@A1"));
+
+    MuID i32 = ID("@i32");
+
+    for (int i=0; i<3; i++) {
+        MuIntValue hi  = ctx->handle_from_sint32(ctx, i, 32);
+        MuIntValue a1i = ctx->extract_element(ctx, a1, hi);
+        int32_t a1i_v  = ctx->handle_to_sint32(ctx, a1i);
+        MU_ASSERT_EQUALS(a1i_v, i+2, PRId32);
+        ctx->delete_value(ctx, hi);
+        ctx->delete_value(ctx, a1i);
+    }
+
+    MuIntValue I32_2  = ctx->handle_from_const(ctx, ID("@I32_2"));
+    MuIntValue I32_30 = ctx->handle_from_const(ctx, ID("@I32_30"));
+
+    MuArrayValue a1m   = ctx->insert_element (ctx, a1,  I32_2, I32_30);
+    MuIntValue   a1m2  = ctx->extract_element(ctx, a1m, I32_2);
+    int32_t      a1m2v = ctx->handle_to_sint32(ctx, a1m2);
+    MU_ASSERT_EQUALS(a1m2v, 30, PRId32);
+
+    ctx->close_context(ctx);
+
+    return true;
+}
+
+bool test_memory_ops(MuVM *mvm) {
+    MuCtx *ctx = mvm->new_context(mvm);
+
+    MuRefValue r1 = ctx->new_fixed(ctx, ID("@i64"));
+    MuRefValue r2 = ctx->new_fixed(ctx, ID("@i64"));
+
+    MuIntValue I64_3  = ctx->handle_from_const(ctx, ID("@I64_3"));
+    MuIntValue I64_4  = ctx->handle_from_const(ctx, ID("@I64_4"));
+    MuIntValue I64_10 = ctx->handle_from_const(ctx, ID("@I64_10"));
+
+    MuRefValue rh1 = ctx->new_hybrid(ctx, ID("@hyb"), I64_10);
+    MuRefValue rh2 = ctx->new_hybrid(ctx, ID("@hyb"), I64_10);
+
+    int r1r1 = ctx->ref_eq(ctx, r1, r1);
+    int r1r2 = ctx->ref_eq(ctx, r1, r2);
+
+    MU_ASSERT_EQUALS(r1r1, 1, "d");
+    MU_ASSERT_EQUALS(r1r2, 0, "d");
+
+    MuIRefValue rh1i  = ctx->get_iref(ctx, rh1);
+    MuIRefValue rh1f  = ctx->get_field_iref(ctx, rh1i, 0);
+    MuIRefValue rh1v  = ctx->get_var_part_iref(ctx, rh1i);
+    MuIRefValue rh1v3 = ctx->shift_iref(ctx, rh1v, I64_3);
+    MuIRefValue rh1v4 = ctx->shift_iref(ctx, rh1v, I64_4);
+
+    int rh33 = ctx->ref_ult(ctx, rh1v3, rh1v3);
+    int rh34 = ctx->ref_ult(ctx, rh1v3, rh1v4);
+
+    MU_ASSERT_EQUALS(rh33, 0, "d");
+    MU_ASSERT_EQUALS(rh34, 1, "d");
+
+    MuRefValue  r3   = ctx->new_fixed(ctx, ID("@a1"));
+    MuIRefValue r3i  = ctx->get_iref(ctx, r3);
+    MuIRefValue r3i3 = ctx->get_elem_iref(ctx, r3i, I64_3);
+
+    MuRefValue r1i = ctx->get_iref(ctx, r1);
+    
+    ctx->store(ctx, MU_SEQ_CST, r1i, I64_10);
+    MuIntValue l = ctx->load(ctx, MU_SEQ_CST, r1i);
+    int64_t lv   = ctx->handle_to_sint64(ctx, l);
+
+    MU_ASSERT_EQUALS(lv, 10LL, PRId64);
+
+    int succ1;
+    int succ2;
+
+    MuIntValue res1 = ctx->cmpxchg(ctx, MU_SEQ_CST, MU_SEQ_CST, 0,
+            r1i, I64_10, I64_4, &succ1);
+    MuIntValue res2 = ctx->cmpxchg(ctx, MU_SEQ_CST, MU_SEQ_CST, 0,
+            r1i, I64_10, I64_3, &succ2);
+
+    MU_ASSERT_EQUALS(succ1, 1, "d");
+    MU_ASSERT_EQUALS(succ2, 0, "d");
+
+    int64_t res1v = ctx->handle_to_sint64(ctx, res1);
+    int64_t res2v = ctx->handle_to_sint64(ctx, res2);
+
+    MU_ASSERT_EQUALS(res1v, 10LL, PRId64);
+    MU_ASSERT_EQUALS(res2v, 4LL , PRId64);
+
+    MuIntValue res3 = ctx->atomicrmw(ctx, MU_SEQ_CST, MU_ADD, r1i, I64_10);
+    MuIntValue res4 = ctx->load(ctx, MU_SEQ_CST, r1i);
+
+    int64_t res3v = ctx->handle_to_sint64(ctx, res3);
+    int64_t res4v = ctx->handle_to_sint64(ctx, res4);
+
+    MU_ASSERT_EQUALS(res3v, 4LL , PRId64);
+    MU_ASSERT_EQUALS(res4v, 14LL, PRId64);
+
+    ctx->fence(ctx, MU_SEQ_CST);
+
+    ctx->close_context(ctx);
+
+    return true;
+
+}

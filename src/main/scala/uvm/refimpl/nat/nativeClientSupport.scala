@@ -191,11 +191,13 @@ object NativeMuCtx {
 
   def load_bundle(ctx: MuCtx, buf: CharArrayPtr, sz: Int): Unit = {
     val str = theMemory.getString(buf, sz, StandardCharsets.US_ASCII)
+    logger.trace("Loading bundle:\n%s".format(str))
     ctx.loadBundle(str)
   }
 
   def load_hail(ctx: MuCtx, buf: CharArrayPtr, sz: Int): Unit = {
     val str = theMemory.getString(buf, sz, StandardCharsets.US_ASCII)
+    logger.trace("Loading hail:\n%s".format(str))
     ctx.loadHail(str)
   }
 
@@ -244,13 +246,13 @@ object NativeMuCtx {
   def extract_value(ctx: MuCtx, str: MuStructValue, index: Int): MuValueFak = exposeMuValue(ctx, ctx.extractValue(str, index))
   def insert_value(ctx: MuCtx, str: MuStructValue, index: Int, newval: MuValue): MuValueFak = exposeMuValue(ctx, ctx.insertValue(str, index, newval))
 
-  def extract_element[T <: MuSeqValue](ctx: MuCtx, str: T, index: MuIntValue): MuValueFak = exposeMuValue(ctx, ctx.extractElement(str, index))
-  def insert_element[T <: MuSeqValue](ctx: MuCtx, str: T, index: MuIntValue, newval: MuValue): MuValueFak = exposeMuValue(ctx, ctx.insertElement(str, index, newval))
+  def extract_element(ctx: MuCtx, str: MuSeqValue, index: MuIntValue): MuValueFak = exposeMuValue(ctx, ctx.extractElement(str, index))
+  def insert_element(ctx: MuCtx, str: MuSeqValue, index: MuIntValue, newval: MuValue): MuValueFak = exposeMuValue(ctx, ctx.insertElement(str, index, newval))
 
   def new_fixed(ctx: MuCtx, mu_type: MuID): MuValueFak = exposeMuValue(ctx, ctx.newFixed(mu_type))
   def new_hybrid(ctx: MuCtx, mu_type: MuID, length: MuIntValue): MuValueFak = exposeMuValue(ctx, ctx.newHybrid(mu_type, length))
 
-  def refcast[T <: MuGenRefValue](ctx: MuCtx, opnd: T, new_type: MuID): MuValueFak = exposeMuValue(ctx, ctx.refcast(opnd, new_type))
+  def refcast(ctx: MuCtx, opnd: MuGenRefValue, new_type: MuID): MuValueFak = exposeMuValue(ctx, ctx.refcast(opnd, new_type))
 
   def get_iref(ctx: MuCtx, opnd: MuRefValue): MuValueFak = exposeMuValue(ctx, ctx.getIRef(opnd))
   def get_field_iref(ctx: MuCtx, opnd: MuIRefValue, field: Int): MuValueFak = exposeMuValue(ctx, ctx.getFieldIRef(opnd, field))
@@ -416,6 +418,9 @@ object NativeMuHelpers {
 
 object ClientAccessibleClassExposer {
 
+  // Reflection utils.
+  val mirror = ru.runtimeMirror(getClass.getClassLoader)
+
   val MAX_NAME_SIZE = 65536
 
   // Type objects for common types.
@@ -442,7 +447,14 @@ object ClientAccessibleClassExposer {
   def paramString(index: Int)(buffer: Buffer): Any = getStr(buffer, index)
   def paramMicroVM(index: Int)(buffer: Buffer): Any = getObjFromFuncTableAddr(buffer, index, NativeClientSupport.microVMs)
   def paramMuCtx(index: Int)(buffer: Buffer): Any = getObjFromFuncTableAddr(buffer, index, NativeClientSupport.muCtxs)
-  def paramMuValue(index: Int)(buffer: Buffer): Any = getMuValue(buffer, index)
+  def paramMuValue(index: Int, funcName: String, tpe: ru.Type)(buffer: Buffer): Any = {
+    val muValue = getMuValue(buffer, index)
+    val t = mirror.classSymbol(muValue.getClass).toType
+    
+    require(t <:< tpe, "Argument %d of %s expect %s, found %s".format(index, funcName, tpe, t))
+
+    muValue
+  }
 
   def retVoid(buffer: Buffer, v: Any): Unit = {}
   def retByte(buffer: Buffer, v: Any): Unit = buffer.setByteReturn(v.asInstanceOf[Byte])
@@ -479,9 +491,6 @@ object ClientAccessibleClassExposer {
     val funcTableAddr = buffer.getLong(index)
     NativeClientSupport.getObjFromFuncTableAddrNotNull(funcTableAddr, orm)
   }
-
-  // Reflection utils.
-  val mirror = ru.runtimeMirror(getClass.getClassLoader)
 
   // Convert to JFFI native types.
   def toJFFIType(t: ru.Type): JType = t match {
@@ -545,7 +554,7 @@ class ClientAccessibleClassExposer[T: ru.TypeTag: ClassTag](obj: T) {
         case t if t =:= TString  => paramString(i) _
         case t if t =:= TMicroVM => paramMicroVM(i) _
         case t if t =:= TMuCtx   => paramMuCtx(i) _
-        case t if t <:< TMuValue => paramMuValue(i) _
+        case t if t <:< TMuValue => paramMuValue(i, meth.name.toString, t) _
       }
 
       val returnSetter = returnType match {

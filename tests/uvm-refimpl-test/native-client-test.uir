@@ -16,3 +16,11 @@
         [%trap2] TRAP <> KEEPALIVE (%v1)
         COMMINST @uvm.thread_exit
 }
+
+.typedef @s1 = struct <@i64 @double>
+.const @S1 <@s1> = {@I64_6 @D_7}
+
+.typedef @a1 = array <@i32 3>
+.const @A1 <@a1> = {@I32_2 @I32_3 @I32_4}
+
+.typedef @hyb = hybrid <@i64 @i8>

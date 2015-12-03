@@ -10,6 +10,7 @@ import NativeSupport._
 class NativeClientSupportTest extends UvmBundleTesterBase {
   setLogLevels(
     ROOT_LOGGER_NAME -> INFO,
+    //"uvm.refimpl" -> DEBUG,
     "uvm.refimpl.nat" -> DEBUG)
 
   preloadBundles("tests/uvm-refimpl-test/primitives.uir",
@@ -28,6 +29,9 @@ class NativeClientSupportTest extends UvmBundleTesterBase {
     def test_basic_conv(mvm: Word): CBool
     def test_global_vars(mvm: Word, the_plus_one_fp: Word): CBool
     def test_traps(mvm: Word): CBool
+    def test_load_bundle(mvm: Word): CBool
+    def test_comp_types(mvm: Word): CBool
+    def test_memory_ops(mvm: Word): CBool
   }
 
   val ncs_tests = LibraryLoader.create(classOf[NcsTestsLib]).load(fileName)
@@ -81,6 +85,21 @@ class NativeClientSupportTest extends UvmBundleTesterBase {
   
   it should "support traps" in {
     val result = ncs_tests.test_traps(microVMFuncTableAddr)
+    assertNativeSuccess(result)
+  }
+  
+  it should "load bundles and HAIL" in {
+    val result = ncs_tests.test_load_bundle(microVMFuncTableAddr)
+    assertNativeSuccess(result)
+  }
+  
+  it should "handle composite values" in {
+    val result = ncs_tests.test_comp_types(microVMFuncTableAddr)
+    assertNativeSuccess(result)
+  }
+  
+  it should "perform memory operations" in {
+    val result = ncs_tests.test_memory_ops(microVMFuncTableAddr)
     assertNativeSuccess(result)
   }
 }
