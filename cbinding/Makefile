@@ -48,7 +48,7 @@ classpath.h: classpath.txt
 tests: test_client
 
 test_client: test_client.c libmurefimpl2start.so
-	$(CC) $(CFLAGS) -I . -o $@ $< -L . -l murefimpl2start
+	$(CC) $(CFLAGS) `./refimpl2-config --istart --cflags --libs` -o $@ $<
 
 .PHONY: clean veryclean
 

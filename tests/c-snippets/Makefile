@@ -1,4 +1,4 @@
-MU_INCLUDE = ../../cinclude
+MU_INCLUDE = ../../cbinding
 
 .PHONY: all
 all: structtest.so callbacktest.so ncs_tests.so
