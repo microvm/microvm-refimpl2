@@ -39,4 +39,18 @@ lazy val root = (project in file(".")).settings(
     antlr4GenVisitor in Antlr4 := false
   )
 
+lazy val jarList = taskKey[Seq[File]]("list dependency jars")
 
+jarList := {
+  val cp: Seq[File] = (dependencyClasspath in Compile).value.files
+  cp
+}
+
+lazy val makeJarListFile = taskKey[Unit]("write a list of dependency jar paths separated by colons (:) to target/jars.txt")
+
+makeJarListFile := {
+  val jl = jarList.value
+  val jlStr = jl.mkString(":")
+  println("Dependency jars: " + jlStr)
+  IO.write(new java.io.File("cbinding/jars.txt"), jlStr)
+}
