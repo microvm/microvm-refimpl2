@@ -1,2 +1,4 @@
 *.so
-jars.txt
+test_client
+classpath.txt
+classpath.h
