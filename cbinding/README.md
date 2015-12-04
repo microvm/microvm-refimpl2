@@ -11,9 +11,13 @@ compile`. Then come here and type `make JAVA_HOME=/path/to/the/java/home`.
 
 This will produce the `libmurefimpl2start.so` dynamic library that contains code
 that starts the JVM and creates the MuVM instance for your client written in C.
-This library will **hard code the classpath and the JVM path** into the shared
-object, so it only works for this particular `microvm-refimpl2` repository you
-cloned.
+This library will **hard code the classpath and the JVM library path** into the
+shared object, so it only works for this particular `microvm-refimpl2`
+repository you cloned. This is because as this reference implementation is a
+research project, it is unlikely to install it into any well-known places such
+as `/usr`. Hard-coding the JVM's `libjvm.so` path using "rpath" eliminates the
+need to put the JVM library path to `LD_LIBRARY_PATH`, since JVM is seldom
+installed into `/usr/lib`.
 
 ## Usage
 
@@ -36,7 +40,10 @@ function provides more options.
 
 Use the `refimpl2-config` script with the `--istart` flag to indicate your
 program will create the Mu reference implementation instance. Such clients need
-to link against `libmurefimpl2start.so`.
+to link against `libmurefimpl2start.so`, and it will **hard-code its location
+using rpath** for the same reason why it hard-codes the classpath and JVM
+locations, otherwise your executable file will require `libmurefimpl2start.so`
+to be on the `LD_LIBRARY_PATH` to execute.
 
 For example:
 

@@ -21,13 +21,14 @@ endif
 
 ifeq ($(OS),OSX)
     CFLAGS += -I $(JAVA_HOME)/include/darwin
+    LDFLAGS += -L $(JAVA_HOME)/jre/lib/server -l jvm -rpath $(JAVA_HOME)/jre/lib/server
 endif
 
 ifeq ($(OS),LINUX)
     CFLAGS += -I $(JAVA_HOME)/include/linux
+    LDFLAGS += -L $(JAVA_HOME)/jre/lib/amd64/server -l jvm -Wl,-rpath,$(JAVA_HOME)/jre/lib/amd64/server
 endif
 
-LDFLAGS += -L $(JAVA_HOME)/jre/lib/server -l jvm -rpath $(JAVA_HOME)/jre/lib/server
 
 .PHONY: all
 all: libs tests
@@ -48,7 +49,7 @@ classpath.h: classpath.txt
 tests: test_client
 
 test_client: test_client.c libmurefimpl2start.so
-	$(CC) $(CFLAGS) `./refimpl2-config --istart --cflags --libs` -o $@ $<
+	$(CC) `./refimpl2-config --istart --cflags --libs` -o $@ $<
 
 .PHONY: clean veryclean
 

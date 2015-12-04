@@ -27,7 +27,8 @@ if '--istart' in args:
     if '--cflags' in args:
         print("-I {} ".format(whereami), end="")
     if '--libs' in args:
-        print("-L {} -l murefimpl2start ".format(whereami), end="")
+        print("-L {} -l murefimpl2start -Wl,-rpath,{}".format(
+            whereami, whereami), end="")
 else:
     if '--cflags' in args:
         print("-I {} ".format(whereami), end="")
