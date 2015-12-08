@@ -1,5 +1,7 @@
 # Mu Reference Implementation version 2
 
+Version 2.1.0
+
 This project is the current reference implementation of Mu, the micro virtual
 machine designed by [The Micro Virtual Machine Project](http://microvm.org).
 
@@ -16,6 +18,8 @@ previous reference implementation.
 
 **For the impatient**:
 
+* Install JDK 8. If you use Mac, download from
+  [Oracle](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html).
 * If you use Mac, install [Homebrew](http://brew.sh/).
 * Install [Scala](http://scala-lang.org/) 2.11. If you use Mac and Homebrew,
   `brew install scala`.
@@ -40,24 +44,38 @@ sbt update genSrc eclipse
 
 **Detailed guide**:
 
-You need [Scala](http://scala-lang.org/) 2.11 and
+The reference implementation is developed and tested with Java VM 8. You need a
+JRE to build the Scala/Java part, and a JDK to build the C binding.
+
+You also need [Scala](http://scala-lang.org/) 2.11 and
 [sbt](http://www.scala-sbt.org/) 0.13. It is recommended to install them using
-the package manager of your operating system or distribution (including apt-get,
-yum, pacman, etc. for GNU/Linux distributions and Homebrew for Mac OS X).
+the package manager of your operating system or distribution (such as apt-get,
+yum, pacman, etc. for GNU/Linux distributions and Homebrew for Mac OS X) if such
+packages are available.
 
-To download all dependencies from the Maven central repository, invoke `sbt
-update`.
+For Ubuntu users: Ubuntu 15.10 does not provide sbt in its repository. Please
+[download sbt](http://www.scala-sbt.org/download.html) from the official sbt web
+site, or follow the [official sbt installing guide for
+Linux](http://www.scala-sbt.org/0.13/tutorial/Installing-sbt-on-Linux.html).  If
+you experience any "certificate" problems, [this
+page](https://github.com/sbt/sbt/issues/2295) provides a solution.
 
-To generate the Mu IR parser from the Antlr grammar, invoke `sbt genSrc`. The
-generated sources will be in the `target/scala-2.11/src_managed` directory.
+Then after cloning this repository, you can simply invoke `sbt compile` to
+compile this project. Or you can do it step by step:
+
+* To download all dependencies from the Maven central repository, invoke `sbt
+  update`.
+
+* To generate the Mu IR parser from the Antlr grammar, invoke `sbt genSrc`. The
+  generated sources will be in the `target/scala-2.11/src_managed` directory.
+
+* To compile, invoke `sbt compile`. This will also generate the Mu IR parser
+  using Antlr.
 
 To generate an Eclipse project, install the [sbt-eclipse
 plugin](https://github.com/typesafehub/sbteclipse) and invoke `sbt eclipse`.
-Make sure you generate the parser before creating the Eclipse project, so that
-the generated sources will be on the Eclipse build path.
-
-To compile, invoke `sbt compile`. This will also generate the Mu IR parser using
-Antlr.
+Make sure you generate the parser (`sbt genSrc`) before creating the Eclipse
+project, so that the generated sources will be on the Eclipse build path.
 
 IntelliJ IDEA has plugins for Scala and SBT. Make sure you don't commit `.idea`
 or generated project files into the repository.
