@@ -26,7 +26,7 @@ endif
 
 ifeq ($(OS),LINUX)
     CFLAGS += -I $(JAVA_HOME)/include/linux
-    LDFLAGS += -L $(JAVA_HOME)/jre/lib/amd64/server -l jvm -Wl,-rpath,$(JAVA_HOME)/jre/lib/amd64/server
+    LDFLAGS += -Wl,--no-as-needed -L $(JAVA_HOME)/jre/lib/amd64/server -l jvm -Wl,-rpath,$(JAVA_HOME)/jre/lib/amd64/server
 endif
 
 
