@@ -21,7 +21,7 @@ endif
 
 ifeq ($(OS),OSX)
     CFLAGS += -I $(JAVA_HOME)/include/darwin
-    LDFLAGS += -L $(JAVA_HOME)/jre/lib/server -l jvm -rpath $(JAVA_HOME)/jre/lib/server
+    LDFLAGS += -L $(JAVA_HOME)/jre/lib/server -l jvm -rpath $(JAVA_HOME)/jre/lib/server -install_name '@rpath/libmurefimpl2start.so'
 endif
 
 ifeq ($(OS),LINUX)
