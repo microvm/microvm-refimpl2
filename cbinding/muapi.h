@@ -43,12 +43,18 @@ typedef void (*MuCFP)();
 
 // Result of a trap handler
 typedef int MuTrapHandlerResult;
+
 // Used by new_thread
 typedef int MuHowToResume;
 
+// Values or MuTrapHandlerResult
 #define MU_THREAD_EXIT          0x00
+// Values or MuTrapHandlerResult and muHowToResume
 #define MU_REBIND_PASS_VALUES   0x01
 #define MU_REBIND_THROW_EXC     0x02
+
+// Used by MuTrapHandler
+typedef void (*MuValuesFreer)(MuValue *values, MuCPtr freerdata);
 
 // Declare the types here because they are used in the following signatures.
 typedef struct MuVM MuVM;
@@ -57,13 +63,14 @@ typedef struct MuCtx MuCtx;
 // Signature of the trap handler
 typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadRefValue thread,
         MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
-        MuStackRefValue *new_stack, MuValue *values, int *nvalues,
-        MuRefValue *exception,
+        MuStackRefValue *new_stack, MuValue **values, int *nvalues,
+        MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
         MuCPtr userdata);
 
 // Memory orders
 typedef int MuMemOrd;
 
+// Values of MuMemOrd
 #define MU_NOT_ATOMIC  0x00
 #define MU_RELAXED     0x01
 #define MU_CONSUME     0x02
@@ -75,6 +82,7 @@ typedef int MuMemOrd;
 // Operations for the atomicrmw API function
 typedef int MuAtomicRMWOp;
 
+// Values of MuAtomicRMWOp
 #define MU_XCHG        0x00
 #define MU_ADD         0x01
 #define MU_SUB         0x02
@@ -90,7 +98,7 @@ typedef int MuAtomicRMWOp;
 // Calling conventions.
 typedef int MuCallConv;
 
-#define MU_DEFUALT     0x00
+#define MU_DEFAULT     0x00
 // Concrete Mu implementations may define more calling conventions.
 
 // NOTE: MuVM and MuCtx are structures with many function pointers. This
@@ -112,6 +120,9 @@ struct MuVM {
 
     // Set handlers
     void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler, MuCPtr userdata);
+
+    // Proprietary API: let the micro VM execute
+    void    (*execute)(MuVM *mvm);
 };
 
 // A local context. It can only be used by one thread at a time. It holds many
@@ -134,13 +145,13 @@ struct MuCtx {
     void        (*load_hail  )(MuCtx *ctx, char *buf, int sz);
 
     // Convert from C values to Mu values
-    MuIntValue      (*handle_from_int8  )(MuCtx *ctx, int8_t   num, int len);
+    MuIntValue      (*handle_from_sint8 )(MuCtx *ctx, int8_t   num, int len);
     MuIntValue      (*handle_from_uint8 )(MuCtx *ctx, uint8_t  num, int len);
-    MuIntValue      (*handle_from_int16 )(MuCtx *ctx, int16_t  num, int len);
+    MuIntValue      (*handle_from_sint16)(MuCtx *ctx, int16_t  num, int len);
     MuIntValue      (*handle_from_uint16)(MuCtx *ctx, uint16_t num, int len);
-    MuIntValue      (*handle_from_int32 )(MuCtx *ctx, int32_t  num, int len);
+    MuIntValue      (*handle_from_sint32)(MuCtx *ctx, int32_t  num, int len);
     MuIntValue      (*handle_from_uint32)(MuCtx *ctx, uint32_t num, int len);
-    MuIntValue      (*handle_from_int64 )(MuCtx *ctx, int64_t  num, int len);
+    MuIntValue      (*handle_from_sint64)(MuCtx *ctx, int64_t  num, int len);
     MuIntValue      (*handle_from_uint64)(MuCtx *ctx, uint64_t num, int len);
     MuFloatValue    (*handle_from_float )(MuCtx *ctx, float    num);
     MuDoubleValue   (*handle_from_double)(MuCtx *ctx, double   num);
@@ -213,7 +224,7 @@ struct MuCtx {
     // Thread and stack creation and stack destruction
     MuStackRefValue     (*new_stack )(MuCtx *ctx, MuFuncRefValue func);
     MuThreadRefValue    (*new_thread)(MuCtx *ctx, MuStackRefValue stack,
-                            MuHowToResume *htr, MuValue *vals, int nvals, MuRefValue *exc);
+                            MuHowToResume htr, MuValue *vals, int nvals, MuRefValue exc);
     void                (*kill_stack)(MuCtx *ctx, MuStackRefValue stack);
 
     // Frame cursor operations

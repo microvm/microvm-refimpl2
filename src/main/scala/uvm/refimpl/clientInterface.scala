@@ -14,6 +14,8 @@ import uvm.ssavariables.Flag
 import uvm.refimpl.itpr.{ HowToResume => ItprHowToResume }
 import scala.collection.mutable.Buffer
 import java.nio.charset.Charset
+import org.slf4j.LoggerFactory
+import com.typesafe.scalalogging.Logger
 
 object MuValue {
   def apply(ty: Type, vb: ValueBox): MuValue = (ty, vb) match {
@@ -95,6 +97,8 @@ trait UndefinedFunctionHandler {
 }
 
 object MuCtx {
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+  
   val US_ASCII = Charset.forName("US-ASCII")
 }
 
@@ -104,6 +108,7 @@ object MuCtx {
  */
 class MuCtx(_mutator: Mutator)(
     implicit microVM: MicroVM, memorySupport: MemorySupport) extends ObjectPinner {
+  import MuCtx._
 
   implicit def mutator = _mutator
 
@@ -310,7 +315,7 @@ class MuCtx(_mutator: Mutator)(
 
     val st = seq.ty
     val sb = seq.vb
-    val nsb = BoxSeq(for ((b, i) <- sb.values.zipWithIndex) yield if (i == index) newval.vb else b)
+    val nsb = BoxSeq(for ((b, i) <- sb.values.zipWithIndex) yield if (i == indexVal) newval.vb else b)
     addHandle(MuValue(st, nsb).asInstanceOf[T])
   }
 

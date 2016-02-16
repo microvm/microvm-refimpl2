@@ -1,0 +1,43 @@
+#!/usr/bin/env python
+
+from __future__ import print_function  # compatible with python2
+
+import sys
+import os
+import os.path
+import platform
+
+plat_sys = platform.system()
+
+whereami = os.path.dirname(os.path.realpath(__file__))
+
+args = sys.argv[1:]
+
+if len(args) == 0 or "--help" in args or "-h" in args:
+    print("""USAGE:
+    
+cc `refimpl2-config --istart --cflags --libs` -o the_output your-c-program-that-starts-mu.c
+
+cc `refimpl2-config --cflags` -fPIC -shared -o theclient.so your-c-program-loaded-by-the-jvm.c
+
+    --istart    Your C program will start the JVM and create the Mu instance.
+
+    --cflags    If present, this script will print compiler flags.
+    --libs      If present, this script will print linker flags.
+""")
+
+if '--istart' in args:
+    if '--cflags' in args:
+        print("-I {} ".format(whereami), end="")
+    if '--libs' in args:
+        if plat_sys == "Linux":
+            print("-Wl,--no-as-needed ", end="")
+        print("-L {} -l murefimpl2start -Wl,-rpath,{} ".format(
+            whereami, whereami), end="")
+else:
+    if '--cflags' in args:
+        print("-I {} ".format(whereami), end="")
+    if '--libs' in args:
+        pass
+
+

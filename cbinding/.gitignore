@@ -1,0 +1,4 @@
+*.so
+test_client
+classpath.txt
+classpath.h

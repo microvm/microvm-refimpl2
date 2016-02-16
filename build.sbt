@@ -16,7 +16,8 @@ licenses := Seq("CC BY-SA 4.0" -> url("https://creativecommons.org/licenses/by-s
 scalaVersion := "2.11.7"
 
 libraryDependencies ++= Seq(
-    "org.antlr" % "antlr4" % "4.5.1",
+    "org.scala-lang" % "scala-reflect" % "2.11.7",
+    "org.antlr" % "antlr4" % "4.5.1-1",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0",
     "ch.qos.logback" % "logback-classic" % "1.1.3",
     "com.github.jnr" % "jnr-ffi" % "2.0.7",
@@ -36,3 +37,14 @@ antlr4GenListener in Antlr4 := false
 
 antlr4GenVisitor in Antlr4 := false
 
+lazy val makeClasspathFile = taskKey[Unit]("write the run-time classpath to target/jars.txt as colon-separated list")
+
+makeClasspathFile := {
+  val cp = (fullClasspath in Runtime).value.files 
+
+  println("fullClasspath: \n" + cp.mkString("\n"))
+
+  val cpStr = cp.mkString(":")
+
+  IO.write(new java.io.File("cbinding/classpath.txt"), cpStr)
+}
