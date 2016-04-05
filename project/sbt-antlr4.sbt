@@ -1,6 +1,6 @@
 resolvers += "simplytyped" at "http://simplytyped.github.io/repo/releases"
 
-addSbtPlugin("com.simplytyped" % "sbt-antlr4" % "0.7.7")
+addSbtPlugin("com.simplytyped" % "sbt-antlr4" % "0.7.10")
 
 // lazy val root = (project in file(".")).dependsOn(sbtAntlr4Plugin)
 

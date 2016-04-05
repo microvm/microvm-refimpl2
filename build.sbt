@@ -7,23 +7,23 @@ organization := "org.microvm"
 
 name := "microvm-refimpl2"
 
-version := "2.1.0"
+version := "2.1.1"
 
 description := "The second reference implementation of Mu, the micro virtual machine"
 
 licenses := Seq("CC BY-SA 4.0" -> url("https://creativecommons.org/licenses/by-sa/4.0/legalcode"))
 
-scalaVersion := "2.11.7"
+scalaVersion := "2.11.8"
 
 libraryDependencies ++= Seq(
-    "org.scala-lang" % "scala-reflect" % "2.11.7",
-    "org.antlr" % "antlr4" % "4.5.1-1",
+    "org.scala-lang" % "scala-reflect" % "2.11.8",
+    "org.antlr" % "antlr4" % "4.5.2-1",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0",
     "ch.qos.logback" % "logback-classic" % "1.1.3",
-    "com.github.jnr" % "jnr-ffi" % "2.0.7",
-    "com.github.jnr" % "jffi" % "1.2.10",
-    "com.github.jnr" % "jnr-posix" % "3.0.23",
-    "org.scalatest" %% "scalatest" % "2.2.4" % "test",
+    "com.github.jnr" % "jnr-ffi" % "2.0.9",
+    "com.github.jnr" % "jffi" % "1.2.11",
+    "com.github.jnr" % "jnr-posix" % "3.0.29",
+    "org.scalatest" %% "scalatest" % "2.2.6" % "test",
     "junit" % "junit" % "4.12" % "test"
 )
 
