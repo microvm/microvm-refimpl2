@@ -189,8 +189,8 @@ struct MuCtx {
     int         (*ref_ult)(MuCtx *ctx, MuIRefValue lhs, MuIRefValue rhs);
 
     // Manipulate Mu values of the struct<...> type
-    MuValue     (*extract_value)(MuCtx *ctx, MuStructValue str, int index);
-    MuValue     (*insert_value )(MuCtx *ctx, MuStructValue str, int index, MuValue newval);
+    MuValue         (*extract_value)(MuCtx *ctx, MuStructValue str, int index);
+    MuStructValue   (*insert_value )(MuCtx *ctx, MuStructValue str, int index, MuValue newval);
 
     // Manipulate Mu values of the array or vector type
     // str can be MuArrayValue or MuVectorValue

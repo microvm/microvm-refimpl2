@@ -18,6 +18,21 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 
 import ctypes
 
+#### Helper functions
+
+def _assert_equal(a, b):
+    if not (a == b):
+        raise AssertionError("{} does not equal {}".format(a, b))
+
+def _assert_range(v, lb, ub):
+    if not (lb <= v <= ub):
+        raise AssertionError("{} is not between {} and {}".format(v, lb, ub))
+
+def _assert_instance(obj, *tys):
+    if not any(isinstance(obj, ty) for ty in tys):
+        raise AssertionError("{} is not an instance of {}".format(obj,
+            " or ".join(tys)))
+
 #### Low-level C types counterpart
 
 def _funcptr(restype, *paramtypes, **kwargs):
@@ -142,7 +157,7 @@ class MuValue(_LowLevelTypeWrapper):
 
     @classmethod
     def from_low_level_retval(cls, v, high_level_struct):
-        assert(isinstance(high_level_struct, MuCtx))
+        _assert_instance(high_level_struct, MuCtx)
         return cls(v, high_level_struct)
 
     def delete(self):
@@ -154,21 +169,25 @@ class MuValue(_LowLevelTypeWrapper):
     def __repr__(self):
         return str(self)
 
-class MuIntValue       (MuValue): _ctype_ = CMuIntValue      
-class MuFloatValue     (MuValue): _ctype_ = CMuFloatValue    
-class MuDoubleValue    (MuValue): _ctype_ = CMuDoubleValue   
-class MuRefValue       (MuValue): _ctype_ = CMuRefValue      
-class MuIRefValue      (MuValue): _ctype_ = CMuIRefValue     
-class MuStructValue    (MuValue): _ctype_ = CMuStructValue   
-class MuArrayValue     (MuValue): _ctype_ = CMuArrayValue    
-class MuVectorValue    (MuValue): _ctype_ = CMuVectorValue   
-class MuFuncRefValue   (MuValue): _ctype_ = CMuFuncRefValue  
-class MuThreadRefValue (MuValue): _ctype_ = CMuThreadRefValue
-class MuStackRefValue  (MuValue): _ctype_ = CMuStackRefValue 
-class MuFCRefValue     (MuValue): _ctype_ = CMuFCRefValue    
-class MuTagRef64Value  (MuValue): _ctype_ = CMuTagRef64Value 
-class MuUPtrValue      (MuValue): _ctype_ = CMuUPtrValue     
-class MuUFPValue       (MuValue): _ctype_ = CMuUFPValue      
+    def cast(self,ty):
+        return ty(self.c_mu_value, self.ctx)
+
+class MuIntValue       (MuValue):       _ctype_ = CMuIntValue      
+class MuFloatValue     (MuValue):       _ctype_ = CMuFloatValue    
+class MuDoubleValue    (MuValue):       _ctype_ = CMuDoubleValue   
+class MuGenRefValue    (MuValue):       pass
+class MuRefValue       (MuGenRefValue): _ctype_ = CMuRefValue      
+class MuIRefValue      (MuGenRefValue): _ctype_ = CMuIRefValue     
+class MuStructValue    (MuValue):       _ctype_ = CMuStructValue   
+class MuArrayValue     (MuValue):       _ctype_ = CMuArrayValue    
+class MuVectorValue    (MuValue):       _ctype_ = CMuVectorValue   
+class MuFuncRefValue   (MuGenRefValue): _ctype_ = CMuFuncRefValue  
+class MuThreadRefValue (MuGenRefValue): _ctype_ = CMuThreadRefValue
+class MuStackRefValue  (MuGenRefValue): _ctype_ = CMuStackRefValue 
+class MuFCRefValue     (MuGenRefValue): _ctype_ = CMuFCRefValue    
+class MuTagRef64Value  (MuValue):       _ctype_ = CMuTagRef64Value 
+class MuUPtrValue      (MuValue):       _ctype_ = CMuUPtrValue     
+class MuUFPValue       (MuValue):       _ctype_ = CMuUFPValue      
 
 class _StructOfMethodsWrapper(_LowLevelTypeWrapper):
     """ High-level wrapper of "struct-of-method" types. """
@@ -226,19 +245,39 @@ class MuVM(_StructOfMethodsWrapper):
         #ptr = self._low_level_method("new_context")()
         #return MuCtx(ptr)
 
+_MIN_SINT64 = (-1)<<63
+_MAX_SINT64 = (1<<63)-1
+_MAX_UINT64 = (1<<64)-1
+
 class MuCtx(_StructOfMethodsWrapper):
     _c_struct_type_ = CMuCtx
     _ctype_ = ctypes.POINTER(_c_struct_type_)
 
     ## The following extends the C functions to make it more Pythonic
 
-    def load_bundle_from_str(self, bundle_str):
-        assert(isinstance(bundle_str, str))
-        return self.load_bundle(bundle_str, len(bundle_str))
+    def load_bundle(self, bundle_str):
+        _assert_instance(bundle_str, str)
+        return self.load_bundle_(bundle_str, len(bundle_str))
 
-    def load_hail_from_str(self, hail_str):
-        assert(isinstance(hail_str, str))
-        return self.load_hail(hail_str, len(hail_str))
+    def load_hail(self, hail_str):
+        _assert_instance(hail_str, str)
+        return self.load_hail_(hail_str, len(hail_str))
+
+    def handle_from_int(self, value, length):
+        _assert_instance(value, int, long)
+        _assert_range(length, 0, 64)
+        if _MIN_SINT64 <= value <= _MAX_SINT64:
+            return self.handle_from_sint64_(value, length)
+        elif 0 <= value <= _MAX_UINT64:
+            return self.handle_from_uint64_(value, length)
+        else:
+            raise ValueError("value {} out of 64-bit range".format(value))
+
+    def handle_to_sint(self, value):
+        return self.handle_to_sint64_(value)
+
+    def handle_to_uint(self, value):
+        return self.handle_to_uint64_(value)
 
 def _to_low_level_type(ty):
     return (None if ty == None else 
@@ -251,7 +290,7 @@ def _to_low_level_arg(arg):
 
 def _from_low_level_retval(restype, low_level_rv, self):
     return (restype.from_low_level_retval(low_level_rv, self)
-            if issubclass(restype, _LowLevelTypeWrapper)
+            if isinstance(restype, type) and issubclass(restype, _LowLevelTypeWrapper)
             else low_level_rv)
 
 def _make_high_level_method(name, expected_nargs, restype, argtypes):
@@ -331,7 +370,7 @@ _initialize_methods(MuVM, [
     ("new_context", MuCtx, []),
     ("id_of", CMuID, [CMuName]),
     ("name_of", CMuName, [CMuID]),
-    ("set_trap_handler", None, [CMuTrapHandler, CMuCPtr]),
+    ("set_trap_handler_", None, [CMuTrapHandler, CMuCPtr]),
     ("execute", None, []),
     ])
 
@@ -341,34 +380,34 @@ _initialize_methods(MuCtx, [
 
     ("close_context", None, []),
 
-    ("load_bundle", None, [ctypes.c_char_p, ctypes.c_int]),
-    ("load_hail", None, [ctypes.c_char_p, ctypes.c_int]),
+    ("load_bundle_", None, [ctypes.c_char_p, ctypes.c_int]),
+    ("load_hail_", None, [ctypes.c_char_p, ctypes.c_int]),
 
-    ("handle_from_sint8",  MuIntValue, [ctypes.c_byte,      ctypes.c_int]),
-    ("handle_from_uint8",  MuIntValue, [ctypes.c_ubyte,     ctypes.c_int]),
-    ("handle_from_sint16", MuIntValue, [ctypes.c_short,     ctypes.c_int]),
-    ("handle_from_uint16", MuIntValue, [ctypes.c_ushort,    ctypes.c_int]),
-    ("handle_from_sint32", MuIntValue, [ctypes.c_int,       ctypes.c_int]),
-    ("handle_from_uint32", MuIntValue, [ctypes.c_uint,      ctypes.c_int]),
-    ("handle_from_sint64", MuIntValue, [ctypes.c_longlong,  ctypes.c_int]),
-    ("handle_from_uint64", MuIntValue, [ctypes.c_ulonglong, ctypes.c_int]),
-    ("handle_from_float" , MuFloatValue , [ctypes.c_float ]),
-    ("handle_from_double", MuDoubleValue, [ctypes.c_double]),
-    ("handle_from_ptr"   , MuUPtrValue  , [CMuID, CMuCPtr ]),
-    ("handle_from_fp"    , MuUFPValue   , [CMuID, CMuCFP  ]),
+    ("handle_from_sint8_" , MuIntValue, [ctypes.c_byte,      ctypes.c_int]),
+    ("handle_from_uint8_" , MuIntValue, [ctypes.c_ubyte,     ctypes.c_int]),
+    ("handle_from_sint16_", MuIntValue, [ctypes.c_short,     ctypes.c_int]),
+    ("handle_from_uint16_", MuIntValue, [ctypes.c_ushort,    ctypes.c_int]),
+    ("handle_from_sint32_", MuIntValue, [ctypes.c_int,       ctypes.c_int]),
+    ("handle_from_uint32_", MuIntValue, [ctypes.c_uint,      ctypes.c_int]),
+    ("handle_from_sint64_", MuIntValue, [ctypes.c_longlong,  ctypes.c_int]),
+    ("handle_from_uint64_", MuIntValue, [ctypes.c_ulonglong, ctypes.c_int]),
+    ("handle_from_float"  , MuFloatValue , [ctypes.c_float ]),
+    ("handle_from_double" , MuDoubleValue, [ctypes.c_double]),
+    ("handle_from_ptr"    , MuUPtrValue  , [CMuID, CMuCPtr ]),
+    ("handle_from_fp"     , MuUFPValue   , [CMuID, CMuCFP  ]),
 
-    ("handle_to_sint8",  ctypes.c_byte     , [MuIntValue]),
-    ("handle_to_uint8",  ctypes.c_ubyte    , [MuIntValue]),
-    ("handle_to_sint16", ctypes.c_short    , [MuIntValue]),
-    ("handle_to_uint16", ctypes.c_ushort   , [MuIntValue]),
-    ("handle_to_sint32", ctypes.c_int      , [MuIntValue]),
-    ("handle_to_uint32", ctypes.c_uint     , [MuIntValue]),
-    ("handle_to_sint64", ctypes.c_longlong , [MuIntValue]),
-    ("handle_to_uint64", ctypes.c_ulonglong, [MuIntValue]),
-    ("handle_to_float" , ctypes.c_float    , [MuFloatValue ]),
-    ("handle_to_double", ctypes.c_double   , [MuDoubleValue]),
-    ("handle_to_ptr"   , CMuCPtr           , [MuUPtrValue  ]),
-    ("handle_to_fp"    , CMuCFP            , [MuUFPValue   ]),
+    ("handle_to_sint8_" , ctypes.c_byte     , [MuIntValue]),
+    ("handle_to_uint8_" , ctypes.c_ubyte    , [MuIntValue]),
+    ("handle_to_sint16_", ctypes.c_short    , [MuIntValue]),
+    ("handle_to_uint16_", ctypes.c_ushort   , [MuIntValue]),
+    ("handle_to_sint32_", ctypes.c_int      , [MuIntValue]),
+    ("handle_to_uint32_", ctypes.c_uint     , [MuIntValue]),
+    ("handle_to_sint64_", ctypes.c_longlong , [MuIntValue]),
+    ("handle_to_uint64_", ctypes.c_ulonglong, [MuIntValue]),
+    ("handle_to_float"  , ctypes.c_float    , [MuFloatValue ]),
+    ("handle_to_double" , ctypes.c_double   , [MuDoubleValue]),
+    ("handle_to_ptr"    , CMuCPtr           , [MuUPtrValue  ]),
+    ("handle_to_fp"     , CMuCFP            , [MuUFPValue   ]),
 
     ("handle_from_const" , MuValue       , [CMuID]),
     ("handle_from_global", MuIRefValue   , [CMuID]),
@@ -376,6 +415,11 @@ _initialize_methods(MuCtx, [
     ("handle_from_expose", MuValue       , [CMuID]),
 
     ("delete_value", None, [MuValue]),
+
+    ("ref_eq" , ctypes.c_int, [MuGenRefValue, MuGenRefValue]),
+    ("ref_ult", ctypes.c_int, [MuIRefValue, MuIRefValue]),
+
+    ("extract_value", MuValue, [MuStructValue, ctypes.c_int]),
 
     # TODO
     ])
