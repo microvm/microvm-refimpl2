@@ -10,3 +10,4 @@ target
 .d8_history
 hs_err_pid*.log
 /bin/
+*.py[co]
