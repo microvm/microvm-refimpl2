@@ -39,6 +39,16 @@ with mu.new_context() as ctx:
     .const @V1 <@4xi32> = {@I32_11 @I32_12 @I32_13 @I32_14}
 
     .typedef @h1 = hybrid<@i32 @i64 @i8>
+
+    .global @main_rv <@i32>
+
+    .funcsig @main.sig = (@i32) -> ()
+    .funcdef @main VERSION %v1 <@main.sig> {
+        %entry(<@i32> %n):
+            %n2 = ADD <@i32> %n @I32_1
+            STORE <@i32> @main_rv %n2
+            COMMINST @uvm.thread_exit
+    }
     """)
 
 class TestRefImpl2CBinding(unittest.TestCase):
@@ -200,3 +210,20 @@ class TestRefImpl2CBinding(unittest.TestCase):
         self.assertEqual(v3, 200)
         self.assertEqual(v4, 500)
 
+    def test_stack_thread(self):
+        ctx = self.ctx
+        id_of = ctx.id_of
+
+        forty_two = ctx.handle_from_int(42, 32)
+
+        main = ctx.handle_from_func(id_of("@main"))
+        st = ctx.new_stack(main)
+        th = ctx.new_thread(st, PassValues(forty_two))
+
+        mu.execute()
+
+        loc = ctx.handle_from_global(id_of("@main_rv"))
+        hv = ctx.load(loc).cast(MuIntValue)
+        v = ctx.handle_to_sint(hv)
+        self.assertEqual(v, 43)
+        
