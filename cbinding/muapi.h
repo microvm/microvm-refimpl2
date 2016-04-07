@@ -16,7 +16,13 @@ extern "C" {
 //
 // Values of subtypes can be cast to MuValue and back using the type cast
 // expression in C, similar to casting one pointer to another.
+
+// abstract value type
 typedef void *MuValue;              // Any Mu value
+typedef void *MuSeqValue;           // array or vector
+typedef void *MuGenRefValue;        // ref, iref, funcref, threadref, stackref, framecursorref
+
+// concrete value types
 typedef void *MuIntValue;           // int<n>
 typedef void *MuFloatValue;         // float
 typedef void *MuDoubleValue;        // double
@@ -184,7 +190,7 @@ struct MuCtx {
 
     // Compare reference or general reference types.
     // EQ. Available for ref, iref, funcref, threadref and stackref.
-    int         (*ref_eq )(MuCtx *ctx, MuValue lhs,     MuValue rhs);
+    int         (*ref_eq )(MuCtx *ctx, MuGenRefValue lhs, MuGenRefValue rhs);
     // ULT. Available for iref only.
     int         (*ref_ult)(MuCtx *ctx, MuIRefValue lhs, MuIRefValue rhs);
 
@@ -194,15 +200,15 @@ struct MuCtx {
 
     // Manipulate Mu values of the array or vector type
     // str can be MuArrayValue or MuVectorValue
-    MuValue     (*extract_element)(MuCtx *ctx, MuValue str, MuIntValue index);
-    MuValue     (*insert_element )(MuCtx *ctx, MuValue str, MuIntValue index, MuValue newval);
+    MuValue     (*extract_element)(MuCtx *ctx, MuSeqValue str, MuIntValue index);
+    MuSeqValue  (*insert_element )(MuCtx *ctx, MuSeqValue str, MuIntValue index, MuValue newval);
 
     // Heap allocation
     MuRefValue  (*new_fixed )(MuCtx *ctx, MuID mu_type);
     MuRefValue  (*new_hybrid)(MuCtx *ctx, MuID mu_type, MuIntValue length);
 
     // Change the T or sig in ref<T>, iref<T> or func<sig>
-    MuValue     (*refcast)(MuCtx *ctx, MuValue opnd, MuID new_type);
+    MuGenRefValue   (*refcast)(MuCtx *ctx, MuGenRefValue opnd, MuID new_type);
 
     // Memory addressing
     MuIRefValue     (*get_iref           )(MuCtx *ctx, MuRefValue opnd);

@@ -74,7 +74,7 @@ case class MuStackRefValue(ty: TypeStackRef, vb: BoxStack) extends MuGenRefValue
 case class MuTagRef64Value(ty: TypeTagRef64, vb: BoxTagRef64) extends MuValue
 case class MuUPtrValue(ty: TypeUPtr, vb: BoxPointer) extends MuValue
 case class MuUFPValue(ty: TypeUFuncPtr, vb: BoxPointer) extends MuValue
-case class MuFCRefValue(ty: TypeFrameCursorRef, vb: BoxFrameCursor) extends MuValue
+case class MuFCRefValue(ty: TypeFrameCursorRef, vb: BoxFrameCursor) extends MuGenRefValue
 
 abstract class TrapHandlerResult
 object TrapHandlerResult {
@@ -266,6 +266,7 @@ class MuCtx(_mutator: Mutator)(
     case (l: MuFuncRefValue, r: MuFuncRefValue)     => l.vb.func == r.vb.func
     case (l: MuThreadRefValue, r: MuThreadRefValue) => l.vb.thread == r.vb.thread
     case (l: MuStackRefValue, r: MuStackRefValue)   => l.vb.stack == r.vb.stack
+    case (l: MuFCRefValue, r: MuFCRefValue)         => l.vb.cursor == r.vb.cursor
     case (l, r) => {
       throw new IllegalArgumentException("Bad types for refEq: %s and %s".format(
         l.showTy, r.showTy))

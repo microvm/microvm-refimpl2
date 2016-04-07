@@ -39,18 +39,21 @@ def _funcptr(restype, *paramtypes, **kwargs):
     return ctypes.CFUNCTYPE(restype, *paramtypes, **kwargs)
 
 CMuValue = ctypes.c_void_p
+CMuGenRefValue = CMuValue
+CMuSeqValue = CMuValue
+
 CMuIntValue = CMuValue
 CMuFloatValue = CMuValue
 CMuDoubleValue = CMuValue
-CMuRefValue = CMuValue
-CMuIRefValue = CMuValue
+CMuRefValue = CMuGenRefValue
+CMuIRefValue = CMuGenRefValue
 CMuStructValue = CMuValue
-CMuArrayValue = CMuValue
-CMuVectorValue = CMuValue
-CMuFuncRefValue = CMuValue
-CMuThreadRefValue = CMuValue
-CMuStackRefValue = CMuValue
-CMuFCRefValue = CMuValue
+CMuArrayValue = CMuSeqValue
+CMuVectorValue = CMuSeqValue
+CMuFuncRefValue = CMuGenRefValue
+CMuThreadRefValue = CMuGenRefValue
+CMuStackRefValue = CMuGenRefValue
+CMuFCRefValue = CMuGenRefValue
 CMuTagRef64Value = CMuValue
 CMuUPtrValue = CMuValue
 CMuUFPValue = CMuValue
@@ -172,15 +175,17 @@ class MuValue(_LowLevelTypeWrapper):
     def cast(self,ty):
         return ty(self.c_mu_value, self.ctx)
 
+class MuGenRefValue    (MuValue):       pass
+class MuSeqValue       (MuValue):       pass
+
 class MuIntValue       (MuValue):       _ctype_ = CMuIntValue      
 class MuFloatValue     (MuValue):       _ctype_ = CMuFloatValue    
 class MuDoubleValue    (MuValue):       _ctype_ = CMuDoubleValue   
-class MuGenRefValue    (MuValue):       pass
 class MuRefValue       (MuGenRefValue): _ctype_ = CMuRefValue      
 class MuIRefValue      (MuGenRefValue): _ctype_ = CMuIRefValue     
 class MuStructValue    (MuValue):       _ctype_ = CMuStructValue   
-class MuArrayValue     (MuValue):       _ctype_ = CMuArrayValue    
-class MuVectorValue    (MuValue):       _ctype_ = CMuVectorValue   
+class MuArrayValue     (MuSeqValue):    _ctype_ = CMuArrayValue    
+class MuVectorValue    (MuSeqValue):    _ctype_ = CMuVectorValue   
 class MuFuncRefValue   (MuGenRefValue): _ctype_ = CMuFuncRefValue  
 class MuThreadRefValue (MuGenRefValue): _ctype_ = CMuThreadRefValue
 class MuStackRefValue  (MuGenRefValue): _ctype_ = CMuStackRefValue 
@@ -375,53 +380,109 @@ _initialize_methods(MuVM, [
     ])
 
 _initialize_methods(MuCtx, [
-    ("id_of", CMuID, [CMuName]),
-    ("name_of", CMuName, [CMuID]),
+    ("id_of"                , CMuID             , [CMuName]),
+    ("name_of"              , CMuName           , [CMuID]),
 
-    ("close_context", None, []),
+    ("close_context"        , None              , []),
 
-    ("load_bundle_", None, [ctypes.c_char_p, ctypes.c_int]),
-    ("load_hail_", None, [ctypes.c_char_p, ctypes.c_int]),
+    ("load_bundle_"         , None              , [ctypes.c_char_p, ctypes.c_int]),
+    ("load_hail_"           , None              , [ctypes.c_char_p, ctypes.c_int]),
 
-    ("handle_from_sint8_" , MuIntValue, [ctypes.c_byte,      ctypes.c_int]),
-    ("handle_from_uint8_" , MuIntValue, [ctypes.c_ubyte,     ctypes.c_int]),
-    ("handle_from_sint16_", MuIntValue, [ctypes.c_short,     ctypes.c_int]),
-    ("handle_from_uint16_", MuIntValue, [ctypes.c_ushort,    ctypes.c_int]),
-    ("handle_from_sint32_", MuIntValue, [ctypes.c_int,       ctypes.c_int]),
-    ("handle_from_uint32_", MuIntValue, [ctypes.c_uint,      ctypes.c_int]),
-    ("handle_from_sint64_", MuIntValue, [ctypes.c_longlong,  ctypes.c_int]),
-    ("handle_from_uint64_", MuIntValue, [ctypes.c_ulonglong, ctypes.c_int]),
-    ("handle_from_float"  , MuFloatValue , [ctypes.c_float ]),
-    ("handle_from_double" , MuDoubleValue, [ctypes.c_double]),
-    ("handle_from_ptr"    , MuUPtrValue  , [CMuID, CMuCPtr ]),
-    ("handle_from_fp"     , MuUFPValue   , [CMuID, CMuCFP  ]),
+    ("handle_from_sint8_"   , MuIntValue        , [ctypes.c_byte,      ctypes.c_int]),
+    ("handle_from_uint8_"   , MuIntValue        , [ctypes.c_ubyte,     ctypes.c_int]),
+    ("handle_from_sint16_"  , MuIntValue        , [ctypes.c_short,     ctypes.c_int]),
+    ("handle_from_uint16_"  , MuIntValue        , [ctypes.c_ushort,    ctypes.c_int]),
+    ("handle_from_sint32_"  , MuIntValue        , [ctypes.c_int,       ctypes.c_int]),
+    ("handle_from_uint32_"  , MuIntValue        , [ctypes.c_uint,      ctypes.c_int]),
+    ("handle_from_sint64_"  , MuIntValue        , [ctypes.c_longlong,  ctypes.c_int]),
+    ("handle_from_uint64_"  , MuIntValue        , [ctypes.c_ulonglong, ctypes.c_int]),
+    ("handle_from_float"    , MuFloatValue      , [ctypes.c_float ]),
+    ("handle_from_double"   , MuDoubleValue     , [ctypes.c_double]),
+    ("handle_from_ptr"      , MuUPtrValue       , [CMuID, CMuCPtr ]),
+    ("handle_from_fp"       , MuUFPValue        , [CMuID, CMuCFP  ]),
 
-    ("handle_to_sint8_" , ctypes.c_byte     , [MuIntValue]),
-    ("handle_to_uint8_" , ctypes.c_ubyte    , [MuIntValue]),
-    ("handle_to_sint16_", ctypes.c_short    , [MuIntValue]),
-    ("handle_to_uint16_", ctypes.c_ushort   , [MuIntValue]),
-    ("handle_to_sint32_", ctypes.c_int      , [MuIntValue]),
-    ("handle_to_uint32_", ctypes.c_uint     , [MuIntValue]),
-    ("handle_to_sint64_", ctypes.c_longlong , [MuIntValue]),
-    ("handle_to_uint64_", ctypes.c_ulonglong, [MuIntValue]),
-    ("handle_to_float"  , ctypes.c_float    , [MuFloatValue ]),
-    ("handle_to_double" , ctypes.c_double   , [MuDoubleValue]),
-    ("handle_to_ptr"    , CMuCPtr           , [MuUPtrValue  ]),
-    ("handle_to_fp"     , CMuCFP            , [MuUFPValue   ]),
+    ("handle_to_sint8_"     , ctypes.c_byte     , [MuIntValue]),
+    ("handle_to_uint8_"     , ctypes.c_ubyte    , [MuIntValue]),
+    ("handle_to_sint16_"    , ctypes.c_short    , [MuIntValue]),
+    ("handle_to_uint16_"    , ctypes.c_ushort   , [MuIntValue]),
+    ("handle_to_sint32_"    , ctypes.c_int      , [MuIntValue]),
+    ("handle_to_uint32_"    , ctypes.c_uint     , [MuIntValue]),
+    ("handle_to_sint64_"    , ctypes.c_longlong , [MuIntValue]),
+    ("handle_to_uint64_"    , ctypes.c_ulonglong, [MuIntValue]),
+    ("handle_to_float"      , ctypes.c_float    , [MuFloatValue ]),
+    ("handle_to_double"     , ctypes.c_double   , [MuDoubleValue]),
+    ("handle_to_ptr"        , CMuCPtr           , [MuUPtrValue  ]),
+    ("handle_to_fp"         , CMuCFP            , [MuUFPValue   ]),
 
-    ("handle_from_const" , MuValue       , [CMuID]),
-    ("handle_from_global", MuIRefValue   , [CMuID]),
-    ("handle_from_func"  , MuFuncRefValue, [CMuID]),
-    ("handle_from_expose", MuValue       , [CMuID]),
+    ("handle_from_const"    , MuValue           , [CMuID]),
+    ("handle_from_global"   , MuIRefValue       , [CMuID]),
+    ("handle_from_func"     , MuFuncRefValue    , [CMuID]),
+    ("handle_from_expose"   , MuValue           , [CMuID]),
 
-    ("delete_value", None, [MuValue]),
+    ("delete_value"         , None              , [MuValue]),
 
-    ("ref_eq" , ctypes.c_int, [MuGenRefValue, MuGenRefValue]),
-    ("ref_ult", ctypes.c_int, [MuIRefValue, MuIRefValue]),
+    ("ref_eq"               , ctypes.c_int      , [MuGenRefValue, MuGenRefValue]),
+    ("ref_ult"              , ctypes.c_int      , [MuIRefValue, MuIRefValue]),
 
-    ("extract_value", MuValue, [MuStructValue, ctypes.c_int]),
+    ("extract_value"        , MuValue           , [MuStructValue, ctypes.c_int]),
+    ("insert_value"         , MuStructValue     , [MuStructValue, ctypes.c_int, MuValue]),
+                            
+    ("extract_element"      , MuValue           , [MuSeqValue, MuIntValue]),
+    ("insert_element"       , MuSeqValue        , [MuSeqValue, MuIntValue, MuValue]),
 
-    # TODO
+    ("new_fixed"            , MuRefValue        , [CMuID]),
+    ("new_hybrid"           , MuRefValue        , [CMuID, MuIntValue]),
+
+    ("refcast"              , MuGenRefValue     , [MuGenRefValue, CMuID]),
+
+    ("get_iref"             , MuIRefValue       , [MuRefValue]),
+    ("get_field_iref"       , MuIRefValue       , [MuIRefValue, ctypes.c_int]),
+    ("get_elem_iref"        , MuIRefValue       , [MuIRefValue, MuIntValue]),
+    ("shift_iref"           , MuIRefValue       , [MuIRefValue, MuIntValue]),
+    ("get_var_part_iref"    , MuIRefValue       , [MuIRefValue]),
+
+    ("load"                 , MuValue           , [CMuMemOrd, MuIRefValue]),
+    ("store"                , None              , [CMuMemOrd, MuIRefValue, MuValue]),
+    ("cmpxchg"              , MuValue           , [CMuMemOrd, CMuMemOrd, ctypes.c_int, MuIRefValue, MuValue, MuValue, ctypes.c_int]),
+    ("atomicrmw"            , MuValue           , [CMuMemOrd, CMuAtomicRMWOp, MuIRefValue, MuValue]),
+    ("fence"                , None              , [CMuMemOrd]),
+
+    ("new_stack"            , MuStackRefValue   , [MuFuncRefValue]),
+    ("new_thread"           , MuThreadRefValue  , [MuStackRefValue, CMuHowToResume, MuValue, ctypes.c_int, MuRefValue]),
+    ("kill_stack"           , None              , [MuStackRefValue]),
+
+    ("new_cursor"           , MuFCRefValue      , [MuStackRefValue]),
+    ("next_frame"           , None              , [MuFCRefValue]),
+    ("copy_cursor"          , MuFCRefValue      , [MuFCRefValue]),
+    ("close_cursor"         , None              , [MuFCRefValue]),
+
+    ("cur_func"             , CMuID             , [MuFCRefValue]),
+    ("cur_func_ver"         , CMuID             , [MuFCRefValue]),
+    ("cur_inst"             , CMuID             , [MuFCRefValue]),
+    ("dump_keepalives"      , None              , [MuFCRefValue, MuValue]),
+
+    ("pop_frames_to"        , None              , [MuFCRefValue]),
+    ("push_frame"           , None              , [MuStackRefValue, MuFuncRefValue]),
+
+    ("tr64_is_fp"           , ctypes.c_int      , [MuTagRef64Value]),
+    ("tr64_is_int"          , ctypes.c_int      , [MuTagRef64Value]),
+    ("tr64_is_ref"          , ctypes.c_int      , [MuTagRef64Value]),
+    ("tr64_to_fp"           , MuDoubleValue     , [MuTagRef64Value]),
+    ("tr64_to_int"          , MuIntValue        , [MuTagRef64Value]),
+    ("tr64_to_ref"          , MuRefValue        , [MuTagRef64Value]),
+    ("tr64_to_tag"          , MuIntValue        , [MuTagRef64Value]),
+    ("tr64_from_fp"         , MuTagRef64Value   , [MuDoubleValue]),
+    ("tr64_from_int"        , MuTagRef64Value   , [MuIntValue]),
+    ("tr64_from_ref"        , MuTagRef64Value   , [MuRefValue, MuIntValue]),
+
+    ("enable_watchpoint"    , None              , [ctypes.c_int]),
+    ("disable_watchpoint"   , None              , [ctypes.c_int]),
+
+    ("pin"                  , MuUPtrValue       , [MuValue]),
+    ("unpin"                , None              , [MuValue]),
+
+    ("expose"               , MuValue           , [MuFuncRefValue, CMuCallConv, MuIntValue]),
+    ("unexpose"             , None              , [CMuCallConv, MuValue]),
     ])
 
 class MuRefImpl2StartDLL(object):
