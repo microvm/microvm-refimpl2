@@ -165,6 +165,7 @@ object NativeMuVM {
     microVM.setTrapHandler(new NativeTrapHandler(trap_handler, userdata))
   }
   def execute(microVM: MicroVM): Unit = microVM.execute()
+  def get_mu_error_ptr(microVM: MicroVM): MuCPtr = ClientAccessibleClassExposer.muErrorPtr.address()
 }
 
 /**
@@ -506,6 +507,12 @@ object ClientAccessibleClassExposer {
     case t if t =:= TMuCtx   => JType.POINTER
     case t if t <:< TMuValue => JType.POINTER
   }
+  
+  val MU_NATIVE_ERRNO = 6481626 // muErrno is set to this number if an exception is thrown
+  val muErrorPtr = jnrMemoryManager.allocateDirect(16)
+  
+  def getMuError(): Int = muErrorPtr.getInt(0)
+  def setMuError(errno: Int): Unit = muErrorPtr.putInt(0, errno)
 
   /**
    * Let a native program call a reflectively-exposed method.
@@ -519,6 +526,9 @@ object ClientAccessibleClassExposer {
       } catch {
         case e: Throwable => {
           logger.error("Exception thrown before returning to native. This is fatal", e)
+          System.out.flush()
+          System.err.flush()
+          setMuError(MU_NATIVE_ERRNO)
           throw e
         }
       }

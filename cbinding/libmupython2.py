@@ -36,7 +36,7 @@ def _assert_instance(obj, *tys):
 #### Low-level C types counterpart
 
 def _funcptr(restype, *paramtypes, **kwargs):
-    return ctypes.CFUNCTYPE(restype, *paramtypes, **kwargs)
+    return ctypes.CFUNCTYPE(restype, *paramtypes, use_errno=True, **kwargs)
 
 CMuValue = ctypes.c_void_p
 CMuGenRefValue = CMuValue
@@ -67,9 +67,9 @@ CMuCFP = ctypes.c_void_p
 CMuTrapHandlerResult = ctypes.c_int
 CMuHowToResume = ctypes.c_int
 
-C_MU_THREAD_EXIT = 0x00
-C_MU_REBIND_PASS_VALUES = 0x01
-C_MU_REBIND_THROW_EXC = 0x02
+MU_THREAD_EXIT = 0x00
+MU_REBIND_PASS_VALUES = 0x01
+MU_REBIND_THROW_EXC = 0x02
 
 CPtrMuValue = ctypes.POINTER(CMuValue)
 
@@ -111,31 +111,31 @@ CMuTrapHandler = _funcptr(
 
 CMuMemOrd = ctypes.c_int
 
-C_MU_NOT_ATOMIC = 0x00
-C_MU_RELAXED    = 0x01
-C_MU_CONSUME    = 0x02
-C_MU_ACQUIRE    = 0x03
-C_MU_RELEASE    = 0x04
-C_MU_ACQ_REL    = 0x05
-C_MU_SEQ_CST    = 0x06
+MU_NOT_ATOMIC = 0x00
+MU_RELAXED    = 0x01
+MU_CONSUME    = 0x02
+MU_ACQUIRE    = 0x03
+MU_RELEASE    = 0x04
+MU_ACQ_REL    = 0x05
+MU_SEQ_CST    = 0x06
 
 CMuAtomicRMWOp = ctypes.c_int
 
-C_MU_XCHG = 0x00
-C_MU_ADD  = 0x01
-C_MU_SUB  = 0x02
-C_MU_AND  = 0x03
-C_MU_NAND = 0x04
-C_MU_OR   = 0x05
-C_MU_XOR  = 0x06
-C_MU_MAX  = 0x07
-C_MU_MIN  = 0x08
-C_MU_UMAX = 0x09
-C_MU_UMIN = 0x0A
+MU_XCHG = 0x00
+MU_ADD  = 0x01
+MU_SUB  = 0x02
+MU_AND  = 0x03
+MU_NAND = 0x04
+MU_OR   = 0x05
+MU_XOR  = 0x06
+MU_MAX  = 0x07
+MU_MIN  = 0x08
+MU_UMAX = 0x09
+MU_UMIN = 0x0A
 
 CMuCallConv = ctypes.c_int
 
-C_MU_DEFAULT = 0x00
+MU_DEFAULT = 0x00
 
 #### High-level types which does type checking at run time.
 
@@ -162,6 +162,12 @@ class MuValue(_LowLevelTypeWrapper):
     def from_low_level_retval(cls, v, high_level_struct):
         _assert_instance(high_level_struct, MuCtx)
         return cls(v, high_level_struct)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.delete()
 
     def delete(self):
         self.ctx.delete_value(self)
@@ -198,6 +204,7 @@ class _StructOfMethodsWrapper(_LowLevelTypeWrapper):
     """ High-level wrapper of "struct-of-method" types. """
 
     # _high_level_methods need to be assigned externally.
+    # _muvm needs to refer to the associated MuVM object.
 
     def __init__(self, struct_ptr, parent=None):
         """
@@ -215,19 +222,16 @@ class _StructOfMethodsWrapper(_LowLevelTypeWrapper):
 
     @classmethod
     def from_low_level_retval(cls, v, high_level_struct):
-        print("called.", v, high_level_struct)
         return cls(v, high_level_struct)
 
     def _high_level_method(self, name):
         return self._high_level_methods[name]
 
-    def _low_level_method(self, name):
+    def _low_level_func(self, name):
         struct_ptr = self._struct_ptr
         ptr_contents = struct_ptr.contents
-        method = getattr(ptr_contents, name)
-        def wrapper(*args):
-            return method(struct_ptr, *args)
-        return wrapper
+        func = getattr(ptr_contents, name)
+        return func
 
     def __getattr__(self, name):
         high_level_method = self._high_level_method(name)
@@ -244,11 +248,18 @@ class MuVM(_StructOfMethodsWrapper):
     _c_struct_type_ = CMuVM
     _ctype_ = ctypes.POINTER(_c_struct_type_)
 
-    ## The following overrides the raw C functions:
+    def __init__(self, struct_ptr, dll):
+        super(self.__class__, self).__init__(struct_ptr, dll)
 
-    #def new_context(self):
-        #ptr = self._low_level_method("new_context")()
-        #return MuCtx(ptr)
+        self.muvm = self
+        self._mu_error_addr = self._low_level_func("get_mu_error_ptr_")(struct_ptr)
+        self._mu_error = ctypes.c_int.from_address(self._mu_error_addr)
+
+    def get_mu_error(self):
+        return self._mu_error.value
+
+    def set_mu_error(self, v):
+        self._mu_error.value = v
 
 _MIN_SINT64 = (-1)<<63
 _MAX_SINT64 = (1<<63)-1
@@ -258,14 +269,30 @@ class MuCtx(_StructOfMethodsWrapper):
     _c_struct_type_ = CMuCtx
     _ctype_ = ctypes.POINTER(_c_struct_type_)
 
+    ## Context management. Auto close after "with".
+
+    def __init__(self, struct_ptr, muvm):
+        super(self.__class__, self).__init__(struct_ptr, muvm)
+
+        self.muvm = muvm
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type != None:
+            return False
+
+        self.close_context()
+
     ## The following extends the C functions to make it more Pythonic
 
     def load_bundle(self, bundle_str):
-        _assert_instance(bundle_str, str)
+        _assert_instance(bundle_str, str, unicode)
         return self.load_bundle_(bundle_str, len(bundle_str))
 
     def load_hail(self, hail_str):
-        _assert_instance(hail_str, str)
+        _assert_instance(hail_str, str, unicode)
         return self.load_hail_(hail_str, len(hail_str))
 
     def handle_from_int(self, value, length):
@@ -283,6 +310,38 @@ class MuCtx(_StructOfMethodsWrapper):
 
     def handle_to_uint(self, value):
         return self.handle_to_uint64_(value)
+
+    def delete_values(self, *values):
+        for value in values:
+            self.delete_value(value)
+
+    def insert_element(self, value, index, newval):
+        return self.insert_element_(value, index, newval).cast(type(value))
+
+    def load(self, loc, ord=MU_NOT_ATOMIC):
+        _assert_instance(loc, MuIRefValue)
+        return self.load_(ord, loc)
+
+    def store(self, loc, newval, ord=MU_NOT_ATOMIC):
+        _assert_instance(loc, MuIRefValue)
+        return self.store_(ord, loc, newval)
+
+    def cmpxchg(self, loc, expected, desired, weak=False, ord_succ=MU_SEQ_CST,
+            ord_fail=MU_SEQ_CST):
+        _assert_instance(loc, MuIRefValue)
+        weak = int(weak)
+        succ_buf = ctypes.c_int(0)
+        rv = self.cmpxchg_(ord_succ, ord_fail, weak, loc, expected, desired,
+                ctypes.byref(succ_buf))
+        succ = succ_buf.value != 0
+        return (rv, succ)
+
+    def atomicrmw(self, op, loc, opnd, ord=MU_SEQ_CST):
+        _assert_instance(loc, MuIRefValue)
+        return self.atomicrmw_(ord, op, loc, opnd)
+
+    def fence(self, ord=MU_SEQ_CST):
+        return self.fence_(ord)
 
 def _to_low_level_type(ty):
     return (None if ty == None else 
@@ -319,8 +378,16 @@ def _make_high_level_method(name, expected_nargs, restype, argtypes):
 
             low_level_args.append(low_level_arg)
 
-        low_level_method = self._low_level_method(name)
-        low_level_rv = low_level_method(*low_level_args)
+        struct_ptr = self._struct_ptr
+        low_level_func = self._low_level_func(name)
+
+        self.muvm.set_mu_error(0)
+        low_level_rv = low_level_func(struct_ptr, *low_level_args)
+        mu_error = self.muvm.get_mu_error()
+
+        if mu_error != 0:
+            raise RuntimeError("Error in Mu. mu_error={}".format(mu_error))
+
         rv = _from_low_level_retval(restype, low_level_rv, self)
         return rv
 
@@ -353,7 +420,7 @@ def _initialize_methods(high_level_class, methods):
         # make low-level struct field (function pointer)
         low_level_restype = _to_low_level_type(restype)
         low_level_argtypes = [_to_low_level_type(ty) for ty in argtypes]
-        print(name, low_level_restype, low_level_argtypes)
+        print("Python binding:", name, low_level_restype, low_level_argtypes)
         funcptr = _funcptr(
                 low_level_restype, # return value
                 objtype_p, *low_level_argtypes # params. Start with a struct ptr
@@ -377,6 +444,7 @@ _initialize_methods(MuVM, [
     ("name_of", CMuName, [CMuID]),
     ("set_trap_handler_", None, [CMuTrapHandler, CMuCPtr]),
     ("execute", None, []),
+    ("get_mu_error_ptr_", ctypes.c_void_p, []),
     ])
 
 _initialize_methods(MuCtx, [
@@ -388,27 +456,27 @@ _initialize_methods(MuCtx, [
     ("load_bundle_"         , None              , [ctypes.c_char_p, ctypes.c_int]),
     ("load_hail_"           , None              , [ctypes.c_char_p, ctypes.c_int]),
 
-    ("handle_from_sint8_"   , MuIntValue        , [ctypes.c_byte,      ctypes.c_int]),
-    ("handle_from_uint8_"   , MuIntValue        , [ctypes.c_ubyte,     ctypes.c_int]),
-    ("handle_from_sint16_"  , MuIntValue        , [ctypes.c_short,     ctypes.c_int]),
-    ("handle_from_uint16_"  , MuIntValue        , [ctypes.c_ushort,    ctypes.c_int]),
-    ("handle_from_sint32_"  , MuIntValue        , [ctypes.c_int,       ctypes.c_int]),
-    ("handle_from_uint32_"  , MuIntValue        , [ctypes.c_uint,      ctypes.c_int]),
-    ("handle_from_sint64_"  , MuIntValue        , [ctypes.c_longlong,  ctypes.c_int]),
-    ("handle_from_uint64_"  , MuIntValue        , [ctypes.c_ulonglong, ctypes.c_int]),
+    ("handle_from_sint8_"   , MuIntValue        , [ctypes.c_int8,   ctypes.c_int]),
+    ("handle_from_uint8_"   , MuIntValue        , [ctypes.c_uint8,  ctypes.c_int]),
+    ("handle_from_sint16_"  , MuIntValue        , [ctypes.c_int16,  ctypes.c_int]),
+    ("handle_from_uint16_"  , MuIntValue        , [ctypes.c_uint16, ctypes.c_int]),
+    ("handle_from_sint32_"  , MuIntValue        , [ctypes.c_int32,  ctypes.c_int]),
+    ("handle_from_uint32_"  , MuIntValue        , [ctypes.c_uint32, ctypes.c_int]),
+    ("handle_from_sint64_"  , MuIntValue        , [ctypes.c_int64,  ctypes.c_int]),
+    ("handle_from_uint64_"  , MuIntValue        , [ctypes.c_uint64, ctypes.c_int]),
     ("handle_from_float"    , MuFloatValue      , [ctypes.c_float ]),
     ("handle_from_double"   , MuDoubleValue     , [ctypes.c_double]),
     ("handle_from_ptr"      , MuUPtrValue       , [CMuID, CMuCPtr ]),
     ("handle_from_fp"       , MuUFPValue        , [CMuID, CMuCFP  ]),
 
-    ("handle_to_sint8_"     , ctypes.c_byte     , [MuIntValue]),
-    ("handle_to_uint8_"     , ctypes.c_ubyte    , [MuIntValue]),
-    ("handle_to_sint16_"    , ctypes.c_short    , [MuIntValue]),
-    ("handle_to_uint16_"    , ctypes.c_ushort   , [MuIntValue]),
-    ("handle_to_sint32_"    , ctypes.c_int      , [MuIntValue]),
-    ("handle_to_uint32_"    , ctypes.c_uint     , [MuIntValue]),
-    ("handle_to_sint64_"    , ctypes.c_longlong , [MuIntValue]),
-    ("handle_to_uint64_"    , ctypes.c_ulonglong, [MuIntValue]),
+    ("handle_to_sint8_"     , ctypes.c_int8     , [MuIntValue]),
+    ("handle_to_uint8_"     , ctypes.c_uint8    , [MuIntValue]),
+    ("handle_to_sint16_"    , ctypes.c_int16    , [MuIntValue]),
+    ("handle_to_uint16_"    , ctypes.c_uint16   , [MuIntValue]),
+    ("handle_to_sint32_"    , ctypes.c_int32    , [MuIntValue]),
+    ("handle_to_uint32_"    , ctypes.c_uint32   , [MuIntValue]),
+    ("handle_to_sint64_"    , ctypes.c_int64    , [MuIntValue]),
+    ("handle_to_uint64_"    , ctypes.c_uint64   , [MuIntValue]),
     ("handle_to_float"      , ctypes.c_float    , [MuFloatValue ]),
     ("handle_to_double"     , ctypes.c_double   , [MuDoubleValue]),
     ("handle_to_ptr"        , CMuCPtr           , [MuUPtrValue  ]),
@@ -428,7 +496,7 @@ _initialize_methods(MuCtx, [
     ("insert_value"         , MuStructValue     , [MuStructValue, ctypes.c_int, MuValue]),
                             
     ("extract_element"      , MuValue           , [MuSeqValue, MuIntValue]),
-    ("insert_element"       , MuSeqValue        , [MuSeqValue, MuIntValue, MuValue]),
+    ("insert_element_"      , MuSeqValue        , [MuSeqValue, MuIntValue, MuValue]),
 
     ("new_fixed"            , MuRefValue        , [CMuID]),
     ("new_hybrid"           , MuRefValue        , [CMuID, MuIntValue]),
@@ -441,11 +509,13 @@ _initialize_methods(MuCtx, [
     ("shift_iref"           , MuIRefValue       , [MuIRefValue, MuIntValue]),
     ("get_var_part_iref"    , MuIRefValue       , [MuIRefValue]),
 
-    ("load"                 , MuValue           , [CMuMemOrd, MuIRefValue]),
-    ("store"                , None              , [CMuMemOrd, MuIRefValue, MuValue]),
-    ("cmpxchg"              , MuValue           , [CMuMemOrd, CMuMemOrd, ctypes.c_int, MuIRefValue, MuValue, MuValue, ctypes.c_int]),
-    ("atomicrmw"            , MuValue           , [CMuMemOrd, CMuAtomicRMWOp, MuIRefValue, MuValue]),
-    ("fence"                , None              , [CMuMemOrd]),
+    ("load_"                , MuValue           , [CMuMemOrd, MuIRefValue]),
+    ("store_"               , None              , [CMuMemOrd, MuIRefValue, MuValue]),
+    ("cmpxchg_"             , MuValue           , [CMuMemOrd, CMuMemOrd,
+        ctypes.c_int, MuIRefValue, MuValue, MuValue,
+        ctypes.POINTER(ctypes.c_int)]),
+    ("atomicrmw_"           , MuValue           , [CMuMemOrd, CMuAtomicRMWOp, MuIRefValue, MuValue]),
+    ("fence_"               , None              , [CMuMemOrd]),
 
     ("new_stack"            , MuStackRefValue   , [MuFuncRefValue]),
     ("new_thread"           , MuThreadRefValue  , [MuStackRefValue, CMuHowToResume, MuValue, ctypes.c_int, MuRefValue]),
@@ -485,6 +555,27 @@ _initialize_methods(MuCtx, [
     ("unexpose"             , None              , [CMuCallConv, MuValue]),
     ])
 
+class DelayedDisposer(object):
+    def __init__(self):
+        self.garbages = []
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.delete_all()
+
+    def add(self, handle):
+        self.garbages.append(handle)
+        return handle
+
+    def __lshift__(self, rhs):
+        return self.add(rhs)
+
+    def delete_all(self):
+        if exc_type != None:
+            return False
+
+        for h in reversed(self.garbages):
+            h.delete();
+
 class MuRefImpl2StartDLL(object):
     def __init__(self, dll):
         if isinstance(dll, str) or isinstance(dll, unicode):
@@ -504,6 +595,6 @@ class MuRefImpl2StartDLL(object):
 
     def mu_refimpl2_new(self):
         ptr = self.dll.mu_refimpl2_new()
-        return MuVM(ptr)
+        return MuVM(ptr, self)
 
 # vim: ts=4 sw=4 et sts=4 ai tw=80
