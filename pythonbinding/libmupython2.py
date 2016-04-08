@@ -12,6 +12,137 @@ This binding is a "medium-level" binding. It is more Python-friendly than the
 low-level raw C API, and it does a lot of run-time type checking when API
 functions are invoked, but it does not provide higher-level functionalities than
 the C API, such as the LLVM-style CFG builder.
+
+
+==========
+How to use
+==========
+
+Creating the Micro VM and Contexts
+----------------------------------
+
+This Python binding depends on the C binding. After building the C binding, a
+shared object ``../cbinding/libmurefimpl2start.so`` will be generated. The
+client needs to create a MuRefImpl2StartDLL object with the path of that SO as
+its argument::
+
+    dll = MuRefImpl2StartDLL("../cbinding/libmurefimpl2start.so")
+
+Then a ``MuVM`` instance can be created from that object::
+
+    mu = dll.mu_refimpl2_new()
+
+or::
+
+    mu = dll.mu_refimpl2_new_ex(HEAP_SIZE, GLOBAL_SIZE, STACK_SIZE)
+
+A ``MuCtx`` instance can be created from the ``MuVM`` object::
+
+    ctx = mu.new_context()
+    ...
+    ctx.close_context()
+
+or use the ``with`` statement:
+
+    with mu.new_context() as ctx:
+        ...
+
+
+Exeucte Mu Programs
+-------------------
+
+To start executing Mu programs, the client should create a stack and a thread.
+As a limitation of this reference implementation, the client also needs to
+invoke the ``MuVM.execute()`` method to actually execute the program. For
+example::
+
+    dll = MuRefImpl2StartDLL("../cbinding/libmurefimpl2start.so")
+    mu = dll.mu_refimpl2_new()
+
+    with mu.new_context() as ctx:
+        func   = ctx.handle_from_func(ctx.id_of("@main"))
+        arg1   = ctx.handle_from_int(10, 64)
+        arg2   = ctx.handle_from_double(3.14)
+        stack  = ctx.new_stack(func)
+        thread = ctx.new_thread(stack, PassValues(arg1, arg2))
+
+    mu.execute()    # The thread will actually run now.
+
+
+Invoking API Methods
+--------------------
+
+The ``MuVM`` and the ``MuCtx`` Python object mimics the ``MuVM`` and ``MuCtx``
+structs in the C API.
+
+Function pointers in the C struct are mapped to methods of the same name in the
+corresponding Python object. The first argument of the function pointers in the
+C API is always a pointer to the struct itself. This first argument is omitted.
+Other arguments are auto converted to the corresponding C types thanks to the
+``ctypes`` module. For example::
+
+    # MuCtx *ctx = mvm->new_context(mvm);   // C
+    ctx = mu.new_context()                  # Python
+
+    # MuDoubleValue h = ctx->handle_from_double(ctx, 3.14);     // C
+    h = ctx.handle_from_double(3.14)                            # Python
+
+IDs are Python ``int`` and names are Python ``str``.
+
+Handles are sub-classes of the ``MuValue`` class. They wrap the underlying
+C-level handles (void*) and know which ``MuCtx`` they are created from. They can
+be pasesed into methods like in C. For example::
+
+    h = ctx.handle_from_double(3.14)    # a MuDoubleValue
+    num = ctx.handle_to_double(h)       # num is the Python value 3.14
+
+    id_of = ctx.id_of   # This method is so frequently used that it is
+                        # preferrable to make a shorter alias.
+    func   = ctx.handle_from_func(id_of("@factorial"))
+    arg    = ctx.handle_from_int(10, 64)
+    stack  = ctx.new_stack(func)
+    thread = ctx.new_thread(stack, PassValues(arg))
+
+Type checks are performed on each and every method call. Handles (instances of
+MuValue) must match the expected argument types. For example, if a method
+expects a ``MuIntValue``, passing a ``MuValue`` will raise an error::
+
+    const_int = ctx.handle_from_const(id_of("@CONST_INT_42"))   # MuValue
+    num = ctx.handle_to_sint(const_int)     # ERROR: Expect MuIntValue, got MuValue
+
+``MuValue`` has a ``cast`` method to cast an instance to a desired subtype.::
+
+    const_int = ctx.handle_from_const(id_of("@CONST_INT_42")).cast(MuIntValue) # MuIntValue
+    num = ctx.handle_to_sint(const_int)     # OK
+
+The following functions usually need casting: ``handle_from_const``,
+``handle_from_expose``, ``extract_value``, ``extract_element``, ``load``,
+``cmpxchg``, ``atomicrmw``, ``dump_keepalives``, ``expose``.
+
+The signatures of some methods are completely re-designed in Python to make them
+more "Pythonic". For example, the ``load_bundle`` method of ``MuCtx`` takes a
+single Python ``str`` and does not need the length. The ``cmpxchg`` method now
+returns a pair rather than having one of them as the "output argument". The trap
+handler is also completely re-designed. Such methods are defined and documented
+in ``MuVM`` and ``MuCtx``. If they are explicitly defined there, the original C
+function is accessible with a suffix ``_``, such as ``load_bundle_`` which is
+the original C function that takes a length as argument. If they are not
+explicitly defined, they follow the conventions mentioned before.
+
+
+Automatically Delete Handles
+----------------------------
+
+The ``DelayedDisposer`` class can delete selected handles created in a scope.
+Read the docstring.
+
+
+Further Reading
+---------------
+
+It is recommended to read the docstrings in the following types: ``MuVM``,
+``MuCtx``, ``MuValue`` and ``MuTrapHandler``.
+
 """
 
 from __future__ import division, absolute_import, print_function, unicode_literals
@@ -152,24 +283,38 @@ _MAX_UINT64 = (1<<64)-1
 class _LowLevelTypeWrapper(object):
     # _ctype_ = the low-level type
 
-    def to_low_level_arg(self):
+    def _to_low_level_arg(self):
         raise NotImplementedError()
 
     @classmethod
-    def from_low_level_retval(cls, v, high_level_struct):
+    def _from_low_level_retval(cls, v, high_level_struct):
         raise NotImplementedError()
 
 class MuValue(_LowLevelTypeWrapper):
+    """Wrapper of the C-level CMuValue.
+
+    Concrete API methods in MuCtx expect subclasses of this type. Use the
+    ``cast`` method to cast it to more specific types.
+    """
+
+    def delete(self):
+        """Delete this MuValue from its MuCtx. Equivalent to ctx.delete_value(self)"""
+        self.ctx.delete_value(self)
+
+    def cast(self,ty):
+        """Cast this MuValue to a different MuValue subclass."""
+        return ty(self.c_mu_value, self.ctx)
+
     _ctype_ = CMuValue
     def __init__(self, c_mu_value, ctx):
         self.c_mu_value = c_mu_value
         self.ctx = ctx
 
-    def to_low_level_arg(self):
+    def _to_low_level_arg(self):
         return self.c_mu_value
 
     @classmethod
-    def from_low_level_retval(cls, v, high_level_struct):
+    def _from_low_level_retval(cls, v, high_level_struct):
         _assert_instance(high_level_struct, MuCtx)
         return cls(v, high_level_struct)
 
@@ -179,17 +324,11 @@ class MuValue(_LowLevelTypeWrapper):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.delete()
 
-    def delete(self):
-        self.ctx.delete_value(self)
-
     def __str__(self):
         return "<{} handle={}>".format(type(self).__name__, self.c_mu_value)
 
     def __repr__(self):
         return str(self)
-
-    def cast(self,ty):
-        return ty(self.c_mu_value, self.ctx)
 
 class MuGenRefValue    (MuValue):       pass
 class MuSeqValue       (MuValue):       pass
@@ -278,6 +417,23 @@ class MuTrapHandler(object):
             ThrowExc(exc): The stack will continue exceptionally. exc is a
                 MuRefValue which refers to the exception to be thrown to the
                 stack.
+
+        Examples:
+            Stop the current thread::
+
+                return ThreadExit()
+
+            Rebind to the original stack and pass values::
+
+                h1 = ctx.handle_from_xxxxxxxx(xxxxx)
+                h2 = ctx.handle_from_xxxxxxxx(xxxxx)
+                h3 = ctx.handle_from_xxxxxxxx(xxxxx)
+                return Rebind(stack, PassValues(h1, h2, h3))
+
+            Rebind to the original stack and throw an exception::
+
+                h = ctx.new_fixed(ctx.id_of("@MyExceptionType"))
+                return Rebind(stack, ThrowExc(h1))
         """
         raise NotImplementedError()
 
@@ -405,11 +561,11 @@ class _StructOfMethodsWrapper(_LowLevelTypeWrapper):
         self._struct_ptr = struct_ptr
         self._parent = parent
 
-    def to_low_level_arg(self):
+    def _to_low_level_arg(self):
         return self._struct_ptr
 
     @classmethod
-    def from_low_level_retval(cls, v, high_level_struct):
+    def _from_low_level_retval(cls, v, high_level_struct):
         return cls(v, high_level_struct)
 
     def _high_level_method(self, name):
@@ -433,6 +589,8 @@ class _StructOfMethodsWrapper(_LowLevelTypeWrapper):
         return str(self)
 
 class MuVM(_StructOfMethodsWrapper):
+    """An instance of the Mu micro VM."""
+
     _c_struct_type_ = CMuVM
     _ctype_ = ctypes.POINTER(_c_struct_type_)
 
@@ -446,12 +604,13 @@ class MuVM(_StructOfMethodsWrapper):
         self._cur_user_data_key = None
 
     # Mu writes to the memory location self._mu_error_addr when it throws an
-    # exception before returning to C.
+    # exception before returning to C. It is specific to this implementation and
+    # is only used internally in the Python binding.
 
-    def get_mu_error(self):
+    def _get_mu_error(self):
         return self._mu_error.value
 
-    def set_mu_error(self, v):
+    def _set_mu_error(self, v):
         self._mu_error.value = v
 
     ## The following overrides the C functions to make them more Pythonic
@@ -459,7 +618,7 @@ class MuVM(_StructOfMethodsWrapper):
     def set_trap_handler(self, trap_handler):
         """Set the trap handler of this MuVM.
 
-        trap_handler is a Python MuTrapHandler object.
+        trap_handler is any Python MuTrapHandler object.
         """
 
         userdata = (self, trap_handler)
@@ -473,15 +632,20 @@ class MuVM(_StructOfMethodsWrapper):
         self._cur_user_data_key = new_key
 
 class MuCtx(_StructOfMethodsWrapper):
+    """A Mu context.
+
+    It holds MuValues and thread-local resources for the client.
+    """
+
     _c_struct_type_ = CMuCtx
     _ctype_ = ctypes.POINTER(_c_struct_type_)
-
-    ## Context management. Auto close after "with".
 
     def __init__(self, struct_ptr, muvm):
         super(self.__class__, self).__init__(struct_ptr, muvm)
 
         self.muvm = muvm
+
+    ## The following methods enable the with statement.
 
     def __enter__(self):
         return self
@@ -495,14 +659,35 @@ class MuCtx(_StructOfMethodsWrapper):
     ## The following overrides the C functions to make them more Pythonic
 
     def load_bundle(self, bundle_str):
+        """Load a Bundle.
+
+        Arguments:
+            bundle_str: a str or unicode as the text-based bundle.
+        """
         _assert_instance(bundle_str, str, unicode)
         return self.load_bundle_(bundle_str, len(bundle_str))
 
     def load_hail(self, hail_str):
+        """Load a HAIL script.
+
+        Arguments:
+            bundle_str: a str or unicode as the text-based HAIL script.
+        """
         _assert_instance(hail_str, str, unicode)
         return self.load_hail_(hail_str, len(hail_str))
 
     def handle_from_int(self, value, length):
+        """Convert a Python int to a Mu handle.
+
+        Arguments:
+            value: a Python int or long. Must be representable in 64-bit signed
+            or unsigned number
+
+            length: the desired bit length of the Mu int value
+
+        Returns:
+            a MuIntValue
+        """
         _assert_instance(value, int, long)
         _assert_range(length, 0, 64)
         if _MIN_SINT64 <= value <= _MAX_SINT64:
@@ -513,28 +698,63 @@ class MuCtx(_StructOfMethodsWrapper):
             raise ValueError("value {} out of 64-bit range".format(value))
 
     def handle_to_sint(self, value):
+        """Convert Mu int handle to a Python int, treating it as signed.
+
+        Arguments:
+            value: a MuIntValue.
+
+        Returns:
+            a Python int
+        """
         return self.handle_to_sint64_(value)
 
     def handle_to_uint(self, value):
+        """Convert Mu int handle to a Python int, treating it as unsigned.
+
+        Arguments:
+            value: a MuIntValue.
+
+        Returns:
+            a Python int
+        """
         return self.handle_to_uint64_(value)
 
     def delete_values(self, *values):
+        """Delete all values in the ``values`` argument. ``values`` is an
+        iterable of MuValue."""
         for value in values:
             self.delete_value(value)
 
     def insert_element(self, value, index, newval):
+        """Wrapper of the underlying ``insert_element``. The result is
+        automatically cast to the same type as ``value``, which must be either
+        ``MuArrayValue`` or ``MuVectorValue``."""
         return self.insert_element_(value, index, newval).cast(type(value))
 
     def load(self, loc, ord=MU_NOT_ATOMIC):
+        """Wrapper of the underlying ``load``. The memory order is optional and
+        defaults to MU_NOT_ATOMIC."""
         _assert_instance(loc, MuIRefValue)
         return self.load_(ord, loc)
 
     def store(self, loc, newval, ord=MU_NOT_ATOMIC):
+        """Wrapper of the underlying ``store``. The memory order is optional and
+        defaults to MU_NOT_ATOMIC."""
         _assert_instance(loc, MuIRefValue)
         return self.store_(ord, loc, newval)
 
     def cmpxchg(self, loc, expected, desired, weak=False, ord_succ=MU_SEQ_CST,
             ord_fail=MU_SEQ_CST):
+        """Wrapper of the underlying ``cmpxchg``.
+
+        It is strong by default.
+
+        The memory orders are optional and defaults to MU_NOT_ATOMIC.
+
+        The return value is a pair (value, succ), where value is a MuValue of
+        the old value, and succ is a bool which indicates whether this operation
+        is successful.
+        """
         _assert_instance(loc, MuIRefValue)
         weak = int(weak)
         succ_buf = ctypes.c_int(0)
@@ -544,13 +764,31 @@ class MuCtx(_StructOfMethodsWrapper):
         return (rv, succ)
 
     def atomicrmw(self, op, loc, opnd, ord=MU_SEQ_CST):
+        """Wrapper of the underlying ``atomicrmw``. The memory order is optional
+        and defaults to MU_SEQ_CST."""
         _assert_instance(loc, MuIRefValue)
         return self.atomicrmw_(ord, op, loc, opnd)
 
     def fence(self, ord=MU_SEQ_CST):
+        """Wrapper of the underlying ``fence``. The memory order is optional and
+        defaults to MU_SEQ_CST."""
         return self.fence_(ord)
 
     def new_thread(self, stack, how_to_resume):
+        """Wrapper of the underlying ``new_thread``.
+        
+        This method now takes only a stack and a ``HowToResume`` value which can
+        be either ``PassValues`` or ``ThrowExc``.
+
+        Arguments:
+            stack: a MuStackRefValue, the initial stack the new thread should
+                bind to.
+            how_to_resume: a HowToResume value. See the docstring of
+                MuTrapHandler.
+        
+        Returns:
+            a MuThreadRefValue, referring to the newly created thread.
+        """
         _assert_instance(how_to_resume, HowToResume)
         if isinstance(how_to_resume, PassValues):
             htr = CMU_REBIND_PASS_VALUES 
@@ -570,9 +808,27 @@ class MuCtx(_StructOfMethodsWrapper):
 
         return self.new_thread_(stack, htr, cvals, cnvals, cexc)
 
-    def dump_keepalives(self, stack, nvals):
+    def dump_keepalives(self, cursor, nvals):
+        """Wrapper of the underlying ``dump_keepalives``.
+        
+        This method now takes a cursor and the number of keep-alive variables. It
+        returns a list of handles.
+
+        Arguments:
+            cursor: a MuFCRefValue, the frame cursor to dump values from.
+
+            nvals: a Python int, the number of keep-alive variables. Must be the
+                same as the number of actual keep-alive variables of the current
+                instruction. Since the client genereted all bundles, it should
+                have full knowledge of the number of keep-alive variables and
+                their types.
+        
+        Returns:
+            a list of MuValue. Each of them is a keep-alive variable. They are
+            in the same order as the KEEPALIVE clause in the Mu IR.
+        """
         cvals = (CMuValue * nvals)()
-        self.dump_keepalives_(stack, cvals)
+        self.dump_keepalives_(cursor, cvals)
         return [MuValue(cvals[i], self) for i in range(nvals)]
 
 def _to_low_level_type(ty):
@@ -581,11 +837,11 @@ def _to_low_level_type(ty):
             ty)
 
 def _to_low_level_arg(arg):
-    return (arg.to_low_level_arg() if isinstance(arg, _LowLevelTypeWrapper)
+    return (arg._to_low_level_arg() if isinstance(arg, _LowLevelTypeWrapper)
             else arg)
 
 def _from_low_level_retval(restype, low_level_rv, self):
-    return (restype.from_low_level_retval(low_level_rv, self)
+    return (restype._from_low_level_retval(low_level_rv, self)
             if isinstance(restype, type) and issubclass(restype, _LowLevelTypeWrapper)
             else low_level_rv)
 
@@ -613,9 +869,9 @@ def _make_high_level_method(name, expected_nargs, restype, argtypes):
         struct_ptr = self._struct_ptr
         low_level_func = self._low_level_func(name)
 
-        self.muvm.set_mu_error(0)
+        self.muvm._set_mu_error(0)
         low_level_rv = low_level_func(struct_ptr, *low_level_args)
-        mu_error = self.muvm.get_mu_error()
+        mu_error = self.muvm._get_mu_error()
 
         if mu_error != 0:
             raise RuntimeError("Error in Mu. mu_error={}".format(mu_error))
@@ -790,6 +1046,24 @@ _initialize_methods(MuCtx, [
     ])
 
 class DelayedDisposer(object):
+    """Automatically delete MuValues in the scope.
+
+    Suggested usage::
+
+        with mu.new_context() as ctx:
+            ...
+
+            with DelayedDisposer() as x:
+                h1 = x << ctx.handle_from_int(1, 64)
+                ...
+            # h1 is deleted here
+
+            for i in range(100):
+                with DelayedDisposer() as x:
+                    hi = x << ctx.handle_from_int(i, 64)
+                    ...
+                # hi is deleted here
+    """
     def __init__(self):
         self.garbages = []
 
@@ -804,6 +1078,8 @@ class DelayedDisposer(object):
         return False
 
     def add(self, handle):
+        """Add handle as a MuValue to be disposed. If handle is not a MuValue,
+        treat it as a list of handles."""
         if isinstance(handle, MuValue):
             self.garbages.append(handle)
         else:
@@ -812,14 +1088,22 @@ class DelayedDisposer(object):
         return handle
 
     def __lshift__(self, rhs):
+        """The same as self.add(rhs)"""
         return self.add(rhs)
 
     def delete_all(self):
+        """Delete all added handles"""
         for h in reversed(self.garbages):
             h.delete();
 
 class MuRefImpl2StartDLL(object):
+    """The factory object of MuVM instances."""
+
     def __init__(self, dll):
+        """
+        dll is a CDLL object of the "libmurefimpl2start.so" library, or a
+        pathname to it. In the latter case, a CDLL will be created.
+        """
         if isinstance(dll, str) or isinstance(dll, unicode):
             dll = ctypes.CDLL(dll)
 
@@ -827,8 +1111,8 @@ class MuRefImpl2StartDLL(object):
         dll.mu_refimpl2_new.argtypes = []
 
         dll.mu_refimpl2_new_ex.restype = CPtrMuVM
-        dll.mu_refimpl2_new_ex.argtypes = [ctypes.c_longlong,
-                ctypes.c_longlong, ctypes.c_longlong]
+        dll.mu_refimpl2_new_ex.argtypes = [ctypes.c_int64,
+                ctypes.c_int64, ctypes.c_int64]
 
         dll.mu_refimpl2_close.restype = None
         dll.mu_refimpl2_close.argtypes = [CPtrMuVM]
@@ -836,7 +1120,22 @@ class MuRefImpl2StartDLL(object):
         self.dll = dll
 
     def mu_refimpl2_new(self):
+        """Create a MuVM instance using the default heap/global/stack sizes."""
         ptr = self.dll.mu_refimpl2_new()
         return MuVM(ptr, self)
+
+    def mu_refimpl2_new_ex(self, heap_size, global_size, stack_size):
+        """Create a MuVM instance using custom heap/global/stack sizes.
+
+        heap_size, global_size, stack_size are the sizes of the GC heap, global
+        memory and each stack. All of them are in bytes.
+        """
+        ptr = self.dll.mu_refimpl2_new_ex(heap_size, global_size, stack_size)
+        return MuVM(ptr, self)
+
+    def mu_refimpl2_close(self, muvm):
+        """Close a MuVM instance. Currently does nothing, i.e. MuVM are never
+        really closed."""
+        self.dll.mu_refimpl2_close(muvm._struct_ptr)
 
 # vim: ts=4 sw=4 et sts=4 ai tw=80
