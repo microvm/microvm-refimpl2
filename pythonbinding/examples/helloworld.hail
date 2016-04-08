@@ -1,0 +1,12 @@
+.newhybrid $hw <@string> 12
+.init $hw = {
+    0
+    12
+    { 0x48 0x65 0x6c 0x6c 0x6f 0x20 0x77 0x6f 0x72 0x6c 0x64 0x21 }
+    }
+
+.newhybrid $nl <@string> 1
+.init $nl = { 0 1 { 0x0a } }
+
+.init @hello_world.g = $hw
+.init @newline.g = $nl

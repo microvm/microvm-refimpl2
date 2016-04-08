@@ -793,20 +793,28 @@ class DelayedDisposer(object):
     def __init__(self):
         self.garbages = []
 
+    def __enter__(self):
+        return self
+
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type != None:
+            return False
+
         self.delete_all()
+        return False
 
     def add(self, handle):
-        self.garbages.append(handle)
+        if isinstance(handle, MuValue):
+            self.garbages.append(handle)
+        else:
+            for h in handle:
+                self.add(h)
         return handle
 
     def __lshift__(self, rhs):
         return self.add(rhs)
 
     def delete_all(self):
-        if exc_type != None:
-            return False
-
         for h in reversed(self.garbages):
             h.delete();
 

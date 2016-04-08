@@ -1,0 +1,85 @@
+.typedef @string = hybrid<
+                    @i64    // hash
+                    @i64    // length
+                    @i8     // bytes
+                    >
+.typedef @ref_string = ref<@string>
+
+.global @hello_world.g <@ref_string>
+.global @newline.g <@ref_string>
+
+.typedef @array_ref_string = hybrid<
+                                @i64        // length
+                                @ref_string // elements
+                                >
+.typedef @ref_array_ref_string = ref<@array_ref_string>
+.typedef @iref_ref_string = iref<@ref_string>
+
+.funcsig @_start.sig = (@ref_array_ref_string @refi32) -> ()
+.funcdef @_start VERSION %v1 <@_start.sig> {
+    %entry(<@ref_array_ref_string> %args <@refi32> %rvbox):
+        %rv = CALL <@main.sig> @main (%args)
+        %rvbox_ir = GETIREF <@i32> %rvbox
+        STORE <@i32> %rvbox_ir %rv
+
+        COMMINST @uvm.thread_exit
+}
+
+.funcsig @main.sig = (@ref_array_ref_string) -> (@i32)
+.funcdef @main VERSION %v1 <@main.sig> {
+    %entry(<@ref_array_ref_string> %args):
+        %hw = LOAD <@ref_string> @hello_world.g
+        CALL <@puts.sig> @puts (%hw)
+
+        %args_ir = GETIREF <@array_ref_string> %args
+        %argsf0_ir = GETFIELDIREF <@array_ref_string 0> %args_ir
+        %argsv_ir = GETVARPARTIREF <@array_ref_string> %args_ir
+        %len = LOAD <@i64> %argsf0_ir
+
+        BRANCH %head(%argsv_ir @I64_0 %len)
+
+    %head(<@iref_ref_string> %argsv_ir <@i64> %i <@i64> %len):
+        %lt = SLT <@i64> %i %len
+        BRANCH2 %lt %body(%argsv_ir %i %len) %exit()
+
+    %body(<@iref_ref_string> %argsv_ir <@i64> %i <@i64> %len):
+        %elem_ir = SHIFTIREF <@iref_ref_string @i64> %argsv_ir %i
+        %str_r = LOAD <@ref_string> %elem_ir
+        CALL <@puts.sig> @puts (%str_r)
+        %i2 = ADD <@i64> %i @I64_1
+        BRANCH %head(%argsv_ir %i2 %len)
+
+    %exit():
+        RET @I32_0
+}
+
+.typedef @size_t = int<64>
+.funcsig @write.sig = (@i32 @ptrvoid @size_t) -> (@size_t)
+.typedef @write.fp  = ufuncptr<@write.sig>
+.global @write.g <@write.fp>
+
+.funcsig @puts.sig = (@ref_string) -> ()
+.funcdef @puts VERSION %v1 <@puts.sig> {
+    %entry(<@ref_string> %str_r):
+        CALL <@puts.sig> @print (%str_r)
+        %nl = LOAD <@ref_string> @newline.g
+        CALL <@puts.sig> @print (%nl)
+        RET ()
+}
+
+.funcsig @print.sig = (@ref_string) -> ()
+.funcdef @print VERSION %v1 <@print.sig> {
+    %entry(<@ref_string> %str_r):
+        %str_ir = GETIREF <@string> %str_r
+        %len_ir = GETFIELDIREF <@string 1> %str_ir
+        %len = LOAD <@i64> %len_ir
+        %content_ir = GETVARPARTIREF <@string> %str_ir
+        %content_ptr = COMMINST @uvm.native.pin <@irefi8> (%content_ir)
+        %content_ptr_v = PTRCAST <@ptri8 @ptrvoid> %content_ptr
+
+        %write = LOAD <@write.fp> @write.g
+        %rv = CCALL #DEFAULT <@write.fp @write.sig> %write (@I32_1 %content_ptr_v %len)
+        COMMINST @uvm.native.unpin <@irefi8> (%content_ir)
+
+        RET ()
+}
