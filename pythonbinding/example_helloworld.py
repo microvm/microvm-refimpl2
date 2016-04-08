@@ -3,7 +3,7 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 import sys
 
 import ctypes, ctypes.util
-from libmupython2 import *
+from libmu import *
 
 def slurp(filename):
     with open(filename) as t:

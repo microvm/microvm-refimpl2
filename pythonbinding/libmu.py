@@ -1,5 +1,7 @@
 """
-libmupython2: Python2 binding for the Mu-client API.
+libmu: Python binding for the Mu-client API.
+
+This module works for both Python 2 and Python 3.
 
 For PyPy users: This module is not RPython!
 
@@ -147,6 +149,13 @@ It is recommended to read the docstrings in the following types: ``MuVM``,
 
 from __future__ import division, absolute_import, print_function, unicode_literals
 
+import sys
+
+if sys.version_info[0] == 2:
+    import _libmuprivpython2 as _priv
+else:
+    import _libmuprivpython3 as _priv
+
 import ctypes, ctypes.util
 
 _libc = ctypes.CDLL(ctypes.util.find_library("c"))
@@ -165,10 +174,7 @@ def _assert_range(v, lb, ub):
     if not (lb <= v <= ub):
         raise AssertionError("{} is not between {} and {}".format(v, lb, ub))
 
-def _assert_instance(obj, *tys):
-    if not any(isinstance(obj, ty) for ty in tys):
-        raise AssertionError("{} is not an instance of {}".format(obj,
-            " or ".join(tys)))
+from _libmuprivcommon import _assert_instance
 
 #### Low-level C types counterpart
 
@@ -664,8 +670,8 @@ class MuCtx(_StructOfMethodsWrapper):
         Arguments:
             bundle_str: a str or unicode as the text-based bundle.
         """
-        _assert_instance(bundle_str, str, unicode)
-        return self.load_bundle_(bundle_str, len(bundle_str))
+        ascii_bundle = _priv._encode_ascii(bundle_str)
+        return self.load_bundle_(ascii_bundle, len(ascii_bundle))
 
     def load_hail(self, hail_str):
         """Load a HAIL script.
@@ -673,8 +679,8 @@ class MuCtx(_StructOfMethodsWrapper):
         Arguments:
             bundle_str: a str or unicode as the text-based HAIL script.
         """
-        _assert_instance(hail_str, str, unicode)
-        return self.load_hail_(hail_str, len(hail_str))
+        ascii_bundle = _priv._encode_ascii(hail_str)
+        return self.load_hail_(ascii_bundle, len(ascii_bundle))
 
     def handle_from_int(self, value, length):
         """Convert a Python int to a Mu handle.
@@ -688,7 +694,7 @@ class MuCtx(_StructOfMethodsWrapper):
         Returns:
             a MuIntValue
         """
-        _assert_instance(value, int, long)
+        _priv._assert_int_like(value)
         _assert_range(length, 0, 64)
         if _MIN_SINT64 <= value <= _MAX_SINT64:
             return self.handle_from_sint64_(value, length)
@@ -837,13 +843,15 @@ def _to_low_level_type(ty):
             ty)
 
 def _to_low_level_arg(arg):
-    return (arg._to_low_level_arg() if isinstance(arg, _LowLevelTypeWrapper)
-            else arg)
+    return (arg._to_low_level_arg() if isinstance(arg, _LowLevelTypeWrapper) else
+            _priv._encode_ascii(arg) if _priv._is_str_like(arg) else
+            arg)
 
 def _from_low_level_retval(restype, low_level_rv, self):
     return (restype._from_low_level_retval(low_level_rv, self)
-            if isinstance(restype, type) and issubclass(restype, _LowLevelTypeWrapper)
-            else low_level_rv)
+            if isinstance(restype, type) and issubclass(restype, _LowLevelTypeWrapper) else
+            _priv._decode_ascii(low_level_rv) if _priv._is_str_like(low_level_rv) else
+            low_level_rv)
 
 def _make_high_level_method(name, expected_nargs, restype, argtypes):
     def wrapper(self, *args):
@@ -1104,7 +1112,7 @@ class MuRefImpl2StartDLL(object):
         dll is a CDLL object of the "libmurefimpl2start.so" library, or a
         pathname to it. In the latter case, a CDLL will be created.
         """
-        if isinstance(dll, str) or isinstance(dll, unicode):
+        if _priv._is_str_like(dll):
             dll = ctypes.CDLL(dll)
 
         dll.mu_refimpl2_new.restype = CPtrMuVM
