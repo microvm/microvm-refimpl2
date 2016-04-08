@@ -6,7 +6,7 @@ import unittest
 
 from libmupython2 import *
 
-dll = MuRefImpl2StartDLL(u"libmurefimpl2start.so")
+dll = MuRefImpl2StartDLL(u"../cbinding/libmurefimpl2start.so")
 mu = dll.mu_refimpl2_new()
 
 with mu.new_context() as ctx:
