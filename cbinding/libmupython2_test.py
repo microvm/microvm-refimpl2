@@ -49,6 +49,34 @@ with mu.new_context() as ctx:
             STORE <@i32> @main_rv %n2
             COMMINST @uvm.thread_exit
     }
+
+    .funcsig @trap_exit_test.sig = (@i32) -> ()
+    .funcdef @trap_exit_test VERSION %v1 <@trap_exit_test.sig> {
+        %entry(<@i32> %n):
+            %n2 = ADD <@i32> %n @I32_1
+            [%trap1] TRAP <> KEEPALIVE (%n %n2)
+            COMMINST @uvm.thread_exit
+    }
+
+    .funcsig @trap_rebind_test.sig = () -> ()
+    .funcdef @trap_rebind_test VERSION %v1 <@trap_rebind_test.sig> {
+        %entry():
+            (%r1 %r2 %r3) = [%trap1] TRAP <@i32 @i32 @i32> EXC(
+                                %nor(%r1 %r2 %r3)
+                                %exc()
+                                )
+
+        %nor(<@i32> %r1 <@i32> %r2 <@i32> %r3):
+            [%trap2] TRAP <> KEEPALIVE (%r1 %r2 %r3)
+            COMMINST @uvm.thread_exit
+        %exc() [%e]:
+            [%trap3] TRAP <> KEEPALIVE (%e)
+            COMMINST @uvm.thread_exit
+    }
+
+    .typedef @void = void
+    .typedef @refvoid = ref<@void>
+    .const @NULLREF <@refvoid> = NULL
     """)
 
 class TestRefImpl2CBinding(unittest.TestCase):
@@ -227,3 +255,133 @@ class TestRefImpl2CBinding(unittest.TestCase):
         v = ctx.handle_to_sint(hv)
         self.assertEqual(v, 43)
         
+
+    def test_trap_exit(self):
+        ctx = self.ctx
+        id_of = ctx.id_of
+
+        class MyHandler(MuTrapHandler):
+            def handle_trap(self, ctx, thread, stack, wpid):
+                print("Hey! This is Python!")
+
+                return ThreadExit()
+
+        mh = MyHandler()
+
+        mu.set_trap_handler(mh)
+
+        forty_two = ctx.handle_from_int(42, 32)
+
+        func = ctx.handle_from_func(id_of("@trap_exit_test"))
+        st = ctx.new_stack(func)
+        th = ctx.new_thread(st, PassValues(forty_two))
+
+        mu.execute()
+
+    def test_trap_exit(self):
+        ctx = self.ctx
+        id_of = ctx.id_of
+
+        result = []
+
+        class MyHandler(MuTrapHandler):
+            def handle_trap(self, ctx, thread, stack, wpid):
+                print("Hey! This is Python!")
+                cursor = ctx.new_cursor(stack)
+                n, n2 = ctx.dump_keepalives(cursor, 2)
+                n = n.cast(MuIntValue)
+                n2 = n2.cast(MuIntValue)
+                ctx.close_cursor(cursor)
+
+                vn = ctx.handle_to_sint(n)
+                vn2 = ctx.handle_to_sint(n2)
+
+                print("vn, vn2 = ", vn, vn2)
+                result.append(vn)
+                result.append(vn2)
+
+                return ThreadExit()
+
+        mh = MyHandler()
+
+        mu.set_trap_handler(mh)
+
+        forty_two = ctx.handle_from_int(42, 32)
+
+        func = ctx.handle_from_func(id_of("@trap_exit_test"))
+        st = ctx.new_stack(func)
+        th = ctx.new_thread(st, PassValues(forty_two))
+
+        mu.execute()
+
+        self.assertEqual(result, [42, 43])
+
+    def test_trap_rebind_pass_value(self):
+        ctx = self.ctx
+        id_of = ctx.id_of
+        name_of = ctx.name_of
+
+        class MyHandler(MuTrapHandler):
+            def __init__(self, expected, box):
+                self.expected = expected
+                self.box = box
+
+            def handle_trap(self, ctx, thread, stack, wpid):
+                print("Hey! This is Python!")
+                cursor = ctx.new_cursor(stack)
+                fid = ctx.cur_func(cursor)
+                fvid = ctx.cur_func_ver(cursor)
+                iid = ctx.cur_inst(cursor)
+                ctx.close_cursor(cursor)
+                print("The current frame:",fid, fvid, iid)
+                print("The current frame:",name_of(fid), name_of(fvid), name_of(iid))
+
+                if name_of(iid) == "@trap_rebind_test.v1.entry.trap1":
+                    one = ctx.handle_from_int(1, 32)
+                    two = ctx.handle_from_int(2, 32)
+                    three = ctx.handle_from_int(3, 32)
+
+                    if self.expected == True:
+                        return Rebind(stack, PassValues(one, two, three))
+                    else:
+                        nul = ctx.handle_from_const(id_of("@NULLREF"))
+                        return Rebind(stack, ThrowExc(nul))
+                elif name_of(iid) == "@trap_rebind_test.v1.nor.trap2":
+                    return_normally = True
+                else:
+                    return_normally = False
+
+                if return_normally == self.expected:
+                    print("Yes. You are there!")
+                    self.box.append(True)
+                else:
+                    print("Oops! Wrong branch!")
+                    self.box.append(False)
+
+                return ThreadExit()
+
+        test_result1 = []
+        mh1 = MyHandler(True, test_result1)
+
+        mu.set_trap_handler(mh1)
+
+        func = ctx.handle_from_func(id_of("@trap_rebind_test"))
+        st = ctx.new_stack(func)
+        th = ctx.new_thread(st, PassValues())
+
+        mu.execute()
+
+        self.assertEqual(test_result1, [True])
+
+        test_result2 = []
+        mh2 = MyHandler(False, test_result2)
+
+        mu.set_trap_handler(mh2)
+
+        func = ctx.handle_from_func(id_of("@trap_rebind_test"))
+        st = ctx.new_stack(func)
+        th = ctx.new_thread(st, PassValues())
+
+        mu.execute()
+
+        self.assertEqual(test_result2, [True])

@@ -16,7 +16,13 @@ the C API, such as the LLVM-style CFG builder.
 
 from __future__ import division, absolute_import, print_function, unicode_literals
 
-import ctypes
+import ctypes, ctypes.util
+
+_libc = ctypes.CDLL(ctypes.util.find_library("c"))
+_libc.malloc.restype = ctypes.c_void_p
+_libc.malloc.argtypes = [ctypes.c_size_t]
+_libc.free.restype = None
+_libc.free.argtypes = [ctypes.c_void_p]
 
 #### Helper functions
 
@@ -67,9 +73,9 @@ CMuCFP = ctypes.c_void_p
 CMuTrapHandlerResult = ctypes.c_int
 CMuHowToResume = ctypes.c_int
 
-MU_THREAD_EXIT = 0x00
-MU_REBIND_PASS_VALUES = 0x01
-MU_REBIND_THROW_EXC = 0x02
+CMU_THREAD_EXIT = 0x00
+CMU_REBIND_PASS_VALUES = 0x01
+CMU_REBIND_THROW_EXC = 0x02
 
 CPtrMuValue = ctypes.POINTER(CMuValue)
 
@@ -89,11 +95,11 @@ class CMuCtx(ctypes.Structure):
 
 CPtrMuCtx = ctypes.POINTER(CMuCtx)
 
-CMuTrapHandler = _funcptr(
+CMuTrapHandler = ctypes.CFUNCTYPE(
     # return value
     None,   # return void
     # input params
-    CMuCtx,                                 # ctx
+    ctypes.POINTER(CMuCtx),                 # ctx
     CMuThreadRefValue,                      # thread
     CMuStackRefValue,                       # stack
     ctypes.c_int,                           # wpid
@@ -204,6 +210,8 @@ class MuTagRef64Value  (MuValue):       _ctype_ = CMuTagRef64Value
 class MuUPtrValue      (MuValue):       _ctype_ = CMuUPtrValue     
 class MuUFPValue       (MuValue):       _ctype_ = CMuUFPValue      
 
+# Trap handling
+
 class TrapHandlerResult(object):
     def __init__(self):
         raise NotImplementedError()
@@ -217,6 +225,8 @@ class Rebind(TrapHandlerResult):
         self.stack = stack
         self.how_to_resume = how_to_resume
 
+# Binding threads to stacks. Used by new_stack and trap handling
+
 class HowToResume(object):
     def __init__(self, *values):
         raise NotImplementedError()
@@ -226,8 +236,157 @@ class PassValues(HowToResume):
         self.values = values
 
 class ThrowExc(HowToResume):
-    def __inti__(self, exc):
+    def __init__(self, exc):
         self.exc = exc
+
+class MuTrapHandler(object):
+    def handle_trap(self, ctx, thread, stack, wpid):
+        """Handle trap.
+
+        This method is called when a trap is triggered by the micro VM. This
+        method should handle the trap and tell the micro VM thread how to
+        resume.
+
+        Args:
+            ctx: The MuCtx created by the micro VM for the trap handler to use.
+                The trap handler should not close it.
+            thread: A MuThreadRefValue of the thread that triggered the trap.
+            stack: A MuStackRefValue of the current stack of the thread which
+                triggered the trap.
+            wpid: The watch-point ID if the trap is triggered by a WATCHPOINT.
+                If it is triggered by TRAP, wpid==0.
+
+        Returns:
+            A TrapHandlerResult object which specifies how the thread that
+            caused the trap should continue. Possible values are:
+
+            ThreadExit(): The thread stops. The stack remains unbound.
+
+            Rebind(new_stack, how_to_resume): The thread re-binds to a stack.
+
+            In the case of Rebind:
+
+            new_stack: The new stack the current thread should bind to after
+                this trap. It may or may not be the same as the stack argument.
+
+            how_to_resume: A HowToResume object which specifies how to bind a
+                thread to the new_stack. Possible values are:
+
+            PassValues(values...): The stack will continue normally, and the
+                stack receives the list of values.
+
+            ThrowExc(exc): The stack will continue exceptionally. exc is a
+                MuRefValue which refers to the exception to be thrown to the
+                stack.
+        """
+        raise NotImplementedError()
+
+# Expose Python objects to native programs
+
+class _ObjectExposer(object):
+    """ Expose Python objects to native programs
+
+    Pointers are not given out, but native programs hold "keys" (i.e. an int
+    uniquely assigned to the object) to refer to Python objects.
+    """
+    def __init__(self):
+        self._dic = {}
+        self._next_key = 1
+
+    def _get_key(self):
+        while True:
+            key = self._next_key
+            self._next_key = (self._next_key + 1) & _MAX_UINT64
+            if key not in self._dic:
+                break
+        return key
+
+    def expose(self, obj):
+        key = self._get_key()
+        self._dic[key] = obj
+        return key
+
+    def get(self, key):
+        return self._dic[key]
+
+    def unexpose(self, key):
+        if key in self._dic:
+            del self._dic[key]
+
+_trap_user_data_exposer = _ObjectExposer()
+
+def _word_array_malloc(nelems):
+    return _libc.malloc(ctypes.sizeof(CMuValue*nelems))
+
+def _word_array_free(addr, freerdata):
+    _libc.free(addr)
+
+_THE_LOW_LEVEL_WORD_ARRAY_FREE_PTR = CMuValuesFreer(_word_array_free)
+    
+def _the_low_level_trap_handler(
+        c_ctx, c_thread, c_stack, c_wpid,
+        c_result, c_new_stack, c_values, c_nvalues, c_freer, c_freerdata,
+        c_exception,
+        c_userdata_key):
+
+    userdata = _trap_user_data_exposer.get(c_userdata_key)
+    muvm, trap_handler = userdata
+
+    ctx = MuCtx(c_ctx, muvm)
+    thread = MuThreadRefValue(c_thread, ctx)
+    stack = MuStackRefValue(c_stack, ctx)
+    wpid = c_wpid
+
+    result = trap_handler.handle_trap(ctx, thread, stack, wpid)
+
+    _assert_instance(result, TrapHandlerResult)
+
+    if isinstance(result, ThreadExit):
+        c_result.contents.value = CMU_THREAD_EXIT
+        c_new_stack.contents.value = 0
+        c_values.contents.value = None
+        c_nvalues.contents.value = 0
+        c_freer.contents.value = None
+        c_freerdata.contents.value = None
+        c_exception.contents.value = None
+    else: # Rebind
+        new_stack = result.stack
+        htr = result.how_to_resume
+        if isinstance(htr, PassValues):
+            values = htr.values
+            nvalues = len(values)
+
+            cvalues_array_addr = _word_array_malloc(nvalues)
+            cvalues_array = (CMuValue*nvalues).from_address(cvalues_array_addr)
+
+            for i,v in enumerate(values):
+                cvalues_array[i] = v.c_mu_value
+
+            c_result.contents.value = CMU_REBIND_PASS_VALUES
+            c_new_stack.contents.value = new_stack.c_mu_value
+            c_values.contents.value = cvalues_array_addr
+            c_nvalues.contents.value = nvalues
+            c_freer.contents.value = _THE_LOW_LEVEL_WORD_ARRAY_FREE_PTR
+            c_freerdata.contents.value = None
+            c_exception.contents.value = None
+
+        else:   # ThrowExc
+            exc = htr.exc
+
+            c_result.contents.value = CMU_REBIND_THROW_EXC
+            c_new_stack.contents.value = new_stack.c_mu_value
+            c_values.contents.value = None
+            c_nvalues.contents.value = 0
+            c_freer.contents.value = None
+            c_freerdata.contents.value = None
+            c_exception.contents.value = exc.c_mu_value
+
+    return
+
+_THE_LOW_LEVEL_TRAP_HANDLER_PTR = CMuTrapHandler(_the_low_level_trap_handler)
+        
+
+# Struct of methods
 
 class _StructOfMethodsWrapper(_LowLevelTypeWrapper):
     """ High-level wrapper of "struct-of-method" types. """
@@ -273,99 +432,9 @@ class _StructOfMethodsWrapper(_LowLevelTypeWrapper):
     def __repr__(self):
         return str(self)
 
-class MuTrapHandler(object):
-    def handle_trap(self, ctx, thread, stack, wpid):
-        """Handle trap.
-
-        This method is called when a trap is triggered by the micro VM. This
-        method should handle the trap and tell the micro VM thread how to
-        resume.
-
-        Args:
-            ctx: The MuCtx created by the micro VM for the trap handler to use.
-                The trap handler should not close it.
-            thread: A MuThreadRefValue of the thread that triggered the trap.
-            stack: A MuStackRefValue of the current stack of the thread which
-                triggered the trap.
-            wpid: The watch-point ID if the trap is triggered by a WATCHPOINT.
-                If it is triggered by TRAP, wpid==0.
-
-        Returns:
-            A TrapHandlerResult object which specifies how the thread that
-            caused the trap should continue. Possible values are:
-
-            ThreadExit(): The thread stops. The stack remains unbound.
-
-            Rebind(new_stack, how_to_resume): The thread re-binds to a stack.
-
-            In the case of Rebind:
-
-            new_stack: The new stack the current thread should bind to after
-                this trap. It may or may not be the same as the stack argument.
-
-            how_to_resume: A HowToResume object which specifies how to bind a
-                thread to the new_stack. Possible values are:
-
-            PassValues(values...): The stack will continue normally, and the
-                stack receives the list of values.
-
-            ThrowExc(exc): The stack will continue exceptionally. exc is a
-                MuRefValue which refers to the exception to be thrown to the
-                stack.
-        """
-        raise NotImplementedError()
-
-def _the_low_level_trap_handler(
-        c_ctx, c_thread, c_stack, c_wpid,
-        c_result, c_new_stack, c_values, c_nvalues, c_freer, c_freerdata,
-        c_exception,
-        c_userdata_key):
-
-    userdata = MuVM._user_data_exposer_.get(c_userdata_key)
-    muvm, trap_handler = userdata
-
-    ctx = MuCtx(c_ctx, muvm)
-    thread = MuThreadRefValue(c_thread, ctx)
-    stack = MuStackRefValue(c_stack, ctx)
-    wpid = c_wpid
-
-    result = trap_handler.handle_trap(ctx, thread, stack, wpid)
-
-    # TODO: handle result
-    return
-
-_THE_LOW_LEVEL_TRAP_HANDLER_PTR = CMuTrapHandler(_the_low_level_trap_handler)
-
-class _ObjectExposer(object):
-    def __init__(self):
-        self._dic = {}
-        self._next_key = 1
-
-    def _get_key(self):
-        while True:
-            key = self._next_key()
-            self._next_key = (self._next_key + 1) & _MAX_UINT64
-            if key not in self._dic:
-                break
-        return key
-
-    def expose(self, obj):
-        key = self._get_key()
-        self._dic[key] = obj
-        return key
-
-    def get(self, key):
-        return self._dic[key]
-
-    def unexpose(self, key):
-        if key in self._dic:
-            del self._dic[key]
-        
 class MuVM(_StructOfMethodsWrapper):
     _c_struct_type_ = CMuVM
     _ctype_ = ctypes.POINTER(_c_struct_type_)
-
-    _user_data_exposer_ = _ObjectExposer()
 
     def __init__(self, struct_ptr, dll):
         super(self.__class__, self).__init__(struct_ptr, dll)
@@ -396,11 +465,11 @@ class MuVM(_StructOfMethodsWrapper):
         userdata = (self, trap_handler)
 
         old_key = self._cur_user_data_key
-        new_key = self._user_data_exposer_.expose(userdata)
+        new_key = _trap_user_data_exposer.expose(userdata)
 
         self.set_trap_handler_(_THE_LOW_LEVEL_TRAP_HANDLER_PTR, new_key)
 
-        self._user_data_exposer_.unexpose(old_key)
+        _trap_user_data_exposer.unexpose(old_key)
         self._cur_user_data_key = new_key
 
 class MuCtx(_StructOfMethodsWrapper):
@@ -484,7 +553,7 @@ class MuCtx(_StructOfMethodsWrapper):
     def new_thread(self, stack, how_to_resume):
         _assert_instance(how_to_resume, HowToResume)
         if isinstance(how_to_resume, PassValues):
-            htr = MU_REBIND_PASS_VALUES 
+            htr = CMU_REBIND_PASS_VALUES 
             values = how_to_resume.values
             cvals_ty = CMuValue * len(values)
             cvals = cvals_ty()
@@ -493,13 +562,18 @@ class MuCtx(_StructOfMethodsWrapper):
             cnvals = len(values)
             cexc = 0
         else:
-            htr = MU_REBIND_THROW_EXC
+            htr = CMU_REBIND_THROW_EXC
             exc = how_to_resume.exc
             cvals = None
             cnvals = 0
             cexc = exc.c_mu_value
 
         return self.new_thread_(stack, htr, cvals, cnvals, cexc)
+
+    def dump_keepalives(self, stack, nvals):
+        cvals = (CMuValue * nvals)()
+        self.dump_keepalives_(stack, cvals)
+        return [MuValue(cvals[i], self) for i in range(nvals)]
 
 def _to_low_level_type(ty):
     return (None if ty == None else 
@@ -688,7 +762,8 @@ _initialize_methods(MuCtx, [
     ("cur_func"             , CMuID             , [MuFCRefValue]),
     ("cur_func_ver"         , CMuID             , [MuFCRefValue]),
     ("cur_inst"             , CMuID             , [MuFCRefValue]),
-    ("dump_keepalives"      , None              , [MuFCRefValue, MuValue]),
+    ("dump_keepalives_"     , None              , [MuFCRefValue,
+        ctypes.POINTER(CMuValue)]),
 
     ("pop_frames_to"        , None              , [MuFCRefValue]),
     ("push_frame"           , None              , [MuStackRefValue, MuFuncRefValue]),
