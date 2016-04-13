@@ -14,10 +14,10 @@ extern "C" {
 // value. Copies of MuValue values refer to the same value. A MuValue instance
 // can only be used in the MuCtx holding it.
 //
-// Values of subtypes can be cast to MuValue and back using the type cast
-// expression in C, similar to casting one pointer to another.
+// Values of subtypes can be cast to/from their abstract parents using the type
+// cast expression in C, similar to casting one pointer to another.
 
-// abstract value type
+// abstract value types
 typedef void *MuValue;              // Any Mu value
 typedef void *MuSeqValue;           // array or vector
 typedef void *MuGenRefValue;        // ref, iref, funcref, threadref, stackref, framecursorref
@@ -67,10 +67,21 @@ typedef struct MuVM MuVM;
 typedef struct MuCtx MuCtx;
 
 // Signature of the trap handler
-typedef void (*MuTrapHandler)(MuCtx *ctx, MuThreadRefValue thread,
-        MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
-        MuStackRefValue *new_stack, MuValue **values, int *nvalues,
-        MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
+typedef void (*MuTrapHandler)(
+        // iutput parameters
+        MuCtx *ctx,
+        MuThreadRefValue thread,
+        MuStackRefValue stack,
+        int wpid,
+        // output parameters
+        MuTrapHandlerResult *result,
+        MuStackRefValue *new_stack,
+        MuValue **values,
+        int *nvalues,
+        MuValuesFreer *freer,
+        MuCPtr *freerdata,
+        MuRefValue *exception,
+        // input parameter (userdata)
         MuCPtr userdata);
 
 // Memory orders
