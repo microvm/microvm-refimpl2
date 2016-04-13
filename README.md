@@ -1,6 +1,6 @@
 # Mu Reference Implementation version 2
 
-Version 2.1.0
+Version 2.1.1
 
 This project is the current reference implementation of Mu, the micro virtual
 machine designed by [The Micro Virtual Machine Project](http://microvm.org).
@@ -80,6 +80,16 @@ project, so that the generated sources will be on the Eclipse build path.
 IntelliJ IDEA has plugins for Scala and SBT. Make sure you don't commit `.idea`
 or generated project files into the repository.
 
+### C binding and Python binding
+
+The C binding is in the `cbinding` directory. Just run `make` inside `cbinding`.
+
+The Python binding is in the `pythonbinding` directory. It depends on the C
+binding, so make sure you make the C binding first. The Python binding does not
+need to be built.
+
+See the `README.md` files in `cbinding` and `pythonbinding` for more details.
+
 ## How to run
 
 There is a sample factorial program (generously provided by @johnjiabinzhang) in
@@ -117,8 +127,8 @@ corresponds to the `MuCtx` struct in the spec. `uvm.refimpl.MuValue` and its
 subclasses implement the `MuValue` handles, but has a real Scala type hierarchy
 and does extra type checking when converting, which is not required by the spec.
 
-The client can also be written in C or other languages that can interface with
-C. (TODO: this part is under construction)
+The client can also be written in C, Python or other languages that can
+interface with C.
 
 ### Threading model
 
