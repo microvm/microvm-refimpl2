@@ -7,9 +7,8 @@ import uvm.TrantientBundle
 import uvm.utils.IDFactory
 import org.scalatest.exceptions.TestFailedException
 
-class SourceInfoRepoTest extends FlatSpec with Matchers
-  with TestingBundlesValidators {
-
+class SourceInfoRepoTest extends FlatSpec with Matchers {
+  
   def parseText(globalBundle: GlobalBundle, fac: Option[IDFactory]=None)(uir: String): TrantientBundle = {
     val idf = fac.getOrElse(new IDFactory(uvm.refimpl.MicroVM.FIRST_CLIENT_USABLE_ID))
     val r = new UIRTextReader(idf)
@@ -157,6 +156,33 @@ class SourceInfoRepoTest extends FlatSpec with Matchers
     catchExceptionWhenParsing("""
       .typedef @i64 = int<64>
       .funcsig @i64 = () -> ()
+    """)
+  }
+  
+  it should "produce error when a function is defined twice in one bundle" in {
+    catchExceptionWhenParsing("""
+      .typedef @i64 = int<64>
+      .funcsig @foo = () -> ()
+      .funcdef @f VERSION %v1 <@foo> {
+        %entry():
+          RET ()
+      }
+      .funcdef @f VERSION %v2 <@foo> {
+        %entry():
+          RET ()
+      }
+    """)
+  }
+
+  it should "produce error when a function is declared and defined in one bundle" in {
+    catchExceptionWhenParsing("""
+      .typedef @i64 = int<64>
+      .funcsig @foo = () -> ()
+      .funcdecl @f <@foo>
+      .funcdef @f VERSION %v1 <@foo> {
+        %entry():
+          RET ()
+      }
     """)
   }
 }
