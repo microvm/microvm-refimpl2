@@ -16,7 +16,7 @@ object TestingBundlesValidators {
     def anything(s: String) = b.allNs(s)
     def ty(s: String) = b.typeNs(s)
     def const(s: String) = b.constantNs (s)
-    def value(s: String) = b.varNs(s)
+    def value(s: String) = b.globalVarNs(s)
     def globalValue(s: String) = b.globalVarNs(s)
     def globalCell(s: String) = b.globalCellNs(s)
     def sig(s: String) = b.funcSigNs(s)

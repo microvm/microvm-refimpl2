@@ -12,13 +12,11 @@ abstract class Bundle {
    *   + typeNs             // All types
    *   + funcSigNs          // All function signatures
    *   + funcVerNs          // All function versions
-   *   + varNs              // All variables, global or local
-   *     + globalVarNs      // Global variables
-   *       + constantNs     // Constants
-   *       + globalCellNs   // Global cells
-   *       + funcNs         // Functions
-   *       + expFuncNs      // Exposed functions
-   *     + localVarNs       // Local variables (per basic block)
+ 	 *   + globalVarNs      // Global variables
+ 	 *     + constantNs     // Constants
+ 	 *     + globalCellNs   // Global cells
+ 	 *     + funcNs         // Functions
+ 	 *     + expFuncNs      // Exposed functions
    *   + bbNs               // Basic blocks (per function version)
    *   + instNs							// All instructions
    *   	 + localInstNs  		// Instructions in a basic block (per basic block)
@@ -26,20 +24,21 @@ abstract class Bundle {
    * bbNs and localVarNs are part of particular FuncVers and BBs.
    */
 
-  val allNs = new NestedNamespace[Identified](None)
+  val allNs = new NestedNamespace[Identified](None, "Mu entity")
 
-  val typeNs = allNs.makeSubSpace[Type]()
-  val funcSigNs = allNs.makeSubSpace[FuncSig]()
-  val funcVerNs = allNs.makeSubSpace[FuncVer]()
-  val varNs = allNs.makeSubSpace[SSAVariable]()
+  val typeNs = allNs.makeSubSpace[Type]("type")
+  val funcSigNs = allNs.makeSubSpace[FuncSig]("function signature")
+  val funcVerNs = allNs.makeSubSpace[FuncVer]("function version")
 
-  val globalVarNs = varNs.makeSubSpace[GlobalVariable]()
-  val constantNs = globalVarNs.makeSubSpace[Constant]()
-  val globalCellNs = globalVarNs.makeSubSpace[GlobalCell]()
-  val funcNs = globalVarNs.makeSubSpace[Function]()
-  val expFuncNs = globalVarNs.makeSubSpace[ExposedFunc]()
+  val globalVarNs = allNs.makeSubSpace[GlobalVariable]("global variable")
+  val constantNs = globalVarNs.makeSubSpace[Constant]("constant")
+  val globalCellNs = globalVarNs.makeSubSpace[GlobalCell]("global cell")
+  val funcNs = globalVarNs.makeSubSpace[Function]("function")
+  val expFuncNs = globalVarNs.makeSubSpace[ExposedFunc]("exposed function")
   
-  val instNs = allNs.makeSubSpace[Instruction]()
+  val instNs = allNs.makeSubSpace[Instruction]("instruction")
+  
+  val sourceInfoRepo = new SourceInfoRepo()
 }
 
 /**
@@ -64,7 +63,7 @@ class TrantientBundle extends Bundle {
  * This kind of bundle holds the global state. Functions and versions are fully merged.
  */
 class GlobalBundle extends Bundle {
-  private def simpleMerge[T <: Identified](oldNs: Namespace[T], newNs: Namespace[T]) {
+  private def simpleMerge[T <: Identified](oldNs: Namespace[T], newNs: Namespace[T], newSourceInfoRepo: SourceInfoRepo) {
     for (cand <- newNs.all) {
       try {
         oldNs.add(cand)
@@ -81,10 +80,7 @@ class GlobalBundle extends Bundle {
 //        }
 //        assertPresent(oldNs.asInstanceOf[NestedNamespace[T]], cand)
       } catch {
-        case e: NameConflictException =>
-          throw new IllegalRedefinitionException(
-            "Redefinition of type, function signature, constant or" +
-              " global cell is not allowed: %s".format(cand.repr), e);
+        case e: NameConflictException => throw e.toIllegalRedefinitionException(newSourceInfoRepo, sourceInfoRepo)
       }
     }
   }
@@ -96,6 +92,7 @@ class GlobalBundle extends Bundle {
   }
   
   private def mergeLocalNamespaces(newBundle: TrantientBundle) {
+    try {
     for (fv <- newBundle.funcVerNs.all) {
       fv.bbNs.reparent(allNs)
       for (bb <- fv.bbs) {
@@ -103,22 +100,27 @@ class GlobalBundle extends Bundle {
         bb.localInstNs.reparent(allNs)
       }
     }
+    } catch {
+      case e: NameConflictException => throw e.toIllegalRedefinitionException(newBundle.sourceInfoRepo, sourceInfoRepo)
+    }
   }
 
   def merge(newBundle: TrantientBundle) {
     // Only merge leaves
-    simpleMerge(typeNs, newBundle.typeNs)
-    simpleMerge(funcSigNs, newBundle.funcSigNs)
-    simpleMerge(funcVerNs, newBundle.funcVerNs)
-    simpleMerge(constantNs, newBundle.constantNs)
-    simpleMerge(globalCellNs, newBundle.globalCellNs)
-    simpleMerge(funcNs, newBundle.funcNs)
-    simpleMerge(expFuncNs, newBundle.expFuncNs)
-    simpleMerge(instNs, newBundle.instNs)
+    simpleMerge(typeNs, newBundle.typeNs, newBundle.sourceInfoRepo)
+    simpleMerge(funcSigNs, newBundle.funcSigNs, newBundle.sourceInfoRepo)
+    simpleMerge(funcVerNs, newBundle.funcVerNs, newBundle.sourceInfoRepo)
+    simpleMerge(constantNs, newBundle.constantNs, newBundle.sourceInfoRepo)
+    simpleMerge(globalCellNs, newBundle.globalCellNs, newBundle.sourceInfoRepo)
+    simpleMerge(funcNs, newBundle.funcNs, newBundle.sourceInfoRepo)
+    simpleMerge(expFuncNs, newBundle.expFuncNs, newBundle.sourceInfoRepo)
+    simpleMerge(instNs, newBundle.instNs, newBundle.sourceInfoRepo)
 
     redefineFunctions(newBundle.funcVerNs)
     
     mergeLocalNamespaces(newBundle)
+    
+    sourceInfoRepo.merge(newBundle.sourceInfoRepo)
   }
 
 }

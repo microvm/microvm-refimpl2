@@ -13,7 +13,7 @@ class NameSpaceSpec extends FlatSpec with Matchers {
   import RichIdentifiedSettable._
 
   it should "remember things by ID and name" in {
-    val ns = new NestedNamespace[Foo](None)
+    val ns = new NestedNamespace[Foo](None, "Foo")
     val f = new Foo(42) := (1, "f")
     ns.add(f)
 
@@ -28,9 +28,9 @@ class NameSpaceSpec extends FlatSpec with Matchers {
   }
 
   it should "handle nested namespaces" in {
-    val nsFoo = new NestedNamespace[Foo](None)
-    val nsBar = nsFoo.makeSubSpace[Bar]()
-    val nsBaz = nsBar.makeSubSpace[Baz]()
+    val nsFoo = new NestedNamespace[Foo](None, "Foo")
+    val nsBar = nsFoo.makeSubSpace[Bar]("Bar")
+    val nsBaz = nsBar.makeSubSpace[Baz]("Baz")
 
     val f = new Foo(1) := (1, "f")
     val g = new Bar(1, 2) := (2, "g")

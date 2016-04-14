@@ -15,31 +15,31 @@ topLevelDef
     ;
 
 typeDef
-    :   '.typedef' nam=GLOBAL_NAME '=' ctor=typeConstructor
+    :   '.typedef' nam=globalName '=' ctor=typeConstructor
     ;
 
 funcSigDef
-    :   '.funcsig' nam=GLOBAL_NAME '=' ctor=funcSigConstructor
+    :   '.funcsig' nam=globalName '=' ctor=funcSigConstructor
     ;
 
 constDef
-    :   '.const' nam=GLOBAL_NAME '<' ty=type '>' '=' ctor=constConstructor
+    :   '.const' nam=globalName '<' ty=type '>' '=' ctor=constConstructor
     ;
     
 globalDef
-    :   '.global' nam=GLOBAL_NAME '<' ty=type '>'
+    :   '.global' nam=globalName '<' ty=type '>'
     ;
 
 funcDecl
-    :   '.funcdecl' nam=GLOBAL_NAME '<' sig=funcSig '>'
+    :   '.funcdecl' nam=globalName '<' sig=funcSig '>'
     ;
     
 funcDef
-    :   '.funcdef' nam=GLOBAL_NAME 'VERSION' ver=name '<' sig=funcSig '>' body=funcBody
+    :   '.funcdef' nam=globalName 'VERSION' ver=name '<' sig=funcSig '>' body=funcBody
     ;
     
 funcExpDef
-    :   '.expose' nam=GLOBAL_NAME '=' funcName=GLOBAL_NAME callConv=flag cookie=GLOBAL_NAME
+    :   '.expose' nam=globalName '=' func callConv=flag cookie=constant
     ;
 
 typeConstructor
@@ -70,24 +70,40 @@ constConstructor
     :   intLiteral                  # CtorInt
     |   floatLiteral                # CtorFloat
     |   doubleLiteral               # CtorDouble
-    |   '{' GLOBAL_NAME* '}'        # CtorList
+    |   '{' globalVar* '}'          # CtorList
     |   'NULL'                      # CtorNull
     ;
 
 type
-    :   GLOBAL_NAME
+    :   globalName
     ;
 
 funcSig
-    :   GLOBAL_NAME
+    :   globalName
     ;
 
 constant
-    :   GLOBAL_NAME
+    :   globalName
     ;
 
-paramList
-    :   '(' name* ')'
+globalCell
+    :   globalName
+    ;
+
+func
+    :   globalName
+    ;
+
+funcVer
+    :   globalName
+    ;
+
+expFunc
+    :   globalName
+    ;
+    
+globalVar
+    :   globalName
     ;
 
 funcBody
@@ -187,7 +203,7 @@ instBody
     |   'SWAPSTACK' swappee=value curStackClause newStackClause excClause keepAliveClause   # InstSwapStack
 
     // Common Instructions
-    |   'COMMINST' nam=GLOBAL_NAME flagList? typeList? funcSigList? argList? excClause keepAliveClause     # InstCommInst
+    |   'COMMINST' nam=globalName flagList? typeList? funcSigList? argList? excClause keepAliveClause     # InstCommInst
     ;
     
 retVals
@@ -296,9 +312,12 @@ doubleLiteral
     ;
 
 name
-    :   GLOBAL_NAME
-    |   LOCAL_NAME
+    :   globalName
+    |   localName
     ;
+
+globalName : GLOBAL_NAME;
+localName : LOCAL_NAME;
 
 // LEXER
 

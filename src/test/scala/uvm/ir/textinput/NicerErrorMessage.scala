@@ -27,4 +27,5 @@ class NicerErrorMessage extends FlatSpec with Matchers
         e.printStackTrace()
     }
   }
+  
 }

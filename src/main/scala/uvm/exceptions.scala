@@ -8,4 +8,15 @@ class TypeResolutionException(message: String = null, cause: Throwable = null) e
 
 class IllegalRedefinitionException(message: String = null, cause: Throwable = null) extends BundleLoadingException(message, cause)
 
-class NameConflictException(message: String = null, cause: Throwable = null) extends UvmException(message, cause)
+class NameConflictException(val kind: String, val whatConflicts: String, val newItem: Identified, val oldItem: Identified, cause: Throwable = null) extends {
+  val message = "Conflict: %s %s has the same %s as %s".format(kind, newItem.repr, whatConflicts, oldItem.repr)
+} with UvmException(message, cause) {
+  def toIllegalRedefinitionException(newSourceInfoRepo: SourceInfoRepo, oldSourceInfoRepo: SourceInfoRepo): IllegalRedefinitionException = {
+    val oldSrcInfo = oldSourceInfoRepo(oldItem)
+    val newSrcInfo = newSourceInfoRepo(newItem)
+    throw new IllegalRedefinitionException(
+      "Cannot redefine %s %s\n%s\nwhich is already defined %s".format(
+        kind, newItem.repr, newSrcInfo.prettyPrint(), oldSrcInfo.prettyPrint()), this)
+
+  }
+}
