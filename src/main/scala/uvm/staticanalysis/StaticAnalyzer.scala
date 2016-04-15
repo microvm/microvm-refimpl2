@@ -31,6 +31,9 @@ class StaticAnalyzer {
       checkTypes()
       checkSigs()
       checkConsts()
+      checkGlobals()
+      checkExpFuncs()
+      checkFuncs()
     }
 
     def checkTypes(): Unit = {
@@ -233,6 +236,119 @@ class StaticAnalyzer {
     def error(msg: String, pretty: Seq[AnyRef] = Seq(), cause: Throwable = null): StaticCheckingException = {
       val prettyMsgs = pretty.map(o => lookupSourceInfo(o).prettyPrint())
       new StaticCheckingException("%s\n%s".format(msg, prettyMsgs.mkString("\n")), cause)
+    }
+
+    def checkGlobals(): Unit = {
+      for (g <- bundle.globalCellNs.all) {
+        g.cellTy match {
+          case ty: TypeVoid => throw error("Global cell %s: Global cell cannot have void type.".format(g.repr),
+            pretty = Seq(g, ty))
+          case ty: TypeHybrid => throw error("Global cell %s: Global cell cannot have hybrid type.".format(g.repr),
+            pretty = Seq(g, ty))
+        }
+      }
+    }
+
+    def checkExpFuncs(): Unit = {
+      for (ef <- bundle.expFuncNs.all) {
+        ef.cookie.constTy match {
+          case TypeInt(64) =>
+          case ty => throw error("Exposed function %s: cookie must be a 64-bit int. %s found.".format(ef.repr, ty.repr),
+            pretty = Seq(ef, ty))
+        }
+      }
+    }
+
+    def checkFuncs(): Unit = {
+      for (fv <- bundle.funcVerNs.all) {
+        checkFuncVer(fv)
+      }
+    }
+
+    def checkFuncVer(fv: FuncVer): Unit = {
+      val sig = fv.sig
+      val fsig = fv.func.sig
+      if (fsig.paramTys.length != sig.paramTys.length || fsig.retTys.length != sig.retTys.length) {
+        throw error("Function version %s has different parameter or return value arity as its function %s".format(
+          fv.repr, fv.func.repr), pretty = Seq(fv, sig, fv.func, fsig))
+      }
+
+      val entry = fv.entry
+      if (entry.norParams.length != sig.paramTys.length) {
+        throw error("Function version %s: the entry block has %d parameters, but the function takes %s parameters."
+          .format(fv.repr, entry.norParams.length, sig.paramTys.length),
+          pretty = Seq(fv, entry, sig))
+      }
+
+      if (entry.excParam.isDefined) {
+        throw error("Function version %s: the entry block should not have exceptional parameter."
+          .format(fv.repr),
+          pretty = Seq(fv, entry))
+      }
+
+      for (bb <- fv.bbs) {
+        checkBasicBlock(fv, entry, bb)
+      }
+    }
+
+    def checkBasicBlock(fv: FuncVer, entry: BasicBlock, bb: BasicBlock): Unit = {
+      if (bb.insts.isEmpty) {
+        throw error("Function version %s: basic block %s is empty"
+          .format(fv.repr, bb.repr),
+          pretty = Seq(fv, bb))
+      }
+      val lastInst = bb.insts.last match {
+        case i: MaybeTerminator if i.canTerminate => i
+        case i => throw error("FuncVer %s BB %s: The last instruction %s is not a valid basic block terminator"
+          .format(fv.repr, bb.repr, i.repr),
+          pretty = Seq(fv, bb, i))
+      }
+
+      for ((dest, isNormal) <- bbDests(lastInst)) {
+        if (dest.bb == entry) {
+          throw error("FuncVer %s BB %s Inst %s: Cannot branch to the entry block"
+            .format(fv.repr, bb.repr, lastInst.repr),
+            pretty = Seq(fv, bb, lastInst))
+        }
+
+        val destBB = dest.bb
+        val nParams = destBB.norParams.length
+        val nArgs = dest.args.length
+        if (nParams != nArgs) {
+          throw error(("FuncVer %s BB %s Inst %s: Destination %s has %d normal parameters, but %d arguments found.\n" +
+            "DestClause: %s")
+            .format(fv.repr, bb.repr, lastInst.repr, destBB.repr, nParams, nArgs, dest),
+            pretty = Seq(lastInst, destBB))
+        }
+
+        if (isNormal) {
+          if (destBB.excParam.isDefined) {
+            throw error(("FuncVer %s BB %s Inst %s: Normal destination %s should not have exceptional parameter.\n" +
+              "DestClause: %s")
+              .format(fv.repr, bb.repr, lastInst.repr, destBB.repr, dest),
+              pretty = Seq(lastInst, destBB))
+          }
+        } else {
+          if (!destBB.excParam.isDefined) {
+            throw error(("FuncVer %s BB %s Inst %s: Exceptional destination %s must have exceptional parameter.\n" +
+              "DestClause: %s")
+              .format(fv.repr, bb.repr, lastInst.repr, destBB.repr, dest),
+              pretty = Seq(lastInst, destBB))
+          }
+        }
+      }
+    }
+
+    def bbDests(lastInst: MaybeTerminator): Seq[(DestClause, Boolean)] = lastInst match {
+      case i: InstBranch     => Seq(i.dest).map(d => (d, true))
+      case i: InstBranch2    => Seq(i.ifTrue, i.ifFalse).map(d => (d, true))
+      case i: InstSwitch     => i.cases.map(_._2).map(d => (d, true))
+      case i: InstTailCall   => Seq()
+      case i: InstRet        => Seq()
+      case i: InstThrow      => Seq()
+      case i: InstWatchPoint => Seq(i.dis, i.ena).map(d => (d, true)) ++ i.exc.map(d => (d, false)).toSeq
+      case i: InstWPBranch   => Seq(i.dis, i.ena).map(d => (d, true))
+      case i: HasExcClause   => i.excClause.map(e => Seq((e.nor, true), (e.exc, false))).getOrElse(Seq())
     }
   }
 }

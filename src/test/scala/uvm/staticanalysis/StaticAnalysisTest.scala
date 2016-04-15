@@ -192,4 +192,98 @@ class StaticAnalysisTest extends FlatSpec with Matchers {
       .const @C <@s> = { @C @C @C }
       """)
   }
+
+  it should "complain if a global cell is void" in {
+    catchExceptionWhenAnalyzing("""
+      .typedef @void = void
+      .global @g <@void>
+      """)
+  }
+
+  it should "complain if a global cell is hybrid" in {
+    catchExceptionWhenAnalyzing("""
+      .typedef @i64 = int<64>
+      .typedef @h = hybrid<@i64>
+      .global @g <@h>
+      """)
+  }
+
+  it should "complain if an exposed function's cookie is not int64" in {
+    catchExceptionWhenAnalyzing("""
+      .typedef @i32 = int<32>
+      .const @c <@i32> = 42
+      .funcsig @sig = () -> ()
+      .funcdecl @f <@sig>
+      .expose @fe = @f #DEFAULT @c
+      """)
+  }
+
+  it should "complain if the entry block has the wrong number of arguments" in {
+    catchExceptionWhenAnalyzing("""
+      .typedef @i32 = int<32>
+      .funcsig @sig = (@i32 @i32 @i32) -> ()
+      .funcdef @f VERSION %v1 <@sig> {
+        %entry(<@i32> %x <@i32> %y):
+          RET ()
+      }
+      """)
+  }
+
+  it should "complain if attempt to branch to entry" in {
+    catchExceptionWhenAnalyzing("""
+      .funcsig @sig = () -> ()
+      .funcdef @f VERSION %v1 <@sig> {
+        %entry():
+          BRANCH %b1()
+        %b1():
+          BRANCH %entry()
+      }
+      """)
+  }
+
+  it should "complain if branching with the wrong number of arguments" in {
+    catchExceptionWhenAnalyzing("""
+      .typedef @i32 = int<32>
+      .const @1 <@i32> = 1
+      .funcsig @sig = () -> ()
+      .funcdef @f VERSION %v1 <@sig> {
+        %entry():
+          BRANCH %b1(@1)
+        %b1():
+          RET ()
+      }
+      """)
+  }
+
+  it should "complain if an exceptional dest does not have exc param" in {
+    catchExceptionWhenAnalyzing("""
+      .typedef @i32 = int<32>
+      .const @1 <@i32> = 1
+      .funcsig @sig = () -> ()
+      .funcdef @f VERSION %v1 <@sig> {
+        %entry():
+          CALL <@sig> @f () EXC(%b1() %b2())
+        %b1():
+          RET ()
+        %b2():
+          RET ()
+      }
+      """)
+  }
+
+  it should "complain if a normal dest has exc param" in {
+    catchExceptionWhenAnalyzing("""
+      .typedef @i32 = int<32>
+      .const @1 <@i32> = 1
+      .funcsig @sig = () -> ()
+      .funcdef @f VERSION %v1 <@sig> {
+        %entry():
+          CALL <@sig> @f () EXC(%b1() %b2())
+        %b1() [%e]:
+          RET ()
+        %b2() [%e]:
+          RET ()
+      }
+      """)
+  }
 }

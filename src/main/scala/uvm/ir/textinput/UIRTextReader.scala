@@ -337,12 +337,12 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
           param
         }
 
-        bb.norParams = label.bbParam.map{ p => 
+        bb.norParams = label.bbParam.map { p => 
           val param = mkNorParam(p.`type`(), p.name())
           val sourceInfo = toSourceInfo(p)
           addLocalVar(param, sourceInfo)
           param
-        }
+        }.toIndexedSeq
         bb.excParam = Option(label.excParam).map { p =>
           val param = mkExcParam(p.name())
           val sourceInfo = toSourceInfo(p)
@@ -598,12 +598,12 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
           return inst
         }
 
-        bb.insts = bbCtx.inst.map(i => mkInst(bb, i))
+        bb.insts = bbCtx.inst.map(i => mkInst(bb, i)).toIndexedSeq
 
         return bb
       }
 
-      val bbs = fDefCtx.funcBody.basicBlock().map(makeBB)
+      val bbs = fDefCtx.funcBody.basicBlock().map(makeBB).toIndexedSeq
 
       ver.bbs = bbs
       ver.entry = bbs.head

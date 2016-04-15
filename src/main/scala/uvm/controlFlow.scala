@@ -24,7 +24,7 @@ class Function extends GlobalVariable {
  */
 class FuncVer extends IdentifiedSettable {
   var func: Function = null
-  var bbs: Seq[BasicBlock] = null
+  var bbs: IndexedSeq[BasicBlock] = null
   var entry: BasicBlock = null
 
   def sig: FuncSig = func.sig
@@ -33,9 +33,9 @@ class FuncVer extends IdentifiedSettable {
 }
 
 class BasicBlock extends IdentifiedSettable {
-  var norParams: Seq[NorParam] = null
+  var norParams: IndexedSeq[NorParam] = null
   var excParam: Option[ExcParam] = null
-  var insts: Seq[Instruction] = null
+  var insts: IndexedSeq[Instruction] = null
 
   var localVarNs: NestedNamespace[LocalVariable] = null // sub-namespace of allNs
   var localInstNs: NestedNamespace[Instruction] = null // sub-namespace of allNs

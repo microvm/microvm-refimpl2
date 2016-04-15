@@ -107,7 +107,7 @@ globalVar
     ;
 
 funcBody
-    :   '{' basicBlock* '}'
+    :   '{' basicBlock+ '}'
     ;
 
 basicBlock

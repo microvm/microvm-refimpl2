@@ -91,8 +91,12 @@ import uvm.ssavariables.AtomicRMWOptr.AtomicRMWOptr
 
 /// Abstract instructions and traits
 
-trait MaybeTerminator extends Instruction
-trait Terminator extends MaybeTerminator
+trait MaybeTerminator extends Instruction {
+  def canTerminate: Boolean
+}
+trait Terminator extends MaybeTerminator {
+  override def canTerminate: Boolean = true
+}
 
 trait OSRPoint extends Instruction
 
@@ -115,6 +119,7 @@ case class ExcClause(val nor: DestClause, val exc: DestClause)
 
 trait HasExcClause extends Instruction with MaybeTerminator {
   var excClause: Option[ExcClause]
+  override def canTerminate: Boolean = excClause.isDefined
 }
 
 trait HasKeepAliveClause extends Instruction {
