@@ -1,6 +1,6 @@
 // require "primitives.uir"
 
-.funcsig @simplesum_sig = (@i64 @i64) -> (@void)
+.funcsig @simplesum_sig = (@i64 @i64) -> ()
 .funcdef @simplesum VERSION @simplesum_v1 <@simplesum_sig> {
     %entry (<@i64> %from <@i64> %to):
         [%starttrap] TRAP <>

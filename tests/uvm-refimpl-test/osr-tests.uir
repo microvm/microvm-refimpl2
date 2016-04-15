@@ -68,7 +68,7 @@
 
 .const @I64_42 <@i64> = 42
 
-.funcdef @forty_two_returner VERSION %v1 <@v_i> {
+.funcdef @forty_two_returner VERSION %v1 <@v_v> {
     %entry():
         RET @I64_42
 }

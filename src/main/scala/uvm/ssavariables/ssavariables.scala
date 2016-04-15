@@ -255,8 +255,12 @@ case class InstCCall(var callConv: Flag, var funcTy: Type, var sig: FuncSig, var
 case class InstNewThread(var stack: SSAVariable, var newStackAction: NewStackAction, var excClause: Option[ExcClause]) extends Instruction with HasExcClause
 
 case class InstSwapStack(var swappee: SSAVariable, var curStackAction: CurStackAction, var newStackAction: NewStackAction,
-                         var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable]) extends HasExcClause with HasKeepAliveClause with OSRPoint
+                         var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable]) extends HasExcClause with HasKeepAliveClause with OSRPoint {
+  override def canTerminate: Boolean = curStackAction == KillOld() || excClause.isDefined
+}
 
 case class InstCommInst(var inst: CommInst, var flagList: Seq[Flag], var typeList: Seq[Type], var funcSigList: Seq[FuncSig], var argList: Seq[SSAVariable],
                         var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable])
-    extends HasTypeList with HasArgList with HasExcClause with HasKeepAliveClause
+    extends HasTypeList with HasArgList with HasExcClause with HasKeepAliveClause {
+  override def canTerminate: Boolean = excClause.isDefined || inst.isTerminator
+}

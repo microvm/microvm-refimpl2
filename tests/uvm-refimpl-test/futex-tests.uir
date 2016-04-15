@@ -81,7 +81,7 @@
     %wait_body(<@thread> %nt <@thread> %nt2):
         %rv = [%trap_wait] TRAP <@i32> KEEPALIVE (%nt %nt2)
         %is_1 = EQ <@i32> %rv @I32_1
-        BRANCH2 %is_1 %wait_exit() %wait_body()
+        BRANCH2 %is_1 %wait_exit() %wait_body(%nt %nt2)
 
     %wait_exit():
         %nwakes = COMMINST @uvm.futex.cmp_requeue <@i32> (@the_futex @the_other_futex @I32_0 @I32_1)

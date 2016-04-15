@@ -143,7 +143,7 @@
 .const @D_40 <@double> = 40.0d
 .const @D_50 <@double> = 50.0d
 .const @D_100 <@double> = 100.0d
-.const @D_NAN <@float> = nand
+.const @D_NAN <@double> = nand
 
 .const @4xI32_V1 <@4xi32> = {@I32_0 @I32_1 @I32_2 @I32_3}
 .const @4xI32_V2 <@4xi32> = {@I32_4 @I32_5 @I32_6 @I32_7}

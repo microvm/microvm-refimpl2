@@ -255,22 +255,6 @@ class StaticAnalysisTest extends FlatSpec with Matchers {
       """)
   }
 
-  it should "complain if an exceptional dest does not have exc param" in {
-    catchExceptionWhenAnalyzing("""
-      .typedef @i32 = int<32>
-      .const @1 <@i32> = 1
-      .funcsig @sig = () -> ()
-      .funcdef @f VERSION %v1 <@sig> {
-        %entry():
-          CALL <@sig> @f () EXC(%b1() %b2())
-        %b1():
-          RET ()
-        %b2():
-          RET ()
-      }
-      """)
-  }
-
   it should "complain if a normal dest has exc param" in {
     catchExceptionWhenAnalyzing("""
       .typedef @i32 = int<32>

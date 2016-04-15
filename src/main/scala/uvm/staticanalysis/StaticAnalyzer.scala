@@ -245,6 +245,7 @@ class StaticAnalyzer {
             pretty = Seq(g, ty))
           case ty: TypeHybrid => throw error("Global cell %s: Global cell cannot have hybrid type.".format(g.repr),
             pretty = Seq(g, ty))
+          case _ =>
         }
       }
     }
@@ -324,13 +325,6 @@ class StaticAnalyzer {
         if (isNormal) {
           if (destBB.excParam.isDefined) {
             throw error(("FuncVer %s BB %s Inst %s: Normal destination %s should not have exceptional parameter.\n" +
-              "DestClause: %s")
-              .format(fv.repr, bb.repr, lastInst.repr, destBB.repr, dest),
-              pretty = Seq(lastInst, destBB))
-          }
-        } else {
-          if (!destBB.excParam.isDefined) {
-            throw error(("FuncVer %s BB %s Inst %s: Exceptional destination %s must have exceptional parameter.\n" +
               "DestClause: %s")
               .format(fv.repr, bb.repr, lastInst.repr, destBB.repr, dest),
               pretty = Seq(lastInst, destBB))

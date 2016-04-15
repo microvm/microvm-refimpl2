@@ -2,18 +2,18 @@ package uvm.comminsts
 
 import uvm._
 
-case class CommInst(val id: Int, val name: Option[String]) extends Identified
+case class CommInst(val id: Int, val name: Option[String], val isTerminator: Boolean) extends Identified
 
 object CommInsts extends SimpleNamespace[CommInst] {
 
-  private def commInst(id: Int, name: String) {
-    val ci = CommInst(id, Some(name))
+  private def commInst(id: Int, name: String, isTerminator: Boolean = false) {
+    val ci = CommInst(id, Some(name), isTerminator)
     add(ci)
   }
 
   commInst(0x201, "@uvm.new_stack")
   commInst(0x202, "@uvm.kill_stack")
-  commInst(0x203, "@uvm.thread_exit")
+  commInst(0x203, "@uvm.thread_exit", isTerminator = true)
   commInst(0x204, "@uvm.current_stack")
 
   commInst(0x211, "@uvm.tr64.is_fp")

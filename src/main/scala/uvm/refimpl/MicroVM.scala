@@ -10,6 +10,7 @@ import uvm.refimpl.itpr._
 import uvm.refimpl.mem._
 import uvm.refimpl.mem.TypeSizes.Word
 import uvm.refimpl.nat.NativeCallHelper
+import uvm.staticanalysis.StaticAnalyzer
 
 object MicroVM {
   val DEFAULT_HEAP_SIZE: Word = 4L * 1024L * 1024L; // 4MiB
@@ -41,6 +42,7 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
 
   val irReader = new UIRTextReader(new IDFactory(MicroVM.FIRST_CLIENT_USABLE_ID))
   val hailScriptLoader = new HailScriptLoader()
+  val staticAnalyzer = new StaticAnalyzer()
 
   {
     // VOID, BYTE, BYTE_ARRAY: The micro VM allocates stacks on the heap in the large object space.
@@ -66,6 +68,8 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
    * Add things from a bundle to the Micro VM.
    */
   def addBundle(bundle: TrantientBundle) {
+    staticAnalyzer.checkBundle(bundle, Some(globalBundle))
+    
     globalBundle.merge(bundle);
 
     for (gc <- bundle.globalCellNs.all) {
