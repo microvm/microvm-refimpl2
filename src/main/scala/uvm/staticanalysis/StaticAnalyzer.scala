@@ -117,6 +117,10 @@ class StaticAnalyzer {
       }
     }
 
+    def sigArityMatch(sig1: FuncSig, sig2: FuncSig): Boolean = {
+      sig1.paramTys.length == sig2.paramTys.length && sig1.retTys.length == sig2.retTys.length
+    }
+
     def checkConsts(): Unit = {
       for (c <- bundle.constantNs.all) {
         checkScalarConst(c)
@@ -269,7 +273,7 @@ class StaticAnalyzer {
     def checkFuncVer(fv: FuncVer): Unit = {
       val sig = fv.sig
       val fsig = fv.func.sig
-      if (fsig.paramTys.length != sig.paramTys.length || fsig.retTys.length != sig.retTys.length) {
+      if (!sigArityMatch(sig, fsig)) {
         throw error("Function version %s has different parameter or return value arity as its function %s".format(
           fv.repr, fv.func.repr), pretty = Seq(fv, sig, fv.func, fsig))
       }
@@ -284,7 +288,7 @@ class StaticAnalyzer {
       if (entry.excParam.isDefined) {
         throw error("Function version %s: the entry block should not have exceptional parameter."
           .format(fv.repr),
-          pretty = Seq(fv, entry))
+          pretty = Seq(entry))
       }
 
       for (bb <- fv.bbs) {
@@ -296,41 +300,70 @@ class StaticAnalyzer {
       if (bb.insts.isEmpty) {
         throw error("Function version %s: basic block %s is empty"
           .format(fv.repr, bb.repr),
-          pretty = Seq(fv, bb))
+          pretty = Seq(bb))
       }
       val lastInst = bb.insts.last match {
         case i: MaybeTerminator if i.canTerminate => i
         case i => throw error("FuncVer %s BB %s: The last instruction %s is not a valid basic block terminator"
           .format(fv.repr, bb.repr, i.repr),
-          pretty = Seq(fv, bb, i))
+          pretty = Seq(i))
+      }
+      
+      implicit val _fv = fv
+      implicit val _bb = bb
+      implicit val _i: Instruction = lastInst
+      
+      lastInst match {
+        case i: InstRet => {
+          val retVals = i.retVals
+          val nrv = retVals.length
+          val nrvSig = fv.sig.retTys.length
+          if (nrv != nrvSig) {
+            throw errorFBI("Returning wrong number of values. expected: %d, found: %d"
+              .format(nrvSig, nrv),
+              pretty = Seq(i, fv, fv.sig))
+          }
+        }
+        case _ =>
       }
 
       for ((dest, isNormal) <- bbDests(lastInst)) {
         if (dest.bb == entry) {
           throw error("FuncVer %s BB %s Inst %s: Cannot branch to the entry block"
             .format(fv.repr, bb.repr, lastInst.repr),
-            pretty = Seq(fv, bb, lastInst))
+            pretty = Seq(lastInst))
         }
 
         val destBB = dest.bb
         val nParams = destBB.norParams.length
         val nArgs = dest.args.length
         if (nParams != nArgs) {
-          throw error(("FuncVer %s BB %s Inst %s: Destination %s has %d normal parameters, but %d arguments found.\n" +
+          throw errorFBI(("Destination %s has %d normal parameters, but %d arguments found.\n" +
             "DestClause: %s")
-            .format(fv.repr, bb.repr, lastInst.repr, destBB.repr, nParams, nArgs, dest),
+            .format(destBB.repr, nParams, nArgs, dest),
             pretty = Seq(lastInst, destBB))
         }
 
         if (isNormal) {
           if (destBB.excParam.isDefined) {
-            throw error(("FuncVer %s BB %s Inst %s: Normal destination %s should not have exceptional parameter.\n" +
+            throw errorFBI(("Normal destination %s should not have exceptional parameter.\n" +
               "DestClause: %s")
-              .format(fv.repr, bb.repr, lastInst.repr, destBB.repr, dest),
+              .format(destBB.repr, dest),
               pretty = Seq(lastInst, destBB))
           }
         }
       }
+
+      for (i <- bb.insts.init) {
+        checkInst(fv, bb, i)
+      }
+    }
+
+    /** Error in a funcver, basic block and an instruction. */
+    def errorFBI(msg: String, pretty: Seq[AnyRef] = Seq(), cause: Throwable = null)(
+      implicit fv: FuncVer, bb: BasicBlock, inst: Instruction): StaticCheckingException = {
+      val appendedMsg = msg + ("\nIn FuncVer %s BB %s Inst %s".format(fv.repr, bb.repr, inst.repr))
+      error(appendedMsg, pretty, cause)
     }
 
     def bbDests(lastInst: MaybeTerminator): Seq[(DestClause, Boolean)] = lastInst match {
@@ -343,6 +376,38 @@ class StaticAnalyzer {
       case i: InstWatchPoint => Seq(i.dis, i.ena).map(d => (d, true)) ++ i.exc.map(d => (d, false)).toSeq
       case i: InstWPBranch   => Seq(i.dis, i.ena).map(d => (d, true))
       case i: HasExcClause   => i.excClause.map(e => Seq((e.nor, true), (e.exc, false))).getOrElse(Seq())
+    }
+
+    def checkInst(fv: FuncVer, bb: BasicBlock, i: Instruction): Unit = {
+      implicit val _fv = fv
+      implicit val _bb = bb
+      implicit val _inst = i
+      i match {
+        case i: MaybeTerminator if i.canTerminate =>
+          throw errorFBI("Instruction %s is a terminator and must be the last instruction of a basic block."
+            .format(i.repr),
+            pretty = Seq(i))
+        case i: CallLike => {
+          i match {
+            case c: AbstractCall =>
+              i.callee match {
+                case sf: Function if (!sigArityMatch(i.sig, sf.sig)) =>
+                  throw error("Static callee %s has different parameter or return value arity as expected by the call site %s".format(
+                    sf.repr, i), pretty = Seq(i, i.sig, sf, sf.sig))
+                case _ => // Only check for static call sites
+              }
+            case _ => // Only check Mu-to-Mu calls, not CCALL
+          }
+          val nargs = i.argList.length
+          val nparams = i.sig.paramTys.length
+          if (nargs != nparams) {
+            throw errorFBI("Call site %s has %d arguments, but %d parameters are expected.\nInstruction: %s"
+              .format(i.repr, nargs, nparams, i.toString),
+              pretty = Seq(i, i.sig))
+          }
+        }
+        case _ =>
+      }
     }
   }
 }

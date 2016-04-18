@@ -33,8 +33,7 @@ class StaticAnalysisTest extends FlatSpec with Matchers {
       new StaticAnalyzer().checkBundle(b, Some(gb))
       fail()
     } catch {
-      case e: TestFailedException => throw e
-      case e: Exception => // expected
+      case e: StaticCheckingException => // expected
         e.printStackTrace()
     }
     
@@ -267,6 +266,59 @@ class StaticAnalysisTest extends FlatSpec with Matchers {
           RET ()
         %b2() [%e]:
           RET ()
+      }
+      """)
+  }
+
+  it should "complain if a terminating instruction is in the middle of a basic block" in {
+    catchExceptionWhenAnalyzing("""
+      .funcsig @sig = () -> ()
+      .funcdef @f VERSION %v1 <@sig> {
+        %entry():
+          COMMINST @uvm.thread_exit
+          RET ()
+      }
+      """)
+  }
+
+  it should "complain if a call site has the wrong number of argument" in {
+    catchExceptionWhenAnalyzing("""
+      .typedef @i64 = int<64>
+      .funcsig @g.sig = (@i64 @i64 @i64) -> ()
+      .funcdecl @g <@g.sig>
+      .const @ZERO <@i64> = 0
+      .funcsig @sig = () -> ()
+      .funcdef @f VERSION %v1 <@sig> {
+        %entry():
+          CALL <@g.sig> @g (@ZERO @ZERO)
+          RET ()
+      }
+      """)
+  }
+
+  it should "complain if a call site has the wrong signature" in {
+    catchExceptionWhenAnalyzing("""
+      .typedef @i64 = int<64>
+      .funcsig @g.sig = (@i64 @i64 @i64) -> ()
+      .funcdecl @g <@g.sig>
+      .const @ZERO <@i64> = 0
+      .funcsig @sig = () -> ()
+      .funcdef @f VERSION %v1 <@sig> {
+        %entry():
+          CALL <@sig> @g ()
+          RET ()
+      }
+      """)
+  }
+
+  it should "complain if returning the wrong number of values" in {
+    catchExceptionWhenAnalyzing("""
+      .typedef @i64 = int<64>
+      .const @ZERO <@i64> = 0
+      .funcsig @sig = () -> (@i64 @i64 @i64)
+      .funcdef @f VERSION %v1 <@sig> {
+        %entry():
+          RET (@ZERO @ZERO)
       }
       """)
   }

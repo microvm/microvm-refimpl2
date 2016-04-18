@@ -1,8 +1,9 @@
 // requires "primitives.uir"
 
-.funcsig @v_i = (@i64) -> ()
+.funcsig @i_v = (@i64) -> ()
+.funcsig @v_i = () -> (@i64)
 
-.funcdef @intro_test_base VERSION @intro_test_base_v1 <@v_i> {
+.funcdef @intro_test_base VERSION @intro_test_base_v1 <@i_v> {
     %entry(<@i64> %n):
         %rv = [%call] CALL <@i_i> @intro_rec (%n)
         
@@ -25,7 +26,7 @@
         RET %rv
 }
 
-.funcdef @osr_test_base VERSION @osr_test_base_v1 <@v_i> {
+.funcdef @osr_test_base VERSION @osr_test_base_v1 <@i_v> {
     %entry(<@i64> %n):
         %rv = [%call] CALL <@i_i> @sum (%n)
         [%trap_base_exit] TRAP <> KEEPALIVE (%rv)
@@ -68,7 +69,7 @@
 
 .const @I64_42 <@i64> = 42
 
-.funcdef @forty_two_returner VERSION %v1 <@v_v> {
+.funcdef @forty_two_returner VERSION %v1 <@v_i> {
     %entry():
         RET @I64_42
 }
