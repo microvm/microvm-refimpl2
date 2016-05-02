@@ -360,6 +360,66 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     ctx.closeContext()
   }
 
+  "Comparing operations" should "work on pointer types" in {
+    val ctx = microVM.newContext()
+
+    val func = ctx.handleFromFunc("@cmpptr")
+
+    val a0 = ctx.handleFromPtr("@ptri64", 1)
+    val a1 = ctx.handleFromPtr("@ptri64", 2)
+
+    testFunc(ctx, func, Seq(a0, a1)) { (ctx, th, st, wp) =>
+      val Seq(eq, ne, ult, ule, ugt, uge, slt, sle, sgt, sge) = ctx.dumpKeepalives(st, 0)
+
+      eq.vb.asUInt(1) shouldEqual 0
+      ne.vb.asUInt(1) shouldEqual 1
+      ult.vb.asUInt(1) shouldEqual 1
+      ule.vb.asUInt(1) shouldEqual 1
+      ugt.vb.asUInt(1) shouldEqual 0
+      uge.vb.asUInt(1) shouldEqual 0
+      slt.vb.asUInt(1) shouldEqual 1
+      sle.vb.asUInt(1) shouldEqual 1
+      sgt.vb.asUInt(1) shouldEqual 0
+      sge.vb.asUInt(1) shouldEqual 0
+
+      Rebind(st, PassValues(Seq()))
+    }
+
+    testFunc(ctx, func, Seq(a0, a0)) { (ctx, th, st, wp) =>
+      val Seq(eq, ne, ult, ule, ugt, uge, slt, sle, sgt, sge) = ctx.dumpKeepalives(st, 0)
+
+      eq.vb.asUInt(1) shouldEqual 1
+      ne.vb.asUInt(1) shouldEqual 0
+      ult.vb.asUInt(1) shouldEqual 0
+      ule.vb.asUInt(1) shouldEqual 1
+      ugt.vb.asUInt(1) shouldEqual 0
+      uge.vb.asUInt(1) shouldEqual 1
+      slt.vb.asUInt(1) shouldEqual 0
+      sle.vb.asUInt(1) shouldEqual 1
+      sgt.vb.asUInt(1) shouldEqual 0
+      sge.vb.asUInt(1) shouldEqual 1
+
+      Rebind(st, PassValues(Seq()))
+    }
+
+    val a2 = ctx.handleFromPtr("@ptri64", -3)
+
+    testFunc(ctx, func, Seq(a0, a2)) { (ctx, th, st, wp) =>
+      val Seq(eq, ne, ult, ule, ugt, uge, slt, sle, sgt, sge) = ctx.dumpKeepalives(st, 0)
+
+      eq.vb.asUInt(1) shouldEqual 0
+      ne.vb.asUInt(1) shouldEqual 1
+      slt.vb.asUInt(1) shouldEqual 0
+      sle.vb.asUInt(1) shouldEqual 0
+      sgt.vb.asUInt(1) shouldEqual 1
+      sge.vb.asUInt(1) shouldEqual 1
+
+      Rebind(st, PassValues(Seq()))
+    }
+
+    ctx.closeContext()
+  }
+
   "Comparing operations" should "work on float" in {
     val ctx = microVM.newContext()
 

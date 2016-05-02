@@ -137,6 +137,26 @@
         COMMINST @uvm.thread_exit
 }
 
+.funcsig @cmpptr_sig = (@ptri64 @ptri64) -> ()
+.funcdef @cmpptr VERSION %v1 <@cmpptr_sig> {
+    %entry(<@ptri64> %p0 <@ptri64> %p1):
+        %eq  = EQ  <@ptri64> %p0 %p1
+        %ne  = NE  <@ptri64> %p0 %p1
+        %ult = ULT <@ptri64> %p0 %p1
+        %ule = ULE <@ptri64> %p0 %p1
+        %ugt = UGT <@ptri64> %p0 %p1
+        %uge = UGE <@ptri64> %p0 %p1
+        %slt = SLT <@ptri64> %p0 %p1
+        %sle = SLE <@ptri64> %p0 %p1
+        %sgt = SGT <@ptri64> %p0 %p1
+        %sge = SGE <@ptri64> %p0 %p1
+        
+        [%trap] TRAP <> KEEPALIVE (
+            %eq %ne %ult %ule %ugt %uge %slt %sle %sgt %sge
+            )
+        COMMINST @uvm.thread_exit
+}
+
 .funcsig @cmp_f_sig = (@float @float) -> ()
 .funcdef @cmp_f VERSION %v1 <@cmp_f_sig> {
     %entry(<@float> %p0 <@float> %p1):

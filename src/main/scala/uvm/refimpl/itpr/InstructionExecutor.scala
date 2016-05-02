@@ -73,6 +73,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
               val (op2b, op2o) = b2.asIRef
               PrimOpHelpers.irefCmp(op, op1b, op1o, op2b, op2o, ctx)
             }
+            case t:AbstractPointerType  => PrimOpHelpers.intCmp(op, TypeSizes.WORD_SIZE_BITS.toInt, b1.asPtr, b2.asPtr, ctx)
             case _ => throw new UvmRuntimeException(ctx + "Comparison not suitable for type %s".format(opndTy))
           }
         }
