@@ -1,13 +1,12 @@
 # Mu Reference Implementation version 2
 
-Version 2.1.1
+Version 2.2.0
 
 This project is the current reference implementation of Mu, the micro virtual
 machine designed by [The Micro Virtual Machine Project](http://microvm.org).
 
-Version 2.1.x implements the [master branch of the Mu
-Specification](https://github.com/microvm/microvm-spec/tree/goto-with-values)
-which uses the goto-with-values form.
+Version 2.2.0 implements the [Mu Specification with experimental threadlocal
+object references](https://github.com/microvm/microvm-spec/tree/issue52-threadlocal).
 
 This project is based on the previous works of
 [simplest-microvm-project](https://github.com/microvm/simplest-microvm-project).
