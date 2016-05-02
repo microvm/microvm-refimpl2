@@ -252,7 +252,8 @@ case class InstCCall(var callConv: Flag, var funcTy: Type, var sig: FuncSig, var
                      var argList: Seq[SSAVariable], var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable])
     extends CallLike with HasExcClause with HasKeepAliveClause with OSRPoint
 
-case class InstNewThread(var stack: SSAVariable, var newStackAction: NewStackAction, var excClause: Option[ExcClause]) extends Instruction with HasExcClause
+case class InstNewThread(var stack: SSAVariable, var threadLocal: Option[SSAVariable],
+                         var newStackAction: NewStackAction, var excClause: Option[ExcClause]) extends Instruction with HasExcClause
 
 case class InstSwapStack(var swappee: SSAVariable, var curStackAction: CurStackAction, var newStackAction: NewStackAction,
                          var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable]) extends HasExcClause with HasKeepAliveClause with OSRPoint {

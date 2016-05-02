@@ -461,6 +461,10 @@
         %s2 = COMMINST @uvm.new_stack <[@iii_sig]> (@callee2)
         %t2 = [%nt2] NEWTHREAD %s2 THROW_EXC @NULLREF EXC(%nor() %exc())
 
+        %s3 = COMMINST @uvm.new_stack <[@iii_sig]> (@callee2)
+        %tl = NEW<@i64>
+        %t3 = [%nt3] NEWTHREAD %s1 THREADLOCAL(%tl) PASS_VALUES <@i64 @i64> (@I64_0 @I64_1)
+
     %nor():
         RET ()
 

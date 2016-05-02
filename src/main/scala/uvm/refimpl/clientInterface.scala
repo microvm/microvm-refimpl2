@@ -506,7 +506,7 @@ class MuCtx(_mutator: Mutator)(
       case HowToResume.PassValues(values) => ItprHowToResume.PassValues(values.map(_.vb))
       case HowToResume.ThrowExc(exc)      => ItprHowToResume.ThrowExc(exc.vb.objRef)
     }
-    val thr = microVM.threadStackManager.newThread(sv, itprHtr)
+    val thr = microVM.threadStackManager.newThread(sv, 0L, itprHtr) // TODO: FIXME!!
 
     val nb = BoxThread(Some(thr))
     addHandle(MuThreadRefValue(InternalTypes.THREADREF, nb))

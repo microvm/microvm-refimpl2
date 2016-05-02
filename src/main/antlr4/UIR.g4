@@ -199,7 +199,7 @@ instBody
     |   'CCALL' callConv=flag '<' funcTy=type funcSig '>' callee=value argList excClause keepAliveClause   # InstCCall
 
     // Thread and Stack Operations
-    |   'NEWTHREAD' stack=value newStackClause excClause                                     # InstNewThread
+    |   'NEWTHREAD' stack=value threadLocalClause? newStackClause excClause                 # InstNewThread
     |   'SWAPSTACK' swappee=value curStackClause newStackClause excClause keepAliveClause   # InstSwapStack
 
     // Common Instructions
@@ -233,6 +233,10 @@ excClause
 
 keepAliveClause
     :   ('KEEPALIVE' '(' value* ')')?
+    ;
+    
+threadLocalClause
+    :   ('THREADLOCAL' '(' value ')')
     ;
 
 flagList

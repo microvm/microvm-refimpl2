@@ -182,13 +182,13 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     our const "@cixovf2" shouldBeAConstIntOf (64, BigInt("8000000000000000", 16))
     
     our const "@cf" shouldBeAConstFloatOf 3.14F
-    our const "@cfnan" shouldBeAConstFloatOf nan
+    our const "@cfnan" shouldBeAConstFloatOf NaN
     our const "@cfninf" shouldBeAConstFloatOf Float.NegativeInfinity 
     our const "@cfpinf" shouldBeAConstFloatOf Float.PositiveInfinity 
     our const "@cfbits" shouldBeAConstFloatOf exactly(bitsf(0x12345678))
   
     our const "@cd" shouldBeAConstDoubleOf 6.28D
-    our const "@cdnan" shouldBeAConstDoubleOf nan
+    our const "@cdnan" shouldBeAConstDoubleOf NaN
     our const "@cdninf" shouldBeAConstDoubleOf Double.NegativeInfinity 
     our const "@cdpinf" shouldBeAConstDoubleOf Double.PositiveInfinity 
     our const "@cdbits" shouldBeAConstDoubleOf exactly(bitsd(0xfedcba9876543210L))
@@ -1216,16 +1216,25 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         
         my inst "%nt1" shouldBeA[InstNewThread] { its =>
           its.stack shouldBe (my value "%s1")
+          its.threadLocal shouldBe None
           its.newStackAction shouldBe PassValues(qw"@i64 @i64".map(our.ty), qw"@I64_0 @I64_1".map(our.value))
           its.excClause shouldBe None
         }
         my inst "%nt2" shouldBeA[InstNewThread] { its =>
           its.stack shouldBe (my value "%s2")
+          its.threadLocal shouldBe None
           its.newStackAction shouldBe ThrowExc(our value "@NULLREF")
           its.excClause shouldBe Some(ExcClause(
               DestClause(the bb "%nor", Seq()),
               DestClause(the bb "%exc", Seq())
               ))
+        }
+        my inst "%nt3" shouldBeA[InstNewThread] { its =>
+          its.stack shouldBe (my value "%s1")
+          its.threadLocal.isDefined shouldBe true
+          its.threadLocal.get shouldBe (my value "%tl")
+          its.newStackAction shouldBe PassValues(qw"@i64 @i64".map(our.ty), qw"@I64_0 @I64_1".map(our.value))
+          its.excClause shouldBe None
         }
       }
     }

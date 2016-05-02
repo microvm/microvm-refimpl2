@@ -393,6 +393,9 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
             Some(ExcClause(ec.nor, ec.exc))
           }
 
+        implicit def resThreadLocalClause(tlc: ThreadLocalClauseContext): Option[SSAVariable] =
+          Option(tlc).map { theTlc => resVar(theTlc.value()) } 
+
         implicit def resNewStackClause(nsc: NewStackClauseContext): NewStackAction = {
           nsc match {
             case a: NewStackPassValueContext => PassValues(a.typeList(), a.argList())
@@ -553,8 +556,9 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
                 i.callee = ii.callee; i.argList = ii.argList; i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
               }
             case ii: InstNewThreadContext =>
-              InstNewThread(null, null, null).later(phase4) { i =>
+              InstNewThread(null, null, null, null).later(phase4) { i =>
                 i.stack = ii.stack
+                i.threadLocal = ii.threadLocalClause
                 i.newStackAction = ii.newStackClause
                 i.excClause = ii.excClause
               }

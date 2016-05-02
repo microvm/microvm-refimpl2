@@ -26,8 +26,14 @@ object HowToResume {
 
 /**
  * A thread that interprets Mu instruction.
+ * <p>
+ * @param id The thread ID
+ * @param initialStack The initial stack it binds to
+ * @param threadLocal The initial thread-local object reference
+ * @param mutator The Mutator object, for memory management
+ * @param htr How to resume. Either pass value or throw exception.
  */
-class InterpreterThread(val id: Int, initialStack: InterpreterStack, val mutator: Mutator, htr: HowToResume)(
+class InterpreterThread(val id: Int, initialStack: InterpreterStack, threadLocal: Long, htr: HowToResume, val mutator: Mutator)(
     implicit protected val microVM: MicroVM) extends InstructionExecutor with HasID {
   import InterpreterThread._
 
@@ -65,6 +71,9 @@ trait InterpreterThreadState {
 
   /** Object-pinnning multiset. */
   val pinSet = new ArrayBuffer[Word]
+  
+  /** Thread-local object reference. */
+  val threadLocal = BoxRef(0L)
 
   protected def curStack = stack.get
   protected def top: InterpreterFrame = curStack.top
