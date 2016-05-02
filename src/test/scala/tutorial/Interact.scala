@@ -63,7 +63,7 @@ object Interact extends App {
   
   val fortyTwo = ctx.handleFromInt(42, 64)        // #8
   
-  val th = ctx.newThread(st, HowToResume.PassValues(Seq(fortyTwo)))  // #9
+  val th = ctx.newThread(st, None, HowToResume.PassValues(Seq(fortyTwo)))  // #9
   
   // Close the context
   ctx.closeContext()    // #10

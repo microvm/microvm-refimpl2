@@ -144,6 +144,8 @@ object TypeInferer {
       case "@uvm.kill_stack" => Seq()
       case "@uvm.thread_exit" => Seq()
       case "@uvm.current_stack" => Seq(STACKREF)
+      case "@uvm.set_threadlocal" => Seq()
+      case "@uvm.get_threadlocal" => Seq(REF_VOID)
       case "@uvm.tr64.is_fp" => Seq(I1)
       case "@uvm.tr64.is_int" => Seq(I1)
       case "@uvm.tr64.is_ref" => Seq(I1)

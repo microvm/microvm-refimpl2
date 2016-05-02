@@ -522,15 +522,17 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
         val newStack = stack.asStack.getOrElse {
           throw new UvmRuntimeException(ctx + "Attempt to bind to a NULL stack.")
         }
-
+        
+        val threadLocalAddr = threadLocal.map(tl => tl.asRef).getOrElse(0L)
+        
         val newThread = newStackAction match {
           case PassValues(argTys, args) => {
             val argBoxes = args.map(boxOf)
-            microVM.threadStackManager.newThread(newStack, 0L, HowToResume.PassValues(argBoxes))  // TODO: FIXME
+            microVM.threadStackManager.newThread(newStack, threadLocalAddr, HowToResume.PassValues(argBoxes))
           }
           case ThrowExc(exc) => {
             val excAddr = exc.asRef
-            microVM.threadStackManager.newThread(newStack, 0L, HowToResume.ThrowExc(excAddr))  // TODO: FIXME
+            microVM.threadStackManager.newThread(newStack, threadLocalAddr, HowToResume.ThrowExc(excAddr))
           }
         }
         results(0).asThread = Some(newThread)

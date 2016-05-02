@@ -29,11 +29,11 @@ object HowToResume {
  * <p>
  * @param id The thread ID
  * @param initialStack The initial stack it binds to
- * @param threadLocal The initial thread-local object reference
+ * @param initialThreadLocal The initial thread-local object reference
  * @param mutator The Mutator object, for memory management
  * @param htr How to resume. Either pass value or throw exception.
  */
-class InterpreterThread(val id: Int, initialStack: InterpreterStack, threadLocal: Long, htr: HowToResume, val mutator: Mutator)(
+class InterpreterThread(val id: Int, initialStack: InterpreterStack, initialThreadLocal: Long, htr: HowToResume, val mutator: Mutator)(
     implicit protected val microVM: MicroVM) extends InstructionExecutor with HasID {
   import InterpreterThread._
 
@@ -43,6 +43,8 @@ class InterpreterThread(val id: Int, initialStack: InterpreterStack, threadLocal
   override def curThread = this
 
   // Initialisation
+  
+  threadLocal.asRef = initialThreadLocal
 
   htr match {
     case HowToResume.PassValues(values) => rebindPassValues(initialStack, values)

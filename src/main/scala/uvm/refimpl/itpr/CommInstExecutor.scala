@@ -56,6 +56,17 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
         continueNormally()
       }
 
+      case "@uvm.set_threadlocal" => {
+        val Seq(tl) = argList
+        threadLocal copyFrom tl
+        continueNormally()
+      }
+
+      case "@uvm.get_threadlocal" => {
+        results(0) copyFrom threadLocal
+        continueNormally()
+      }
+
       // 64-bit Tagged Reference
 
       case "@uvm.tr64.is_fp" => {

@@ -985,3 +985,37 @@
 
         COMMINST @uvm.thread_exit
 }
+
+.funcdef @threadslave VERSION %v1 <@v_v> {
+    %entry():
+        %tl = COMMINST @uvm.get_threadlocal
+        [%trap] TRAP <> KEEPALIVE (%tl)
+
+        %tl2 = NEW <@i64>
+        COMMINST @uvm.set_threadlocal (%tl2)
+        %tl3 = COMMINST @uvm.get_threadlocal
+        [%trap2] TRAP <> KEEPALIVE (%tl2 %tl3)
+
+        COMMINST @uvm.thread_exit
+}
+
+.funcsig @newthread.sig = (@refvoid) -> ()
+.funcdef @newthread VERSION %v1 <@newthread.sig> {
+    %entry(<@refvoid> %tl):
+        %st = COMMINST @uvm.new_stack <[@v_v]> (@threadslave)
+        %th = NEWTHREAD %st THREADLOCAL(%tl) PASS_VALUES <> ()
+        
+        COMMINST @uvm.thread_exit
+}
+
+.funcsig @threadslave2.sig = (@refvoid @refvoid) -> ()
+.funcdef @threadslave2 VERSION %v1 <@threadslave2.sig> {
+    %entry(<@refvoid> %tl1 <@refvoid> %tl2):
+        %tlcur1 = COMMINST @uvm.get_threadlocal
+        [%trap] TRAP <> KEEPALIVE (%tl1 %tl2 %tlcur1)
+
+        %tlcur2 = COMMINST @uvm.get_threadlocal
+        [%trap2] TRAP <> KEEPALIVE (%tl1 %tl2 %tlcur2)
+
+        COMMINST @uvm.thread_exit
+}

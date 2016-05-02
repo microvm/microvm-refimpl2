@@ -278,7 +278,7 @@ object NativeMuCtx {
 
   // NOTE: parameter exc must not be a MuValue because this parameter is ignored when htr is MU_REBIND_PASS_VALUE.
   // Setting the type to MuValue (or MuRefValue) will force the exposer to eagerly resolve the underlying actual MuValue.
-  def new_thread(ctx: MuCtx, stack: MuStackRefValue, htr: MuHowToResume, vals: MuValueFakArrayPtr, nvals: Int, exc: MuValueFak): MuValueFak = {
+  def new_thread(ctx: MuCtx, stack: MuStackRefValue, threadLocal: Option[MuRefValue], htr: MuHowToResume, vals: MuValueFakArrayPtr, nvals: Int, exc: MuValueFak): MuValueFak = {
     val scalaHtr = htr match {
       case MU_REBIND_PASS_VALUES => {
         val values = for (i <- 0L until nvals) yield {
@@ -294,10 +294,12 @@ object NativeMuCtx {
         HowToResume.ThrowExc(excVal)
       }
     }
-    val rv = ctx.newThread(stack, scalaHtr)
+    val rv = ctx.newThread(stack, threadLocal, scalaHtr)
     exposeMuValue(ctx, rv)
   }
   def kill_stack(ctx: MuCtx, stack: MuStackRefValue): Unit = ctx.killStack(stack)
+  def set_threadlocal(ctx: MuCtx, threadLocal:MuRefValue): Unit = ???
+  def get_threadlocal(ctx: MuCtx): MuValueFak = ???
 
   // Frame cursor operations
   def new_cursor(ctx: MuCtx, stack: MuStackRefValue): MuValueFak = exposeMuValue(ctx, ctx.newCursor(stack))

@@ -165,7 +165,7 @@ class UvmOSRTests extends UvmBundleTesterBase {
     for (f <- funcs.tail) {
       ctx.pushFrame(hStack, f)
     }
-    val hThread = ctx.newThread(hStack, uvm.refimpl.HowToResume.PassValues(args))
+    val hThread = ctx.newThread(hStack, None, uvm.refimpl.HowToResume.PassValues(args))
     microVM.execute()
   }
 

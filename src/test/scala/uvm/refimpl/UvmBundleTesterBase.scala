@@ -86,10 +86,11 @@ abstract class UvmBundleTesterBase extends FlatSpec with Matchers {
     }
   }
 
-  def testFunc(ctx: MuCtx, func: MuFuncRefValue, args: Seq[MuValue])(handler: TrapHandlerFunction): Unit = {
+  def testFunc(ctx: MuCtx, func: MuFuncRefValue, args: Seq[MuValue], threadLocal: Option[MuRefValue]=None
+      )(handler: TrapHandlerFunction): Unit = {
     microVM.setTrapHandler(new MockTrapHandler(handler))
     val hStack = ctx.newStack(func)
-    val hThread = ctx.newThread(hStack, HowToResume.PassValues(args))
+    val hThread = ctx.newThread(hStack, threadLocal, HowToResume.PassValues(args))
     microVM.execute()
   }
 

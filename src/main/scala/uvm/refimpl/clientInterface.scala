@@ -499,14 +499,22 @@ class MuCtx(_mutator: Mutator)(
     }
   }
 
+  private def getThreadNotNull(thread: MuThreadRefValue): InterpreterThread = {
+    thread.vb.thread.getOrElse {
+      throw new UvmRuntimeException("Thread argument cannot be a NULL threadref value.")
+    }
+  }
+
   /** Create a Mu thread and bind it to a Mu stack. */
-  def newThread(stack: MuStackRefValue, htr: HowToResume): MuThreadRefValue = {
+  def newThread(stack: MuStackRefValue, threadLocal: Option[MuRefValue], htr: HowToResume): MuThreadRefValue = {
     val sv = getStackNotNull(stack)
     val itprHtr = htr match {
       case HowToResume.PassValues(values) => ItprHowToResume.PassValues(values.map(_.vb))
       case HowToResume.ThrowExc(exc)      => ItprHowToResume.ThrowExc(exc.vb.objRef)
     }
-    val thr = microVM.threadStackManager.newThread(sv, 0L, itprHtr) // TODO: FIXME!!
+    
+    val threadLocalAddr = threadLocal.map(tl => tl.vb.objRef).getOrElse(0L)
+    val thr = microVM.threadStackManager.newThread(sv, threadLocalAddr, itprHtr)
 
     val nb = BoxThread(Some(thr))
     addHandle(MuThreadRefValue(InternalTypes.THREADREF, nb))
@@ -517,6 +525,23 @@ class MuCtx(_mutator: Mutator)(
     val sv = getStackNotNull(stack)
 
     sv.kill()
+  }
+  
+  /** Set the thread-local object reference */
+  def setThreadlocal(thread: MuThreadRefValue, threadLocal: MuRefValue): Unit = {
+    val th = getThreadNotNull(thread)
+    val threadLocalAddr = threadLocal.vb.objRef
+    
+    th.threadLocal.objRef = threadLocalAddr
+  }
+  
+  /** Get the thread-local object reference */
+  def getThreadlocal(thread: MuThreadRefValue): MuRefValue = {
+    val th = getThreadNotNull(thread)
+    val threadLocalAddr = th.threadLocal.objRef
+    
+    val nb = BoxRef(threadLocalAddr)
+    addHandle(MuRefValue(InternalTypes.REF_VOID, nb))
   }
 
   private def getCursorNotNull(cursor: MuFCRefValue): FrameCursor = {
