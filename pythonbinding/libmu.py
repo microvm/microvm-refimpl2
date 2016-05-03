@@ -66,7 +66,7 @@ example::
         arg1   = ctx.handle_from_int(10, 64)
         arg2   = ctx.handle_from_double(3.14)
         stack  = ctx.new_stack(func)
-        thread = ctx.new_thread(stack, PassValues(arg1, arg2))
+        thread = ctx.new_thread(stack, None, PassValues(arg1, arg2))
 
     mu.execute()    # The thread will actually run now.
 
@@ -103,7 +103,7 @@ be pasesed into methods like in C. For example::
     func   = ctx.handle_from_func(id_of("@factorial"))
     arg    = ctx.handle_from_int(10, 64)
     stack  = ctx.new_stack(func)
-    thread = ctx.new_thread(stack, PassValues(arg))
+    thread = ctx.new_thread(stack, None, PassValues(arg))
 
 Type checks are performed on each and every method call. Handles (instances of
 MuValue) must match the expected argument types. For example, if a method
@@ -780,21 +780,29 @@ class MuCtx(_StructOfMethodsWrapper):
         defaults to MU_SEQ_CST."""
         return self.fence_(ord)
 
-    def new_thread(self, stack, how_to_resume):
+    def new_thread(self, stack, threadlocal, how_to_resume):
         """Wrapper of the underlying ``new_thread``.
         
-        This method now takes only a stack and a ``HowToResume`` value which can
-        be either ``PassValues`` or ``ThrowExc``.
+        This method now takes only a stack, a threadlocal and a ``HowToResume``
+        value which can be either ``PassValues`` or ``ThrowExc``.
 
         Arguments:
             stack: a MuStackRefValue, the initial stack the new thread should
                 bind to.
+            threadlocal: a MuRefValue or None, the initial thread-local objref
+                of the created thread.
             how_to_resume: a HowToResume value. See the docstring of
                 MuTrapHandler.
         
         Returns:
             a MuThreadRefValue, referring to the newly created thread.
         """
+        
+        if threadlocal == None:
+            threadlocal = 0
+        else:
+            _assert_instance(threadlocal, MuRefValue)
+
         _assert_instance(how_to_resume, HowToResume)
         if isinstance(how_to_resume, PassValues):
             htr = CMU_REBIND_PASS_VALUES 
@@ -812,7 +820,7 @@ class MuCtx(_StructOfMethodsWrapper):
             cnvals = 0
             cexc = exc.c_mu_value
 
-        return self.new_thread_(stack, htr, cvals, cnvals, cexc)
+        return self.new_thread_(stack, threadlocal, htr, cvals, cnvals, cexc)
 
     def dump_keepalives(self, cursor, nvals):
         """Wrapper of the underlying ``dump_keepalives``.
@@ -1014,9 +1022,11 @@ _initialize_methods(MuCtx, [
     ("fence_"               , None              , [CMuMemOrd]),
 
     ("new_stack"            , MuStackRefValue   , [MuFuncRefValue]),
-    ("new_thread_"          , MuThreadRefValue  , [MuStackRefValue, CMuHowToResume,
-        ctypes.POINTER(CMuValue), ctypes.c_int, CMuRefValue]),
+    ("new_thread_"          , MuThreadRefValue  , [MuStackRefValue, CMuRefValue,
+        CMuHowToResume, ctypes.POINTER(CMuValue), ctypes.c_int, CMuRefValue]),
     ("kill_stack"           , None              , [MuStackRefValue]),
+    ("set_threadlocal"      , None              , [MuThreadRefValue, MuRefValue]),
+    ("get_threadlocal"      , MuRefValue        , [MuThreadRefValue]),
 
     ("new_cursor"           , MuFCRefValue      , [MuStackRefValue]),
     ("next_frame"           , None              , [MuFCRefValue]),

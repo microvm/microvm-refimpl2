@@ -75,6 +75,18 @@ with mu.new_context() as ctx:
     .typedef @void = void
     .typedef @refvoid = ref<@void>
     .const @NULLREF <@refvoid> = NULL
+
+    .funcsig @trap_threadlocal.sig = (@refvoid @refvoid) -> ()
+    .funcdef @trap_threadlocal VERSION %v1 <@trap_threadlocal.sig> {
+        %entry(<@refvoid> %r1 <@refvoid> %r2):
+            %r3 = COMMINST @uvm.get_threadlocal
+            [%trap1] TRAP <> KEEPALIVE (%r1 %r2 %r3)
+
+            %r4 = COMMINST @uvm.get_threadlocal
+            [%trap2] TRAP <> KEEPALIVE (%r1 %r2 %r4)
+
+            COMMINST @uvm.thread_exit
+    }
     """)
 
 class TestRefImpl2CBinding(unittest.TestCase):
@@ -244,7 +256,7 @@ class TestRefImpl2CBinding(unittest.TestCase):
 
         main = ctx.handle_from_func(id_of("@main"))
         st = ctx.new_stack(main)
-        th = ctx.new_thread(st, PassValues(forty_two))
+        th = ctx.new_thread(st, None, PassValues(forty_two))
 
         mu.execute()
 
@@ -272,7 +284,7 @@ class TestRefImpl2CBinding(unittest.TestCase):
 
         func = ctx.handle_from_func(id_of("@trap_exit_test"))
         st = ctx.new_stack(func)
-        th = ctx.new_thread(st, PassValues(forty_two))
+        th = ctx.new_thread(st, None, PassValues(forty_two))
 
         mu.execute()
 
@@ -308,7 +320,7 @@ class TestRefImpl2CBinding(unittest.TestCase):
 
         func = ctx.handle_from_func(id_of("@trap_exit_test"))
         st = ctx.new_stack(func)
-        th = ctx.new_thread(st, PassValues(forty_two))
+        th = ctx.new_thread(st, None, PassValues(forty_two))
 
         mu.execute()
 
@@ -365,7 +377,7 @@ class TestRefImpl2CBinding(unittest.TestCase):
 
         func = ctx.handle_from_func(id_of("@trap_rebind_test"))
         st = ctx.new_stack(func)
-        th = ctx.new_thread(st, PassValues())
+        th = ctx.new_thread(st, None, PassValues())
 
         mu.execute()
 
@@ -378,8 +390,71 @@ class TestRefImpl2CBinding(unittest.TestCase):
 
         func = ctx.handle_from_func(id_of("@trap_rebind_test"))
         st = ctx.new_stack(func)
-        th = ctx.new_thread(st, PassValues())
+        th = ctx.new_thread(st, None, PassValues())
 
         mu.execute()
 
         self.assertEqual(test_result2, [True])
+
+    def test_trap_threadlocal(self):
+        ctx = self.ctx
+        id_of = ctx.id_of
+        name_of = ctx.name_of
+
+        box = []
+
+        class MyHandler(MuTrapHandler):
+            def handle_trap(self, ctx, thread, stack, wpid):
+                print("Hey! This is Python!")
+                cursor = ctx.new_cursor(stack)
+                iid = ctx.cur_inst(cursor)
+
+                if name_of(iid) == "@trap_threadlocal.v1.entry.trap1":
+                    r1, r2, r3 = ctx.dump_keepalives(cursor, 3)
+                    r1 = r1.cast(MuRefValue)
+                    r2 = r2.cast(MuRefValue)
+                    r3 = r3.cast(MuRefValue)
+                    ctx.close_cursor(cursor)
+                    
+                    rl = ctx.get_threadlocal(thread)
+
+                    eql = ctx.ref_eq(rl, r3)
+                    box.append(eql)
+                    
+                    eq1 = ctx.ref_eq(r1, r3)
+                    box.append(eq1)
+
+                    ctx.set_threadlocal(thread, r2)
+
+                elif name_of(iid) == "@trap_threadlocal.v1.entry.trap2":
+                    r1, r2, r4 = ctx.dump_keepalives(cursor, 3)
+                    r1 = r1.cast(MuRefValue)
+                    r2 = r2.cast(MuRefValue)
+                    r4 = r4.cast(MuRefValue)
+                    ctx.close_cursor(cursor)
+                    
+                    rl = ctx.get_threadlocal(thread)
+
+                    eql = ctx.ref_eq(rl, r4)
+                    box.append(eql)
+
+                    eq2 = ctx.ref_eq(r2, r4)
+                    box.append(eq2)
+
+                return Rebind(stack, PassValues())
+
+        mh1 = MyHandler()
+
+        mu.set_trap_handler(mh1)
+
+        ref1 = ctx.new_fixed(id_of("@i64"))
+        ref2 = ctx.new_fixed(id_of("@i64"))
+
+        func = ctx.handle_from_func(id_of("@trap_threadlocal"))
+        st = ctx.new_stack(func)
+        th = ctx.new_thread(st, ref1, PassValues(ref1, ref2))
+
+        mu.execute()
+
+        self.assertEqual(box, [True, True, True, True])
+
