@@ -298,8 +298,13 @@ object NativeMuCtx {
     exposeMuValue(ctx, rv)
   }
   def kill_stack(ctx: MuCtx, stack: MuStackRefValue): Unit = ctx.killStack(stack)
-  def set_threadlocal(ctx: MuCtx, threadLocal:MuRefValue): Unit = ???
-  def get_threadlocal(ctx: MuCtx): MuValueFak = ???
+  def set_threadlocal(ctx: MuCtx, thread: MuThreadRefValue, threadLocal:MuRefValue): Unit = {
+    ctx.setThreadlocal(thread, threadLocal)
+  }
+  def get_threadlocal(ctx: MuCtx, thread: MuThreadRefValue): MuValueFak = {
+    val rv = ctx.getThreadlocal(thread)
+    exposeMuValue(ctx, rv)
+  }
 
   // Frame cursor operations
   def new_cursor(ctx: MuCtx, stack: MuStackRefValue): MuValueFak = exposeMuValue(ctx, ctx.newCursor(stack))
@@ -438,6 +443,7 @@ object ClientAccessibleClassExposer {
   val TMicroVM = ru.typeTag[MicroVM].tpe
   val TMuCtx = ru.typeTag[MuCtx].tpe
   val TMuValue = ru.typeTag[MuValue].tpe
+  val TOptMuValue = ru.typeTag[Option[MuValue]].tpe
 
   // com.kenai.jffi.Closure.Buffer param getters and return value setters.
   // These are partially-applied functions, and will be called in closures (callback from C).
@@ -458,6 +464,18 @@ object ClientAccessibleClassExposer {
 
     muValue
   }
+  def paramOptMuValue(index: Int, funcName: String, tpe: ru.Type)(buffer: Buffer): Any = {
+    val muOptValue = getOptMuValue(buffer, index)
+    
+    muOptValue foreach { muValue =>   // only check if it is Some(value)
+      val t = mirror.classSymbol(muValue.getClass).toType
+      val tpeArg = tpe.typeArgs(0)
+      
+      require(t <:< tpeArg, "Argument %d of %s expect %s, found %s".format(index, funcName, tpe, t))
+    }
+
+    muOptValue
+  }
 
   def retVoid(buffer: Buffer, v: Any): Unit = {}
   def retByte(buffer: Buffer, v: Any): Unit = buffer.setByteReturn(v.asInstanceOf[Byte])
@@ -477,6 +495,15 @@ object ClientAccessibleClassExposer {
   private def getMuValue(buffer: Buffer, index: Int): MuValue = {
     val addr = buffer.getAddress(index)
     NativeClientSupport.getMuValueNotNull(addr)
+  }
+
+  private def getOptMuValue(buffer: Buffer, index: Int): Option[MuValue] = {
+    val addr = buffer.getAddress(index)
+    if (addr == 0L) {
+      None
+    } else {
+      Some(NativeClientSupport.getMuValueNotNull(addr))
+    }
   }
 
   private def exposeStr(str: String): Word = {
@@ -508,6 +535,7 @@ object ClientAccessibleClassExposer {
     case t if t =:= TMicroVM => JType.POINTER
     case t if t =:= TMuCtx   => JType.POINTER
     case t if t <:< TMuValue => JType.POINTER
+    case t if t <:< TOptMuValue => JType.POINTER
   }
   
   val MU_NATIVE_ERRNO = 6481626 // muErrno is set to this number if an exception is thrown
@@ -567,6 +595,7 @@ class ClientAccessibleClassExposer[T: ru.TypeTag: ClassTag](obj: T) {
         case t if t =:= TMicroVM => paramMicroVM(i) _
         case t if t =:= TMuCtx   => paramMuCtx(i) _
         case t if t <:< TMuValue => paramMuValue(i, meth.name.toString, t) _
+        case t if t <:< TOptMuValue => paramOptMuValue(i, meth.name.toString, t) _
       }
 
       val returnSetter = returnType match {
