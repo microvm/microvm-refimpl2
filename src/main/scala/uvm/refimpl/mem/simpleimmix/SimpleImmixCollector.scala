@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory
 import com.typesafe.scalalogging.Logger
 import scala.collection.mutable.ArrayBuffer
 import uvm.refimpl.UvmRefImplException
+import uvm.utils.HexDump
 
 object SimpleImmixCollector {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
@@ -238,6 +239,18 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
     private def maybeMove(toObj: Word, updateFunc: Word => Unit): Option[Word] = {
       val oldHeader = HeaderUtils.getTag(toObj)
       logger.debug("GC header of 0x%x is 0x%x".format(toObj, oldHeader))
+      
+      if (oldHeader == 0x0L) {
+        logger.error("Header is zero! GC header of 0x%x is 0x%x".format(toObj, oldHeader))
+        
+        val plusMinus = 256L
+        
+        val memDump = HexDump.dumpMemory(toObj-plusMinus, plusMinus*2L)
+        logger.error("Memory dump:\n"+memDump)
+        
+        throw new UvmRefImplException("Header is zero! obj: 0x%x, header: 0x%x".format(toObj, oldHeader))
+      }
+      
       val markBit = oldHeader & MARK_MASK
       val moveBit = oldHeader & MOVE_MASK
       val wasMarked = markBit != 0
