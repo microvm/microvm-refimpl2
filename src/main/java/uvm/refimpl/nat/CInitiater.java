@@ -45,8 +45,7 @@ public class CInitiater {
     /** Called by the native program, this function creates a Mu instance. */
     static long mu_refimpl2_new() {
         configureLog();
-        MicroVM mvm = new MicroVM(MicroVM$.MODULE$.DEFAULT_HEAP_SIZE(), MicroVM$.MODULE$.DEFAULT_GLOBAL_SIZE(),
-                MicroVM$.MODULE$.DEFAULT_STACK_SIZE());
+        MicroVM mvm = MicroVM$.MODULE$.apply();
         long fak = NativeClientSupport$.MODULE$.exposeMicroVM(mvm);
         return fak;
     }
@@ -55,9 +54,9 @@ public class CInitiater {
      * Called by the native program, this function creates a Mu instance with
      * extra arguments.
      */
-    static long mu_refimpl2_new_ex(long heap_size, long global_size, long stack_size) {
+    static long mu_refimpl2_new_ex(String gcConfString) {
         configureLog();
-        MicroVM mvm = new MicroVM(heap_size, global_size, stack_size);
+        MicroVM mvm = MicroVM$.MODULE$.apply(gcConfString);
         long fak = NativeClientSupport$.MODULE$.exposeMicroVM(mvm);
         return fak;
     }

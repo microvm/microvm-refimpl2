@@ -59,7 +59,7 @@ abstract class UvmBundleTesterBase extends FlatSpec with Matchers {
     }
   }
 
-  def makeMicroVM(): MicroVM = new MicroVM()
+  def makeMicroVM(): MicroVM = MicroVM()
 
   val microVM = makeMicroVM()
 

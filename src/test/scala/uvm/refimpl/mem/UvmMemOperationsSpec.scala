@@ -15,7 +15,7 @@ class UvmMemOperationsSpec extends UvmBundleTesterBase {
   // The heap size is intentionally reduced to make GC more often
   // The heap is divided in two halves. There is a 256KiB small object space (with 8 32KiB blocks) and a 256KiB large
   // object space.
-  override def makeMicroVM() = new MicroVM(heapSize = 512L * 1024L)
+  override def makeMicroVM() = new MicroVM(new GCConf(sosSize = 256L*1024L, losSize = 256L * 1024L))
 
   microVM.memoryManager.heap.space.debugLogBlockStates()
 

@@ -12,31 +12,72 @@ import uvm.refimpl.mem.TypeSizes.Word
 import uvm.refimpl.nat.NativeCallHelper
 import uvm.staticanalysis.StaticAnalyzer
 
-object MicroVM {
-  val DEFAULT_HEAP_SIZE: Word = 4L * 1024L * 1024L; // 4MiB
-  val DEFAULT_GLOBAL_SIZE: Word = 1L * 1024L * 1024L; // 1MiB
-  val DEFAULT_STACK_SIZE: Word = 63L * 1024L; // 60KiB per stack
-  
-  val FIRST_CLIENT_USABLE_ID: Int = 65536
+object GCConf {
+  val ReComment = """^\s*#.*$""".r
+  val ReBlank = """^\s*$""".r
+  val ReConf = """^\s*(\w+)=(\w+)\s*$""".r
+
+  def apply(confStr: String): GCConf = {
+    var sosSize = MicroVM.DEFAULT_SOS_SIZE
+    var losSize = MicroVM.DEFAULT_LOS_SIZE
+    var globalSize = MicroVM.DEFAULT_GLOBAL_SIZE
+    var stackSize = MicroVM.DEFAULT_GLOBAL_SIZE
+    confStr.lines foreach {
+      case ReComment() => 
+      case ReBlank() =>
+      case ReConf(key, value) => {
+        key match {
+          case "sosSize" => sosSize = value.toLong
+          case "losSize" => losSize = value.toLong
+          case "globalSize" => globalSize = value.toLong
+          case "stackSize" => stackSize = value.toLong
+          case _ => throw new UvmRefImplException("Unrecognized option %s".format(key))
+        }
+      }
+    }
+    new GCConf(sosSize, losSize, globalSize, stackSize)
+  }
 }
 
-class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
-    globalSize: Word = MicroVM.DEFAULT_GLOBAL_SIZE,
-    stackSize: Word = MicroVM.DEFAULT_STACK_SIZE) {
+class GCConf(
+  val sosSize: Word = MicroVM.DEFAULT_SOS_SIZE,
+  val losSize: Word = MicroVM.DEFAULT_LOS_SIZE,
+  val globalSize: Word = MicroVM.DEFAULT_GLOBAL_SIZE,
+  val stackSize: Word = MicroVM.DEFAULT_STACK_SIZE)
 
+object MicroVM {
+  val DEFAULT_SOS_SIZE: Word = 2L * 1024L * 1024L; // 2MiB
+  val DEFAULT_LOS_SIZE: Word = 2L * 1024L * 1024L; // 2MiB
+  val DEFAULT_GLOBAL_SIZE: Word = 1L * 1024L * 1024L; // 1MiB
+  val DEFAULT_STACK_SIZE: Word = 63L * 1024L; // 60KiB per stack
+
+  val FIRST_CLIENT_USABLE_ID: Int = 65536
+
+  def apply(): MicroVM = {
+    val gcConf = new GCConf()
+    new MicroVM(gcConf)
+  }
+  
+  def apply(confStr: String): MicroVM = {
+    val gcConf = GCConf(confStr)
+    new MicroVM(gcConf)
+  }
+}
+
+class MicroVM(gcConf: GCConf) {
   // implicitly injected resources
   private implicit val microVM = this
 
   val globalBundle = new GlobalBundle()
   val constantPool = new ConstantPool()
-  val memoryManager = new MemoryManager(heapSize, globalSize, stackSize)
+  val memoryManager = new MemoryManager(gcConf)
 
   private implicit val memorySupport = memoryManager.memorySupport
 
   implicit val nativeCallHelper = new NativeCallHelper()
 
   val threadStackManager = new ThreadStackManager()
-  
+
   val trapManager = new TrapManager()
   val contexts = new HashSet[MuCtx]()
 
@@ -57,7 +98,7 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
     }
 
     // Some internal constants needed by the HAIL loader
-    
+
     for (c <- Seq(NULL_REF_VOID, NULL_IREF_VOID, NULL_FUNCREF_VV, NULL_THREADREF, NULL_STACKREF)) {
       globalBundle.constantNs.add(c)
       constantPool.addGlobalVar(c)
@@ -69,7 +110,7 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
    */
   def addBundle(bundle: TrantientBundle) {
     staticAnalyzer.checkBundle(bundle, Some(globalBundle))
-    
+
     globalBundle.merge(bundle);
 
     for (gc <- bundle.globalCellNs.all) {

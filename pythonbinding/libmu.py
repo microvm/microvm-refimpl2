@@ -36,7 +36,12 @@ Then a ``MuVM`` instance can be created from that object::
 
 or::
 
-    mu = dll.mu_refimpl2_new_ex(HEAP_SIZE, GLOBAL_SIZE, STACK_SIZE)
+    mu = dll.mu_refimpl2_new_ex(
+        sosSize = 2*1024*1024,
+        losSize = 2*1024*1024,
+        globalSize = 4*1024*1024,
+        stackSize = 63*1024,
+    )
 
 A ``MuCtx`` instance can be created from the ``MuVM`` object::
 
@@ -670,7 +675,7 @@ class MuCtx(_StructOfMethodsWrapper):
         Arguments:
             bundle_str: a str or unicode as the text-based bundle.
         """
-        ascii_bundle = _priv._encode_ascii(bundle_str)
+        ascii_bundle = _priv._encode(bundle_str, "ascii")
         return self.load_bundle_(ascii_bundle, len(ascii_bundle))
 
     def load_hail(self, hail_str):
@@ -679,7 +684,7 @@ class MuCtx(_StructOfMethodsWrapper):
         Arguments:
             bundle_str: a str or unicode as the text-based HAIL script.
         """
-        ascii_bundle = _priv._encode_ascii(hail_str)
+        ascii_bundle = _priv._encode(hail_str, "ascii")
         return self.load_hail_(ascii_bundle, len(ascii_bundle))
 
     def handle_from_int(self, value, length):
@@ -844,13 +849,13 @@ def _to_low_level_type(ty):
 
 def _to_low_level_arg(arg):
     return (arg._to_low_level_arg() if isinstance(arg, _LowLevelTypeWrapper) else
-            _priv._encode_ascii(arg) if _priv._is_str_like(arg) else
+            _priv._encode(arg, "ascii") if _priv._is_str_like(arg) else
             arg)
 
 def _from_low_level_retval(restype, low_level_rv, self):
     return (restype._from_low_level_retval(low_level_rv, self)
             if isinstance(restype, type) and issubclass(restype, _LowLevelTypeWrapper) else
-            _priv._decode_ascii(low_level_rv) if _priv._is_str_like(low_level_rv) else
+            _priv._decode(low_level_rv, "ascii") if _priv._is_str_like(low_level_rv) else
             low_level_rv)
 
 def _make_high_level_method(name, expected_nargs, restype, argtypes):
@@ -1119,8 +1124,7 @@ class MuRefImpl2StartDLL(object):
         dll.mu_refimpl2_new.argtypes = []
 
         dll.mu_refimpl2_new_ex.restype = CPtrMuVM
-        dll.mu_refimpl2_new_ex.argtypes = [ctypes.c_int64,
-                ctypes.c_int64, ctypes.c_int64]
+        dll.mu_refimpl2_new_ex.argtypes = [ctypes.c_char_p]
 
         dll.mu_refimpl2_close.restype = None
         dll.mu_refimpl2_close.argtypes = [CPtrMuVM]
@@ -1132,13 +1136,17 @@ class MuRefImpl2StartDLL(object):
         ptr = self.dll.mu_refimpl2_new()
         return MuVM(ptr, self)
 
-    def mu_refimpl2_new_ex(self, heap_size, global_size, stack_size):
-        """Create a MuVM instance using custom heap/global/stack sizes.
+    def mu_refimpl2_new_ex(self, **kwargs):
+        """Create a MuVM instance using custom configuration.
 
-        heap_size, global_size, stack_size are the sizes of the GC heap, global
-        memory and each stack. All of them are in bytes.
+        Currently supported keyword arguments:
+            sosSize: small object space size (bytes, must be 4096-byte aligned)
+            losSize: large object space size (bytes, must be 4096-byte aligned)
+            globalSize: global space size (bytes, must be 4096-byte aligned)
+            stackSize: stack size (bytes)
         """
-        ptr = self.dll.mu_refimpl2_new_ex(heap_size, global_size, stack_size)
+        conf = "".join("{}={}\n".format(k,v) for k,v in kwargs.items())
+        ptr = self.dll.mu_refimpl2_new_ex(_priv._encode(conf, "utf8"))
         return MuVM(ptr, self)
 
     def mu_refimpl2_close(self, muvm):

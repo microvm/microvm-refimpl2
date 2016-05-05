@@ -68,7 +68,7 @@ static void init_jvm() {
         exit(1);
     }
 
-    new_ex_mid = (*env)->GetStaticMethodID(env, cinitiater_cls, new_ex_method, "(JJJ)J");
+    new_ex_mid = (*env)->GetStaticMethodID(env, cinitiater_cls, new_ex_method, "(Ljava/lang/String;)J");
 
     if (new_ex_mid == NULL) {
         printf("ERROR: method %s cannot be found.\n", new_ex_method);
@@ -94,13 +94,22 @@ MuVM *mu_refimpl2_new() {
     return (MuVM*)rv;
 }
 
-MuVM *mu_refimpl2_new_ex(int64_t heap_size, int64_t global_size, int64_t stack_size) {
+MuVM *mu_refimpl2_new_ex(const char *gc_conf) {
     if (jvm == NULL) {
         init_jvm();
     }
 
+    jstring conf_str = (*env)->NewStringUTF(env, gc_conf);
+
+    if (conf_str == NULL) {
+        printf("ERROR: Cannot convert gc_conf to Java String\n");
+        exit(1);
+    }
+
     uintptr_t rv = (*env)->CallStaticLongMethod(env, cinitiater_cls, new_ex_mid,
-            heap_size, global_size, stack_size);
+            conf_str);
+
+    (*env)->DeleteLocalRef(env, conf_str);
 
     return (MuVM*)rv;
 }

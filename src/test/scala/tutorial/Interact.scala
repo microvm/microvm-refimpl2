@@ -5,7 +5,7 @@ import uvm.refimpl._
 object Interact extends App {
   
   // Create the Mu instance
-  val microVM = new MicroVM()     // #1
+  val microVM = MicroVM()     // #1
   
   // Implicitly convert names to IDs
   implicit def idOf(name: String) = microVM.idOf(name)  // #2

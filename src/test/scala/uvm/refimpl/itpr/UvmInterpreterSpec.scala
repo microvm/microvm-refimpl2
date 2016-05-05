@@ -23,7 +23,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
     //"uvm.refimpl.mem.simpleimmix.SimpleImmixCollector$" -> DEBUG,
     "uvm.refimpl.itpr" -> DEBUG)
 
-  override def makeMicroVM = new MicroVM(heapSize = 8L * 1024L * 1024L)
+  override def makeMicroVM = new MicroVM(new GCConf(sosSize = 4L * 1024L * 1024L, losSize = 4L * 1024L * 1024L))
 
   preloadBundles("tests/uvm-refimpl-test/primitives.uir",
     "tests/uvm-refimpl-test/basic-tests.uir")

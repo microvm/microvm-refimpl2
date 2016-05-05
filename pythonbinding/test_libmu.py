@@ -5,7 +5,12 @@ import unittest
 from libmu import *
 
 dll = MuRefImpl2StartDLL(u"../cbinding/libmurefimpl2start.so")
-mu = dll.mu_refimpl2_new()
+mu = dll.mu_refimpl2_new_ex(
+        sosSize = 2*1024*1024,
+        losSize = 2*1024*1024,
+        globalSize = 4*1024*1024,
+        stackSize = 63*1024,
+        )
 
 with mu.new_context() as ctx:
     ctx.load_bundle("""
