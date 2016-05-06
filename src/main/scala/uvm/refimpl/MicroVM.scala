@@ -12,39 +12,6 @@ import uvm.refimpl.mem.TypeSizes.Word
 import uvm.refimpl.nat.NativeCallHelper
 import uvm.staticanalysis.StaticAnalyzer
 
-object GCConf {
-  val ReComment = """^\s*#.*$""".r
-  val ReBlank = """^\s*$""".r
-  val ReConf = """^\s*(\w+)=(\w+)\s*$""".r
-
-  def apply(confStr: String): GCConf = {
-    var sosSize = MicroVM.DEFAULT_SOS_SIZE
-    var losSize = MicroVM.DEFAULT_LOS_SIZE
-    var globalSize = MicroVM.DEFAULT_GLOBAL_SIZE
-    var stackSize = MicroVM.DEFAULT_GLOBAL_SIZE
-    confStr.lines foreach {
-      case ReComment() => 
-      case ReBlank() =>
-      case ReConf(key, value) => {
-        key match {
-          case "sosSize" => sosSize = value.toLong
-          case "losSize" => losSize = value.toLong
-          case "globalSize" => globalSize = value.toLong
-          case "stackSize" => stackSize = value.toLong
-          case _ => throw new UvmRefImplException("Unrecognized option %s".format(key))
-        }
-      }
-    }
-    new GCConf(sosSize, losSize, globalSize, stackSize)
-  }
-}
-
-class GCConf(
-  val sosSize: Word = MicroVM.DEFAULT_SOS_SIZE,
-  val losSize: Word = MicroVM.DEFAULT_LOS_SIZE,
-  val globalSize: Word = MicroVM.DEFAULT_GLOBAL_SIZE,
-  val stackSize: Word = MicroVM.DEFAULT_STACK_SIZE)
-
 object MicroVM {
   val DEFAULT_SOS_SIZE: Word = 2L * 1024L * 1024L; // 2MiB
   val DEFAULT_LOS_SIZE: Word = 2L * 1024L * 1024L; // 2MiB
@@ -54,23 +21,23 @@ object MicroVM {
   val FIRST_CLIENT_USABLE_ID: Int = 65536
 
   def apply(): MicroVM = {
-    val gcConf = new GCConf()
-    new MicroVM(gcConf)
+    val vmConf = new VMConf()
+    new MicroVM(vmConf)
   }
   
   def apply(confStr: String): MicroVM = {
-    val gcConf = GCConf(confStr)
-    new MicroVM(gcConf)
+    val vmConf = VMConf(confStr)
+    new MicroVM(vmConf)
   }
 }
 
-class MicroVM(gcConf: GCConf) {
+class MicroVM(vmConf: VMConf) {
   // implicitly injected resources
   private implicit val microVM = this
 
   val globalBundle = new GlobalBundle()
   val constantPool = new ConstantPool()
-  val memoryManager = new MemoryManager(gcConf)
+  val memoryManager = new MemoryManager(vmConf)
 
   private implicit val memorySupport = memoryManager.memorySupport
 

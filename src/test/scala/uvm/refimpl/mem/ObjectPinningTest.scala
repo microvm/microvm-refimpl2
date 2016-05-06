@@ -20,7 +20,7 @@ class ObjectPinningTest extends UvmBundleTesterBase {
     "uvm.refimpl.mem" -> INFO,
     "uvm.refimpl.mem.simpleimmix.SimpleImmixCollector$" -> DEBUG)
 
-  override def makeMicroVM() = new MicroVM(new GCConf(sosSize = 256L*1024L, losSize = 256L * 1024L))
+  override def makeMicroVM() = new MicroVM(new VMConf(sosSize = 256L*1024L, losSize = 256L * 1024L))
 
   def gc() = microVM.memoryManager.heap.mutatorTriggerAndWaitForGCEnd(false)
 

@@ -160,4 +160,10 @@ object TypeSizes {
   def alignDown(n: Word, alignment: Word): Word = {
     return n & ~(alignment - 1);
   }
+
+  implicit class MagicalWord(val word: Word) extends AnyVal {
+    def alignUpAndAdd(align: Word, size: Word): Word = {
+      return alignUp(word, align) + size
+    }
+  }
 }

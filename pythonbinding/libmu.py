@@ -41,6 +41,8 @@ or::
         losSize = 2*1024*1024,
         globalSize = 4*1024*1024,
         stackSize = 63*1024,
+        gcLog = "WARN",
+        vmLog = "INFO",
     )
 
 A ``MuCtx`` instance can be created from the ``MuVM`` object::
@@ -162,6 +164,9 @@ else:
     import _libmuprivpython3 as _priv
 
 import ctypes, ctypes.util
+import logging
+
+logger = logging.getLogger(__name__)
 
 _libc = ctypes.CDLL(ctypes.util.find_library("c"))
 _libc.malloc.restype = ctypes.c_void_p
@@ -921,7 +926,7 @@ def _initialize_methods(high_level_class, methods):
         # make low-level struct field (function pointer)
         low_level_restype = _to_low_level_type(restype)
         low_level_argtypes = [_to_low_level_type(ty) for ty in argtypes]
-        print("Python binding:", name, low_level_restype, low_level_argtypes)
+        logger.debug("Python binding: %s :: %s %s", name, low_level_restype, low_level_argtypes)
         funcptr = _funcptr(
                 low_level_restype, # return value
                 objtype_p, *low_level_argtypes # params. Start with a struct ptr
@@ -1132,7 +1137,7 @@ class MuRefImpl2StartDLL(object):
         self.dll = dll
 
     def mu_refimpl2_new(self):
-        """Create a MuVM instance using the default heap/global/stack sizes."""
+        """Create a MuVM instance using the default configuration."""
         ptr = self.dll.mu_refimpl2_new()
         return MuVM(ptr, self)
 
@@ -1144,6 +1149,15 @@ class MuRefImpl2StartDLL(object):
             losSize: large object space size (bytes, must be 4096-byte aligned)
             globalSize: global space size (bytes, must be 4096-byte aligned)
             stackSize: stack size (bytes)
+
+            vmLog: log level for the micro VM
+            gcLog: log level fof the garbage collector
+            
+        possible values for log levels (strings, case insensitive):
+            ALL, TRACE, DEBUG, INFO, WARN, ERROR, OFF
+
+        Setting to WARN will disable almost all logs. Set vmLog to INFO to see
+        the execution of each instruction; Set gcLog to DEBUG to see GC logs.
         """
         conf = "".join("{}={}\n".format(k,v) for k,v in kwargs.items())
         ptr = self.dll.mu_refimpl2_new_ex(_priv._encode(conf, "utf8"))

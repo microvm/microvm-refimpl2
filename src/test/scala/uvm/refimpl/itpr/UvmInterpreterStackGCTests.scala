@@ -40,7 +40,7 @@ class UvmInterpreterStackGCTests extends UvmBundleTesterBase {
   }
 
   // With 1MiB space is LOS. It can accommodate 16 stacks.
-  override def makeMicroVM = new MicroVM(new GCConf(losSize = 1L * 1024L * 1024L, stackSize = 63L * 1024L))
+  override def makeMicroVM = new MicroVM(new VMConf(losSize = 1L * 1024L * 1024L, stackSize = 63L * 1024L))
 
   "The memory manager" should "collect unreachable stacks." in {
     val ctx = microVM.newContext()
