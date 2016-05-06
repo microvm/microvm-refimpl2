@@ -13,12 +13,14 @@ object LargeObjectSpace {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 
   val BLOCK_SIZE = SimpleImmixSpace.BLOCK_SIZE / 4
+  
+  private val OFFSET_PREV = 0 * TypeSizes.WORD_SIZE_BYTES
 
-  private val OFFSET_PREV = 0
+  private val OFFSET_NEXT = 1 * TypeSizes.WORD_SIZE_BYTES
 
-  private val OFFSET_NEXT = 8
+  private val OFFSET_MARK = 2 * TypeSizes.WORD_SIZE_BYTES
 
-  private val OFFSET_MARK = 16
+  private val BLOCK_HEADER_SIZE = 3 * TypeSizes.WORD_SIZE_BYTES
 
   private val MARK_BIT = 0x1
 }
@@ -54,7 +56,7 @@ class LargeObjectSpace(val heap: SimpleImmixHeap, name: String, begin: Long, ext
   private var head: Word = 0
 
   def alloc(size: Word, align: Word, headerSize: Word): Word = {
-    val userStart = TypeSizes.alignUp(16 + headerSize, align)
+    val userStart = TypeSizes.alignUp(BLOCK_HEADER_SIZE + headerSize, align)
     val totalSize = userStart + size
     val nBlocks = (totalSize - 1) / BLOCK_SIZE + 1
     if (nBlocks > 0xffffffffL) {

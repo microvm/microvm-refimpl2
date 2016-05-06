@@ -6,7 +6,7 @@ import uvm.refimpl.HowToResume.PassValues
 
 object FactorialFromRPython extends App {
   import uvm.refimpl.RichMuCtx._
-  val microVM = new MicroVM()
+  val microVM = MicroVM()
 
   val ctx = microVM.newContext()
 

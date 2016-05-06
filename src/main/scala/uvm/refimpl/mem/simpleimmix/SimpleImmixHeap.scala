@@ -1,19 +1,35 @@
 package uvm.refimpl.mem.simpleimmix
 
+import org.slf4j.LoggerFactory
+
+import com.typesafe.scalalogging.Logger
+
 import uvm.refimpl._
 import uvm.refimpl.mem._
+import uvm.refimpl.mem.TypeSizes._
 import uvm.refimpl.mem.los.LargeObjectSpace
-import TypeSizes._
 
-class SimpleImmixHeap(val begin: Word, val size: Word)(
+object SimpleImmixHeap {
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+}
+
+class SimpleImmixHeap(val begin: Word, val sosSize: Word, val losSize: Word)(
   implicit microVM: MicroVM, memorySupport: MemorySupport)
     extends Heap {
+  
+  import SimpleImmixHeap._
 
-  val mid = begin + size / 2
+  require(begin % 4096L == 0, "Heap beginning must be 4096 bytes aligned. actual beginning: %d".format(begin))
+  
+  val losBegin = begin + sosSize
+  val losEnd = losBegin + losSize
+  
+  logger.debug("Small object space: %d 0x%x to %d 0x%x".format(begin, begin, losBegin, losBegin))
+  logger.debug("Large object space: %d 0x%x to %d 0x%x".format(losBegin, losBegin, losEnd, losEnd))
 
-  val space: SimpleImmixSpace = new SimpleImmixSpace(this, "SimpleImmixSpace", begin, size / 2)
+  val space: SimpleImmixSpace = new SimpleImmixSpace(this, "SimpleImmixSpace", begin, sosSize)
 
-  val los: LargeObjectSpace = new LargeObjectSpace(this, "Large object space", mid, size / 2)
+  val los: LargeObjectSpace = new LargeObjectSpace(this, "Large object space", losBegin, losSize)
 
   val collector: SimpleImmixCollector = new SimpleImmixCollector(this, space, los)
 

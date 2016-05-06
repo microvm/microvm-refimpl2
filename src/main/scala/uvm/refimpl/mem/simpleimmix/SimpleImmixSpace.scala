@@ -35,6 +35,18 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
   }
 
   val nBlocks: Int = (extend / BLOCK_SIZE).toInt
+  
+  logger.debug {
+    val sb = new StringBuilder("Blocks:\n")
+    
+    for (i <- 0L until nBlocks) {
+      val blockBegin = begin + i*BLOCK_SIZE
+      val blockEnd = begin + (i+1L)*BLOCK_SIZE
+      sb ++= "  block[%d]: from %d 0x%x to %d 0x%x\n".format(i, blockBegin, blockBegin, blockEnd, blockEnd)
+    }
+    
+    sb.toString
+  }
 
   /** The number of reserved blocks (for defrag). */
   private val nReserved: Int = Math.max(nBlocks / 20, 1) // reserve at least one block

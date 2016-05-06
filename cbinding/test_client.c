@@ -7,11 +7,18 @@
 #include <refimpl2-start.h>
 #include <muapi.h>
 
-char *hw_string = "Hello world!\n";
-char *hw2_string = "Goodbye world!\n";
+const char *hw_string = "Hello world!\n";
+const char *hw2_string = "Goodbye world!\n";
+
+const char *gc_conf =
+"sosSize=524288\n"
+"losSize=524288\n"
+"globalSize=1048576\n"
+"stackSize=32768\n"
+;
 
 int main() {
-    MuVM *mvm = mu_refimpl2_new_ex(1048576, 1048576, 32768);
+    MuVM *mvm = mu_refimpl2_new_ex(gc_conf);
 
     MuCtx *ctx = mvm->new_context(mvm);
 

@@ -13,30 +13,38 @@ import uvm.refimpl.nat.NativeCallHelper
 import uvm.staticanalysis.StaticAnalyzer
 
 object MicroVM {
-  val DEFAULT_HEAP_SIZE: Word = 4L * 1024L * 1024L; // 4MiB
+  val DEFAULT_SOS_SIZE: Word = 2L * 1024L * 1024L; // 2MiB
+  val DEFAULT_LOS_SIZE: Word = 2L * 1024L * 1024L; // 2MiB
   val DEFAULT_GLOBAL_SIZE: Word = 1L * 1024L * 1024L; // 1MiB
   val DEFAULT_STACK_SIZE: Word = 63L * 1024L; // 60KiB per stack
-  
+
   val FIRST_CLIENT_USABLE_ID: Int = 65536
+
+  def apply(): MicroVM = {
+    val vmConf = new VMConf()
+    new MicroVM(vmConf)
+  }
+  
+  def apply(confStr: String): MicroVM = {
+    val vmConf = VMConf(confStr)
+    new MicroVM(vmConf)
+  }
 }
 
-class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
-    globalSize: Word = MicroVM.DEFAULT_GLOBAL_SIZE,
-    stackSize: Word = MicroVM.DEFAULT_STACK_SIZE) {
-
+class MicroVM(vmConf: VMConf) {
   // implicitly injected resources
   private implicit val microVM = this
 
   val globalBundle = new GlobalBundle()
   val constantPool = new ConstantPool()
-  val memoryManager = new MemoryManager(heapSize, globalSize, stackSize)
+  val memoryManager = new MemoryManager(vmConf)
 
   private implicit val memorySupport = memoryManager.memorySupport
 
   implicit val nativeCallHelper = new NativeCallHelper()
 
   val threadStackManager = new ThreadStackManager()
-  
+
   val trapManager = new TrapManager()
   val contexts = new HashSet[MuCtx]()
 
@@ -57,7 +65,7 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
     }
 
     // Some internal constants needed by the HAIL loader
-    
+
     for (c <- Seq(NULL_REF_VOID, NULL_IREF_VOID, NULL_FUNCREF_VV, NULL_THREADREF, NULL_STACKREF)) {
       globalBundle.constantNs.add(c)
       constantPool.addGlobalVar(c)
@@ -69,7 +77,7 @@ class MicroVM(heapSize: Word = MicroVM.DEFAULT_HEAP_SIZE,
    */
   def addBundle(bundle: TrantientBundle) {
     staticAnalyzer.checkBundle(bundle, Some(globalBundle))
-    
+
     globalBundle.merge(bundle);
 
     for (gc <- bundle.globalCellNs.all) {
