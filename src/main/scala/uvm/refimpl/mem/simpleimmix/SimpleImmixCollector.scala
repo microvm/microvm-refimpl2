@@ -13,9 +13,42 @@ import com.typesafe.scalalogging.Logger
 import scala.collection.mutable.ArrayBuffer
 import uvm.refimpl.UvmRefImplException
 import uvm.utils.HexDump
+import scala.collection.mutable.HashSet
+import com.typesafe.scalalogging.LazyLogging
 
 object SimpleImmixCollector {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+}
+
+private class MarkClearCheck extends LazyLogging {
+  val markedRefs = new HashSet[Word]()
+  val clearedRefs = new HashSet[Word]()
+  val diffRefs = new HashSet[Word]()
+  
+  def beforeMarking(): Unit = {
+    markedRefs.clear
+  }
+  
+  def marked(objRef: Word): Unit = {
+    markedRefs.add(objRef)
+  }
+  
+  def beforeClearing(): Unit = {
+    clearedRefs.clear
+  }
+  
+  def cleared(objRef: Word): Unit = {
+    clearedRefs.add(objRef)
+  }
+  
+  def debugPrintStat(phase: String): Unit = {
+    diffRefs.clear()
+    for (r <- markedRefs if !clearedRefs.contains(r)) {
+      diffRefs.add(r)
+    }
+    logger.debug("After phase %s: nmarked:%d, ncleared:%d".format(phase, markedRefs.size, clearedRefs.size))
+    logger.debug("After phase %s: Refs marked but not cleared: \n".format(phase) + diffRefs.map(r => "0x%x\n".format(r)).mkString)
+  }
 }
 
 class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpace, val los: LargeObjectSpace)(
@@ -36,15 +69,22 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
 
   // The number of times GC has run.
   private var gcCount: Int = 0
+  
+  private val MARK_CLEAR_DEBUG = false  // Set to true if you want to check if any references are marked but not cleared
+  private val markClearCheck = if (MARK_CLEAR_DEBUG) Some(new MarkClearCheck()) else None
 
   protected override def collect() {
     gcCount += 1
     logger.debug(s"GC starts. gcCount=${gcCount}")
+    
+    if (logger.underlying.isDebugEnabled()) space.debugLogBlockStates()
 
     logger.debug("Clearing stats...")
     space.clearStats()
 
     val weakRefs = new ArrayBuffer[Word]()
+    
+    markClearCheck.map(_.beforeMarking())
 
     logger.debug("Marking and getting statistics....")
     val s1 = new AllScanner(new RefFieldHandler() {
@@ -101,15 +141,27 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
       }
     }
 
+    if (logger.underlying.isDebugEnabled()) space.debugLogBlockStates()
+
+    markClearCheck.map(_.beforeClearing())
+    
     logger.debug("Stat finished. Unmarking....")
     val s2 = new AllScanner(clearMarkHandler)
     s2.scanAll()
+    
+    markClearCheck.map(_.debugPrintStat("2"))
+
+    if (logger.underlying.isDebugEnabled()) space.debugLogBlockStates()
 
     val resvSpace = space.getTotalReserveSpace
     threshold = space.findThreshold(resvSpace)
     logger.debug("Making defrag mutator...")
     defragMutator = new SimpleImmixDefragMutator(heap, space)
     canDefrag = true
+
+    if (logger.underlying.isDebugEnabled()) space.debugLogBlockStates()
+    
+    markClearCheck.map(_.beforeMarking())
 
     logger.debug("Mark again, maybe move objects....")
     val s3 = new AllScanner(markMover)
@@ -134,9 +186,16 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
 
     notifyMovedObjectsToFutex()
 
+    if (logger.underlying.isDebugEnabled()) space.debugLogBlockStates()
+    
+    markClearCheck.map(_.beforeClearing())
+
     logger.debug("Blocks collected. Unmarking....")
     val s4 = new AllScanner(clearMarkHandler)
     s4.scanAll()
+
+    if (logger.underlying.isDebugEnabled()) space.debugLogBlockStates()
+
 
     logger.debug("GC finished.")
     heap.untriggerGC()
@@ -150,13 +209,17 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
     assert(addr != 0L, "addr should be non-zero before calling this function")
     val oldHeader = HeaderUtils.getTag(addr)
     logger.debug("GC header of 0x%x is 0x%x".format(addr, oldHeader))
-    val wasMarked = (oldHeader & MARK_MASK) != 0
+    val markBit = oldHeader & MARK_MASK
+    val moveBit = oldHeader & MOVE_MASK
+    val wasMarked = markBit != 0
+    val wasMoved = moveBit != 0
     if (!wasMarked) {
       val newHeader = oldHeader | MARK_MASK
       HeaderUtils.setTag(addr, newHeader)
-      logger.debug("Newly marked 0x%x".format(addr))
+      markClearCheck.map(_.marked(addr))
+      logger.debug("MarkStat: Newly marked 0x%x".format(addr))
       if (space.isInSpace(addr)) {
-        //space.markBlockByObjRef(addr)
+        //space.markBlockByObjRef(addr) // Unnecessary. Block mark is only cleared when collecting. Should do in phase3
         val tag = HeaderUtils.getTag(addr)
         val ty = HeaderUtils.getType(microVM, tag)
         val used = ty match {
@@ -171,7 +234,7 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
         val blockNum = space.objRefToBlockIndex(addr)
         space.incStat(blockNum, used)
       } else if (los.isInSpace(addr)) {
-        //los.markBlockByObjRef(addr)
+        //los.markBlockByObjRef(addr) // Unnecessary. Block mark is only cleared when collecting. Should do in phase3
       } else {
         throw new UvmRefImplException("Object ref %d not in any space".format(addr))
       }
@@ -290,7 +353,8 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
 
           val newHeader = oldHeader | MARK_MASK
           HeaderUtils.setTag(actualObj, newHeader)
-          logger.debug("Newly marked 0x%x".format(actualObj))
+          markClearCheck.map(_.marked(actualObj))
+          logger.debug("MarkMove: Newly marked 0x%x".format(actualObj))
 
           if (space.isInSpace(actualObj)) {
             space.markBlockByObjRef(actualObj)
@@ -318,24 +382,30 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
         val ty = HeaderUtils.getType(microVM, tag)
 
         try {
-          val (newObjRef, oldSize): (Long, Long) = ty match {
+          val (newObjRef, oldSize, oldVarLen): (Long, Long, Option[Long]) = ty match {
             case htype: TypeHybrid => {
               val len = HeaderUtils.getVarLength(oldObjRef)
               val nor = defragMutator.newHybrid(htype, len)
               val os = TypeSizes.hybridSizeOf(htype, len)
-              (nor, os)
+              (nor, os, Some(len))
             }
             case _ => {
               val nor = defragMutator.newScalar(ty)
               val os = TypeSizes.sizeOf(ty)
-              (nor, os)
+              (nor, os, None)
             }
           }
 
           val alignedOldSize = TypeSizes.alignUp(oldSize, TypeSizes.WORD_SIZE_BYTES)
+
           logger.debug("Copying old object 0x%x to 0x%x, %d bytes (aligned up to %d bytes).".format(
             oldObjRef, newObjRef, oldSize, alignedOldSize))
           MemUtils.memcpy(oldObjRef, newObjRef, alignedOldSize)
+          oldVarLen foreach { varLen => 
+            logger.debug("Copying old variable part length %d 0x%x to objref 0x%x".format(varLen, varLen, newObjRef))
+            HeaderUtils.setVarLength(newObjRef, varLen)
+          }
+          
           val newTag = newObjRef | MOVE_MASK
           HeaderUtils.setTag(oldObjRef, newTag)
           newObjRef
@@ -394,9 +464,17 @@ class SimpleImmixCollector(val heap: SimpleImmixHeap, val space: SimpleImmixSpac
     val oldHeader = HeaderUtils.getTag(objRef)
     logger.debug("GC header of 0x%x is 0x%x".format(objRef, oldHeader))
     val markBit = oldHeader & MARK_MASK
-    if (markBit != 0) {
-      val newHeader = oldHeader & ~(MARK_MASK | MOVE_MASK)
+    val moveBit = oldHeader & MOVE_MASK
+    val wasMarked = markBit != 0
+    val wasMoved = moveBit != 0
+    if (wasMoved) {
+      throw new UvmRefImplException("Should not point to tombstone when clearing marks. objRef: 0x%x".format(objRef))
+    }
+    if (wasMarked) {
+      val newHeader = oldHeader & ~MARK_MASK
       HeaderUtils.setTag(objRef, newHeader)
+      markClearCheck.map(_.cleared(objRef))
+      logger.debug("MarkClear: Newly marked 0x%x (unmarking)".format(objRef))
       Some(objRef)
     } else {
       None

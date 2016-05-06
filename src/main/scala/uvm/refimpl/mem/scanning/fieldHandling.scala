@@ -8,6 +8,8 @@ import uvm.refimpl.itpr.OpHelper
 import uvm.refimpl.itpr.InterpreterThread
 import uvm.refimpl.itpr.InterpreterStack
 import uvm.refimpl.UvmRefImplException
+import org.slf4j.LoggerFactory
+import com.typesafe.scalalogging.Logger
 
 /**
  * Handle references in the memory, value boxes or other Micro VM structures such as threads and stacks.
@@ -37,6 +39,8 @@ trait RefFieldHandler {
 }
 
 object RefFieldUpdater {
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+
   def updateBoxToHeap(box: HasObjRef, newObjRef: Word): Unit = box.setObjRef(newObjRef)
   def updateBoxToStack(box: BoxStack, newStack: Option[InterpreterStack]) = box.stack = newStack
   def updateMemToHeap(iRef: Word, isTR64: Boolean, newObjRef: Word)(implicit memorySupport: MemorySupport): Unit = {
@@ -44,8 +48,17 @@ object RefFieldUpdater {
       val oldRaw = memorySupport.loadLong(iRef)
       val oldTag = OpHelper.tr64ToTag(oldRaw)
       val newRaw = OpHelper.refToTr64(newObjRef, oldTag)
+      logger.debug {
+        val oldObjRef = OpHelper.tr64ToRef(oldRaw)
+        "Updating tagref field [0x%x] = 0x%x -> 0x%x; ref: 0x%x -> 0x%x".format(
+          iRef, oldRaw, newRaw, oldObjRef, newObjRef)
+      }
       memorySupport.storeLong(iRef, newRaw)
     } else {
+      logger.debug {
+        val oldObjRef = memorySupport.loadLong(iRef)
+        "Updating ref field [0x%x] = 0x%x -> 0x%x".format(iRef, oldObjRef, newObjRef)
+      }
       memorySupport.storeLong(iRef, newObjRef)
     }
   }

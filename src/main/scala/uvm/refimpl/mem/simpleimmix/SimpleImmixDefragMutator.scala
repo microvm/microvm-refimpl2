@@ -32,6 +32,7 @@ class SimpleImmixDefragMutator(val heap: SimpleImmixHeap, val space: SimpleImmix
       case Some(addr) =>
         cursor = addr
         limit = addr + SimpleImmixSpace.BLOCK_SIZE
+        logger.debug("Got block. cursor=0x%x limit=0x%x".format(cursor, limit))
       case None =>
     }
   }
@@ -43,7 +44,7 @@ class SimpleImmixDefragMutator(val heap: SimpleImmixHeap, val space: SimpleImmix
       throw new NoMoreDefragBlockException("No more blocks for defrag.")
     }
     val actualAlign = if (align < TypeSizes.WORD_SIZE_BYTES) TypeSizes.WORD_SIZE_BYTES else align
-    tryTwice {
+    val result = tryTwice {
       val gcStart = TypeSizes.alignUp(cursor, align)
       val userStart = TypeSizes.alignUp(gcStart + headerSize, align)
       val userEnd = userStart + size
@@ -65,6 +66,8 @@ class SimpleImmixDefragMutator(val heap: SimpleImmixHeap, val space: SimpleImmix
         Some(userStart)
       }
     }
+    logger.debug("alloc(%d, %d, %d) = %d 0x%x".format(size, align, headerSize, result, result))
+    result
   }
 
   def close() {

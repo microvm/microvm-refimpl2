@@ -36,12 +36,13 @@ class SimpleImmixMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace,
     curBlockAddr = Some(newAddr)
     cursor = newAddr
     limit = newAddr + SimpleImmixSpace.BLOCK_SIZE
+    logger.debug("Got block. cursor=0x%x limit=0x%x".format(cursor, limit))
   }
 
   override def alloc(size: Word, align: Word, headerSize: Word): Word = {
     logger.debug(s"alloc(${size}, ${align}, ${headerSize})")
     val actualAlign = if (align < TypeSizes.WORD_SIZE_BYTES) TypeSizes.WORD_SIZE_BYTES else align
-    tryRepeatedly { // Actually try at most twice.
+    val result = tryRepeatedly { // Actually try at most twice.
       //If the first time failed, the second time cannot continue until a block is obtained. 
       val gcStart = TypeSizes.alignUp(cursor, align)
       val userStart = TypeSizes.alignUp(gcStart + headerSize, align)
@@ -60,6 +61,8 @@ class SimpleImmixMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace,
         Some(userStart)
       }
     }
+    logger.debug("alloc(%d, %d, %d) = %d 0x%x".format(size, align, headerSize, result, result))
+    result
   }
 
   def close() {

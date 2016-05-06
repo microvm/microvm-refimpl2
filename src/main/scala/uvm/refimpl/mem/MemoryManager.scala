@@ -5,6 +5,7 @@ import TypeSizes._
 import uvm.refimpl.mem.simpleimmix._
 import org.slf4j.LoggerFactory
 import com.typesafe.scalalogging.Logger
+import uvm.refimpl.mem.los.LargeObjectSpace
 
 object MemoryManager {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
@@ -16,8 +17,10 @@ class MemoryManager(val gcConf: GCConf)(implicit microVM: MicroVM) {
   logger.info("sosSize=%d, losSize=%d, globalSize=%d, stackSize=%d".format(
       gcConf.sosSize, gcConf.losSize, gcConf.globalSize, gcConf.stackSize))
 
-  require(gcConf.sosSize % 4096L == 0, "Small object space size must be 4096 bytes aligned. actual size: %d".format(gcConf.sosSize))
-  require(gcConf.losSize % 4096L == 0, "Large object space size must be 4096 bytes aligned. actual size: %d".format(gcConf.losSize))
+  require(gcConf.sosSize % SimpleImmixSpace.BLOCK_SIZE == 0, "Small object space size must be a multiple of %d bytes. actual size: %d".format(
+      SimpleImmixSpace.BLOCK_SIZE, gcConf.sosSize))
+  require(gcConf.losSize % LargeObjectSpace.BLOCK_SIZE == 0, "Large object space size must a multiple of %d bytes. actual size: %d".format(
+      LargeObjectSpace.BLOCK_SIZE, gcConf.losSize))
   require(gcConf.globalSize % 4096L == 0, "Global space size must be 4096 bytes aligned. actual size: %d".format(gcConf.globalSize))
 
   val totalMemorySize = gcConf.sosSize + gcConf.losSize + gcConf.globalSize

@@ -34,6 +34,7 @@ object HeaderUtils extends StrictLogging {
   }
 
   def setVarLength(objRef: Word, len: Word)(implicit memorySupport: MemorySupport) {
+    logger.debug("Storing varLength 0x%x at addr 0x%x".format(len, objRef + TypeSizes.GC_HEADER_OFFSET_HYBRID_LENGTH))
     memorySupport.storeLong(objRef + TypeSizes.GC_HEADER_OFFSET_HYBRID_LENGTH, len)
   }
 
