@@ -18,8 +18,8 @@ class MemorySupport(val muMemorySize: Word) {
   val SIZE_LIMIT: Word = Int.MaxValue.toLong
 
   if (muMemorySize > SIZE_LIMIT) {
-    throw new UvmRuntimeException("Memory too large (%d bytes requested)." +
-      " Due to the limitation of JNR-FFI, the maximum available memory size is %d bytes.".format(muMemorySize, SIZE_LIMIT))
+    throw new UvmRuntimeException(("Memory too large (%d bytes requested)." +
+      " Due to the limitation of JNR-FFI, the maximum available memory size is %d bytes.").format(muMemorySize, SIZE_LIMIT))
   }
 
   val muMemory = Memory.allocateDirect(jnrRuntime, muMemorySize.toInt, true)

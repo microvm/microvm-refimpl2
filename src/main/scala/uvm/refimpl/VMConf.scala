@@ -26,7 +26,7 @@ object VMConf {
           case "losSize" => losSize = value.toLong
           case "globalSize" => globalSize = value.toLong
           case "stackSize" => stackSize = value.toLong
-          case "vmLog" => setLog("uvm.refimpl", value)
+          case "vmLog" => setLog("uvm", value)
           case "gcLog" => setLog("uvm.refimpl.mem", value)
           case _ => throw new UvmRefImplException("Unrecognized option %s".format(key))
         }
