@@ -15,50 +15,17 @@ import uvm.refimpl.MicroVM$;
 /** Static functions for the convenient of C programs that start Mu via JNI. */
 public class CInitiater {
     
-    private static boolean isLogConfigured = false;
-    
-    private static void configureLog() {
-        if (isLogConfigured) {
-            return;
-        }
-        isLogConfigured = true;
-        
-        LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
-        
-        lc.reset();
-
-        ConsoleAppender<ILoggingEvent> ca = new ConsoleAppender<ILoggingEvent>();
-        ca.setContext(lc);
-        ca.setName("console");
-        ca.setTarget("System.err");
-        PatternLayoutEncoder pl = new PatternLayoutEncoder();
-        pl.setContext(lc);
-        pl.setPattern("%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n");
-        pl.start();
-
-        ca.setEncoder(pl);
-        ca.start();
-        Logger rootLogger = lc.getLogger(Logger.ROOT_LOGGER_NAME);
-        rootLogger.addAppender(ca);
-    }
-    
     /** Called by the native program, this function creates a Mu instance. */
     static long mu_refimpl2_new() {
-        configureLog();
-        MicroVM mvm = MicroVM$.MODULE$.apply();
-        long fak = NativeClientSupport$.MODULE$.exposeMicroVM(mvm);
-        return fak;
+        return ScalaCInitiater$.MODULE$.mu_refimpl2_new();
     }
 
     /**
      * Called by the native program, this function creates a Mu instance with
      * extra arguments.
      */
-    static long mu_refimpl2_new_ex(String gcConfString) {
-        configureLog();
-        MicroVM mvm = MicroVM$.MODULE$.apply(gcConfString);
-        long fak = NativeClientSupport$.MODULE$.exposeMicroVM(mvm);
-        return fak;
+    static long mu_refimpl2_new_ex(String vmConf) {
+        return ScalaCInitiater$.MODULE$.mu_refimpl2_new_ex(vmConf);
     }
 
     /**
@@ -66,7 +33,6 @@ public class CInitiater {
      * instance.
      */
     static void mu_refimpl2_close(long mvmFak) {
-        NativeClientSupport$.MODULE$.unexposeMicroVM(mvmFak);
-        // does not really deallocate it.
+        ScalaCInitiater$.MODULE$.mu_refimpl_close(mvmFak);
     }
 }
