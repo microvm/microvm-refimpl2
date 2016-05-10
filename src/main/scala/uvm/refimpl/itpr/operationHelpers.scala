@@ -351,7 +351,12 @@ object MemoryOperations {
           case 16 => memorySupport.loadShort(loc, !ptr)
           case 32 => memorySupport.loadInt(loc, !ptr)
           case 64 => memorySupport.loadLong(loc, !ptr)
-          case _  => throw new UnimplementedOprationException("Loading int of length %d is not supported".format(l))
+          case 128 => {
+            val lowWord = memorySupport.loadLong(loc, !ptr)
+            val highWord = memorySupport.loadLong(loc + 8, !ptr)
+            (BigInt(highWord) << 64) + lowWord
+          }
+          case _ => throw new UnimplementedOprationException("Loading int of length %d is not supported".format(l))
         }
         br.asInstanceOf[BoxInt].value = OpHelper.unprepare(bi, l)
       case _: TypeFloat =>
@@ -414,7 +419,11 @@ object MemoryOperations {
           case 16 => memorySupport.storeShort(loc, bi.shortValue, !ptr)
           case 32 => memorySupport.storeInt(loc, bi.intValue, !ptr)
           case 64 => memorySupport.storeLong(loc, bi.longValue, !ptr)
-          case _  => throw new UnimplementedOprationException("Storing int of length %d is not supported".format(l))
+          case 128 => {
+            memorySupport.storeLong(loc, (bi & 0xffffffffffffffffL).longValue, !ptr)
+            memorySupport.storeLong(loc + 8, (bi >> 64).longValue, !ptr)
+          }
+          case _ => throw new UnimplementedOprationException("Storing int of length %d is not supported".format(l))
         }
       case _: TypeFloat =>
         val fv = nvb.asInstanceOf[BoxFloat].value

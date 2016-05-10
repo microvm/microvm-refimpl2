@@ -1,0 +1,66 @@
+.typedef @i128 = int<128>
+
+.const @I128_0 <@i128> = 0
+.const @I128_1 <@i128> = 1
+.const @I128_10 <@i128> = 10
+.const @I128_big <@i128> = 0xfedcba9876543210123456789abcdef0
+
+.funcsig @binops128_sig = (@i128 @i128) -> ()
+.funcdef @binops128 VERSION %v1 <@binops128_sig> {
+    %entry(<@i128> %p0 <@i128> %p1):
+        %add  = ADD  <@i128> %p0 %p1
+        %sub  = SUB  <@i128> %p0 %p1
+        %mul  = MUL  <@i128> %p0 %p1
+        %udiv = UDIV <@i128> %p0 %p1
+        %sdiv = SDIV <@i128> %p0 %p1
+        %urem = UREM <@i128> %p0 %p1
+        %srem = SREM <@i128> %p0 %p1
+        %shl  = SHL  <@i128> %p0 %p1
+        %lshr = LSHR <@i128> %p0 %p1
+        %ashr = ASHR <@i128> %p0 %p1
+        %and  = AND  <@i128> %p0 %p1
+        %or   = OR   <@i128> %p0 %p1
+        %xor  = XOR  <@i128> %p0 %p1
+        
+        [%trap] TRAP <> KEEPALIVE (
+            %add %sub %mul %udiv %sdiv %urem %srem
+            %shl %lshr %ashr %and %or %xor
+            )
+            
+        COMMINST @uvm.thread_exit
+}
+
+.funcsig @cmp128_sig = (@i128 @i128) -> ()
+.funcdef @cmp128 VERSION %v1 <@cmp128_sig> {
+    %entry(<@i128> %p0 <@i128> %p1):
+        %eq  = EQ  <@i128> %p0 %p1
+        %ne  = NE  <@i128> %p0 %p1
+        %ult = ULT <@i128> %p0 %p1
+        %ule = ULE <@i128> %p0 %p1
+        %ugt = UGT <@i128> %p0 %p1
+        %uge = UGE <@i128> %p0 %p1
+        %slt = SLT <@i128> %p0 %p1
+        %sle = SLE <@i128> %p0 %p1
+        %sgt = SGT <@i128> %p0 %p1
+        %sge = SGE <@i128> %p0 %p1
+        
+        [%trap] TRAP <> KEEPALIVE (
+            %eq %ne %ult %ule %ugt %uge %slt %sle %sgt %sge
+            )
+        COMMINST @uvm.thread_exit
+}
+
+.global @g_i128 <@i128>
+
+.funcdef @memAccessing128 VERSION %v1 <@v_v> {
+    %entry():
+        %l0 = LOAD  <@i128>    @g_i128
+
+              STORE <@i128>    @g_i128  @I128_big
+        %l1 = LOAD  <@i128>    @g_i128
+
+        [%trap] TRAP <> KEEPALIVE (%l0 %l1)
+        COMMINST @uvm.thread_exit
+}
+
+.typedef @sbig = struct <@i8 @i128 @i8>
