@@ -48,8 +48,8 @@ class MicroVM(vmConf: VMConf) {
   val trapManager = new TrapManager()
   val contexts = new HashSet[MuCtx]()
 
-  val irReader = new UIRTextReader(new IDFactory(MicroVM.FIRST_CLIENT_USABLE_ID))
-  val hailScriptLoader = new HailScriptLoader()
+  val irReader = new UIRTextReader(new IDFactory(MicroVM.FIRST_CLIENT_USABLE_ID), recordSourceInfo=vmConf.sourceInfo)
+  val hailScriptLoader = new HailScriptLoader(recordSourceInfo=vmConf.sourceInfo)
   val staticAnalyzer = new StaticAnalyzer()
 
   {

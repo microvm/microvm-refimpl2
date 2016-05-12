@@ -17,20 +17,29 @@ import uvm.utils.IOHelpers
 import uvm.utils.IDFactory
 import uvm.utils.AdvancedAntlrHelper
 import uvm.utils.AntlrHelpers.AccumulativeAntlrErrorListener
+import org.slf4j.LoggerFactory
+import com.typesafe.scalalogging.Logger
 
-class UIRTextReader(val idFactory: IDFactory) {
+class UIRTextReader(val idFactory: IDFactory, val recordSourceInfo: Boolean = true) {
+  import UIRTextReader._
+  
   def read(ir: java.io.Reader, globalBundle: GlobalBundle): TrantientBundle = {
-    read(IOHelpers.slurp(ir), globalBundle)
+    logger.debug("Slurping from reader...")
+    val src = IOHelpers.slurp(ir)
+    read(src, globalBundle)
   }
 
   def read(ir: String, globalBundle: GlobalBundle): TrantientBundle = {
+    logger.debug("Creating ANTLRInputStream...")
     val input = new ANTLRInputStream(ir)
     read(ir, input, globalBundle)
   }
-
-  def read(source: String, ais: ANTLRInputStream, globalBundle: GlobalBundle): TrantientBundle = {
+  
+  def parse(source: String, ais: ANTLRInputStream): IrContext = {
+    logger.debug("Creating AccumulativeAntlrErrorListener...")
     val ea = new AccumulativeAntlrErrorListener(source)
 
+    logger.debug("Creating Antlr Lexer and Parser...")
     val lexer = new UIRLexer(ais)
     lexer.removeErrorListeners()
     lexer.addErrorListener(ea)
@@ -38,17 +47,28 @@ class UIRTextReader(val idFactory: IDFactory) {
     val parser = new UIRParser(tokens)
     parser.removeErrorListeners()
     parser.addErrorListener(ea)
+    
+    logger.debug("Antlr parsing IR...")
     val ast = parser.ir()
     if (ea.hasError) {
       throw new TextIRParsingException("Syntax error:\n" + ea.getMessages)
     }
     
-    val instanceReader = new InstanceUIRTextReader(idFactory, source, ast, globalBundle)
-    instanceReader.read()
+    ast
+  }
+
+  def read(source: String, ais: ANTLRInputStream, globalBundle: GlobalBundle): TrantientBundle = {
+    val ast = parse(source, ais)
+    logger.debug("Antlr parsed. Reading UIR AST into a Bundle...")
+    val instanceReader = new InstanceUIRTextReader(idFactory, source, ast, globalBundle, recordSourceInfo)
+    val bundle = instanceReader.read()
+    logger.debug("Bundle read from AST.")
+    bundle
   }
 }
 
-private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: String, ir: IrContext, globalBundle: GlobalBundle) extends AdvancedAntlrHelper {
+private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: String, ir: IrContext,
+    globalBundle: GlobalBundle, val recordSourceInfo: Boolean) extends AdvancedAntlrHelper {
   import UIRTextReader._
   import uvm.ir.textinput.Later.Laterable
 
@@ -63,7 +83,7 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
   } catch {
     case e: Exception => throw new TextIRParsingException(inCtx(ctx, s), e)
   }
-  
+
   def resolveByNameAndCatch[T](kind: String, ctx: ParserRuleContext, func: String => T): T = {
     catchIn(ctx, "Unable to resolve %s %s".format(kind, ctx.getText)) { func(ctx.getText) }
   }
@@ -77,10 +97,10 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
   implicit def resConst(ctx: ConstantContext): Constant = resolveByNameAndCatch("constant", ctx, resConstByName)
   def resConstByName(name: String): Constant = cascadeLookup(name, bundle.constantNs, globalBundle.constantNs)
 
-  implicit def resGlobalVar(ctx: GlobalVarContext): GlobalVariable =  resolveByNameAndCatch("global variable", ctx, resGlobalVarByName)
+  implicit def resGlobalVar(ctx: GlobalVarContext): GlobalVariable = resolveByNameAndCatch("global variable", ctx, resGlobalVarByName)
   def resGlobalVarByName(name: String): GlobalVariable = cascadeLookup(name, bundle.globalVarNs, globalBundle.globalVarNs)
 
-  implicit def resFunc(ctx: FuncContext): Function = resolveByNameAndCatch("function", ctx, resFuncByName) 
+  implicit def resFunc(ctx: FuncContext): Function = resolveByNameAndCatch("function", ctx, resFuncByName)
   def resFuncByName(name: String): Function = cascadeLookup(name, bundle.funcNs, globalBundle.funcNs)
 
   implicit def convFlag(f: FlagContext): Flag = Flag(f.FLAG().getText)
@@ -94,7 +114,7 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
 
   // Resolve global entities. (If any resXxxx is not present, that's because it is simply not currently used)
   // Add entities to namespaces.
-  
+
   private def addWithSourceInfo[T <: Identified](ns: Namespace[T], obj: T, sourceInfo: SourceInfo): Unit = {
     try {
       ns.add(obj)
@@ -102,7 +122,7 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
     } catch {
       case e: NameConflictException => {
         throw new TextIRParsingException("Name conflict: %s. The newer definition %s:\n%s\nconflicts with older definition %s:\n%s".format(
-            obj.name.get, e.newItem.repr, sourceInfo.prettyPrint(), e.oldItem.repr, bundle.sourceInfoRepo(e.oldItem).prettyPrint()))
+          obj.name.get, e.newItem.repr, sourceInfo.prettyPrint(), e.oldItem.repr, bundle.sourceInfoRepo(e.oldItem).prettyPrint()))
       }
     }
   }
@@ -145,27 +165,28 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
 
     // Make types and sigs
 
+    logger.debug("Phase 1")
     val phase1 = new Later() // Resolve inter-references between types and sigs
 
     def mkType(tc: TypeConstructorContext): Type = {
       val ty = tc match {
-        case t: TypeIntContext => TypeInt(t.length.intValue())
-        case t: TypeFloatContext => TypeFloat()
-        case t: TypeDoubleContext => TypeDouble()
-        case t: TypeRefContext => TypeRef(null).later(phase1) { _.ty = t.ty }
-        case t: TypeIRefContext => TypeIRef(null).later(phase1) { _.ty = t.ty }
-        case t: TypeWeakRefContext => TypeWeakRef(null).later(phase1) { _.ty = t.ty }
-        case t: TypeStructContext => TypeStruct(null).later(phase1) { _.fieldTys = t.fieldTys.map(resTy) }
-        case t: TypeArrayContext => TypeArray(null, t.length.longValue()).later(phase1) { _.elemTy = t.ty }
-        case t: TypeHybridContext => TypeHybrid(null, null).later(phase1) { tt => tt.fieldTys = t.fieldTys.map(resTy); tt.varTy = t.varTy }
-        case t: TypeVoidContext => TypeVoid()
-        case t: TypeFuncRefContext => TypeFuncRef(null).later(phase1) { _.sig = t.funcSig() }
+        case t: TypeIntContext       => TypeInt(t.length.intValue())
+        case t: TypeFloatContext     => TypeFloat()
+        case t: TypeDoubleContext    => TypeDouble()
+        case t: TypeRefContext       => TypeRef(null).later(phase1) { _.ty = t.ty }
+        case t: TypeIRefContext      => TypeIRef(null).later(phase1) { _.ty = t.ty }
+        case t: TypeWeakRefContext   => TypeWeakRef(null).later(phase1) { _.ty = t.ty }
+        case t: TypeStructContext    => TypeStruct(null).later(phase1) { _.fieldTys = t.fieldTys.map(resTy) }
+        case t: TypeArrayContext     => TypeArray(null, t.length.longValue()).later(phase1) { _.elemTy = t.ty }
+        case t: TypeHybridContext    => TypeHybrid(null, null).later(phase1) { tt => tt.fieldTys = t.fieldTys.map(resTy); tt.varTy = t.varTy }
+        case t: TypeVoidContext      => TypeVoid()
+        case t: TypeFuncRefContext   => TypeFuncRef(null).later(phase1) { _.sig = t.funcSig() }
         case t: TypeThreadRefContext => TypeThreadRef()
-        case t: TypeStackRefContext => TypeStackRef()
-        case t: TypeTagRef64Context => TypeTagRef64()
-        case t: TypeVectorContext => TypeVector(null, t.length.longValue()).later(phase1) { _.elemTy = t.ty }
-        case t: TypeUPtrContext => TypeUPtr(null).later(phase1) { _.ty = t.ty }
-        case t: TypeUFuncPtrContext => TypeUFuncPtr(null).later(phase1) { _.sig = t.funcSig }
+        case t: TypeStackRefContext  => TypeStackRef()
+        case t: TypeTagRef64Context  => TypeTagRef64()
+        case t: TypeVectorContext    => TypeVector(null, t.length.longValue()).later(phase1) { _.elemTy = t.ty }
+        case t: TypeUPtrContext      => TypeUPtr(null).later(phase1) { _.ty = t.ty }
+        case t: TypeUFuncPtrContext  => TypeUFuncPtr(null).later(phase1) { _.sig = t.funcSig }
       }
       return ty
     }
@@ -178,6 +199,7 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
       return sig
     }
 
+    logger.debug("Reading types and sigs...")
     ir.topLevelDef.map(_.getChild(0)).foreach {
       case td: TypeDefContext => {
         val ty = mkType(td.typeConstructor)
@@ -194,14 +216,16 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
       case _ =>
     }
 
+    logger.debug("Resolving types and sigs...")
     phase1.doAll()
 
+    logger.debug("Phase 2")
     val phase2 = new Later() // Resolve inter-references from constants to other global variables
 
     def mkConst(t: Type, c: ConstConstructorContext): Constant = {
       val con = c match {
-        case cc: CtorIntContext => ConstInt(t, cc.intLiteral)
-        case cc: CtorFloatContext => ConstFloat(t, cc.floatLiteral)
+        case cc: CtorIntContext    => ConstInt(t, cc.intLiteral)
+        case cc: CtorFloatContext  => ConstFloat(t, cc.floatLiteral)
         case cc: CtorDoubleContext => ConstDouble(t, cc.doubleLiteral)
         case cc: CtorListContext => ConstSeq(t, null).later(phase2) {
           _.elems = for (gn <- cc.globalVar()) yield resGlobalVar(gn)
@@ -241,6 +265,7 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
       func
     }
 
+    logger.debug("Reading consts, globals, funcdefs, funcdecls and expfuncs...")
     val funcDefs = new ArrayBuffer[(Function, FuncDefContext)]
 
     ir.topLevelDef().map(_.getChild(0)).foreach {
@@ -280,9 +305,12 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
       case _ => {}
     }
 
+    logger.debug("Resolving global value inter-references")
     phase2.doAll()
 
+    logger.debug("Phase 3")
     def defFunc(func: Function, fDefCtx: FuncDefContext) {
+      logger.trace("Visiting function %s".format(func.name))
       val ver = new FuncVer()
       val verName = globalize(fDefCtx.ver, func.name.get)
       ver.id = idFactory.getID()
@@ -293,7 +321,7 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
       //func.versions = ver :: func.versions  // Don't override here. Let the MicroVM redefine functions.
 
       ver.bbNs = bundle.allNs.makeSubSpace[BasicBlock]("basic block")
-      
+
       def addBB(bb: BasicBlock, sourceInfo: SourceInfo): Unit = addWithSourceInfo(ver.bbNs, bb, sourceInfo)
 
       def globalizeBB(name: String): String = globalize(name, verName)
@@ -337,7 +365,7 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
           param
         }
 
-        bb.norParams = label.bbParam.map { p => 
+        bb.norParams = label.bbParam.map { p =>
           val param = mkNorParam(p.`type`(), p.name())
           val sourceInfo = toSourceInfo(p)
           addLocalVar(param, sourceInfo)
@@ -396,7 +424,7 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
         implicit def resNewStackClause(nsc: NewStackClauseContext): NewStackAction = {
           nsc match {
             case a: NewStackPassValueContext => PassValues(a.typeList(), a.argList())
-            case a: NewStackThrowExcContext => ThrowExc(a.exc)
+            case a: NewStackThrowExcContext  => ThrowExc(a.exc)
           }
         }
 
@@ -611,15 +639,20 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
       phase4.doAll()
     }
 
+    logger.debug("Starting visiting function definitions...")
     for ((func, fDefCtx) <- funcDefs) {
       defFunc(func, fDefCtx)
     }
+
+    logger.debug("Finished visiting function definitions. Bundle generated.")
 
     return bundle
   }
 }
 
 object UIRTextReader {
+  val logger = Logger(LoggerFactory.getLogger(getClass.getName()))
+
   implicit def terminalToString(tn: TerminalNode): String = tn.getText()
   implicit def nameToString(name: NameContext): String = name.getText()
   implicit def globalNameToString(gn: GlobalNameContext): String = gn.getText()
@@ -635,12 +668,12 @@ object UIRTextReader {
         val neg = sign match {
           case "+" => false
           case "-" => true
-          case "" => false
+          case ""  => false
         }
         val abs = prefix match {
           case "0x" => BigInt(nums, 16)
-          case "0" => if (nums == "") BigInt(0) else BigInt(nums, 8)
-          case "" => BigInt(nums, 10)
+          case "0"  => if (nums == "") BigInt(0) else BigInt(nums, 8)
+          case ""   => BigInt(nums, 10)
         }
         return if (neg) -abs else abs
       }
@@ -654,7 +687,7 @@ object UIRTextReader {
         java.lang.Float.NEGATIVE_INFINITY
       else java.lang.Float.POSITIVE_INFINITY
     }
-    case _: FloatNanContext => java.lang.Float.NaN
+    case _: FloatNanContext     => java.lang.Float.NaN
     case bits: FloatBitsContext => java.lang.Float.intBitsToFloat(bits.intLiteral().intValue())
   }
 
@@ -665,7 +698,7 @@ object UIRTextReader {
         java.lang.Double.NEGATIVE_INFINITY
       else java.lang.Double.POSITIVE_INFINITY
     }
-    case _: DoubleNanContext => java.lang.Double.NaN
+    case _: DoubleNanContext     => java.lang.Double.NaN
     case bits: DoubleBitsContext => java.lang.Double.longBitsToDouble(bits.intLiteral().longValue())
   }
 
@@ -677,7 +710,7 @@ object UIRTextReader {
     sigil match {
       case '@' => name
       case '%' => parentName + "." + name.substring(1)
-      case _ => throw new UvmException("Illegal name '%s'. Name must begin with either '@' or '%%'".format(name))
+      case _   => throw new UvmException("Illegal name '%s'. Name must begin with either '@' or '%%'".format(name))
     }
   }
 

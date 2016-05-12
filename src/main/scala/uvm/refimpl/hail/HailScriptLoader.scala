@@ -27,7 +27,7 @@ object HailScriptLoader {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
-class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) {
+class HailScriptLoader(recordSourceInfo: Boolean = true)(implicit microVM: MicroVM, memorySupport: MemorySupport) {
   import HailScriptLoader._
 
   def loadHail(hailScript: Reader): Unit = {
@@ -51,7 +51,7 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
     }
 
     val mc = microVM.newContext()
-    val ihsl = new InstanceHailScriptLoader(microVM, memorySupport, mc, hailScript)
+    val ihsl = new InstanceHailScriptLoader(microVM, memorySupport, mc, hailScript, recordSourceInfo)
     try {
       ihsl.loadTopLevel(ast)
     } finally {
@@ -61,7 +61,8 @@ class HailScriptLoader(implicit microVM: MicroVM, memorySupport: MemorySupport) 
   }
 }
 
-class InstanceHailScriptLoader(microVM: MicroVM, memorySupport: MemorySupport, mc: MuCtx, source: String) extends AdvancedAntlrHelper {
+class InstanceHailScriptLoader(microVM: MicroVM, memorySupport: MemorySupport, mc: MuCtx, source: String,
+    val recordSourceInfo: Boolean) extends AdvancedAntlrHelper {
   import HailScriptLoader._
 
   val sourceLines = source.lines.toIndexedSeq

@@ -20,6 +20,7 @@ object VMConf {
     var globalSize = DEFAULT_CONF.globalSize
     var stackSize = DEFAULT_CONF.stackSize
     var staticCheck = DEFAULT_CONF.staticCheck
+    var sourceInfo = DEFAULT_CONF.sourceInfo
     confStr.lines foreach {
       case ReComment() => 
       case ReBlank() =>
@@ -30,13 +31,14 @@ object VMConf {
           case "globalSize" => globalSize = value.toLong
           case "stackSize" => stackSize = value.toLong
           case "staticCheck" => staticCheck = value.toLowerCase().toBoolean
+          case "sourceInfo" => sourceInfo = value.toLowerCase().toBoolean
           case "vmLog" => setLog("uvm", value)
           case "gcLog" => setLog("uvm.refimpl.mem", value)
           case _ => throw new UvmRefImplException("Unrecognized option %s".format(key))
         }
       }
     }
-    new VMConf(sosSize, losSize, globalSize, stackSize, staticCheck)
+    new VMConf(sosSize, losSize, globalSize, stackSize, staticCheck, sourceInfo)
   }
   
   def setLog(name: String, levelStr: String): Unit = {
@@ -56,5 +58,6 @@ class VMConf(
   val losSize: Word = MicroVM.DEFAULT_LOS_SIZE,
   val globalSize: Word = MicroVM.DEFAULT_GLOBAL_SIZE,
   val stackSize: Word = MicroVM.DEFAULT_STACK_SIZE,
-  val staticCheck: Boolean = true)
+  val staticCheck: Boolean = true,
+  val sourceInfo: Boolean = true)
 

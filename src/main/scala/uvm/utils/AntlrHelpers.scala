@@ -8,6 +8,8 @@ import org.antlr.v4.runtime.tree.TerminalNode
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.Token
 import uvm.TextSourceInfo
+import uvm.NoSourceInfo
+import uvm.SourceInfo
 
 object AntlrHelpers {
   class AccumulativeAntlrErrorListener(source: String) extends BaseErrorListener {
@@ -30,8 +32,9 @@ object AntlrHelpers {
 
 trait AdvancedAntlrHelper {
   def sourceLines: IndexedSeq[String]
+  def recordSourceInfo: Boolean
 
-  def toSourceInfo(ctx: ParserRuleContext): TextSourceInfo = {
+  def toSourceInfo(ctx: ParserRuleContext): SourceInfo = if (recordSourceInfo) {
     val tok1 = ctx.getStart
     val tok2 = ctx.getStop
     val line = tok1.getLine() - 1
@@ -44,6 +47,8 @@ trait AdvancedAntlrHelper {
     val near = tok1.getText()
     
     new TextSourceInfo(line, column, end, near, theLine)
+  } else {
+    NoSourceInfo
   }
 
   def inCtx(ctx: ParserRuleContext, s: String): String = {

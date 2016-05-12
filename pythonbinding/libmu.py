@@ -42,6 +42,7 @@ or::
         globalSize = 4*1024*1024,
         stackSize = 63*1024,
         staticCheck = False,
+        sourceInfo = False,
         gcLog = "WARN",
         vmLog = "INFO",
     )
@@ -1150,8 +1151,9 @@ class MuRefImpl2StartDLL(object):
             losSize: large object space size (bytes, must be 4096-byte aligned)
             globalSize: global space size (bytes, must be 4096-byte aligned)
             stackSize: stack size (bytes)
-            staticCheck: enable or disable static checks ("true" or "false".
-                Python boolean values are also accepted.)
+            staticCheck: enable or disable static checks (bool)
+            sourceInfo: enable or disable source information (bool). Disable
+                this if the program is big.
 
             vmLog: log level for the micro VM
             gcLog: log level fof the garbage collector
