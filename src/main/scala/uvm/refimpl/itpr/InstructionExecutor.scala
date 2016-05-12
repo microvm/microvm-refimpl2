@@ -384,7 +384,11 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
       }
 
       case i @ InstGetIRef(referentTy, opnd) => {
-        results(0).asIRef = (opnd.asRef, 0L)
+        val baseAddr = opnd.asRef
+        if (baseAddr == 0L) {
+          throw new UvmUndefinedBehaviorException(ctx + "Attempted to use GETIREF on a NULL reference")
+        }
+        results(0).asIRef = (baseAddr, 0L)
         continueNormally()
       }
 
@@ -520,7 +524,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
 
       case i @ InstNewThread(stack, newStackAction, excClause) => {
         val newStack = stack.asStack.getOrElse {
-          throw new UvmRuntimeException(ctx + "Attempt to bind to a NULL stack.")
+          throw new UvmUndefinedBehaviorException(ctx + "Attempt to bind a new thread to a NULL stack.")
         }
 
         val newThread = newStackAction match {
@@ -541,7 +545,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
       case i @ InstSwapStack(swappee, curStackAction, newStackAction, excClause, keepAlives) => {
         val oldStack = curStack
         val newStack = swappee.asStack.getOrElse {
-          throw new UvmRuntimeException(ctx + "Swappee must not be NULL.")
+          throw new UvmUndefinedBehaviorException(ctx + "Swappee must not be NULL.")
         }
 
         def handleOldStack() = curStackAction match {
@@ -570,7 +574,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
       case i: InstCommInst => interpretCurrentCommonInstruction()
 
       case i => {
-        throw new UvmRefImplException("Unimplemented instruction %s".format(i.getClass.getName))
+        throw new UvmUnimplementedOperationException("Unimplemented instruction %s".format(i.getClass.getName))
       }
     }
   } catch {

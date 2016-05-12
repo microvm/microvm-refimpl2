@@ -331,6 +331,9 @@ trait InterpreterActions extends InterpreterThreadState {
       dst.asPtr = src.asPtr + addrIncr
     } else {
       val (sb,so) = src.asIRef
+      if (sb == 0L && so == 0L) {
+        throw new UvmUndefinedBehaviorException(ctx + "Attempted to execute memory addressing instruction on a NULL iref.")
+      }
       dst.asIRef = (sb, so + addrIncr) 
     }
   }

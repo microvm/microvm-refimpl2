@@ -356,7 +356,7 @@ object MemoryOperations {
             val highWord = memorySupport.loadLong(loc + 8, !ptr)
             (BigInt(highWord) << 64) + lowWord
           }
-          case _ => throw new UnimplementedOprationException("Loading int of length %d is not supported".format(l))
+          case _ => throw new UvmUnimplementedOperationException("Loading int of length %d is not supported".format(l))
         }
         br.asInstanceOf[BoxInt].value = OpHelper.unprepare(bi, l)
       case _: TypeFloat =>
@@ -396,7 +396,7 @@ object MemoryOperations {
       case _: TypeUPtr | _: TypeUFuncPtr =>
         val addr = memorySupport.loadLong(loc, !ptr)
         br.asInstanceOf[BoxPointer].addr = addr
-      case _ => throw new UnimplementedOprationException("Loading of type %s is not supporing".format(ty.getClass.getName))
+      case _ => throw new UvmUnimplementedOperationException("Loading of type %s is not supporing".format(ty.getClass.getName))
     }
 
     ty match {
@@ -423,7 +423,7 @@ object MemoryOperations {
             memorySupport.storeLong(loc, (bi & 0xffffffffffffffffL).longValue, !ptr)
             memorySupport.storeLong(loc + 8, (bi >> 64).longValue, !ptr)
           }
-          case _ => throw new UnimplementedOprationException("Storing int of length %d is not supported".format(l))
+          case _ => throw new UvmUnimplementedOperationException("Storing int of length %d is not supported".format(l))
         }
       case _: TypeFloat =>
         val fv = nvb.asInstanceOf[BoxFloat].value
@@ -459,7 +459,7 @@ object MemoryOperations {
       case _: TypeUPtr | _: TypeUFuncPtr =>
         val addr = nvb.asInstanceOf[BoxPointer].addr
         memorySupport.storeLong(loc, addr, !ptr)
-      case _ => throw new UnimplementedOprationException("Storing of type %s is not supporing".format(ty.getClass.getName))
+      case _ => throw new UvmUnimplementedOperationException("Storing of type %s is not supporing".format(ty.getClass.getName))
     }
 
     ty match {
@@ -490,7 +490,7 @@ object MemoryOperations {
             val (succ2, rv) = memorySupport.cmpXchgLong(loc, ebi.longValue, dbi.longValue, !ptr)
             (succ2, BigInt(rv))
           }
-          case _ => throw new UnimplementedOprationException("CmpXchg on int of length %d is not supported".format(l))
+          case _ => throw new UvmUnimplementedOperationException("CmpXchg on int of length %d is not supported".format(l))
         }
         br.asInstanceOf[BoxInt].value = OpHelper.unprepare(rbi, l)
         succ
@@ -538,7 +538,7 @@ object MemoryOperations {
         val (succ, rl) = memorySupport.cmpXchgLong(loc, el, dl, !ptr)
         br.asInstanceOf[BoxPointer].addr = rl
         succ
-      case _ => throw new UnimplementedOprationException("CmpXchg of type %s is not supporing".format(ty.getClass.getName))
+      case _ => throw new UvmUnimplementedOperationException("CmpXchg of type %s is not supporing".format(ty.getClass.getName))
     }
   }
 
@@ -549,12 +549,12 @@ object MemoryOperations {
         val rbi: BigInt = l match {
           case 32 => memorySupport.atomicRMWInt(op, loc, obi.intValue, !ptr)
           case 64 => memorySupport.atomicRMWLong(op, loc, obi.longValue, !ptr)
-          case _  => throw new UnimplementedOprationException("AtomicRMW on int of length %d is not supported".format(l))
+          case _  => throw new UvmUnimplementedOperationException("AtomicRMW on int of length %d is not supported".format(l))
         }
         br.asInstanceOf[BoxInt].value = OpHelper.unprepare(rbi, l)
       case _ =>
         if (op != XCHG) {
-          throw new UnimplementedOprationException("AtomicRMW operation other than XCHG only supports int. %s found.".format(ty.getClass.getName))
+          throw new UvmUnimplementedOperationException("AtomicRMW operation other than XCHG only supports int. %s found.".format(ty.getClass.getName))
         } else {
           ty match {
             case _: TypeRef =>
@@ -595,7 +595,7 @@ object MemoryOperations {
               val rl = memorySupport.atomicRMWLong(op, loc, ol, !ptr)
               br.asInstanceOf[BoxPointer].addr = rl
             case _ =>
-              throw new UnimplementedOprationException("AtomicRMW XCHG of type %s is not supporing".format(ty.getClass.getName))
+              throw new UvmUnimplementedOperationException("AtomicRMW XCHG of type %s is not supporing".format(ty.getClass.getName))
           }
         }
     }
@@ -615,7 +615,7 @@ object MemoryOperations {
       val actualNum = memorySupport.loadInt(loc)
       expNum == actualNum
     }
-    case _ => throw new UnimplementedOprationException("Futex of %d bit int is not supported".format(len))
+    case _ => throw new UvmUnimplementedOperationException("Futex of %d bit int is not supported".format(len))
   }
 
   val US_ASCII = Charset.forName("US-ASCII")

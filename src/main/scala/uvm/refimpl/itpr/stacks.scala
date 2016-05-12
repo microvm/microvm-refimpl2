@@ -221,10 +221,10 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
         top.state = FrameState.Running
       }
       case mf: UndefinedMuFrame => {
-        throw new UvmRefImplException("Unwound to a frame for undefined Mu function %s. Stack ID: %d.".format(mf.func.repr, id))
+        throw new UvmInternalException("Unwound to a frame for undefined Mu function %s. Stack ID: %d.".format(mf.func.repr, id))
       }
       case nf: NativeFrame => {
-        throw new UnimplementedOprationException("Cannot unwind to native frames. Stack ID: %d.".format(id))
+        throw new UvmUnimplementedOperationException("Cannot unwind to native frames. Stack ID: %d.".format(id))
       }
     }
   }
@@ -282,13 +282,13 @@ class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFun
     val toFrame = cursor.frame
     for ((curFrame, i) <- frames.takeWhile(_ != toFrame).zipWithIndex) {
       if (curFrame.isInstanceOf[NativeFrame]) {
-        throw new UnimplementedOprationException(
+        throw new UvmUnimplementedOperationException(
           "Popping native frames is not supported. Found native frame at depth %d in stack %d".format(i, id))
       }
 
       for (c2 <- frameCursors if c2 != cursor) {
         if (c2.frame == curFrame) {
-          throw new UnimplementedOprationException(
+          throw new UvmUnimplementedOperationException(
             "Frame %s at depth %d in stack %d is referred by another frame cursor %d. Current cursor: %d".format(
                 c2.frame.toString, i, id, c2.id, cursor.id))
         }
