@@ -41,6 +41,7 @@ or::
         losSize = 2*1024*1024,
         globalSize = 4*1024*1024,
         stackSize = 63*1024,
+        staticCheck = False,
         gcLog = "WARN",
         vmLog = "INFO",
     )
@@ -1149,6 +1150,8 @@ class MuRefImpl2StartDLL(object):
             losSize: large object space size (bytes, must be 4096-byte aligned)
             globalSize: global space size (bytes, must be 4096-byte aligned)
             stackSize: stack size (bytes)
+            staticCheck: enable or disable static checks ("true" or "false".
+                Python boolean values are also accepted.)
 
             vmLog: log level for the micro VM
             gcLog: log level fof the garbage collector
@@ -1159,7 +1162,8 @@ class MuRefImpl2StartDLL(object):
         Setting to WARN will disable almost all logs. Set vmLog to INFO to see
         the execution of each instruction; Set gcLog to DEBUG to see GC logs.
         """
-        conf = "".join("{}={}\n".format(k,v) for k,v in kwargs.items())
+        conf = "".join("{}={}\n".format(k,to_vmconf_str(v))
+                for k,v in kwargs.items())
         ptr = self.dll.mu_refimpl2_new_ex(_priv._encode(conf, "utf8"))
         return MuVM(ptr, self)
 
@@ -1167,5 +1171,10 @@ class MuRefImpl2StartDLL(object):
         """Close a MuVM instance. Currently does nothing, i.e. MuVM are never
         really closed."""
         self.dll.mu_refimpl2_close(muvm._struct_ptr)
+
+def to_vmconf_str(obj):
+    if isinstance(obj, bool):
+        return "true" if obj else "false"
+    return str(obj)
 
 # vim: ts=4 sw=4 et sts=4 ai tw=80

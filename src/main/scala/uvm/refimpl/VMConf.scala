@@ -8,15 +8,18 @@ package uvm.refimpl
 import uvm.refimpl.mem.TypeSizes._
 
 object VMConf {
+  val DEFAULT_CONF = new VMConf()
+  
   val ReComment = """^\s*#.*$""".r
   val ReBlank = """^\s*$""".r
   val ReConf = """^\s*(\w+)=(\w+)\s*$""".r
 
   def apply(confStr: String): VMConf = {
-    var sosSize = MicroVM.DEFAULT_SOS_SIZE
-    var losSize = MicroVM.DEFAULT_LOS_SIZE
-    var globalSize = MicroVM.DEFAULT_GLOBAL_SIZE
-    var stackSize = MicroVM.DEFAULT_GLOBAL_SIZE
+    var sosSize = DEFAULT_CONF.sosSize
+    var losSize = DEFAULT_CONF.losSize
+    var globalSize = DEFAULT_CONF.globalSize
+    var stackSize = DEFAULT_CONF.stackSize
+    var staticCheck = DEFAULT_CONF.staticCheck
     confStr.lines foreach {
       case ReComment() => 
       case ReBlank() =>
@@ -26,13 +29,14 @@ object VMConf {
           case "losSize" => losSize = value.toLong
           case "globalSize" => globalSize = value.toLong
           case "stackSize" => stackSize = value.toLong
+          case "staticCheck" => staticCheck = value.toLowerCase().toBoolean
           case "vmLog" => setLog("uvm", value)
           case "gcLog" => setLog("uvm.refimpl.mem", value)
           case _ => throw new UvmRefImplException("Unrecognized option %s".format(key))
         }
       }
     }
-    new VMConf(sosSize, losSize, globalSize, stackSize)
+    new VMConf(sosSize, losSize, globalSize, stackSize, staticCheck)
   }
   
   def setLog(name: String, levelStr: String): Unit = {
@@ -51,5 +55,6 @@ class VMConf(
   val sosSize: Word = MicroVM.DEFAULT_SOS_SIZE,
   val losSize: Word = MicroVM.DEFAULT_LOS_SIZE,
   val globalSize: Word = MicroVM.DEFAULT_GLOBAL_SIZE,
-  val stackSize: Word = MicroVM.DEFAULT_STACK_SIZE)
+  val stackSize: Word = MicroVM.DEFAULT_STACK_SIZE,
+  val staticCheck: Boolean = true)
 

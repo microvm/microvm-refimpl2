@@ -76,7 +76,9 @@ class MicroVM(vmConf: VMConf) {
    * Add things from a bundle to the Micro VM.
    */
   def addBundle(bundle: TrantientBundle) {
-    staticAnalyzer.checkBundle(bundle, Some(globalBundle))
+    if (vmConf.staticCheck) {
+      staticAnalyzer.checkBundle(bundle, Some(globalBundle))
+    }
 
     globalBundle.merge(bundle);
 
