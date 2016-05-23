@@ -1,17 +1,5 @@
 package uvm.refimpl.nat;
 
-import java.io.ByteArrayOutputStream;
-
-import org.slf4j.LoggerFactory;
-
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.LoggerContext;
-import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.ConsoleAppender;
-import uvm.refimpl.MicroVM;
-import uvm.refimpl.MicroVM$;
-
 /** Static functions for the convenient of C programs that start Mu via JNI. */
 public class CInitiater {
     

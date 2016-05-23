@@ -11,33 +11,36 @@ import uvm.refimpl.MicroVM
 import com.typesafe.scalalogging.Logger
 
 object ScalaCInitiater {
-  val logger = Logger(LoggerFactory.getLogger("priv.uvm.refimpl.native.ScalaCInitiater"))
+  
+  private def getLogger(): Logger = {
+    Logger(LoggerFactory.getLogger("priv.uvm.refimpl.native.ScalaCInitiater"))
+  }
 
   private var isLogConfigured = false;
     
   private def configureLog(): Unit = {
-      if (isLogConfigured) {
-          return
-      }
-      isLogConfigured = true
-      
-      val lc = LoggerFactory.getILoggerFactory().asInstanceOf[LoggerContext]
-      
-      lc.reset()
+    if (isLogConfigured) {
+        return
+    }
+    isLogConfigured = true
+    
+    val lc = LoggerFactory.getILoggerFactory().asInstanceOf[LoggerContext]
+    
+    lc.reset()
 
-      val ca = new ConsoleAppender[ILoggingEvent]()
-      ca.setContext(lc)
-      ca.setName("console")
-      ca.setTarget("System.err")
-      val pl = new PatternLayoutEncoder()
-      pl.setContext(lc)
-      pl.setPattern("%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n")
-      pl.start()
+    val ca = new ConsoleAppender[ILoggingEvent]()
+    ca.setContext(lc)
+    ca.setName("console")
+    ca.setTarget("System.err")
+    val pl = new PatternLayoutEncoder()
+    pl.setContext(lc)
+    pl.setPattern("%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n")
+    pl.start()
 
-      ca.setEncoder(pl)
-      ca.start()
-      val rootLogger = lc.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME)
-      rootLogger.addAppender(ca)
+    ca.setEncoder(pl)
+    ca.start()
+    val rootLogger = lc.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME)
+    rootLogger.addAppender(ca)
   }
  
   def mu_refimpl2_new(): Long = try {
@@ -47,17 +50,20 @@ object ScalaCInitiater {
     return fak
   } catch {
     case t: Throwable => {
+      val logger = getLogger()
       logger.error("Exception thrown when creating MicroVM", t)
       0L
     }
   }
 
   def mu_refimpl2_new_ex(vmConf: String): Long = try {
+    configureLog()
     val mvm = MicroVM(vmConf)
     val fak = NativeClientSupport.exposeMicroVM(mvm)
     return fak
   } catch {
     case t: Throwable => {
+      val logger = getLogger()
       logger.error("Exception thrown when creating MicroVM", t)
       0L
     }
@@ -67,6 +73,7 @@ object ScalaCInitiater {
     NativeClientSupport.unexposeMicroVM(mvmFak)
   } catch {
     case t: Throwable => {
+      val logger = Logger(LoggerFactory.getLogger("priv.uvm.refimpl.native.ScalaCInitiater"))
       logger.error("Exception thrown when closing MicroVM", t)
     }
   }
