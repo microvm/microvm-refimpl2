@@ -1,5 +1,7 @@
 # Mu Reference Implementation version 2
 
+[![Build Status](https://travis-ci.org/microvm/microvm-refimpl2.svg?branch=master)](https://travis-ci.org/microvm/microvm-refimpl2)
+
 Version 2.2.0
 
 This project is the current reference implementation of Mu, the micro virtual
