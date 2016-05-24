@@ -11,6 +11,7 @@ import uvm.refimpl.mem._
 import uvm.refimpl.mem.TypeSizes.Word
 import uvm.refimpl.nat.NativeCallHelper
 import uvm.staticanalysis.StaticAnalyzer
+import uvm.utils.IDFactory
 
 object MicroVM {
   val DEFAULT_SOS_SIZE: Word = 2L * 1024L * 1024L; // 2MiB
@@ -93,13 +94,21 @@ class MicroVM(vmConf: VMConf) {
       constantPool.addGlobalVar(g)
     }
   }
+  
+  private val contextIDFactory = new IDFactory(1)
 
   /**
    * Create a new MuCtx. Part of the API.
    */
-  def newContext(): MuCtx = {
-    val mutator = microVM.memoryManager.heap.makeMutator() // This may trigger GC
-    val ca = new MuCtx(mutator)
+  def newContext(): MuCtx = newContext("user")
+
+  /**
+   * Create a new MuCtx. Extended to add a name for debugging.
+   */
+  def newContext(name: String): MuCtx = {
+    val id = contextIDFactory.getID()
+    val mutator = microVM.memoryManager.heap.makeMutator("MuCtx-%d-%s".format(id, name)) // This may trigger GC
+    val ca = new MuCtx(id, mutator)
     contexts.add(ca)
     ca
   }

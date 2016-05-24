@@ -3,7 +3,7 @@ package uvm
 import org.scalatest.Matchers
 import org.scalatest.FlatSpec
 
-class NameSpaceSpec extends FlatSpec with Matchers {
+class NameSpaceSpec extends UvmTestBase {
   behavior of "NestedNamespace"
 
   class Foo(val i: Int) extends IdentifiedSettable

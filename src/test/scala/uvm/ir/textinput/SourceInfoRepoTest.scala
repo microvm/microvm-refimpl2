@@ -6,8 +6,10 @@ import uvm.GlobalBundle
 import uvm.TrantientBundle
 import uvm.utils.IDFactory
 import org.scalatest.exceptions.TestFailedException
+import uvm.LogSetter
+import uvm.UvmTestBase
 
-class SourceInfoRepoTest extends FlatSpec with Matchers {
+class SourceInfoRepoTest extends UvmTestBase {
   
   def parseText(globalBundle: GlobalBundle, fac: Option[IDFactory]=None)(uir: String): TrantientBundle = {
     val idf = fac.getOrElse(new IDFactory(uvm.refimpl.MicroVM.FIRST_CLIENT_USABLE_ID))

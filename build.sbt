@@ -29,6 +29,8 @@ libraryDependencies ++= Seq(
 
 testOptions in Test += Tests.Argument("-oF") // print full stack trace when testing
 
+parallelExecution in Test := false  // disable parallel tests because the refimpl2 is not thread-safe
+
 antlr4Settings
 
 antlr4PackageName in Antlr4 := Some("uvm.ir.textinput.gen")

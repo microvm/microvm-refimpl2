@@ -96,36 +96,36 @@
         RET ()
 }
 
-.const @CRAZY_ALLOC_COUNT <@i64> = 1000
 
-.funcdef @crazy_allocator VERSION @crazy_allocator_v1 <@v_v> {
-    %entry():
-        BRANCH %head(@CRAZY_ALLOC_COUNT)
+.funcsig @los_crazy_sig = (@i64 @i64) -> ()
+.funcdef @los_crazy_allocator VERSION %v1 <@los_crazy_sig> {
+    %entry(<@i64> %obj_size <@i64> %alloc_count):
+        BRANCH %head(%obj_size %alloc_count)
         
-    %head(<@i64> %togo):
+    %head(<@i64> %obj_size <@i64> %togo):
         %nz = NE <@i64> %togo @I64_0
-        BRANCH2 %nz %body(%togo) %exit()
+        BRANCH2 %nz %body(%obj_size %togo) %exit()
 
-    %body(<@i64> %togo):
-        %r = NEWHYBRID <@hCharArray @i64> @I64_30000
+    %body(<@i64> %obj_size <@i64> %togo):
+        %r = NEWHYBRID <@hCharArray @i64> %obj_size
         %togo2 = SUB <@i64> %togo @I64_1
-        BRANCH %head(%togo2)
+        BRANCH %head(%obj_size %togo2)
 
     %exit():
         RET ()
 }
 
-.funcdef @crazy_allocation_test VERSION @crazy_allocation_test_v1 <@v_v> {
-    %entry():
-        CALL <@v_v> @crazy_allocator ()
+.funcdef @los_crazy_allocation_test VERSION %v1 <@los_crazy_sig> {
+    %entry(<@i64> %obj_size <@i64> %alloc_count):
+        CALL <@los_crazy_sig> @los_crazy_allocator (%obj_size %alloc_count)
         COMMINST @uvm.thread_exit
 }
 
 .typedef @refi64array = hybrid<@refi64>
 
-.const @REM_SZ <@i64> = 2000
-.const @REM_PER_ALLOC <@i64> = 100000
-.const @NALLOCS <@i64> = 1000000
+.const @REM_SZ <@i64> = 50
+.const @REM_PER_ALLOC <@i64> = 2000  // On average 2 objects per block
+.const @NALLOCS <@i64> = 100000 // 100k objs, enough to fill the 256M heap 3 times
 
 // Retain one object per @REM_SZ objects. Testing defragmentation
 .funcdef @breadcrumbs VERSION @breadcrumbs_v1 <@v_v> {

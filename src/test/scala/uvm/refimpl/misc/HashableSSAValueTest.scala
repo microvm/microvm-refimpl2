@@ -1,23 +1,21 @@
 package uvm.refimpl.misc
 
-import org.scalatest._
-import java.io.FileReader
-import uvm._
-import uvm.types._
-import uvm.ssavariables._
-import uvm.refimpl._
-import uvm.refimpl.itpr._
-import uvm.ssavariables.MemoryOrder._
-import uvm.ssavariables.AtomicRMWOptr._
-import uvm.refimpl.mem.TypeSizes.Word
-import com.typesafe.scalalogging.Logger
-import org.slf4j.LoggerFactory
-import ch.qos.logback.classic.{ Logger => LLogger }
-import ch.qos.logback.classic.Level
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
-class HashableSSAValueTest extends FlatSpec with Matchers {
+
+
+import org.scalatest._
+
+import uvm._
+import uvm.refimpl._
+import uvm.refimpl.itpr._
+import uvm.ssavariables._
+import uvm.ssavariables.AtomicRMWOptr._
+import uvm.ssavariables.MemoryOrder._
+import uvm.types._
+
+class HashableSSAValueTest extends UvmTestBase {
   "HashMap" should "be able to hold many items" in {
     val hm = new HashMap[Int, Int]()
 

@@ -12,7 +12,7 @@ object LargeObjectSpace {
 
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 
-  val BLOCK_SIZE = SimpleImmixSpace.BLOCK_SIZE / 4
+  val BLOCK_SIZE = SimpleImmixSpace.BLOCK_SIZE / 8
   
   private val OFFSET_PREV = 0 * TypeSizes.WORD_SIZE_BYTES
 

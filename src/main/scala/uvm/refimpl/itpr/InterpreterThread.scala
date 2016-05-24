@@ -358,6 +358,7 @@ trait InterpreterActions extends InterpreterThreadState {
   /** Terminate the thread. Please only let the thread terminate itself. */
   protected def threadExit(): Unit = {
     curStack.kill()
+    curThread.mutator.close()
     isRunning = false
   }
 
@@ -405,7 +406,7 @@ trait InterpreterActions extends InterpreterThreadState {
   protected def doTrap(retTys: Seq[Type], wpID: Int) = {
     val curCtx = ctx // save the context string for debugging
 
-    val c = microVM.newContext()
+    val c = microVM.newContext("trap")
 
     val hThread = c.handleFromInterpreterThread(Some(curThread))
     val hStack = c.handleFromInterpreterStack(Some(curStack))

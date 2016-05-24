@@ -21,6 +21,9 @@ class UvmInterpreterGCTests extends UvmBundleTesterBase {
 
   preloadBundles("tests/uvm-refimpl-test/primitives.uir", "tests/uvm-refimpl-test/gc-tests.uir")
 
+  // 256KiB SOS, 512KiB LOS. This gives the GC a higher heap pressure so that it will trigger GC more often.
+  override def makeMicroVM = new MicroVM(new VMConf(sosSize = 256L * 1024L, losSize = 512L * 1024L))
+
   def gc() = microVM.memoryManager.heap.mutatorTriggerAndWaitForGCEnd(false)
 
   /** Disable some logger for allocation-heavy parts. */
@@ -85,10 +88,14 @@ class UvmInterpreterGCTests extends UvmBundleTesterBase {
 
   "The large object space" should "withstand repeated non-retained allocations" in {
     val ctx = microVM.newContext()
+    
+    // Since it is non-retaining, the LOS should always be fine.
+    val hObjLen = ctx.handleFromInt(40000, 64)
+    val hAllocCount = ctx.handleFromInt(80, 64)
 
     quiet {
-      val func = ctx.handleFromFunc("@crazy_allocation_test")
-      testFunc(ctx, func, Seq()) { (ctx, th, st, wp) =>
+      val func = ctx.handleFromFunc("@los_crazy_allocation_test")
+      testFunc(ctx, func, Seq(hObjLen, hAllocCount)) { (ctx, th, st, wp) =>
         fail("No traps in this test")
       }
     }

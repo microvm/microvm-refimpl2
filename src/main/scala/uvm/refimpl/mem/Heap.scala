@@ -98,7 +98,8 @@ abstract class Heap {
     lock.unlock()
   }
 
-  def makeMutator(): Mutator
+  /** @param who A string that identifies a mutator. Used for debug purpose. */
+  def makeMutator(who: String): Mutator
 
   def getMustFreeSpace(): Boolean = mustFreeSpace
 }

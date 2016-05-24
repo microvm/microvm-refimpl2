@@ -39,8 +39,8 @@ class SimpleImmixHeap(val begin: Word, val sosSize: Word, val losSize: Word)(
 
   collectorThread.start()
 
-  override def makeMutator(): SimpleImmixMutator = {
-    val mutator = new SimpleImmixMutator(this, space, los)
+  override def makeMutator(name: String): SimpleImmixMutator = {
+    val mutator = new SimpleImmixMutator(this, space, los, name)
     mutator
   }
 

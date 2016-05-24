@@ -1,13 +1,14 @@
 package uvm.refimpl.mem
 
 import org.scalatest._
+
+import TypeSizes._
 import uvm._
-import uvm.types._
 import uvm.refimpl._
 import uvm.refimpl.mem._
-import TypeSizes._
+import uvm.types._
 
-class UvmMemLayoutSpec extends FlatSpec with Matchers with BeforeAndAfter {
+class UvmMemLayoutSpec extends UvmTestBase with BeforeAndAfter {
   "The sizes of primitive types" should "be appropriate" in {
     sizeOf(TypeInt(8)) shouldBe 1
     sizeOf(TypeInt(16)) shouldBe 2
@@ -67,13 +68,13 @@ class UvmMemLayoutSpec extends FlatSpec with Matchers with BeforeAndAfter {
     fieldOffsetOf(ty, 2) shouldBe 4
     fieldOffsetOf(ty, 3) shouldBe 8
   }
-  
+
   "The offset of array elements" should "be as if shifting by the element size and aligned at each element" in {
     val ty = TypeArray(TypeInt(64), 100)
     elemOffsetOf(ty, 0L) shouldBe 0
     elemOffsetOf(ty, 50L) shouldBe 400
   }
-  
+
   "In a hybrid, fields" should "be laid out in the fixed-then-var fasion" in {
     val ty = TypeHybrid(Seq(TypeInt(8), TypeInt(16), TypeInt(32), TypeInt(64)), TypeDouble())
     hybridSizeOf(ty, 10) shouldBe 96
@@ -83,12 +84,12 @@ class UvmMemLayoutSpec extends FlatSpec with Matchers with BeforeAndAfter {
     fieldOffsetOf(ty, 2) shouldBe 4
     fieldOffsetOf(ty, 3) shouldBe 8
     varPartOffsetOf(ty) shouldBe 16
-  } 
-  
+  }
+
   "In a hybrid with no fixed parts, the variable part" should "have offset 0" in {
     val ty = TypeHybrid(Seq(), TypeFloat())
     hybridSizeOf(ty, 10) shouldBe 40
     hybridAlignOf(ty, 10) shouldBe 4
     varPartOffsetOf(ty) shouldBe 0
-  } 
+  }
 }

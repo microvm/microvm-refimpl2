@@ -5,9 +5,10 @@ import org.scalatest.Matchers
 import uvm.GlobalBundle
 import uvm.TrantientBundle
 import uvm.utils.IDFactory
+import uvm.LogSetter
+import uvm.UvmTestBase
 
-class UIRTextReaderSpec extends FlatSpec with Matchers
-    with TestingBundlesValidators {
+class UIRTextReaderSpec extends UvmTestBase with TestingBundlesValidators {
 
   def parseFile(fileName: String, globalBundle: GlobalBundle, fac: Option[IDFactory] = None): TrantientBundle = {
     val idf = fac.getOrElse(new IDFactory(uvm.refimpl.MicroVM.FIRST_CLIENT_USABLE_ID))

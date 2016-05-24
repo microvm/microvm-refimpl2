@@ -12,8 +12,6 @@ import uvm.ssavariables.AtomicRMWOptr._
 import uvm.refimpl.mem.TypeSizes.Word
 import com.typesafe.scalalogging.Logger
 import org.slf4j.LoggerFactory
-import ch.qos.logback.classic.{ Logger => LLogger }
-import ch.qos.logback.classic.Level
 import uvm.refimpl.TrapHandlerResult.Rebind
 import uvm.refimpl.HowToResume.PassValues
 
@@ -41,24 +39,7 @@ object UvmBundleTesterBase {
   }
 }
 
-abstract class UvmBundleTesterBase extends FlatSpec with Matchers {
-  val ROOT_LOGGER_NAME = org.slf4j.Logger.ROOT_LOGGER_NAME
-
-  def setLogLevels(settings: (String, Level)*): Unit = { // Configure logger
-    import org.slf4j.LoggerFactory
-    import org.slf4j.{ Logger => SLogger }
-    import ch.qos.logback.classic.{ Logger => LLogger, Level }
-    import ch.qos.logback.classic.Level._
-
-    def setLevel(name: String, level: Level): Unit = {
-      LoggerFactory.getLogger(name).asInstanceOf[LLogger].setLevel(level)
-    }
-
-    for ((name, lvl) <- settings) {
-      setLevel(name, lvl)
-    }
-  }
-
+abstract class UvmBundleTesterBase extends UvmTestBase {
   def makeMicroVM(): MicroVM = MicroVM()
 
   val microVM = makeMicroVM()

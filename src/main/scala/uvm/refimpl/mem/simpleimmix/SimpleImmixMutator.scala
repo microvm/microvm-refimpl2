@@ -12,11 +12,13 @@ object SimpleImmixMutator {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
-class SimpleImmixMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace, val los: LargeObjectSpace)(
+class SimpleImmixMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace, val los: LargeObjectSpace, name: String)(
   implicit memorySupport: MemorySupport)
-    extends Mutator with Allocator {
+    extends Mutator(name) with Allocator {
 
   import SimpleImmixMutator._
+
+  logger.debug("Creating mutator %s...".format(name))
 
   private var curBlockAddr: Option[Word] = None
 
@@ -28,8 +30,11 @@ class SimpleImmixMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace,
 
   private def getNewBlock(): Unit = {
     val newAddr = tryRepeatedly {
-      space.tryGetBlock(curBlockAddr).orElse {
+      val toReturn = curBlockAddr
+      curBlockAddr = None
+      space.tryGetBlock(toReturn, this).orElse {
         heap.mutatorTriggerAndWaitForGCEnd(true)
+        logger.debug("Try again to get block...")
         None
       }
     }
@@ -48,7 +53,7 @@ class SimpleImmixMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace,
       val userStart = TypeSizes.alignUp(gcStart + headerSize, align)
       val userEnd = userStart + size
       if (userEnd >= limit) {
-        if (userEnd - gcStart > SimpleImmixSpace.BLOCK_SIZE) {
+        if (userEnd - gcStart > SimpleImmixSpace.SOS_THRESHOLD) {
           Some(los.alloc(size, align, headerSize))
         } else {
           logger.debug("Getting new block...")
@@ -66,7 +71,7 @@ class SimpleImmixMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace,
   }
 
   def close() {
-    logger.debug("Closing mutator...")
-    curBlockAddr.foreach(space.returnBlock)
+    logger.debug("Closing mutator %s...".format(name))
+    curBlockAddr.foreach(a => space.returnBlock(a, this))
   }
 }

@@ -4,6 +4,7 @@ import uvm.refimpl.itpr._
 import org.scalatest._
 import scala.BigInt
 import scala.math.BigInt.int2bigInt
+import uvm.UvmTestBase
 
 object UvmConversionOperationSpec {
   val F_1P64 = (BigInt(1) << 64).floatValue
@@ -26,7 +27,7 @@ object UvmConversionOperationSpec {
   val D_1P15 = (BigInt(1) << 15).doubleValue
 }
 
-class UvmConversionOperationSpec extends FlatSpec with Matchers {
+class UvmConversionOperationSpec extends UvmTestBase {
   import UvmConversionOperationSpec._
 
   behavior of "Float to unsigned integer"

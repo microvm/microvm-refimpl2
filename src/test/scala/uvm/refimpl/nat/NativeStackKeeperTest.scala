@@ -14,8 +14,9 @@ import uvm.{ Function => MFunc }
 import uvm.ir.textinput.ExtraMatchers
 import uvm.refimpl.itpr._
 import uvm.types._
+import uvm.UvmTestBase
 
-class NativeStackKeeperTest extends FlatSpec with Matchers with ExtraMatchers {
+class NativeStackKeeperTest extends UvmTestBase with ExtraMatchers {
   behavior of "NativeStackKeeper"
 
   val lib = NativeLibraryTestHelper.loadTestLibrary("callbacktest")

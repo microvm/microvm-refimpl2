@@ -9,7 +9,7 @@ object Mutator {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 }
 
-abstract class Mutator(implicit memorySupport: MemorySupport) {
+abstract class Mutator(val name: String)(implicit memorySupport: MemorySupport) {
   import Mutator._
   
   def alloc(size: Word, align: Word, headerSize: Word): Word

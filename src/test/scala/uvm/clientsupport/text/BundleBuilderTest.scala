@@ -5,8 +5,10 @@ import org.scalatest.Matchers
 import TextOutputMatchers._
 import uvm.ir.textinput.UIRTextReader
 import uvm.utils.IDFactory
+import uvm.LogSetter
+import uvm.UvmTestBase
 
-class BundleBuilderTest extends FlatSpec with Matchers {
+class BundleBuilderTest extends UvmTestBase {
 
   val x = TypeName("x")
   val y = TypeName("y")
@@ -112,8 +114,7 @@ class BundleBuilderTest extends FlatSpec with Matchers {
     Inst.PreSwitch(x, a, l1, IList(
       SwitchCase(LocalVarName("v1"), LabelName("d1")),
       SwitchCase(LocalVarName("v2"), LabelName("d2")),
-      SwitchCase(LocalVarName("v3"), LabelName("d3"))
-    )).toString shouldEqual "SWITCH <@x> %a %l1 { %v1: %d1; %v2: %d2; %v3: %d3; }"
+      SwitchCase(LocalVarName("v3"), LabelName("d3")))).toString shouldEqual "SWITCH <@x> %a %l1 { %v1: %d1; %v2: %d2; %v3: %d3; }"
     PostExcClause(Inst.Call(s, f, IList(a, b, c), Some(KeepAliveClause(IList(a, b)))), nor, exc).toString shouldEqual
       "CALL <@s> @f (%a %b %c) EXC(%nor() %exc()) KEEPALIVE(%a %b)"
     Inst.TailCall(s, f, IList(a, b, c)).toString shouldEqual
@@ -132,18 +133,18 @@ class BundleBuilderTest extends FlatSpec with Matchers {
     PostExcClause(Inst.Alloca(x), nor, exc).toString shouldEqual "ALLOCA <@x> EXC(%nor() %exc())"
     PostExcClause(Inst.AllocaHybrid(x, 91, a), nor, exc).toString shouldEqual "ALLOCAHYBRID <@x 91> %a EXC(%nor() %exc())"
     Inst.GetIRef(x, a).toString shouldEqual "GETIREF <@x> %a"
-    Inst.GetFieldIRef(ptr=true, x, 3, a).toString shouldEqual "GETFIELDIREF PTR <@x 3> %a"
-    Inst.GetElemIRef(ptr=true, x, y, a, b).toString shouldEqual "GETELEMIREF PTR <@x @y> %a %b"
-    Inst.ShiftIRef(ptr=true, x, y, a, b).toString shouldEqual "SHIFTIREF PTR <@x @y> %a %b"
-    Inst.GetFixedPartIRef(ptr=true, x, a).toString shouldEqual "GETFIXEDPARTIREF PTR <@x> %a"
-    Inst.GetVarPartIRef(ptr=true, x, a).toString shouldEqual "GETVARPARTIREF PTR <@x> %a"
-    PostExcClause(Inst.Load(ptr=true, SeqConsistent, x, a), nor, exc).toString shouldEqual
+    Inst.GetFieldIRef(ptr = true, x, 3, a).toString shouldEqual "GETFIELDIREF PTR <@x 3> %a"
+    Inst.GetElemIRef(ptr = true, x, y, a, b).toString shouldEqual "GETELEMIREF PTR <@x @y> %a %b"
+    Inst.ShiftIRef(ptr = true, x, y, a, b).toString shouldEqual "SHIFTIREF PTR <@x @y> %a %b"
+    Inst.GetFixedPartIRef(ptr = true, x, a).toString shouldEqual "GETFIXEDPARTIREF PTR <@x> %a"
+    Inst.GetVarPartIRef(ptr = true, x, a).toString shouldEqual "GETVARPARTIREF PTR <@x> %a"
+    PostExcClause(Inst.Load(ptr = true, SeqConsistent, x, a), nor, exc).toString shouldEqual
       "LOAD PTR SEQ_CST <@x> %a EXC(%nor() %exc())"
-    PostExcClause(Inst.Store(ptr=true, SeqConsistent, x, a, b), nor, exc).toString shouldEqual
+    PostExcClause(Inst.Store(ptr = true, SeqConsistent, x, a, b), nor, exc).toString shouldEqual
       "STORE PTR SEQ_CST <@x> %a %b EXC(%nor() %exc())"
-    PostExcClause(Inst.CmpXchg(ptr=true, weak=true, AcquireRelease, Acquire, x, a, b, c), nor, exc).toString shouldEqual
+    PostExcClause(Inst.CmpXchg(ptr = true, weak = true, AcquireRelease, Acquire, x, a, b, c), nor, exc).toString shouldEqual
       "CMPXCHG PTR WEAK ACQ_REL ACQUIRE <@x> %a %b %c EXC(%nor() %exc())"
-    PostExcClause(Inst.AtomicRMW(ptr=true, SeqConsistent, AtomicRMWOptr.Xor, x, a, b), nor, exc).toString shouldEqual
+    PostExcClause(Inst.AtomicRMW(ptr = true, SeqConsistent, AtomicRMWOptr.Xor, x, a, b), nor, exc).toString shouldEqual
       "ATOMICRMW PTR SEQ_CST XOR <@x> %a %b EXC(%nor() %exc())"
     Inst.Fence(SeqConsistent).toString shouldEqual "FENCE SEQ_CST"
     PostExcClause(Inst.Trap(IList(x), Some(KeepAliveClause(IList(a, b)))), nor, exc).toString shouldEqual
@@ -157,28 +158,24 @@ class BundleBuilderTest extends FlatSpec with Matchers {
     PostExcClause(Inst.SwapStack(a,
       CurStackClause.RetWith(x),
       NewStackClause.PassValue(y, b),
-      Some(KeepAliveClause(IList(a, b)))
-    ), nor, exc).toString shouldEqual
+      Some(KeepAliveClause(IList(a, b)))), nor, exc).toString shouldEqual
       "SWAPSTACK %a RET_WITH <@x> PASS_VALUE <@y> %b EXC(%nor() %exc()) KEEPALIVE(%a %b)"
     PostExcClause(Inst.SwapStack(a,
       CurStackClause.KillOld(),
       NewStackClause.PassVoid(),
-      Some(KeepAliveClause(IList(a, b)))
-    ), nor, exc).toString shouldEqual
+      Some(KeepAliveClause(IList(a, b)))), nor, exc).toString shouldEqual
       "SWAPSTACK %a KILL_OLD PASS_VOID EXC(%nor() %exc()) KEEPALIVE(%a %b)"
     PostExcClause(Inst.SwapStack(a,
       CurStackClause.KillOld(),
       NewStackClause.ThrowExc(b),
-      Some(KeepAliveClause(IList(a, b)))
-    ), nor, exc).toString shouldEqual
+      Some(KeepAliveClause(IList(a, b)))), nor, exc).toString shouldEqual
       "SWAPSTACK %a KILL_OLD THROW_EXC %b EXC(%nor() %exc()) KEEPALIVE(%a %b)"
     PostExcClause(Inst.CommInst(GlobalVarName("foo.bar"),
       Some(IList(new Flag("A"), new Flag("B"))),
       Some(IList(x, y)),
       Some(IList(s, FuncSigName("s2"))),
       Some(IList(a, b)),
-      Some(KeepAliveClause(IList(a, b)))
-    ), nor, exc).toString shouldEqual
+      Some(KeepAliveClause(IList(a, b)))), nor, exc).toString shouldEqual
       "COMMINST @foo.bar [#A #B] <@x @y> <[@s @s2]> (%a %b) EXC(%nor() %exc()) KEEPALIVE(%a %b)"
   }
 
@@ -189,8 +186,7 @@ class BundleBuilderTest extends FlatSpec with Matchers {
       fn(builder.newFuncVersion(
         GlobalVarName(name),
         new IList(paramTy map builder.typeDef),
-        new IList(retTy map builder.typeDef)
-      ))
+        new IList(retTy map builder.typeDef)))
       builder
     }
 
@@ -199,8 +195,7 @@ class BundleBuilderTest extends FlatSpec with Matchers {
         Inst.BinOp.Add,
         fbuilder typeDef Int(32),
         fbuilder paramNames 0,
-        fbuilder paramNames 1
-      )
+        fbuilder paramNames 1)
       fbuilder.inst(IList(), Inst.Ret(IList(addRes)))
     } should matchIRTemplate("""
       .typedef @$int = int<32>
@@ -233,8 +228,7 @@ class BundleBuilderTest extends FlatSpec with Matchers {
         Inst.BinOp.Add,
         fbuilder typeDef Int(32),
         fbuilder paramNames 0,
-        fbuilder paramNames 1
-      )
+        fbuilder paramNames 1)
       val next = fbuilder.newLabelName()
       fbuilder.inst(IList(), Inst.PreBranch(next))
       fbuilder.startNewBlock(next)
@@ -298,9 +292,9 @@ class BundleBuilderTest extends FlatSpec with Matchers {
     funcBuilder.inst(IList(), Inst.Ret(IList(c)))
 
     val ir = builder.build().toString
-    
+
     println(ir)
-    
+
     val muBundle = new UIRTextReader(new IDFactory(0)).read(ir, new uvm.GlobalBundle())
   }
 }

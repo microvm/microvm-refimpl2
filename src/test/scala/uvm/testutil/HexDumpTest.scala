@@ -3,8 +3,9 @@ package uvm.testutil
 import org.scalatest.Matchers
 import org.scalatest.FlatSpec
 import uvm.utils.HexDump
+import uvm.UvmTestBase
 
-class HexDumpTest extends FlatSpec with Matchers {
+class HexDumpTest extends UvmTestBase {
   "HexDump" should "dump render 256 byte values" in {
     val hd = new HexDump(0x420)
     for (i <- 0 until 256) {

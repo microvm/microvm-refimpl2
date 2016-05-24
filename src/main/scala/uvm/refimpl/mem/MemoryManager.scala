@@ -46,7 +46,7 @@ class MemoryManager(val vmConf: VMConf)(implicit microVM: MicroVM) {
   val heap = new SimpleImmixHeap(heapBegin, vmConf.sosSize, vmConf.losSize)
   val globalMemory = new GlobalMemory(globalBegin, vmConf.globalSize)
 
-  def makeMutator(): Mutator = heap.makeMutator()
+  def makeMutator(name: String): Mutator = heap.makeMutator(name)
 
   def makeStackMemory(mutator: Mutator): StackMemory = {
     val objRef = mutator.newHybrid(InternalTypes.BYTE_ARRAY, vmConf.stackSize)

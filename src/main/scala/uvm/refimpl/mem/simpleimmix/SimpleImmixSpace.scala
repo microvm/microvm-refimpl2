@@ -10,10 +10,23 @@ object SimpleImmixSpace {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
 
   val BLOCK_SIZE = 32768L
+  
+  val SOS_THRESHOLD = BLOCK_SIZE / 4L
 
   val BLOCK_MARKED = 0x1
   val BLOCK_RESERVED = 0x2
-  val BLOCK_PINNED = 0x4
+  val BLOCK_IN_MUTATOR = 0x4
+  val BLOCK_PINNED = 0x8
+  
+  def prettyPrintFlags(flags: Int): String = {
+    def optStr(flag: Int, str: String): String = if ((flags & flag) != 0) str else ""
+
+    "0x%x (%s%s%s%s)".format(flags,
+        optStr(BLOCK_MARKED, "M"),
+        optStr(BLOCK_PINNED, "P"),
+        optStr(BLOCK_RESERVED, "R"),
+        optStr(BLOCK_IN_MUTATOR, "I"))
+  }
 
   private val LINE_SIZE = 128L
 
@@ -77,10 +90,13 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
 
   /** A list of buckets, for statistics. Used by defrag. */
   private val buckets: Array[Word] = new Array[Word](N_BUCKETS)
+  
+  /** Which mutator is using which block? */
+  private val blockUser: Array[Option[Mutator]] = Array.fill(nBlocks)(None)
 
   for (i <- 0 until nReserved) { // Block 0 to nReserved-1 are reserved
     defragResv(i) = i
-    reserve(i) // Set the reserved flat
+    blockFlags(i) |= BLOCK_RESERVED // Set the reserved flat
   }
 
   for (i <- nReserved until nBlocks) { // The rest of the blocks are free to allocate
@@ -88,10 +104,10 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
   }
 
   /**
-   * Try to get a free block. If not available, return None. The old block, if present, is returned from reserving.
+   * Try to get a free block. If not available, return None. The old block, if present, is returned.
    */
-  def tryGetBlock(oldBlockAddr: Option[Word]): Option[Word] = {
-    oldBlockAddr.foreach(returnBlock)
+  def tryGetBlock(oldBlockAddr: Option[Word], who: Mutator): Option[Word] = {
+    oldBlockAddr.foreach(a => returnBlock(a, who))
 
     val myCursor = nextFree
     if (myCursor >= freeListValidCount) {
@@ -101,20 +117,32 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
     nextFree += 1
 
     val blockNum = freeList(myCursor)
-    reserve(blockNum)
+    mutatorGetBlock(blockNum, who)
+
+    logger.debug("Normal mutator %s got block %d".format(who.name, blockNum))
 
     val blockAddr = blockIndexToBlockAddr(blockNum)
     MemUtils.zeroRegion(blockAddr, BLOCK_SIZE)
 
     Some(blockAddr)
   }
-
-  private def reserve(blockNum: Int) {
-    blockFlags(blockNum) |= BLOCK_RESERVED
+  
+  private def mutatorGetBlock(blockNum: Int, who: Mutator): Unit = {
+    blockFlags(blockNum) |= BLOCK_IN_MUTATOR
+    blockUser(blockNum) = Some(who)
   }
 
-  private def unreserve(blockNum: Int) {
-    blockFlags(blockNum) &= ~BLOCK_RESERVED
+  private def mutatorReleaseBlock(blockNum: Int, who: Mutator): Unit = {
+    val oldUser = blockUser(blockNum)
+    if (oldUser != Some(who)) {
+      throw new UvmRefImplException("Mutator %s returned a block %d which was reserved by %s".format(
+        who.name, blockNum, oldUser.map(_.name).getOrElse("(nobody)")))
+    }
+    blockUser(blockNum) = None
+    val flags = blockFlags(blockNum)
+    assert((flags & BLOCK_IN_MUTATOR) != 0, "Block %d (to be returned) should have flags 0x%x. Actual flags: %s".format(
+        blockNum, BLOCK_IN_MUTATOR, prettyPrintFlags(flags)))
+    blockFlags(blockNum) &= ~BLOCK_IN_MUTATOR
   }
 
   def objRefToBlockIndex(objRef: Word): Int = {
@@ -148,49 +176,73 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
     logger.debug(s"Marked block ${blockIndex}. pin=${pin}")
   }
   
-  def isPinned(pageNum: Int): Boolean = (blockFlags(pageNum) & BLOCK_MARKED) != 0
+  def isPinned(pageNum: Int): Boolean = (blockFlags(pageNum) & BLOCK_PINNED) != 0
 
   def collectBlocks(): Boolean = {
+    logger.debug("Before collecting blocks from SOS:")
+    if (logger.underlying.isDebugEnabled()) {
+      debugLogBlockStates()
+    }
+    
+    for (i <- 0 until nBlocks) {
+      val flags = blockFlags(i)
+      if ((flags & BLOCK_RESERVED) != 0) {
+        assert(flags == BLOCK_RESERVED, "Reserved block %d should have flags 0x%x. Actual flags: %s".format(
+            i, BLOCK_RESERVED, prettyPrintFlags(flags)))
+      }
+    }
+
     // Shift defrag reserved blocks to the beginning;
     for (i <- nextResv until defragResvFree) {
       defragResv(i - nextResv) = defragResv(i)
     }
-
+    
     var newDefragResvFree = defragResvFree - nextResv
+    for (i <- 0 until newDefragResvFree) {
+      val ind = defragResv(i)
+      val flags = blockFlags(ind)
+      assert(flags == BLOCK_RESERVED, "Block %d (from defrag freelist) should have flags 0x%x. Actual flags: %s".format(
+          ind, BLOCK_RESERVED, prettyPrintFlags(flags)))
+    }
+
     var newNFree = 0
     for (i <- 0 until nBlocks) {
       var flag = blockFlags(i)
-      val bits = (flag & (BLOCK_MARKED | BLOCK_RESERVED | BLOCK_PINNED))
+      val bits = (flag & (BLOCK_MARKED | BLOCK_IN_MUTATOR | BLOCK_RESERVED | BLOCK_PINNED))
       if (bits == 0) {
         if (newDefragResvFree < nReserved) {
           defragResv(newDefragResvFree) = i
           newDefragResvFree += 1
           flag |= BLOCK_RESERVED
+          logger.debug(s"Block ${i} added to defrag freelist")
         } else {
           freeList(newNFree) = i
           newNFree += 1
-          flag &= ~BLOCK_RESERVED
+          logger.debug(s"Block ${i} added to normal freelist")
         }
+      } else if ((bits & BLOCK_RESERVED) != 0) {
+        logger.debug(s"Block ${i} is already reserved.")
       } else {
         logger.debug(s"Block ${i} is not freed because flag bits is ${bits}")
       }
-      flag &= ~(BLOCK_MARKED | BLOCK_PINNED) 
+      flag &= ~(BLOCK_MARKED | BLOCK_PINNED)  // The only place that unmarks the block
       blockFlags(i) = flag
     }
     defragResvFree = newDefragResvFree
     freeListValidCount = newNFree
-    if (logger.underlying.isDebugEnabled()) {
-      debugLogBlockStates()
-    }
     nextResv = 0
     nextFree = 0
+    if (logger.underlying.isDebugEnabled()) {
+      logger.debug("After collecting blocks from SOS:")
+      debugLogBlockStates()
+    }
     return newNFree > 0
   }
 
-  def returnBlock(blockAddr: Word) {
+  def returnBlock(blockAddr: Word, who: Mutator) {
     val blockNum = blockAddrToBlockIndex(blockAddr)
-    unreserve(blockNum)
-    logger.debug("Block %d returned to space.".format(blockNum))
+    mutatorReleaseBlock(blockNum, who)
+    logger.debug("Block %d returned to space by %s.".format(blockNum, who.name))
   }
 
   // Statistics
@@ -251,8 +303,8 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
   }
 
   // Defrag
-  def getDefragBlock(oldBlockAddr: Option[Word]): Option[Word] = {
-    oldBlockAddr.foreach(returnBlock)
+  def getDefragBlock(oldBlockAddr: Option[Word], who: SimpleImmixDefragMutator): Option[Word] = {
+    oldBlockAddr.foreach(a => returnBlock(a, who))
 
     val myCursor = nextResv
 
@@ -263,27 +315,41 @@ class SimpleImmixSpace(val heap: SimpleImmixHeap, name: String, begin: Word, ext
     nextResv += 1
 
     val blockNum = defragResv(myCursor)
+    val flags = blockFlags(blockNum)
+    assert(flags == BLOCK_RESERVED, "Defrag block %d (to be used) should have flags 0x%x. Actual flags: %s".format(
+            blockNum, BLOCK_RESERVED, prettyPrintFlags(flags)))
+    blockFlags(blockNum) &= ~BLOCK_RESERVED
+    
+    mutatorGetBlock(blockNum, who)
+
+    logger.debug("Defrag mutator %s got block %d".format(who.name, blockNum))
 
     val blockAddr = blockIndexToBlockAddr(blockNum)
     MemUtils.zeroRegion(blockAddr, BLOCK_SIZE)
 
     return Some(blockAddr)
   }
+  
+  def returnDefragBlock(oldBlockAddr: Word, who: SimpleImmixDefragMutator): Unit = {
+    returnBlock(oldBlockAddr, who)
+  }
 
   // Debugging
   def debugLogBlockStates() {
     val sb1 = new StringBuilder("Reserved freelist:")
-    for (i <- 0 until defragResvFree) {
+    for (i <- nextResv until defragResvFree) {
       sb1.append(" ").append(defragResv(i))
     }
     logger.debug(sb1.toString)
     val sb2 = new StringBuilder("Freelist:")
-    for (i <- 0 until freeListValidCount) {
+    for (i <- nextFree until freeListValidCount) {
       sb2.append(" ").append(freeList(i))
     }
     logger.debug(sb2.toString)
     for (i <- 0 until nBlocks) {
-      logger.debug(s"blockFlags[${i}] = ${blockFlags(i)}")
+      val prettyFlags = prettyPrintFlags(blockFlags(i))
+      val user = blockUser(i).map(m => "user: %s".format(m.name)).getOrElse("")
+      logger.debug("block %d: flag=%s %s".format(i, prettyFlags, user))
     }
   }
 }

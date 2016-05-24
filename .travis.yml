@@ -12,35 +12,6 @@ addons:
 script:
   - pushd tests/c-snippets && make CC=gcc-6 && popd
   - sbt compile
-  - sbt 'test-only uvm.clientsupport.text.BundleBuilderTest'
-  - sbt 'test-only uvm.ir.textinput.SourceInfoRepoTest'
-  - sbt 'test-only uvm.ir.textinput.UIRTextReaderSpec'
-  - sbt 'test-only uvm.NameSpaceSpec'
-  - sbt 'test-only uvm.refimpl.hail.UvmHailBasicTest'
-  - sbt 'test-only uvm.refimpl.hail.UvmHailHelloWorldTest'
-  - sbt 'test-only uvm.refimpl.itpr.UvmConversionOperationSpec'
-  - sbt 'test-only uvm.refimpl.itpr.UvmInterpreterFutexTests'
-  - sbt 'test-only uvm.refimpl.itpr.UvmInterpreterGCTests'
-  - sbt 'test-only uvm.refimpl.itpr.UvmInterpreterInt128Test'
-  - sbt 'test-only uvm.refimpl.itpr.UvmInterpreterMetaTests'
-  - sbt 'test-only uvm.refimpl.itpr.UvmInterpreterNativeCallbackTests'
-  - sbt 'test-only uvm.refimpl.itpr.UvmInterpreterNativeTests'
-  - sbt 'test-only uvm.refimpl.itpr.UvmInterpreterNativeTestsExtra'
-  - sbt 'test-only uvm.refimpl.itpr.UvmInterpreterSimpleSumTest'
-  - sbt 'test-only uvm.refimpl.itpr.UvmInterpreterSimpleTests'
-  - sbt 'test-only uvm.refimpl.itpr.UvmInterpreterSpec'
-  - sbt 'test-only uvm.refimpl.itpr.UvmInterpreterStackGCTests'
-  - sbt 'test-only uvm.refimpl.itpr.UvmInterpreterTestBigFunc'
-  - sbt 'test-only uvm.refimpl.mem.NativeMemoryAccessTest'
-  - sbt 'test-only uvm.refimpl.mem.ObjectPinningTest'
-  - sbt 'test-only uvm.refimpl.mem.UvmMemLayoutSpec'
-  - sbt 'test-only uvm.refimpl.mem.UvmMemOperationsSpec'
-  - sbt 'test-only uvm.refimpl.misc.FuncRedefTests'
-  - sbt 'test-only uvm.refimpl.misc.HashableSSAValueTest'
-  - sbt 'test-only uvm.refimpl.nat.NativeClientSupportTest'
-  - sbt 'test-only uvm.refimpl.nat.NativeStackKeeperTest'
-  - sbt 'test-only uvm.refimpl.osr.UvmOSRTests'
-  - sbt 'test-only uvm.staticanalysis.StaticAnalysisTest'
-  - sbt 'test-only uvm.testutil.HexDumpTest'
+  - sbt test
 
 # vim: ts=2 sw=2 sts=2

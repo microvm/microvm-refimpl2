@@ -8,8 +8,9 @@ import uvm.GlobalBundle
 import uvm.TrantientBundle
 import uvm.ir.textinput.UIRTextReader
 import uvm.utils.IDFactory
+import uvm.UvmTestBase
 
-class StaticAnalysisTest extends FlatSpec with Matchers {
+class StaticAnalysisTest extends UvmTestBase {
 
   def parseText(globalBundle: GlobalBundle, fac: Option[IDFactory]=None)(uir: String): TrantientBundle = {
     val idf = fac.getOrElse(new IDFactory(uvm.refimpl.MicroVM.FIRST_CLIENT_USABLE_ID))

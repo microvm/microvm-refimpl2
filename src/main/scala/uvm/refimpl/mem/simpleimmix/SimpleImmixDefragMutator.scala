@@ -7,14 +7,17 @@ import com.typesafe.scalalogging.Logger
 import TypeSizes.Word
 import uvm.refimpl.UvmRefImplException
 import uvm.utils.RetryUtils._
+import uvm.utils.IDFactory
 
 object SimpleImmixDefragMutator {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
+
+  val defragMutatorIDFactory = new IDFactory(1)
 }
 
 class SimpleImmixDefragMutator(val heap: SimpleImmixHeap, val space: SimpleImmixSpace)(
   implicit memorySupport: MemorySupport)
-    extends Mutator with Allocator {
+    extends Mutator("defrag-" + SimpleImmixDefragMutator.defragMutatorIDFactory.getID()) with Allocator {
 
   import SimpleImmixDefragMutator._
 
@@ -27,7 +30,7 @@ class SimpleImmixDefragMutator(val heap: SimpleImmixHeap, val space: SimpleImmix
   getNewBlock()
 
   private def getNewBlock() {
-    curBlockAddr = space.getDefragBlock(curBlockAddr)
+    curBlockAddr = space.getDefragBlock(curBlockAddr, this)
     curBlockAddr match {
       case Some(addr) =>
         cursor = addr
@@ -72,6 +75,6 @@ class SimpleImmixDefragMutator(val heap: SimpleImmixHeap, val space: SimpleImmix
 
   def close() {
     logger.debug("Closing defrag mutator...")
-    curBlockAddr.foreach(space.returnBlock)
+    curBlockAddr.foreach(a => space.returnDefragBlock(a, this))
   }
 }

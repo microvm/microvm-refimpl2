@@ -106,7 +106,7 @@ object MuCtx {
  * A client context. The main part of the API. It keeps thread-local states, including a set of handles. It provides
  * operations on the Mu VM.
  */
-class MuCtx(_mutator: Mutator)(
+class MuCtx(val ctxID: Int, _mutator: Mutator)(
     implicit microVM: MicroVM, memorySupport: MemorySupport) extends ObjectPinner {
   import MuCtx._
 
