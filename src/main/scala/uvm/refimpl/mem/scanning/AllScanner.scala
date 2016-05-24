@@ -71,6 +71,8 @@ class AllScanner(val handler: RefFieldHandler)(
 
   private def traceThreads() {
     for (thr <- microVM.threadStackManager.iterateAllLiveThreads) {
+      logger.debug(s"Tracing thread-local objref of ${thr.id}")
+      this.boxToHeap(thr.threadLocal)
       logger.debug(s"Tracing live thread ${thr.id} for its stack")
       this.threadToStack(thr, thr.stack)
     }
