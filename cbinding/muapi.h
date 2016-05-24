@@ -242,8 +242,15 @@ struct MuCtx {
     // Thread and stack creation and stack destruction
     MuStackRefValue     (*new_stack )(MuCtx *ctx, MuFuncRefValue func);
     MuThreadRefValue    (*new_thread)(MuCtx *ctx, MuStackRefValue stack,
-                            MuHowToResume htr, MuValue *vals, int nvals, MuRefValue exc);
+                            MuRefValue threadlocal,
+                            MuHowToResume htr, MuValue *vals, int nvals,
+                            MuRefValue exc);
     void                (*kill_stack)(MuCtx *ctx, MuStackRefValue stack);
+
+    // Thread-local object reference
+    void        (*set_threadlocal)(MuCtx *ctx, MuThreadRefValue thread,
+                    MuRefValue threadlocal);
+    MuRefValue  (*get_threadlocal)(MuCtx *ctx, MuThreadRefValue thread);
 
     // Frame cursor operations
     MuFCRefValue    (*new_cursor  )(MuCtx *ctx, MuStackRefValue stack);

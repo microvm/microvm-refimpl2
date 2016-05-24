@@ -7,7 +7,7 @@ organization := "org.microvm"
 
 name := "microvm-refimpl2"
 
-version := "2.1.1"
+version := "2.2.0"
 
 description := "The second reference implementation of Mu, the micro virtual machine"
 

@@ -40,7 +40,7 @@ object FactorialFromRPython extends App {
   })
 
   val sta = ctx.newStack(m)
-  val thr = ctx.newThread(sta, PassValues(Seq()))
+  val thr = ctx.newThread(sta, None, PassValues(Seq()))
 
   microVM.execute() // run until all threads stop
 

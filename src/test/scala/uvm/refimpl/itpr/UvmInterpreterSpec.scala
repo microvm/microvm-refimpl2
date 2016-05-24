@@ -1587,4 +1587,83 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     ctx.closeContext()
   }
+  
+  "NEWTHREAD" should "set the thread-local objref" in {
+    val ctx = microVM.newContext()
+
+    val func = ctx.handleFromFunc("@newthread")
+    
+    val theTl = ctx.newFixed("@i64")
+
+    testFunc(ctx, func, Seq(theTl)) { (ctx, th, st, wp) =>
+      val cursor = ctx.newCursor(st)
+      nameOf(ctx.curInst(cursor)) match {
+        case "@threadslave.v1.entry.trap" => {
+          val Seq(tl: MuRefValue) = ctx.dumpKeepalives(cursor)
+          ctx.closeCursor(cursor)
+          
+          tl.vb.asRef shouldEqual theTl.vb.asRef
+          
+          val hThreadLocal = ctx.getThreadlocal(th)
+          ctx.refEq(hThreadLocal, tl) shouldBe true
+
+          Rebind(st, PassValues(Seq()))
+        }
+        case "@threadslave.v1.entry.trap2" => {
+          val Seq(tl2: MuRefValue, tl3: MuRefValue) = ctx.dumpKeepalives(cursor)
+          ctx.closeCursor(cursor)
+          
+          ctx.refEq(tl2, tl3) shouldBe true
+
+          val hThreadLocal = ctx.getThreadlocal(th)
+          ctx.refEq(hThreadLocal, tl2) shouldBe true
+
+          Rebind(st, PassValues(Seq()))
+        }
+      }
+    }
+
+    ctx.closeContext()
+  }
+
+  "TRAP" should "be able to set the thread-local objref" in {
+    val ctx = microVM.newContext()
+
+    val func = ctx.handleFromFunc("@threadslave2")
+    
+    val theTl1 = ctx.newFixed("@i64")
+    val theTl2 = ctx.newFixed("@i64")
+
+    testFunc(ctx, func, Seq(theTl1, theTl2), threadLocal=Some(theTl1)) { (ctx, th, st, wp) =>
+      val cursor = ctx.newCursor(st)
+      nameOf(ctx.curInst(cursor)) match {
+        case "@threadslave2.v1.entry.trap" => {
+          val Seq(tl1: MuRefValue, tl2: MuRefValue, tlcur: MuRefValue) = ctx.dumpKeepalives(cursor)
+          ctx.closeCursor(cursor)
+
+          ctx.refEq(tlcur, tl1) shouldBe true
+          
+          val hThreadLocal = ctx.getThreadlocal(th)
+          ctx.refEq(hThreadLocal, tlcur) shouldBe true
+          
+          ctx.setThreadlocal(th, tl2)
+
+          Rebind(st, PassValues(Seq()))
+        }
+        case "@threadslave2.v1.entry.trap2" => {
+          val Seq(tl1: MuRefValue, tl2: MuRefValue, tlcur: MuRefValue) = ctx.dumpKeepalives(cursor)
+          ctx.closeCursor(cursor)
+          
+          ctx.refEq(tlcur, tl2) shouldBe true
+          
+          val hThreadLocal = ctx.getThreadlocal(th)
+          ctx.refEq(hThreadLocal, tlcur) shouldBe true
+
+          Rebind(st, PassValues(Seq()))
+        }
+      }
+    }
+
+    ctx.closeContext()
+  }
 }

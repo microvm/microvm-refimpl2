@@ -86,7 +86,7 @@ with mu.new_context() as ctx:
 
     _start = ctx.handle_from_func(id_of("@_start"))
     st = ctx.new_stack(_start)
-    th = ctx.new_thread(st, PassValues(args, rvbox))
+    th = ctx.new_thread(st, None, PassValues(args, rvbox))
 
     mu.execute()
 

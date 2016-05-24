@@ -10,12 +10,12 @@ import uvm.comminsts._
 
 trait ExtraMatchers extends Assertions with Matchers {
   import ExtraMatchers._
+  import ExtraMatchers_._
   implicit def anythingToAnythingExtraMatcher[U](thing: U) = new AnythingExtraMatchers(thing)
   
   val thatsIt = { f: Any => }
-  case object nan
-  case class ExactFloat(num: Float)
-  case class ExactDouble(num: Double)
+
+  val NaN = ExtraMatchers_.NaN
   def exactly(num: Float) = ExactFloat(num)
   def exactly(num: Double) = ExactDouble(num)
   
@@ -23,7 +23,15 @@ trait ExtraMatchers extends Assertions with Matchers {
   def bitsd(num: Long) = java.lang.Double.longBitsToDouble(num)
 }
 
+object ExtraMatchers_ {
+  case object NaN
+  case class ExactFloat(num: Float)
+  case class ExactDouble(num: Double)
+}
+
 object ExtraMatchers extends ExtraMatchers {
+  import ExtraMatchers_._
+
   implicit class AnythingExtraMatchers[U](val thing: U) extends AnyVal {
     def shouldBeA[T: ClassTag](f: T => Unit): Unit = {
       val ct = classTag[T]
@@ -48,7 +56,7 @@ object ExtraMatchers extends ExtraMatchers {
       thing shouldBeA[ConstFloat] { its =>
         its.constTy shouldBeA[TypeFloat] thatsIt
         something match {
-          case `nan` => assert(its.num.isNaN)
+          case NaN => its.num.isNaN shouldBe true
           case ExactFloat(num) => its.num shouldEqual num
           case num: Float => its.num shouldEqual (num +- 0.001F)
           case _ => its.num shouldEqual something
@@ -60,7 +68,7 @@ object ExtraMatchers extends ExtraMatchers {
       thing shouldBeA[ConstDouble] { its =>
         its.constTy shouldBeA[TypeDouble] thatsIt
         something match {
-          case `nan` => assert(its.num.isNaN)
+          case NaN => its.num.isNaN shouldBe true
           case ExactDouble(num) => its.num shouldEqual num
           case num: Double => its.num shouldEqual (num +- 0.001F)
           case _ => its.num shouldEqual something

@@ -15,6 +15,8 @@ object CommInsts extends SimpleNamespace[CommInst] {
   commInst(0x202, "@uvm.kill_stack")
   commInst(0x203, "@uvm.thread_exit", isTerminator = true)
   commInst(0x204, "@uvm.current_stack")
+  commInst(0x205, "@uvm.set_threadlocal")
+  commInst(0x206, "@uvm.get_threadlocal")
 
   commInst(0x211, "@uvm.tr64.is_fp")
   commInst(0x212, "@uvm.tr64.is_int")
