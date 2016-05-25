@@ -49,6 +49,13 @@ class UvmMemLayoutSpec extends UvmTestBase with BeforeAndAfter {
     alignOf(ty) shouldBe 8
   }
 
+  "Struct types which contains other aggregate types" should "recursively calculate sizes and alignments" in {
+    val ty1 = TypeStruct(Seq(TypeInt(8), TypeInt(16), TypeInt(32), TypeInt(64)))
+    val ty2 = TypeStruct(Seq(TypeInt(16), ty1, TypeInt(32)))
+    sizeOf(ty2) shouldBe 28
+    alignOf(ty2) shouldBe 8
+  }
+
   "Array types" should "have the size of all elements plus padding and the alignment of its element" in {
     val ty = TypeArray(TypeInt(64), 100)
     sizeOf(ty) shouldBe 800

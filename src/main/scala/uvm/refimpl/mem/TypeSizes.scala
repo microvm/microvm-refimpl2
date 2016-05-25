@@ -83,7 +83,7 @@ object TypeSizes {
   }
 
   def alignOf(ty: Type): Word = ty match {
-    case TypeStruct(ftys) => ftys.map(sizeOf).max
+    case TypeStruct(ftys) => ftys.map(alignOf).max
     case TypeArray(et, _) => alignOf(et)
     case _: TypeHybrid    => throw new IllegalArgumentException("Hybrid should use hybridAlignOf to probe alignment")
     case _: TypeVoid      => 1L
