@@ -98,6 +98,7 @@ object ValueBox {
     case TypeStruct(fieldTys) => BoxSeq(fieldTys.map(makeBoxForType))
     case TypeArray(elemTy, len) => BoxSeq(Seq.fill(len.toInt)(makeBoxForType(elemTy)))
     case _: TypeHybrid => throw new UvmRefImplException("hybrid cannot be an SSA variable type")
+    case _: TypeVoid => throw new UvmRefImplException("void cannot be an SSA variable type")
     case _: TypeFuncRef => BoxFunc(None)
     case _: TypeStackRef => BoxStack(None)
     case _: TypeThreadRef => BoxThread(None)

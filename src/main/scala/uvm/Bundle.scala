@@ -63,6 +63,8 @@ class TrantientBundle extends Bundle {
  * This kind of bundle holds the global state. Functions and versions are fully merged.
  */
 class GlobalBundle extends Bundle {
+  val funcToVers = new HashMap[Function, List[FuncVer]]()
+  
   private def simpleMerge[T <: Identified](oldNs: Namespace[T], newNs: Namespace[T], newSourceInfoRepo: SourceInfoRepo) {
     for (cand <- newNs.all) {
       try {
@@ -87,7 +89,10 @@ class GlobalBundle extends Bundle {
 
   private def redefineFunctions(newNs: Namespace[FuncVer]) {
     for (fv <- newNs.all) {
-      fv.func.versions = fv :: fv.func.versions
+      val func = fv.func
+      val oldVers = funcToVers.getOrElse(func, Nil)
+      val newVers = fv :: oldVers
+      funcToVers(func) = newVers
     }
   }
   

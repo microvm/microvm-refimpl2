@@ -31,7 +31,7 @@ object FrameState {
  * Implements a Mu Stack. Contains both Mu frames and native frames.
  */
 class InterpreterStack(val id: Int, val stackMemory: StackMemory, stackBottomFunc: Function)(
-    implicit nativeCallHelper: NativeCallHelper) extends HasID {
+    implicit nativeCallHelper: NativeCallHelper, microVM: MicroVM) extends HasID {
   var gcMark: Boolean = false // Mark for GC.
 
   private var _top: InterpreterFrame = InterpreterFrame.forMuFunc(stackMemory.top, stackBottomFunc, 0L, None)
@@ -344,8 +344,8 @@ abstract class InterpreterFrame(val prev: Option[InterpreterFrame]) {
 }
 
 object InterpreterFrame {
-  def forMuFunc(savedStackPointer: Word, func: Function, cookie: Long, prev: Option[InterpreterFrame]): MuFrame = {
-    val frm = func.versions.headOption match {
+  def forMuFunc(savedStackPointer: Word, func: Function, cookie: Long, prev: Option[InterpreterFrame])(implicit microVM: MicroVM): MuFrame = {
+    val frm = microVM.globalBundle.funcToVers.getOrElse(func, Nil).headOption match {
       case None          => new UndefinedMuFrame(func, prev)
       case Some(funcVer) => new DefinedMuFrame(savedStackPointer, funcVer, cookie, prev)
     }
@@ -469,7 +469,11 @@ object DefinedMuFrame {
  * of the stack when the current frame is pushed.
  * @param cookie: The cookie in the native interface. When called by another Mu function, cookie can be any value.
  */
-class DefinedMuFrame(val savedStackPointer: Word, val funcVer: FuncVer, val cookie: Long, prev: Option[InterpreterFrame])
+class DefinedMuFrame(
+    val savedStackPointer: Word,
+    val funcVer: FuncVer,
+    val cookie: Long,
+    prev: Option[InterpreterFrame])
     extends MuFrame(funcVer.func, prev) {
   import DefinedMuFrame._
 

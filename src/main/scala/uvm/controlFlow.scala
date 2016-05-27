@@ -16,7 +16,6 @@ object FuncSig {
 
 class Function extends GlobalVariable {
   var sig: FuncSig = null
-  var versions: List[FuncVer] = Nil
 }
 
 /**

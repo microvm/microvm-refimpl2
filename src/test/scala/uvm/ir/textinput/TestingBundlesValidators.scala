@@ -297,7 +297,6 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     
     our func "@signal" shouldBeA[Function] { its =>
       its.sig shouldBe (our sig "@signal_sig")
-      its.versions shouldBe Nil
     }
     
     our const "@zero" shouldBeA[ConstInt] { its =>
@@ -307,7 +306,6 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     
     our func "@main" shouldBeA[Function] { its =>
       its.sig shouldBe (our sig "@baz")
-      its.versions.head shouldBe (our funcVer "@main.v1")
     }
     
     our funcVer "@main.v1" shouldBeA[FuncVer] { its =>
@@ -353,8 +351,8 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     our anything mainNativeGN shouldBe mainNative 
   }
 
-  def in(func: Function)(f: (Function, FuncVer) => Unit) {
-    val ver = func.versions.head
+  def in(func: Function)(f: (Function, FuncVer) => Unit)(implicit bundle: GlobalBundle) {
+    val ver = bundle.funcToVers(func).head
     f(func, ver)
   }
 
@@ -367,6 +365,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
   }
   
   def validateInstructions(bundle: GlobalBundle) {
+    implicit val _bundle = bundle
     val our = bundle
     
     in (our func "@intBinOpTest") { (func, the) =>
@@ -1295,11 +1294,14 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         }
       }
     }
-
+  }
+  
+  def versionsOf(func: Function)(implicit bundle: GlobalBundle): List[FuncVer] = {
+    bundle.funcToVers.getOrElse(func, Nil)
   }
 
   def validateRedef(globalBundle: GlobalBundle, b1: TrantientBundle, b2: TrantientBundle) {
-    val ourGlobal = globalBundle
+    implicit val ourGlobal = globalBundle
     val ourOld = b1
     val ourNew = b2
     
@@ -1312,8 +1314,8 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
       }
     }
     
-    (ourGlobal func "@foxsay").versions shouldBe Nil
-    (ourGlobal func "@meaning_of_life").versions shouldBe Seq(ourGlobal funcVer "@meaning_of_life.v1")
+    versionsOf(ourGlobal func "@foxsay") shouldBe empty
+    versionsOf(ourGlobal func "@meaning_of_life") shouldBe Seq(ourGlobal funcVer "@meaning_of_life.v1")
      
     ourNew.funcNs.get("@foxsay") shouldBe None
     ourNew.funcNs.get("@meaning_of_life") shouldBe None
@@ -1340,13 +1342,13 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
     }
   }
 
-  def validateRedefAfterMerge(globalBundle: Bundle, bundle: Bundle) {
-    val ourGlobal = globalBundle
+  def validateRedefAfterMerge(globalBundle: GlobalBundle, bundle: TrantientBundle) {
+    implicit val ourGlobal = globalBundle
     val ourNew = bundle
     
-    (ourGlobal func "@foxsay").versions.head shouldBe (ourNew funcVer "@foxsay.v1")
-    (ourGlobal func "@meaning_of_life").versions.head shouldBe (ourNew funcVer "@meaning_of_life.v2")
-    (ourGlobal func "@meaning_of_life").versions.tail.head shouldBe (ourGlobal funcVer "@meaning_of_life.v1")
+    versionsOf(ourGlobal func "@foxsay").head shouldBe (ourNew funcVer "@foxsay.v1")
+    versionsOf(ourGlobal func "@meaning_of_life").head shouldBe (ourNew funcVer "@meaning_of_life.v2")
+    versionsOf(ourGlobal func "@meaning_of_life").tail.head shouldBe (ourGlobal funcVer "@meaning_of_life.v1")
     
     (ourGlobal funcVer "@meaning_of_life.v1").func shouldBe (ourGlobal func "@meaning_of_life")
     (ourGlobal funcVer "@meaning_of_life.v2").func shouldBe (ourGlobal func "@meaning_of_life")

@@ -318,7 +318,6 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
       addFuncVer(ver, toSourceInfo(fDefCtx.ver))
 
       ver.func = func
-      //func.versions = ver :: func.versions  // Don't override here. Let the MicroVM redefine functions.
 
       ver.bbNs = bundle.allNs.makeSubSpace[BasicBlock]("basic block")
 
