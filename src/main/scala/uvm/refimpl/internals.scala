@@ -43,6 +43,7 @@ object InternalTypes {
   val STACKREF = TypeStackRef() := internal("stackref")
   val THREADREF = TypeThreadRef() := internal("threadref")
   val FRAMECURSORREF = TypeFrameCursorRef() := internal("framecursorref")
+  val IRNODEREF = TypeIRNodeRef() := internal("irnoderef")
   val TAGREF64 = TypeTagRef64() := internal("tagref64")
 
   val BYTES = TypeHybrid(Seq(I64), I8) := (0x260, "@uvm.meta.bytes")

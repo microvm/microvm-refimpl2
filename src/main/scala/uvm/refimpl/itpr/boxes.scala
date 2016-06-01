@@ -69,6 +69,10 @@ case class BoxFrameCursor(var cursor: Option[FrameCursor]) extends ObjectBox[Fra
   def obj = cursor
   def obj_=(other: Option[FrameCursor]): Unit = { cursor = other }
 }
+case class BoxIRNode(var node: Option[IRNode]) extends ObjectBox[IRNode] {
+  def obj = node
+  def obj_=(other: Option[IRNode]): Unit = { node = other }
+}
 case class BoxTagRef64(var raw: Long) extends HasObjRef {
   def copyFrom(other: ValueBox): Unit = { this.raw = other.asInstanceOf[BoxTagRef64].raw }
   def hasObjRef() = OpHelper.tr64IsRef(raw)

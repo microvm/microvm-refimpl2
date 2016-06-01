@@ -1,5 +1,7 @@
 package uvm
 
+import scala.collection.mutable.ArrayBuffer
+
 import uvm.types._
 import uvm.ssavariables._
 
@@ -23,8 +25,8 @@ class Function extends GlobalVariable {
  */
 class FuncVer extends IdentifiedSettable {
   var func: Function = null
-  var bbs: IndexedSeq[BasicBlock] = null
-  var entry: BasicBlock = null
+  var bbs: ArrayBuffer[BasicBlock] = null
+  def entry: BasicBlock = bbs.head
 
   def sig: FuncSig = func.sig
 
@@ -32,9 +34,9 @@ class FuncVer extends IdentifiedSettable {
 }
 
 class BasicBlock extends IdentifiedSettable {
-  var norParams: IndexedSeq[NorParam] = null
+  var norParams: ArrayBuffer[NorParam] = null
   var excParam: Option[ExcParam] = null
-  var insts: IndexedSeq[Instruction] = null
+  var insts: ArrayBuffer[Instruction] = null
 
   var localVarNs: NestedNamespace[LocalVariable] = null // sub-namespace of allNs
   var localInstNs: NestedNamespace[Instruction] = null // sub-namespace of allNs

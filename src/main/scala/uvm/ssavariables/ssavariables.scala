@@ -1,5 +1,7 @@
 package uvm.ssavariables
 
+import scala.collection.mutable.ArrayBuffer
+
 import uvm._
 import uvm.comminsts._
 import uvm.types._
@@ -44,7 +46,8 @@ case class InstResult(inst: Instruction, index: Int) extends LocalVariable
 // Instructions
 
 abstract class Instruction extends IdentifiedSettable {
-  var results: Seq[InstResult] = Seq()
+  var bb: BasicBlock = null
+  var results: ArrayBuffer[InstResult] = null
   
   override def toString = "[(%s) = %s %s]".format(this.results.map(_.repr).mkString(" "), this.repr, this.getClass.getSimpleName)
 }

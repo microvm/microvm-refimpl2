@@ -369,7 +369,7 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
           val sourceInfo = toSourceInfo(p)
           addLocalVar(param, sourceInfo)
           param
-        }.toIndexedSeq
+        }.to[ArrayBuffer]
         bb.excParam = Option(label.excParam).map { p =>
           val param = mkExcParam(p.name())
           val sourceInfo = toSourceInfo(p)
@@ -610,9 +610,9 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
 
           addInst(inst, toSourceInfo(instDef))
 
-          val instRess: Seq[InstResult] = Option(instDef.instResults) match {
-            case None => Seq()
-            case Some(r) => for ((instResDef, index) <- r.results.zipWithIndex) yield {
+          val instRess: ArrayBuffer[InstResult] = Option(instDef.instResults) match {
+            case None => ArrayBuffer()
+            case Some(r) => (for ((instResDef, index) <- r.results.zipWithIndex) yield {
               val resName = globalize(instResDef.getText, bbName)
 
               val instRes = InstResult(inst, index)
@@ -621,23 +621,23 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
               addLocalVar(instRes, toSourceInfo(instResDef))
 
               instRes
-            }
+            }).to[ArrayBuffer]
           }
 
+          inst.bb = bb
           inst.results = instRess
 
           return inst
         }
 
-        bb.insts = bbCtx.inst.map(i => mkInst(bb, i)).toIndexedSeq
+        bb.insts = bbCtx.inst.map(i => mkInst(bb, i)).to[ArrayBuffer]
 
         return bb
       }
 
-      val bbs = fDefCtx.funcBody.basicBlock().map(makeBB).toIndexedSeq
+      val bbs = fDefCtx.funcBody.basicBlock().map(makeBB).to[ArrayBuffer]
 
       ver.bbs = bbs
-      ver.entry = bbs.head
 
       phase4.doAll()
     }

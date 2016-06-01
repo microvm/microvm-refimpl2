@@ -47,6 +47,7 @@ case class TypeVector(var elemTy: Type, var len: Long) extends AbstractSeqType
 case class TypeUPtr(var ty: Type) extends AbstractPointerType
 case class TypeUFuncPtr(var sig: FuncSig) extends AbstractPointerType
 case class TypeFrameCursorRef() extends AbstractGenRefType
+case class TypeIRNodeRef() extends AbstractGenRefType
 
 object Type {
   def prettyPrint(ty: Type): String = ty match {
@@ -68,6 +69,7 @@ object Type {
     case TypeUPtr(ty)                  => "uptr<%s>".format(ty.repr)
     case TypeUFuncPtr(sig)             => "ufuncptr<%s>".format(sig.repr)
     case TypeFrameCursorRef()          => "framecursorref"
+    case TypeIRNodeRef()               => "irnoderef"
     case _                             => "unknown type " + ty.getClass.getName
   }
 }
