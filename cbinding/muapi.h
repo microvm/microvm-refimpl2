@@ -242,6 +242,10 @@ struct MuVM {
 
     // Set handlers
     void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler, MuCPtr userdata);
+
+    // Proprietary API: let the micro VM execute
+    void    (*execute)(MuVM *mvm);
+    int*    (*get_mu_error_ptr)(MuVM *mvm);
 };
 
 // A local context. It can only be used by one thread at a time. It holds many
