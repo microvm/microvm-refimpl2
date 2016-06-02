@@ -106,12 +106,12 @@ case class MuConstNode(ty: TypeIRNodeRef, vb: BoxIRNode) extends MuGlobalVarNode
 case class MuGlobalNode(ty: TypeIRNodeRef, vb: BoxIRNode) extends MuGlobalVarNode
 case class MuFuncNode(ty: TypeIRNodeRef, vb: BoxIRNode) extends MuGlobalVarNode
 case class MuExpFuncNode(ty: TypeIRNodeRef, vb: BoxIRNode) extends MuGlobalVarNode
-case class MuFuncVerNode(ty: TypeIRNodeRef, vb: BoxIRNode) extends MuIRNode
-case class MuBBNode(ty: TypeIRNodeRef, vb: BoxIRNode) extends MuIRNode
+case class MuFuncVerNode(ty: TypeIRNodeRef, vb: BoxIRNode) extends MuChildNode
+case class MuBBNode(ty: TypeIRNodeRef, vb: BoxIRNode) extends MuChildNode
 case class MuNorParamNode(ty: TypeIRNodeRef, vb: BoxIRNode) extends MuLocalVarNode
 case class MuExcParamNode(ty: TypeIRNodeRef, vb: BoxIRNode) extends MuLocalVarNode
 case class MuInstResNode(ty: TypeIRNodeRef, vb: BoxIRNode) extends MuLocalVarNode
-case class MuInstNode(ty: TypeIRNodeRef, vb: BoxIRNode) extends MuIRNode
+case class MuInstNode(ty: TypeIRNodeRef, vb: BoxIRNode) extends MuChildNode
 
 abstract class TrapHandlerResult
 object TrapHandlerResult {

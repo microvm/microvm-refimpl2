@@ -40,6 +40,10 @@ class IRBuilder(globalBundle: GlobalBundle, idFactory: IDFactory) {
     new CN(obj)
   }
 
+  // There are scripts in microvm-refimpl2/migrate_scripts/ to convert this program to the MuCtxIRBuilderPart or the
+  // common instruction executor. Keep the next line exact
+  // SCRIPT: BEGIN HERE
+
   def newBundle(): BN = {
     val b = new TrantientBundle()
     val node = new BN(b)
@@ -54,7 +58,7 @@ class IRBuilder(globalBundle: GlobalBundle, idFactory: IDFactory) {
     new ChildNode(ent)
   }
 
-  def getID(b: BN, node: CN[Identified]): Int = {
+  def getID(b: BN, node: CN[_ <: Identified]): Int = {
     node.id
   }
 
@@ -438,7 +442,7 @@ class IRBuilder(globalBundle: GlobalBundle, idFactory: IDFactory) {
       }
     }
   }
-  
+
   def newCommInst(bb: CN[BB], opcode: Int, flags: Seq[Flag], tys: Seq[CN[Type]], sigs: Seq[CN[FuncSig]], args: Seq[CN[Var]]): CN[InstCommInst] = {
     val commInst = CommInsts.get(opcode).getOrElse {
       throw new IllegalArgumentException("No such common instruction. opcode: %d 0x%x".format(opcode, opcode))
@@ -447,4 +451,5 @@ class IRBuilder(globalBundle: GlobalBundle, idFactory: IDFactory) {
     newInst(bb, inst)
   }
 
+  // SCRIPT: END HERE
 }
