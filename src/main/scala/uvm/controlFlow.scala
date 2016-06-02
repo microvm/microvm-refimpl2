@@ -23,8 +23,7 @@ class Function extends GlobalVariable {
 /**
  * A version of a function. Also known as a "control flow graph".
  */
-class FuncVer extends IdentifiedSettable {
-  var func: Function = null
+class FuncVer(val func: Function) extends IdentifiedSettable {
   var bbs: ArrayBuffer[BasicBlock] = null
   def entry: BasicBlock = bbs.head
 
@@ -33,7 +32,7 @@ class FuncVer extends IdentifiedSettable {
   var bbNs: NestedNamespace[BasicBlock] = null  // sub-namespace of allNs
 }
 
-class BasicBlock extends IdentifiedSettable {
+class BasicBlock(val funcVer: FuncVer) extends IdentifiedSettable {
   var norParams: ArrayBuffer[NorParam] = null
   var excParam: Option[ExcParam] = null
   var insts: ArrayBuffer[Instruction] = null

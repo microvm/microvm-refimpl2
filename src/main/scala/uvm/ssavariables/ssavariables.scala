@@ -118,7 +118,7 @@ trait CallLike extends HasArgList {
 
 case class DestClause(val bb: BasicBlock, val args: Seq[SSAVariable])
 
-case class ExcClause(val nor: DestClause, val exc: DestClause)
+case class ExcClause(var nor: DestClause, var exc: DestClause)
 
 trait HasExcClause extends Instruction with MaybeTerminator {
   var excClause: Option[ExcClause]
@@ -185,7 +185,7 @@ case class InstBranch(var dest: DestClause) extends Instruction with Terminator
 case class InstBranch2(var cond: SSAVariable, var ifTrue: DestClause, var ifFalse: DestClause) extends Instruction with Terminator
 
 case class InstSwitch(var opndTy: Type, var opnd: SSAVariable, var defDest: DestClause,
-                      var cases: Seq[(SSAVariable, DestClause)]) extends Instruction with Terminator
+                      var cases: ArrayBuffer[(SSAVariable, DestClause)]) extends Instruction with Terminator
 
 case class InstCall(var sig: FuncSig, var callee: SSAVariable, var argList: Seq[SSAVariable],
                     var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable])

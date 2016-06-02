@@ -311,13 +311,11 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
     logger.debug("Phase 3")
     def defFunc(func: Function, fDefCtx: FuncDefContext) {
       logger.trace("Visiting function %s".format(func.name))
-      val ver = new FuncVer()
+      val ver = new FuncVer(func)
       val verName = globalize(fDefCtx.ver, func.name.get)
       ver.id = idFactory.getID()
       ver.name = Some(verName)
       addFuncVer(ver, toSourceInfo(fDefCtx.ver))
-
-      ver.func = func
 
       ver.bbNs = bundle.allNs.makeSubSpace[BasicBlock]("basic block")
 
@@ -340,7 +338,7 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
       def makeBB(bbCtx: BasicBlockContext): BasicBlock = {
         val label = bbCtx.label()
         val bbName = globalize(label.name(), verName)
-        val bb = new BasicBlock()
+        val bb = new BasicBlock(ver)
         bb.id = idFactory.getID()
         bb.name = Some(bbName)
         addBB(bb, toSourceInfo(bbCtx))
@@ -469,7 +467,7 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
             case ii: InstSwitchContext =>
               InstSwitch(ii.`type`, null, null, null).later(phase4) { i =>
                 i.opnd = ii.opnd; i.defDest = ii.defDest
-                i.cases = for ((v, d) <- ii.caseVal.zip(ii.caseDest)) yield (resVar(v), resDestClause(d))
+                i.cases = (for ((v, d) <- ii.caseVal.zip(ii.caseDest)) yield (resVar(v), resDestClause(d))).to[ArrayBuffer]
               }
             case ii: InstCallContext =>
               InstCall(null, null, null, null, null).later(phase4) { i =>
