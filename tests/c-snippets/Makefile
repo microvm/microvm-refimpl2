@@ -11,3 +11,7 @@ callbacktest.so: callbacktest.c
 
 ncs_tests.so: ncs_tests.c
 	$(CC) -std=c11 -fPIC -shared -I $(MU_INCLUDE) -o ncs_tests.so ncs_tests.c
+
+.PHONY: clean
+clean:
+	rm *.so

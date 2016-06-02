@@ -228,7 +228,7 @@ void nop_freer(MuValue *values, MuCPtr freerdata) {
 }
 
 void simple_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
-        MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
+        MuStackRefValue stack, MuWPID wpid, MuTrapHandlerResult *result,
         MuStackRefValue *new_stack, MuValue **values, int *nvalues,
         MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
         MuCPtr userdata) {
@@ -341,7 +341,7 @@ bool test_traps(MuVM *mvm) {
 }
 
 void load_bundle_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
-        MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
+        MuStackRefValue stack, MuWPID wpid, MuTrapHandlerResult *result,
         MuStackRefValue *new_stack, MuValue **values, int *nvalues,
         MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
         MuCPtr userdata) {
@@ -368,7 +368,7 @@ void load_bundle_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
     MU_ASSERT_EQUALS_TRAP(n, 53LL, PRId64);
 
     MuIRefValue hg_cmagic_iref = ctx->handle_from_global(ctx, ID("@g_cmagic"));
-    MuIntValue  hg_cmagic_value = ctx->load(ctx, MU_NOT_ATOMIC, hg_cmagic_iref);
+    MuIntValue  hg_cmagic_value = ctx->load(ctx, MU_ORD_NOT_ATOMIC, hg_cmagic_iref);
     int64_t g_cmagic = ctx->handle_to_sint64(ctx, hg_cmagic_value);
     muprintf("Global value @g_cmagic is %" PRId64 "\n", g_cmagic);
     MU_ASSERT_EQUALS_TRAP(g_cmagic, 52LL, PRId64);
@@ -502,8 +502,8 @@ bool test_memory_ops(MuVM *mvm) {
 
     MuRefValue r1i = ctx->get_iref(ctx, r1);
     
-    ctx->store(ctx, MU_SEQ_CST, r1i, I64_10);
-    MuIntValue l = ctx->load(ctx, MU_SEQ_CST, r1i);
+    ctx->store(ctx, MU_ORD_SEQ_CST, r1i, I64_10);
+    MuIntValue l = ctx->load(ctx, MU_ORD_SEQ_CST, r1i);
     int64_t lv   = ctx->handle_to_sint64(ctx, l);
 
     MU_ASSERT_EQUALS(lv, 10LL, PRId64);
@@ -511,9 +511,9 @@ bool test_memory_ops(MuVM *mvm) {
     int succ1;
     int succ2;
 
-    MuIntValue res1 = ctx->cmpxchg(ctx, MU_SEQ_CST, MU_SEQ_CST, 0,
+    MuIntValue res1 = ctx->cmpxchg(ctx, MU_ORD_SEQ_CST, MU_ORD_SEQ_CST, 0,
             r1i, I64_10, I64_4, &succ1);
-    MuIntValue res2 = ctx->cmpxchg(ctx, MU_SEQ_CST, MU_SEQ_CST, 0,
+    MuIntValue res2 = ctx->cmpxchg(ctx, MU_ORD_SEQ_CST, MU_ORD_SEQ_CST, 0,
             r1i, I64_10, I64_3, &succ2);
 
     MU_ASSERT_EQUALS(succ1, 1, "d");
@@ -525,8 +525,8 @@ bool test_memory_ops(MuVM *mvm) {
     MU_ASSERT_EQUALS(res1v, 10LL, PRId64);
     MU_ASSERT_EQUALS(res2v, 4LL , PRId64);
 
-    MuIntValue res3 = ctx->atomicrmw(ctx, MU_SEQ_CST, MU_ADD, r1i, I64_10);
-    MuIntValue res4 = ctx->load(ctx, MU_SEQ_CST, r1i);
+    MuIntValue res3 = ctx->atomicrmw(ctx, MU_ORD_SEQ_CST, MU_ARMW_ADD, r1i, I64_10);
+    MuIntValue res4 = ctx->load(ctx, MU_ORD_SEQ_CST, r1i);
 
     int64_t res3v = ctx->handle_to_sint64(ctx, res3);
     int64_t res4v = ctx->handle_to_sint64(ctx, res4);
@@ -534,7 +534,7 @@ bool test_memory_ops(MuVM *mvm) {
     MU_ASSERT_EQUALS(res3v, 4LL , PRId64);
     MU_ASSERT_EQUALS(res4v, 14LL, PRId64);
 
-    ctx->fence(ctx, MU_SEQ_CST);
+    ctx->fence(ctx, MU_ORD_SEQ_CST);
 
     ctx->close_context(ctx);
 
@@ -542,7 +542,7 @@ bool test_memory_ops(MuVM *mvm) {
 }
 
 void osr_bundle_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
-        MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
+        MuStackRefValue stack, MuWPID wpid, MuTrapHandlerResult *result,
         MuStackRefValue *new_stack, MuValue **values, int *nvalues,
         MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
         MuCPtr userdata) {
@@ -740,7 +740,7 @@ struct wp_trap_data {
 };
 
 void wp_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
-        MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
+        MuStackRefValue stack, MuWPID wpid, MuTrapHandlerResult *result,
         MuStackRefValue *new_stack, MuValue **values, int *nvalues,
         MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
         MuCPtr userdata) {
@@ -835,7 +835,7 @@ int native_callback(int v2) {
 }
 
 void native_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
-        MuStackRefValue stack, int wpid, MuTrapHandlerResult *result,
+        MuStackRefValue stack, MuWPID wpid, MuTrapHandlerResult *result,
         MuStackRefValue *new_stack, MuValue **values, int *nvalues,
         MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
         MuCPtr userdata) {
@@ -872,7 +872,7 @@ bool test_native(MuVM *mvm) {
 
     MuFuncRefValue hplus_two = ctx->handle_from_func(ctx, ID("@plus_two"));
     MuIntValue     hcookie   = ctx->handle_from_sint64(ctx, 2LL, 64);
-    MuUFPValue hplus_two_fp  = ctx->expose(ctx, hplus_two, MU_DEFAULT, hcookie);
+    MuUFPValue hplus_two_fp  = ctx->expose(ctx, hplus_two, MU_CC_DEFAULT, hcookie);
 
     MuCFP plus_two_fp = ctx->handle_to_fp(ctx, hplus_two_fp);
     plus_two = (int(*)(int))plus_two_fp;
@@ -881,7 +881,7 @@ bool test_native(MuVM *mvm) {
     
     MuIRefValue hg_native_callback  = ctx->handle_from_global(ctx, ID("@g_native_callback"));
     MuUFPValue  hnative_callback_fp = ctx->handle_from_fp(ctx, ID("@native_callback.fp"), (MuCFP)native_callback);
-    ctx->store(ctx, MU_NOT_ATOMIC, hg_native_callback, hnative_callback_fp);
+    ctx->store(ctx, MU_ORD_NOT_ATOMIC, hg_native_callback, hnative_callback_fp);
 
     // Preapare an object for the @native_test function. Pin the object to write
     // to it in C assignment expression.
@@ -905,7 +905,7 @@ bool test_native(MuVM *mvm) {
 
     mvm->execute(mvm);
 
-    ctx->unexpose(ctx, MU_DEFAULT, hplus_two_fp);
+    ctx->unexpose(ctx, MU_CC_DEFAULT, hplus_two_fp);
 
     ctx->close_context(ctx);
 
