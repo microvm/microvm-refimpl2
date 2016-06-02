@@ -2,6 +2,7 @@ package uvm.refimpl
 
 import uvm._
 import uvm.refimpl.itpr._
+import uvm.ir.irbuilder._
 
 /**
  * Mix-in to MuCtx to support the IR building API.
@@ -12,11 +13,16 @@ trait MuCtxIRBuilderPart {
   protected def addHandle[T <: MuValue](h: T): T
 
   @inline
-  def IRNODEREF = InternalTypes.IRNODEREF
+  private def IRNODEREF = InternalTypes.IRNODEREF
+  
+  private def irBuilder = microVM.irBuilder
+  
+  private def makeConcreteMuIRNode(node: IRNode): MuIRNode = {
+    ???
+  }
   
   def newBundle(): MuBundleNode = {
-    val b = new TrantientBundle()
-    val node = new BundleNode(b)
+    val node = irBuilder.newBundle()
     addHandle(MuBundleNode(IRNODEREF, BoxIRNode(Some(node))))
   }
 
@@ -31,7 +37,9 @@ trait MuCtxIRBuilderPart {
   }
   
   def getNode(b: MuBundleNode, id: Int): MuIRNode = {
-    ???
+    require(!b.isNull, "bundle must not be NULL")
+    val node = irBuilder.getNode(b.vb.node.get.asInstanceOf[BundleNode], id)
+    addHandle(makeConcreteMuIRNode(node))
   }
   
   def getID(node: MuChildNode): Int = {

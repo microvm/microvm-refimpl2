@@ -1,19 +1,17 @@
-package uvm.refimpl
+package uvm.ir.irbuilder
 
 import scala.collection.mutable.ArrayBuffer
-
 import uvm.utils.IDFactory
 import uvm._
 import uvm.types._
 import uvm.ssavariables._
-import uvm.comminsts.CommInst
 import uvm.comminsts.CommInsts
 
 object DestKind extends Enumeration {
   val NORMAL, EXCEPT, TRUE, FALSE, DEFAULT, DISABLED, ENABLED = Value
 }
 
-private[refimpl] object IRBuilder {
+private[irbuilder] object IRBuilder {
   type BN = BundleNode
   type CN[+T <: Identified] = ChildNode[T]
 
@@ -48,9 +46,9 @@ class IRBuilder(globalBundle: GlobalBundle, idFactory: IDFactory) {
     node
   }
 
-  def getNode(b: BN, id: Int): CN[_] = {
+  def getNode(b: BN, id: Int): CN[_ <: Identified] = {
     val ent = globalBundle.allNs.get(id).getOrElse {
-      throw new UvmRuntimeException("No entity has id %d".format(id))
+      throw new IllegalArgumentException("No entity has id %d".format(id))
     }
 
     new ChildNode(ent)

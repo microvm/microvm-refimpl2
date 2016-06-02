@@ -8,6 +8,9 @@ import uvm.ssavariables._
 import uvm.ssavariables.AtomicRMWOptr._
 import uvm.ssavariables.MemoryOrder._
 import uvm.types._
+import uvm.ir.irbuilder.IRNode
+import uvm.ir.irbuilder.ChildNode
+import uvm.ir.irbuilder.BundleNode
 
 object MuValue {
   def apply(ty: Type, vb: ValueBox): MuValue = (ty, vb) match {

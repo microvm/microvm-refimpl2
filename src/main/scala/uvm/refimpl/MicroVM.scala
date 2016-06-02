@@ -12,6 +12,7 @@ import uvm.refimpl.mem.TypeSizes.Word
 import uvm.refimpl.nat.NativeCallHelper
 import uvm.staticanalysis.StaticAnalyzer
 import uvm.utils.IDFactory
+import uvm.ir.irbuilder.IRBuilder
 
 object MicroVM {
   val DEFAULT_SOS_SIZE: Word = 2L * 1024L * 1024L; // 2MiB
@@ -49,7 +50,9 @@ class MicroVM(vmConf: VMConf) {
   val trapManager = new TrapManager()
   val contexts = new HashSet[MuCtx]()
 
-  val irReader = new UIRTextReader(new IDFactory(MicroVM.FIRST_CLIENT_USABLE_ID), recordSourceInfo=vmConf.sourceInfo)
+  val idFactory = new IDFactory(MicroVM.FIRST_CLIENT_USABLE_ID)
+  val irBuilder = new IRBuilder(globalBundle, idFactory)
+  val irReader = new UIRTextReader(idFactory, recordSourceInfo=vmConf.sourceInfo)
   val hailScriptLoader = new HailScriptLoader(recordSourceInfo=vmConf.sourceInfo)
   val staticAnalyzer = new StaticAnalyzer()
 

@@ -4,6 +4,7 @@ import uvm._
 import uvm.types._
 import uvm.refimpl._
 import uvm.refimpl.mem.TypeSizes.Word
+import uvm.ir.irbuilder.IRNode
 
 abstract class ValueBox {
   def copyFrom(other: ValueBox): Unit
