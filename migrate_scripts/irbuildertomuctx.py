@@ -12,29 +12,29 @@ end = "SCRIPT: END HERE"
 
 replaces = [(re.compile(x), y) for (x,y) in [
     (r'BN', 'MuBundleNode'),
-    (r'CN\[_\s*<:\s*Identified\]', 'MuChildNode'),
-    (r'CN\[IdentifiedSettable\]', 'MuChildNode'),
-    (r'CN\[Type\w*\]', 'MuTypeNode'),
-    (r'CN\[Abstract\w+Type\]', 'MuTypeNode'),
-    (r'CN\[FuncSig\]', 'MuFuncSigNode'),
-    (r'CN\[Const\w+\]', 'MuConstNode'),
-    (r'CN\[GlobalCell\]', 'MuGlobalNode'),
-    (r'CN\[Function\]', 'MuFuncNode'),
-    (r'CN\[ExposedFunc\]', 'MuExpFuncNode'),
-    (r'CN\[FuncVer\]', 'MuFuncVerNode'),
-    (r'CN\[BasicBlock\]', 'MuBBNode'),
-    (r'CN\[BB\]', 'MuBBNode'),
-    (r'CN\[SSAVariable\]', 'MuVarNode'),
-    (r'CN\[Var\]', 'MuVarNode'),
-    (r'CN\[LocalVariable\]', 'MuLocalVarNode'),
-    (r'CN\[NorParam\]', 'MuNorParamNode'),
-    (r'CN\[ExcParam\]', 'MuExcParamNode'),
-    (r'CN\[InstResult\]', 'MuInstResNode'),
-    (r'CN\[Inst\w+\]', 'MuInstNode'),
-    (r'CN\[HasKeepAliveClause\]', 'MuInstNode'),
+    (r'(CN|ChildNode)\[(_\s*<:\s*)?Identified\]', 'MuChildNode'),
+    (r'(CN|ChildNode)\[(_\s*<:\s*)?IdentifiedSettable\]', 'MuChildNode'),
+    (r'(CN|ChildNode)\[Type\w*\]', 'MuTypeNode'),
+    (r'(CN|ChildNode)\[Abstract\w+Type\]', 'MuTypeNode'),
+    (r'(CN|ChildNode)\[FuncSig\]', 'MuFuncSigNode'),
+    (r'(CN|ChildNode)\[Const\w+\]', 'MuConstNode'),
+    (r'(CN|ChildNode)\[GlobalCell\]', 'MuGlobalNode'),
+    (r'(CN|ChildNode)\[Function\]', 'MuFuncNode'),
+    (r'(CN|ChildNode)\[ExposedFunc\]', 'MuExpFuncNode'),
+    (r'(CN|ChildNode)\[FuncVer\]', 'MuFuncVerNode'),
+    (r'(CN|ChildNode)\[BasicBlock\]', 'MuBBNode'),
+    (r'(CN|ChildNode)\[BB\]', 'MuBBNode'),
+    (r'(CN|ChildNode)\[SSAVariable\]', 'MuVarNode'),
+    (r'(CN|ChildNode)\[Var\]', 'MuVarNode'),
+    (r'(CN|ChildNode)\[LocalVariable\]', 'MuLocalVarNode'),
+    (r'(CN|ChildNode)\[NorParam\]', 'MuNorParamNode'),
+    (r'(CN|ChildNode)\[ExcParam\]', 'MuExcParamNode'),
+    (r'(CN|ChildNode)\[InstResult\]', 'MuInstResNode'),
+    (r'(CN|ChildNode)\[Inst\w+\]', 'MuInstNode'),
+    (r'(CN|ChildNode)\[HasKeepAliveClause\]', 'MuInstNode'),
     ]]
 
-sig = re.compile(r'^(  def (\w+)\(([^)]*)\):\s+\w+\s+=)', re.MULTILINE)
+sig = re.compile(r'^(  def\s+(\w+)\s*\(([^)]*)\):\s+\w+\s+=)', re.MULTILINE)
 arg = re.compile(r'(\w*):\s+([a-zA-Z0-9\[\]]+)')
 node_like = re.compile(r'Mu\w+Node')
 node_seq_like = re.compile(r'Seq\[Mu\w+Node\]')

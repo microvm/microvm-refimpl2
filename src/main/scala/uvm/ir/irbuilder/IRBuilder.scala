@@ -58,12 +58,16 @@ class IRBuilder(globalBundle: GlobalBundle, idFactory: IDFactory) {
     new ChildNode(ent)
   }
 
-  def getID(b: BN, node: CN[_ <: Identified]): Int = {
+  def getID(b: BN, node: CN[Identified]): Int = {
     node.id
   }
 
   def setName(b: BN, node: CN[IdentifiedSettable], name: String): Unit = {
     node.name = Some(name)
+    // NOTE: When the name is set, the TrantientBundle's namespaces still do not index the object by its name,
+    // because the objects are added before their names are set. But by the time when the TrantientBundle is merged with
+    // the GlobalBundle, all objects in all namespaces will have been re-added to the GlobalBundle. For this reason,
+    // globalBundle.someNs.get("@the.name.of.object") will still return the object as long as it has a name.
   }
 
   // format: OFF

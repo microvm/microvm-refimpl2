@@ -94,9 +94,79 @@ trait MuCtxIRBuilderPart {
     irBuilder.setName(b, node, name)
   }
 
+  def newTypeInt           (b: MuBundleNode, len: Int): MuTypeNode            = {
+    require(!b.isNull, "b must not be NULL")
+    addHandle(irBuilder.newTypeInt(b, len))
+  }
+
+  def newTypeFloat         (b: MuBundleNode):           MuTypeNode          = {
+    require(!b.isNull, "b must not be NULL")
+    addHandle(irBuilder.newTypeFloat(b))
+  }
+
+  def newTypeDouble        (b: MuBundleNode):           MuTypeNode         = {
+    require(!b.isNull, "b must not be NULL")
+    addHandle(irBuilder.newTypeDouble(b))
+  }
+
+  def newTypeUPtr          (b: MuBundleNode):           MuTypeNode           = {
+    require(!b.isNull, "b must not be NULL")
+    addHandle(irBuilder.newTypeUPtr(b))
+  }
+
+  def newTypeUFuncPtr      (b: MuBundleNode):           MuTypeNode       = {
+    require(!b.isNull, "b must not be NULL")
+    addHandle(irBuilder.newTypeUFuncPtr(b))
+  }
+
+  def newTypeVoid          (b: MuBundleNode):           MuTypeNode           = {
+    require(!b.isNull, "b must not be NULL")
+    addHandle(irBuilder.newTypeVoid(b))
+  }
+
+  def newTypeRef           (b: MuBundleNode):           MuTypeNode            = {
+    require(!b.isNull, "b must not be NULL")
+    addHandle(irBuilder.newTypeRef(b))
+  }
+
+  def newTypeIRef          (b: MuBundleNode):           MuTypeNode           = {
+    require(!b.isNull, "b must not be NULL")
+    addHandle(irBuilder.newTypeIRef(b))
+  }
+
+  def newTypeWeakRef       (b: MuBundleNode):           MuTypeNode        = {
+    require(!b.isNull, "b must not be NULL")
+    addHandle(irBuilder.newTypeWeakRef(b))
+  }
+
+  def newTypeFuncRef       (b: MuBundleNode):           MuTypeNode        = {
+    require(!b.isNull, "b must not be NULL")
+    addHandle(irBuilder.newTypeFuncRef(b))
+  }
+
+  def newTypeTagRef64      (b: MuBundleNode):           MuTypeNode       = {
+    require(!b.isNull, "b must not be NULL")
+    addHandle(irBuilder.newTypeTagRef64(b))
+  }
+
+  def newTypeThreadRef     (b: MuBundleNode):           MuTypeNode      = {
+    require(!b.isNull, "b must not be NULL")
+    addHandle(irBuilder.newTypeThreadRef(b))
+  }
+
+  def newTypeStackRef      (b: MuBundleNode):           MuTypeNode       = {
+    require(!b.isNull, "b must not be NULL")
+    addHandle(irBuilder.newTypeStackRef(b))
+  }
+
   def newTypeFrameCursorRef(b: MuBundleNode):           MuTypeNode = {
     require(!b.isNull, "b must not be NULL")
     addHandle(irBuilder.newTypeFrameCursorRef(b))
+  }
+
+  def newTypeIRNodeRef     (b: MuBundleNode):           MuTypeNode      = {
+    require(!b.isNull, "b must not be NULL")
+    addHandle(irBuilder.newTypeIRNodeRef(b))
   }
 
   def newTypeStruct(b: MuBundleNode, fieldTys: Seq[MuTypeNode]):                  MuTypeNode = {
@@ -112,15 +182,52 @@ trait MuCtxIRBuilderPart {
     addHandle(irBuilder.newTypeHybrid(b, fixedTys, varTy))
   }
 
+  def newTypeArray (b: MuBundleNode, elemTy: MuTypeNode, len: Long):              MuTypeNode  = {
+    require(!b.isNull, "b must not be NULL")
+    require(!elemTy.isNull, "elemTy must not be NULL")
+    addHandle(irBuilder.newTypeArray(b, elemTy, len))
+  }
+
   def newTypeVector(b: MuBundleNode, elemTy: MuTypeNode, len: Long):              MuTypeNode = {
     require(!b.isNull, "b must not be NULL")
     require(!elemTy.isNull, "elemTy must not be NULL")
     addHandle(irBuilder.newTypeVector(b, elemTy, len))
   }
 
-  def setTypeUFuncPtr(ufuncptr: MuTypeNode, sig: ChildNode[FuncSig]): Unit = {
+  def setTypeUPtr    (uptr:     MuTypeNode,     ty: MuTypeNode):            Unit = {
+    require(!uptr.isNull, "uptr must not be NULL")
+    require(!ty.isNull, "ty must not be NULL")
+    irBuilder.setTypeUPtr(uptr, ty)
+  }
+
+  def setTypeRef     (ref:      MuTypeNode,      ty: MuTypeNode):     Unit = {
+    require(!ref.isNull, "ref must not be NULL")
+    require(!ty.isNull, "ty must not be NULL")
+    irBuilder.setTypeRef(ref, ty)
+  }
+
+  def setTypeIRef    (iref:     MuTypeNode,     ty: MuTypeNode):     Unit = {
+    require(!iref.isNull, "iref must not be NULL")
+    require(!ty.isNull, "ty must not be NULL")
+    irBuilder.setTypeIRef(iref, ty)
+  }
+
+  def setTypeWeakRef (weakref:  MuTypeNode,  ty: MuTypeNode):     Unit = {
+    require(!weakref.isNull, "weakref must not be NULL")
+    require(!ty.isNull, "ty must not be NULL")
+    irBuilder.setTypeWeakRef(weakref, ty)
+  }
+
+  def setTypeUFuncPtr(ufuncptr: MuTypeNode, sig: MuFuncSigNode): Unit = {
     require(!ufuncptr.isNull, "ufuncptr must not be NULL")
+    require(!sig.isNull, "sig must not be NULL")
     irBuilder.setTypeUFuncPtr(ufuncptr, sig)
+  }
+
+  def setTypeFuncRef (funcref:  MuTypeNode,  sig: MuFuncSigNode): Unit = {
+    require(!funcref.isNull, "funcref must not be NULL")
+    require(!sig.isNull, "sig must not be NULL")
+    irBuilder.setTypeFuncRef(funcref, sig)
   }
 
   def newFuncSig(b: MuBundleNode, paramTys: Seq[MuTypeNode], retTys: Seq[MuTypeNode]): MuFuncSigNode = {
@@ -130,10 +237,35 @@ trait MuCtxIRBuilderPart {
     addHandle(irBuilder.newFuncSig(b, paramTys, retTys))
   }
 
+  def newConstInt   (b: MuBundleNode, ty: MuTypeNode, value: BigInt): MuConstNode    = {
+    require(!b.isNull, "b must not be NULL")
+    require(!ty.isNull, "ty must not be NULL")
+    addHandle(irBuilder.newConstInt(b, ty, value))
+  }
+
+  def newConstFloat (b: MuBundleNode, ty: MuTypeNode, value: Float):  MuConstNode  = {
+    require(!b.isNull, "b must not be NULL")
+    require(!ty.isNull, "ty must not be NULL")
+    addHandle(irBuilder.newConstFloat(b, ty, value))
+  }
+
   def newConstDouble(b: MuBundleNode, ty: MuTypeNode, value: Double): MuConstNode = {
     require(!b.isNull, "b must not be NULL")
     require(!ty.isNull, "ty must not be NULL")
     addHandle(irBuilder.newConstDouble(b, ty, value))
+  }
+
+  def newConstNull  (b: MuBundleNode, ty: MuTypeNode):                MuConstNode   = {
+    require(!b.isNull, "b must not be NULL")
+    require(!ty.isNull, "ty must not be NULL")
+    addHandle(irBuilder.newConstNull(b, ty))
+  }
+
+  def newConstSeq   (b: MuBundleNode, ty: MuTypeNode, elems: Seq[MuConstNode]): MuConstNode = {
+    require(!b.isNull, "b must not be NULL")
+    require(!ty.isNull, "ty must not be NULL")
+    for((n,i) <- elems.zipWithIndex) require(!n.isNull, "elems[%d] must not be NULL".format(i))
+    addHandle(irBuilder.newConstSeq(b, ty, elems))
   }
 
   def newGlobalCell(b: MuBundleNode, ty: MuTypeNode): MuGlobalNode = {
@@ -486,6 +618,8 @@ trait MuCtxIRBuilderPart {
     for((n,i) <- args.zipWithIndex) require(!n.isNull, "args[%d] must not be NULL".format(i))
     addHandle(irBuilder.newCommInst(bb, opcode, flags, tys, sigs, args))
   }
+
+
 
   // END: auto-generated code
 }
