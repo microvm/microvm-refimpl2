@@ -28,7 +28,7 @@ class SourceInfoRepoTest extends UvmTestBase {
     } catch {
       case e: TestFailedException => throw e
       case e: Exception => // expected
-        e.printStackTrace()
+        travisFriendlyExceptionPrint(e)
     }
     
   }

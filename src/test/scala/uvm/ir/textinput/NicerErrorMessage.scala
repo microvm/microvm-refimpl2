@@ -24,7 +24,7 @@ class NicerErrorMessage extends UvmTestBase with TestingBundlesValidators {
       val b = parseFile("tests/uvm-parsing-test/bundle-with-error.uir", gb)
     } catch {
       case e: TextIRParsingException => // expected
-        e.printStackTrace()
+        travisFriendlyExceptionPrint(e)
     }
   }
 

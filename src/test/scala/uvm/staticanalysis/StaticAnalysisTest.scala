@@ -18,6 +18,9 @@ class StaticAnalysisTest extends UvmTestBase {
     val ir = r.read(new java.io.StringReader(uir), globalBundle)
     ir
   }
+  
+  def printException(e: Exception): Unit = travisFriendlyExceptionPrint(e)
+
 
   behavior of "StaticAnalyzer"
   
@@ -35,7 +38,7 @@ class StaticAnalysisTest extends UvmTestBase {
       fail()
     } catch {
       case e: StaticCheckingException => // expected
-        e.printStackTrace()
+        printException(e)
     }
     
   }

@@ -18,8 +18,10 @@ object LogSetter {
 trait LogSetter {
   import LogSetter._
 
+  def isTravis = LogSetter.isTravis
+
   val ROOT_LOGGER_NAME = org.slf4j.Logger.ROOT_LOGGER_NAME
-  
+
   if (isTravis) { // Travis does not like logging, so just heighten the log level whenever we run tests.
     setLevel(ROOT_LOGGER_NAME, WARN)
   }
@@ -32,4 +34,11 @@ trait LogSetter {
     }
   }
 
+  def travisFriendlyExceptionPrint(e: Exception): Unit = {
+    if (isTravis) {
+      println("Eror message generated. This is expected.")
+    } else {
+      e.printStackTrace()
+    }
+  }
 }
