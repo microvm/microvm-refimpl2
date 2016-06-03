@@ -362,7 +362,7 @@ class StaticAnalyzer {
     /** Error in a funcver, basic block and an instruction. */
     def errorFBI(msg: String, pretty: Seq[AnyRef] = Seq(), cause: Throwable = null)(
       implicit fv: FuncVer, bb: BasicBlock, inst: Instruction): StaticCheckingException = {
-      val appendedMsg = msg + ("\nIn FuncVer %s BB %s Inst %s".format(fv.repr, bb.repr, inst.repr))
+      val appendedMsg = msg + ("\nIn FuncVer %s BB %s Inst %s %s".format(fv.repr, bb.repr, inst.repr, inst))
       error(appendedMsg, pretty, cause)
     }
 

@@ -134,6 +134,8 @@ class IRBuilder(globalBundle: GlobalBundle, idFactory: IDFactory) {
 
   def newBB(fv: CN[FuncVer]): CN[BasicBlock] = {
     val bb = new BasicBlock(fv)
+    
+    fv.bbs += bb
 
     bb.norParams = new ArrayBuffer()
     bb.excParam = None
@@ -239,6 +241,7 @@ class IRBuilder(globalBundle: GlobalBundle, idFactory: IDFactory) {
   }
 
   private def newInst[T <: Instruction](bb: BasicBlock, inst: T): CN[T] = {
+    bb.insts += inst
     inst.bb = bb
     inst.results = new ArrayBuffer(2)
     newObj(bb.localInstNs, inst)
