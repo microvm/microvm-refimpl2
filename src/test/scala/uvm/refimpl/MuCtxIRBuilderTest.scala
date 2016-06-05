@@ -4,6 +4,9 @@ import org.scalatest._
 
 import ch.qos.logback.classic.Level._
 import uvm._
+import uvm.comminsts.CommInsts
+import uvm.ir.irbuilder.DestKind
+import uvm.ir.textinput.ExtraMatchers
 import uvm.refimpl._
 import uvm.refimpl.RichMuCtx._
 import uvm.refimpl.itpr._
@@ -12,11 +15,21 @@ import uvm.ssavariables._
 import uvm.ssavariables.AtomicRMWOptr._
 import uvm.ssavariables.MemoryOrder._
 import uvm.types._
-import uvm.ir.textinput.ExtraMatchers
-import uvm.ir.irbuilder.DestKind
-import uvm.comminsts.CommInsts
+
+object MuCtxIRBuilderTest {
+  implicit class MagicalHandle(val handle: MuInstNode) extends AnyVal {
+    def R(implicit ctx: MuCtx): MuInstResNode = ctx.newInstRes(handle)
+    def R2(implicit ctx: MuCtx): (MuInstResNode, MuInstResNode) = {
+      val h0 = ctx.newInstRes(handle)
+      val h1 = ctx.newInstRes(handle)
+      (h0, h1)
+    }
+  }
+}
 
 class MuCtxIRBuilderTest extends UvmBundleTesterBase with ExtraMatchers {
+  import MuCtxIRBuilderTest._
+
   setLogLevels(ROOT_LOGGER_NAME -> INFO,
     "uvm" -> DEBUG)
     
@@ -362,4 +375,105 @@ class MuCtxIRBuilderTest extends UvmBundleTesterBase with ExtraMatchers {
     
     ctx.closeContext()
   }
+  
+  
+  it should "create more instructions" in {
+    implicit val ctx = microVM.newContext()
+    
+    val b = ctx.newBundle()
+    val hi1 = ctx.newTypeInt(b, 1)
+    val hi8 = ctx.newTypeInt(b, 8)
+    val hi64 = ctx.newTypeInt(b, 64)
+    val hf = ctx.newTypeFloat(b)
+    val hf4 = ctx.newTypeVector(b, hf, 4)
+    
+    val cf0 = ctx.newConstFloat(b, hf, 0.0f)
+    val cf1 = ctx.newConstFloat(b, hf, 1.0f)
+    val cf2 = ctx.newConstFloat(b, hf, 2.0f)
+    val cf3 = ctx.newConstFloat(b, hf, 3.0f)
+    val cv0 = ctx.newConstSeq(b, hf4, Seq(cf0, cf0, cf1, cf1))
+    val cv0_id = ctx.getID(b, cv0)
+    val cv1 = ctx.newConstSeq(b, hf4, Seq(cf2, cf3, cf2, cf3))
+    val cv1_id = ctx.getID(b, cv1)
+    
+    val hsig = ctx.newFuncSig(b, Seq(hf4, hf4), Seq())
+    val hfunc = ctx.newFunc(b, hsig)
+    val hfunc_id = ctx.getID(b, hfunc)
+    val hfv = ctx.newFuncVer(b, hfunc)
+    val hentry = ctx.newBB(hfv)
+    val hentry_p0 = ctx.newNorParam(hentry, hf4)
+    val hentry_p1 = ctx.newNorParam(hentry, hf4)
+    val hadd_r = ctx.newBinOp(hentry, BinOptr.FADD, hf4, hentry_p0, hentry_p1).R
+    
+    val const0 = ctx.newConstInt(b, hi64, 0)
+    val const1 = ctx.newConstInt(b, hi64, 1)
+    val hp00_r = ctx.newExtractElement(hentry, hf4, hi64, hentry_p0, const0).R
+    val hp01_r = ctx.newExtractElement(hentry, hf4, hi64, hentry_p0, const1).R
+    val hfolt_r = ctx.newCmp(hentry, CmpOptr.FOLT, hf, hp00_r, hp01_r).R
+    val hsel_r = ctx.newSelect(hentry, hi1, hf, hfolt_r, hp00_r, hp01_r).R
+    
+    val hts = ctx.newTypeStruct(b, Seq(hi64, hf))
+    val constf1 = ctx.newConstFloat(b, hf, 1.0f)
+    val consts = ctx.newConstSeq(b, hts, Seq(const1, constf1))
+    
+    val hev_r = ctx.newExtractValue(hentry, hts, 0, consts).R
+    val hiv_r = ctx.newInsertValue(hentry, hts, 0, consts, const0).R
+    
+    val hnew_r = ctx.newNew(hentry, hi64).R
+    
+    val hth = ctx.newTypeHybrid(b, Seq(hi64), hi8)
+    val hnewhybrid_r = ctx.newNewHybrid(hentry, hth, hi64, const1).R
+    
+    val halloca_r = ctx.newAlloca(hentry, hi64).R
+    val hallocahybrid_r = ctx.newAllocaHybrid(hentry, hth, hi64, const1).R
+    
+    val hgetiref_r = ctx.newGetIRef(hentry, hi64, hnew_r).R
+    val hgetfieldiref_r = ctx.newGetFieldIRef(hentry, false, hth, 0, hallocahybrid_r).R
+    
+    val hta = ctx.newTypeArray(b, hi64, 10)
+    val halloca2_r = ctx.newAlloca(hentry, hta).R
+    
+    val hgetelemiref_r = ctx.newGetElemIRef(hentry, false, hta, hi64, halloca2_r, const0).R
+    val hshiftiref_r = ctx.newShiftIRef(hentry, false, hi64, hi64, hgetelemiref_r, const1).R
+    val hgetvarpartiref_r = ctx.newGetVarPartIRef(hentry, false, hth, hgetiref_r).R
+    
+    val hload_r = ctx.newLoad(hentry, false, MemoryOrder.SEQ_CST, hi64, halloca_r).R
+    val hstore = ctx.newStore(hentry, false, MemoryOrder.SEQ_CST, hi64, halloca_r, const1)
+    
+    val (hcmpxchg_r, hcmpxchg_s) = ctx.newCmpXchg(hentry, false, false, MemoryOrder.SEQ_CST, MemoryOrder.SEQ_CST,
+        hi64, halloca_r, const1, const0).R2
+        
+    val hatomicrmw_r = ctx.newAtomicRMW(hentry, false, MemoryOrder.SEQ_CST, AtomicRMWOptr.ADD,
+        hi64, halloca_r, const1).R
+
+    val hfence = ctx.newFence(hentry, MemoryOrder.SEQ_CST)
+    
+    val hsigvv = ctx.newFuncSig(b, Seq(), Seq())
+    val hdumbfunc = ctx.newFunc(b, hsigvv)
+    val hdumbfv = ctx.newFuncVer(b, hdumbfunc)
+    val hdumbentry = ctx.newBB(hdumbfv)
+    val hdumbthreadexit = ctx.newCommInst(hdumbentry, CommInsts("@uvm.thread_exit").id, Seq(), Seq(), Seq(), Seq())
+    
+    val hnewstack_r = ctx.newCommInst(hentry, CommInsts("@uvm.new_stack").id, Seq(), Seq(), Seq(hsigvv), Seq(hdumbfunc)).R
+    val hnewthread = ctx.newNewThread(hentry, hnewstack_r, None)
+    val hnewthread_r = hnewthread.R
+    ctx.setNewStackPassValues(hnewthread, Seq(), Seq())
+    
+    val htrap = ctx.newTrap(hentry, Seq())
+
+    val hthreadexit = ctx.newCommInst(hentry, CommInsts("@uvm.thread_exit").id, Seq(), Seq(), Seq(), Seq())
+    
+    ctx.loadBundleFromNode(b)
+    
+    val func = ctx.handleFromFunc(hfunc_id)
+    val a0 = ctx.handleFromConst(cv0_id)
+    val a1 = ctx.handleFromConst(cv0_id)
+
+    testFunc(ctx, func, Seq(a0, a1), None) { (ctx, th, st, wpid) =>
+      TrapHandlerResult.Rebind(st, HowToResume.PassValues(Seq()))
+    }
+    
+    ctx.closeContext()
+  }
+  
 }
