@@ -13,19 +13,17 @@ import com.kenai.jffi.Closure.Buffer
 import com.kenai.jffi.{ Type => JType }
 import com.typesafe.scalalogging.Logger
 import NativeSupport._
-import PlatformConstants.WORD_SIZE_BYTES
-import PlatformConstants.Word
+import PlatformConstants._
 import jnr.ffi.ObjectReferenceManager
 import jnr.ffi.Pointer
 import uvm.refimpl._
-import uvm.ssavariables.MemoryOrder
-import uvm.ssavariables.AtomicRMWOptr
-import uvm.ssavariables.Flag
-import uvm.ssavariables.Flag
+import uvm.ssavariables._
 import com.kenai.jffi.Invoker
 import com.kenai.jffi.CallContext
 import com.kenai.jffi.HeapInvocationBuffer
 import NativeClientSupport._
+
+import uvm.ir.irbuilder.DestKind
 
 object NativeTrapHandler {
   val jffiInvoker = Invoker.getInstance
@@ -281,12 +279,7 @@ object NativeMuCtx {
   def new_thread(ctx: MuCtx, stack: MuStackRefValue, threadLocal: Option[MuRefValue], htr: MuHowToResume, vals: MuValueFakArrayPtr, nvals: Int, exc: MuValueFak): MuValueFak = {
     val scalaHtr = htr match {
       case MU_REBIND_PASS_VALUES => {
-        val values = for (i <- 0L until nvals) yield {
-          val addr = vals + i * WORD_SIZE_BYTES
-          val valFak = theMemory.getAddress(addr)
-          val v = getMuValueNotNull(valFak)
-          v
-        }
+        val values = readFromValueFakArray(vals, nvals)
         HowToResume.PassValues(values)
       }
       case MU_REBIND_THROW_EXC => {
@@ -298,7 +291,7 @@ object NativeMuCtx {
     exposeMuValue(ctx, rv)
   }
   def kill_stack(ctx: MuCtx, stack: MuStackRefValue): Unit = ctx.killStack(stack)
-  def set_threadlocal(ctx: MuCtx, thread: MuThreadRefValue, threadLocal:MuRefValue): Unit = {
+  def set_threadlocal(ctx: MuCtx, thread: MuThreadRefValue, threadLocal: MuRefValue): Unit = {
     ctx.setThreadlocal(thread, threadLocal)
   }
   def get_threadlocal(ctx: MuCtx, thread: MuThreadRefValue): MuValueFak = {
@@ -346,6 +339,100 @@ object NativeMuCtx {
 
   def expose(ctx: MuCtx, func: MuFuncRefValue, call_conv: MuCallConv, cookie: MuIntValue): MuValueFak = exposeMuValue(ctx, ctx.expose(func, call_conv, cookie))
   def unexpose(ctx: MuCtx, call_conv: MuCallConv, value: MuUFPValue): Unit = ctx.unexpose(call_conv, value)
+
+  // PASTE FROM HERE
+  def new_bundle(ctx: MuCtx): MuValueFak = exposeMuValue(ctx, ctx.newBundle())
+  def load_bundle_from_node(ctx: MuCtx, b: MuBundleNode): Unit = ctx.loadBundleFromNode(b)
+  def abort_bundle_node(ctx: MuCtx, b: MuBundleNode): Unit = ctx.abortBundleNode(b)
+  def get_node(ctx: MuCtx, b: MuBundleNode, id: MuID): MuValueFak = exposeMuValue(ctx, ctx.getNode(b, id))
+  def get_id(ctx: MuCtx, b: MuBundleNode, node: MuChildNode): MuID = ctx.getID(b, node)
+  def set_name(ctx: MuCtx, b: MuBundleNode, node: MuChildNode, name: MuName): Unit = ctx.setName(b, node, name)
+  def new_type_int(ctx: MuCtx, b: MuBundleNode, len: Int): MuValueFak = exposeMuValue(ctx, ctx.newTypeInt(b, len))
+  def new_type_float(ctx: MuCtx, b: MuBundleNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeFloat(b))
+  def new_type_double(ctx: MuCtx, b: MuBundleNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeDouble(b))
+  def new_type_uptr(ctx: MuCtx, b: MuBundleNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeUPtr(b))
+  def set_type_uptr(ctx: MuCtx, uptr: MuTypeNode, ty: MuTypeNode): Unit = ctx.setTypeUPtr(uptr, ty)
+  def new_type_ufuncptr(ctx: MuCtx, b: MuBundleNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeUFuncPtr(b))
+  def set_type_ufuncptr(ctx: MuCtx, ufuncptr: MuTypeNode, sig: MuFuncSigNode): Unit = ctx.setTypeUFuncPtr(ufuncptr, sig)
+  def new_type_struct(ctx: MuCtx, b: MuBundleNode, fieldtys: MuValueFakArrayPtr, nfieldtys: Int): MuValueFak = exposeMuValue(ctx, ctx.newTypeStruct(b, readFromValueFakArray(fieldtys, nfieldtys)))
+  def new_type_hybrid(ctx: MuCtx, b: MuBundleNode, fixedtys: MuValueFakArrayPtr, nfixedtys: Int, varty: MuTypeNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeHybrid(b, readFromValueFakArray(fixedtys, nfixedtys), varty))
+  def new_type_array(ctx: MuCtx, b: MuBundleNode, elemty: MuTypeNode, len: Long): MuValueFak = exposeMuValue(ctx, ctx.newTypeArray(b, elemty, len))
+  def new_type_vector(ctx: MuCtx, b: MuBundleNode, elemty: MuTypeNode, len: Long): MuValueFak = exposeMuValue(ctx, ctx.newTypeVector(b, elemty, len))
+  def new_type_void(ctx: MuCtx, b: MuBundleNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeVoid(b))
+  def new_type_ref(ctx: MuCtx, b: MuBundleNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeRef(b))
+  def set_type_ref(ctx: MuCtx, ref: MuTypeNode, ty: MuTypeNode): Unit = ctx.setTypeRef(ref, ty)
+  def new_type_iref(ctx: MuCtx, b: MuBundleNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeIRef(b))
+  def set_type_iref(ctx: MuCtx, iref: MuTypeNode, ty: MuTypeNode): Unit = ctx.setTypeIRef(iref, ty)
+  def new_type_weakref(ctx: MuCtx, b: MuBundleNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeWeakRef(b))
+  def set_type_weakref(ctx: MuCtx, weakref: MuTypeNode, ty: MuTypeNode): Unit = ctx.setTypeWeakRef(weakref, ty)
+  def new_type_funcref(ctx: MuCtx, b: MuBundleNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeFuncRef(b))
+  def set_type_funcref(ctx: MuCtx, funcref: MuTypeNode, sig: MuFuncSigNode): Unit = ctx.setTypeFuncRef(funcref, sig)
+  def new_type_tagref64(ctx: MuCtx, b: MuBundleNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeTagRef64(b))
+  def new_type_threadref(ctx: MuCtx, b: MuBundleNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeThreadRef(b))
+  def new_type_stackref(ctx: MuCtx, b: MuBundleNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeStackRef(b))
+  def new_type_framecursorref(ctx: MuCtx, b: MuBundleNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeFrameCursorRef(b))
+  def new_type_irnoderef(ctx: MuCtx, b: MuBundleNode): MuValueFak = exposeMuValue(ctx, ctx.newTypeIRNodeRef(b))
+  def new_funcsig(ctx: MuCtx, b: MuBundleNode, paramtys: MuValueFakArrayPtr, nparamtys: Int, rettys: MuValueFakArrayPtr, nrettys: Int): MuValueFak = exposeMuValue(ctx, ctx.newFuncSig(b, readFromValueFakArray(paramtys, nparamtys), readFromValueFakArray(rettys, nrettys)))
+  def new_const_int(ctx: MuCtx, b: MuBundleNode, ty: MuTypeNode, value: Long): MuValueFak = exposeMuValue(ctx, ctx.newConstInt(b, ty, value))
+  def new_const_int_ex(ctx: MuCtx, b: MuBundleNode, ty: MuTypeNode, values: LongPtr, nvalues: Int): MuValueFak = exposeMuValue(ctx, ctx.newConstIntEx(b, ty, values, nvalues))
+  def new_const_float(ctx: MuCtx, b: MuBundleNode, ty: MuTypeNode, value: Float): MuValueFak = exposeMuValue(ctx, ctx.newConstFloat(b, ty, value))
+  def new_const_double(ctx: MuCtx, b: MuBundleNode, ty: MuTypeNode, value: Double): MuValueFak = exposeMuValue(ctx, ctx.newConstDouble(b, ty, value))
+  def new_const_null(ctx: MuCtx, b: MuBundleNode, ty: MuTypeNode): MuValueFak = exposeMuValue(ctx, ctx.newConstNull(b, ty))
+  def new_const_seq(ctx: MuCtx, b: MuBundleNode, ty: MuTypeNode, elems: MuValueFakArrayPtr, nelems: Int): MuValueFak = exposeMuValue(ctx, ctx.newConstSeq(b, ty, readFromValueFakArray(elems, nelems)))
+  def new_global_cell(ctx: MuCtx, b: MuBundleNode, ty: MuTypeNode): MuValueFak = exposeMuValue(ctx, ctx.newGlobalCell(b, ty))
+  def new_func(ctx: MuCtx, b: MuBundleNode, sig: MuFuncSigNode): MuValueFak = exposeMuValue(ctx, ctx.newFunc(b, sig))
+  def new_func_ver(ctx: MuCtx, b: MuBundleNode, func: MuFuncNode): MuValueFak = exposeMuValue(ctx, ctx.newFuncVer(b, func))
+  def new_exp_func(ctx: MuCtx, b: MuBundleNode, func: MuFuncNode, callconv: MuCallConv, cookie: MuConstNode): MuValueFak = exposeMuValue(ctx, ctx.newExpFunc(b, func, callconv, cookie))
+  def new_bb(ctx: MuCtx, fv: MuFuncVerNode): MuValueFak = exposeMuValue(ctx, ctx.newBB(fv))
+  def new_nor_param(ctx: MuCtx, bb: MuBBNode, ty: MuTypeNode): MuValueFak = exposeMuValue(ctx, ctx.newNorParam(bb, ty))
+  def new_exc_param(ctx: MuCtx, bb: MuBBNode): MuValueFak = exposeMuValue(ctx, ctx.newExcParam(bb))
+  def new_inst_res(ctx: MuCtx, inst: MuInstNode): MuValueFak = exposeMuValue(ctx, ctx.newInstRes(inst))
+  def add_dest(ctx: MuCtx, inst: MuInstNode, kind: MuDestKind, dest: MuBBNode, vars: MuValueFakArrayPtr, nvars: Int): Unit = ctx.addDest(inst, kind, dest, readFromValueFakArray(vars, nvars))
+  def add_keepalives(ctx: MuCtx, inst: MuInstNode, vars: MuValueFakArrayPtr, nvars: Int): Unit = ctx.addKeepAlives(inst, readFromValueFakArray(vars, nvars))
+  def new_binop(ctx: MuCtx, bb: MuBBNode, optr: MuBinOptr, ty: MuTypeNode, opnd1: MuVarNode, opnd2: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newBinOp(bb, optr, ty, opnd1, opnd2))
+  def new_cmp(ctx: MuCtx, bb: MuBBNode, optr: MuCmpOptr, ty: MuTypeNode, opnd1: MuVarNode, opnd2: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newCmp(bb, optr, ty, opnd1, opnd2))
+  def new_conv(ctx: MuCtx, bb: MuBBNode, optr: MuConvOptr, from_ty: MuTypeNode, to_ty: MuTypeNode, opnd: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newConv(bb, optr, from_ty, to_ty, opnd))
+  def new_select(ctx: MuCtx, bb: MuBBNode, cond_ty: MuTypeNode, opnd_ty: MuTypeNode, cond: MuVarNode, if_true: MuVarNode, if_false: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newSelect(bb, cond_ty, opnd_ty, cond, if_true, if_false))
+  def new_branch(ctx: MuCtx, bb: MuBBNode): MuValueFak = exposeMuValue(ctx, ctx.newBranch(bb))
+  def new_branch2(ctx: MuCtx, bb: MuBBNode, cond: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newBranch2(bb, cond))
+  def new_switch(ctx: MuCtx, bb: MuBBNode, opnd_ty: MuTypeNode, opnd: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newSwitch(bb, opnd_ty, opnd))
+  def add_switch_dest(ctx: MuCtx, sw: MuInstNode, key: MuConstNode, dest: MuBBNode, vars: MuValueFakArrayPtr, nvars: Int): Unit = ctx.addSwitchDest(sw, key, dest, readFromValueFakArray(vars, nvars))
+  def new_call(ctx: MuCtx, bb: MuBBNode, sig: MuFuncSigNode, callee: MuVarNode, args: MuValueFakArrayPtr, nargs: Int): MuValueFak = exposeMuValue(ctx, ctx.newCall(bb, sig, callee, readFromValueFakArray(args, nargs)))
+  def new_tailcall(ctx: MuCtx, bb: MuBBNode, sig: MuFuncSigNode, callee: MuVarNode, args: MuValueFakArrayPtr, nargs: Int): MuValueFak = exposeMuValue(ctx, ctx.newTailCall(bb, sig, callee, readFromValueFakArray(args, nargs)))
+  def new_ret(ctx: MuCtx, bb: MuBBNode, rvs: MuValueFakArrayPtr, nrvs: Int): MuValueFak = exposeMuValue(ctx, ctx.newRet(bb, readFromValueFakArray(rvs, nrvs)))
+  def new_throw(ctx: MuCtx, bb: MuBBNode, exc: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newThrow(bb, exc))
+  def new_extractvalue(ctx: MuCtx, bb: MuBBNode, strty: MuTypeNode, index: Int, opnd: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newExtractValue(bb, strty, index, opnd))
+  def new_insertvalue(ctx: MuCtx, bb: MuBBNode, strty: MuTypeNode, index: Int, opnd: MuVarNode, newval: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newInsertValue(bb, strty, index, opnd, newval))
+  def new_extractelement(ctx: MuCtx, bb: MuBBNode, seqty: MuTypeNode, indty: MuTypeNode, opnd: MuVarNode, index: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newExtractElement(bb, seqty, indty, opnd, index))
+  def new_insertelement(ctx: MuCtx, bb: MuBBNode, seqty: MuTypeNode, indty: MuTypeNode, opnd: MuVarNode, index: MuVarNode, newval: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newInsertElement(bb, seqty, indty, opnd, index, newval))
+  def new_shufflevector(ctx: MuCtx, bb: MuBBNode, vecty: MuTypeNode, maskty: MuTypeNode, vec1: MuVarNode, vec2: MuVarNode, mask: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newShuffleVector(bb, vecty, maskty, vec1, vec2, mask))
+  def new_new(ctx: MuCtx, bb: MuBBNode, allocty: MuTypeNode): MuValueFak = exposeMuValue(ctx, ctx.newNew(bb, allocty))
+  def new_newhybrid(ctx: MuCtx, bb: MuBBNode, allocty: MuTypeNode, lenty: MuTypeNode, length: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newNewHybrid(bb, allocty, lenty, length))
+  def new_alloca(ctx: MuCtx, bb: MuBBNode, allocty: MuTypeNode): MuValueFak = exposeMuValue(ctx, ctx.newAlloca(bb, allocty))
+  def new_allocahybrid(ctx: MuCtx, bb: MuBBNode, allocty: MuTypeNode, lenty: MuTypeNode, length: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newAllocaHybrid(bb, allocty, lenty, length))
+  def new_getiref(ctx: MuCtx, bb: MuBBNode, refty: MuTypeNode, opnd: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newGetIRef(bb, refty, opnd))
+  def new_getfieldiref(ctx: MuCtx, bb: MuBBNode, is_ptr: Int, refty: MuTypeNode, index: Int, opnd: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newGetFieldIRef(bb, is_ptr != 0, refty, index, opnd))
+  def new_getelemiref(ctx: MuCtx, bb: MuBBNode, is_ptr: Int, refty: MuTypeNode, indty: MuTypeNode, opnd: MuVarNode, index: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newGetElemIRef(bb, is_ptr != 0, refty, indty, opnd, index))
+  def new_shiftiref(ctx: MuCtx, bb: MuBBNode, is_ptr: Int, refty: MuTypeNode, offty: MuTypeNode, opnd: MuVarNode, offset: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newShiftIRef(bb, is_ptr != 0, refty, offty, opnd, offset))
+  def new_getvarpartiref(ctx: MuCtx, bb: MuBBNode, is_ptr: Int, refty: MuTypeNode, opnd: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newGetVarPartIRef(bb, is_ptr != 0, refty, opnd))
+  def new_load(ctx: MuCtx, bb: MuBBNode, is_ptr: Int, ord: MuMemOrd, refty: MuTypeNode, loc: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newLoad(bb, is_ptr != 0, ord, refty, loc))
+  def new_store(ctx: MuCtx, bb: MuBBNode, is_ptr: Int, ord: MuMemOrd, refty: MuTypeNode, loc: MuVarNode, newval: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newStore(bb, is_ptr != 0, ord, refty, loc, newval))
+  def new_cmpxchg(ctx: MuCtx, bb: MuBBNode, is_ptr: Int, is_weak: Int, ord_succ: MuMemOrd, ord_fail: MuMemOrd, refty: MuTypeNode, loc: MuVarNode, expected: MuVarNode, desired: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newCmpXchg(bb, is_ptr != 0, is_weak != 0, ord_succ, ord_fail, refty, loc, expected, desired))
+  def new_atomicrmw(ctx: MuCtx, bb: MuBBNode, is_ptr: Int, ord: MuMemOrd, optr: MuAtomicRMWOp, refTy: MuTypeNode, loc: MuVarNode, opnd: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newAtomicRMW(bb, is_ptr != 0, ord, optr, refTy, loc, opnd))
+  def new_fence(ctx: MuCtx, bb: MuBBNode, ord: MuMemOrd): MuValueFak = exposeMuValue(ctx, ctx.newFence(bb, ord))
+  def new_trap(ctx: MuCtx, bb: MuBBNode, rettys: MuValueFakArrayPtr, nrettys: Int): MuValueFak = exposeMuValue(ctx, ctx.newTrap(bb, readFromValueFakArray(rettys, nrettys)))
+  def new_watchpoint(ctx: MuCtx, bb: MuBBNode, wpid: MuWPID, rettys: MuValueFakArrayPtr, nrettys: Int): MuValueFak = exposeMuValue(ctx, ctx.newWatchPoint(bb, wpid, readFromValueFakArray(rettys, nrettys)))
+  def new_wpbranch(ctx: MuCtx, bb: MuBBNode, wpid: MuWPID): MuValueFak = exposeMuValue(ctx, ctx.newWPBranch(bb, wpid))
+  def new_ccall(ctx: MuCtx, bb: MuBBNode, callconv: MuCallConv, callee_ty: MuTypeNode, sig: MuFuncSigNode, callee: MuVarNode, args: MuValueFakArrayPtr, nargs: Int): MuValueFak = exposeMuValue(ctx, ctx.newCCall(bb, callconv, callee_ty, sig, callee, readFromValueFakArray(args, nargs)))
+  def new_newthread(ctx: MuCtx, bb: MuBBNode, stack: MuVarNode, threadlocal: Option[MuVarNode]): MuValueFak = exposeMuValue(ctx, ctx.newNewThread(bb, stack, threadlocal))
+  def new_swapstack_ret(ctx: MuCtx, bb: MuBBNode, swappee: MuVarNode, ret_tys: MuValueFakArrayPtr, nret_tys: Int): MuValueFak = exposeMuValue(ctx, ctx.newSwapStackRet(bb, swappee, readFromValueFakArray(ret_tys, nret_tys)))
+  def new_swapstack_kill(ctx: MuCtx, bb: MuBBNode, swappee: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newSwapStackKill(bb, swappee))
+  def set_newstack_pass_values(ctx: MuCtx, inst: MuInstNode, tys: MuValueFakArrayPtr, vars: MuValueFakArrayPtr, nvars: Int): Unit = ctx.setNewStackPassValues(inst, readFromValueFakArray(tys, nvars), readFromValueFakArray(vars, nvars))
+  def set_newstack_throw_exc(ctx: MuCtx, inst: MuInstNode, exc: MuVarNode): Unit = ctx.setNewStackThrowExc(inst, exc)
+  def new_comminst(ctx: MuCtx, bb: MuBBNode, opcode: MuCommInst, flags: MuFlagArrayPtr, nflags: Int, tys: MuValueFakArrayPtr, ntys: Int, sigs: MuValueFakArrayPtr, nsigs: Int, args: MuValueFakArrayPtr, nargs: Int): MuValueFak = exposeMuValue(ctx, ctx.newCommInst(bb, opcode, readFromFlagArray(flags, nflags), readFromValueFakArray(tys, ntys), readFromValueFakArray(sigs, nsigs), readFromValueFakArray(args, nargs)))
+
+  // PASTE TO HERE
+
 }
 
 /**
@@ -419,9 +506,192 @@ object NativeMuHelpers {
     case MU_UMIN => AtomicRMWOptr.UMIN
   }
 
-  implicit def intToCallConv(cc: MuCallConv): Flag = cc match {
+  implicit def intToFlag(cc: MuFlag): Flag = cc match {
     case MU_DEFAULT => Flag("#DEFAULT")
+    case _          => throw new UvmRuntimeException("Unknown flag %d 0x%x".format(cc, cc))
   }
+
+  def readFromValueFakArray[T <: MuValue](faks: MuValueFakArrayPtr, len: Long): Seq[T] = {
+    for (i <- 0L until len) yield {
+      val addr = faks + i * WORD_SIZE_BYTES
+      val valFak = theMemory.getAddress(addr)
+      val v = getMuValueNotNull(valFak)
+      v.asInstanceOf[T]
+    }
+  }
+
+  def readFromFlagArray(flags: MuValueFakArrayPtr, len: Long): Seq[Flag] = {
+    val flagVals = for (i <- 0L until len) yield {
+      val addr = flags + i * 32
+      val flagVal = theMemory.getInt(addr)
+      flagVal
+    }
+    flagVals.map(intToFlag)
+  }
+
+  implicit class MuCtxExtras(val ctx: MuCtx) extends AnyVal {
+    def newConstIntEx(b: MuBundleNode, ty: MuTypeNode, values: LongPtr, nvalues: Int): MuConstNode = {
+      val longs = for (i <- 0L until nvalues.toLong) yield {
+        val addr = values + i * WORD_SIZE_BYTES
+        val v = theMemory.getAddress(addr)
+        v
+      }
+
+      var bi = BigInt(0L)
+      var power = 0
+
+      for (l <- longs) {
+        bi |= ((BigInt(l) & 0xffffffffffffffffl) << power)
+        power += WORD_SIZE_BITS.toInt
+      }
+
+      ctx.newConstInt(b, ty, bi)
+    }
+  }
+
+  val MU_DEST_NORMAL = 0x01L
+  val MU_DEST_EXCEPT = 0x02L
+  val MU_DEST_TRUE = 0x03L
+  val MU_DEST_FALSE = 0x04L
+  val MU_DEST_DEFAULT = 0x05L
+  val MU_DEST_DISABLED = 0x06L
+  val MU_DEST_ENABLED = 0x07L
+
+  implicit def intToDestKind(dk: MuDestKind): DestKind.Value = dk match {
+    case MU_DEST_NORMAL   => DestKind.NORMAL
+    case MU_DEST_EXCEPT   => DestKind.EXCEPT
+    case MU_DEST_TRUE     => DestKind.TRUE
+    case MU_DEST_FALSE    => DestKind.FALSE
+    case MU_DEST_DEFAULT  => DestKind.DEFAULT
+    case MU_DEST_DISABLED => DestKind.DISABLED
+    case MU_DEST_ENABLED  => DestKind.ENABLED
+  }
+
+  val MU_BINOP_ADD = 0x01
+  val MU_BINOP_SUB = 0x02
+  val MU_BINOP_MUL = 0x03
+  val MU_BINOP_SDIV = 0x04
+  val MU_BINOP_SREM = 0x05
+  val MU_BINOP_UDIV = 0x06
+  val MU_BINOP_UREM = 0x07
+  val MU_BINOP_SHL = 0x08
+  val MU_BINOP_LSHR = 0x09
+  val MU_BINOP_ASHR = 0x0A
+  val MU_BINOP_AND = 0x0B
+  val MU_BINOP_OR = 0x0C
+  val MU_BINOP_XOR = 0x0D
+  val MU_BINOP_FADD = 0xB0
+  val MU_BINOP_FSUB = 0xB1
+  val MU_BINOP_FMUL = 0xB2
+  val MU_BINOP_FDIV = 0xB3
+  val MU_BINOP_FREM = 0xB4
+
+  implicit def intToBinOptr(binop: MuBinOptr): BinOptr.Value = binop match {
+    case MU_BINOP_ADD  => BinOptr.ADD
+    case MU_BINOP_SUB  => BinOptr.SUB
+    case MU_BINOP_MUL  => BinOptr.MUL
+    case MU_BINOP_SDIV => BinOptr.SDIV
+    case MU_BINOP_SREM => BinOptr.SREM
+    case MU_BINOP_UDIV => BinOptr.UDIV
+    case MU_BINOP_UREM => BinOptr.UREM
+    case MU_BINOP_SHL  => BinOptr.SHL
+    case MU_BINOP_LSHR => BinOptr.LSHR
+    case MU_BINOP_ASHR => BinOptr.ASHR
+    case MU_BINOP_AND  => BinOptr.AND
+    case MU_BINOP_OR   => BinOptr.OR
+    case MU_BINOP_XOR  => BinOptr.XOR
+    case MU_BINOP_FADD => BinOptr.FADD
+    case MU_BINOP_FSUB => BinOptr.FSUB
+    case MU_BINOP_FMUL => BinOptr.FMUL
+    case MU_BINOP_FDIV => BinOptr.FDIV
+    case MU_BINOP_FREM => BinOptr.FREM
+  }
+
+  val MU_CMP_EQ = 0x20
+  val MU_CMP_NE = 0x21
+  val MU_CMP_SGE = 0x22
+  val MU_CMP_SGT = 0x23
+  val MU_CMP_SLE = 0x24
+  val MU_CMP_SLT = 0x25
+  val MU_CMP_UGE = 0x26
+  val MU_CMP_UGT = 0x27
+  val MU_CMP_ULE = 0x28
+  val MU_CMP_ULT = 0x29
+  val MU_CMP_FFALSE = 0xC0
+  val MU_CMP_FTRUE = 0xC1
+  val MU_CMP_FUNO = 0xC2
+  val MU_CMP_FUEQ = 0xC3
+  val MU_CMP_FUNE = 0xC4
+  val MU_CMP_FUGT = 0xC5
+  val MU_CMP_FUGE = 0xC6
+  val MU_CMP_FULT = 0xC7
+  val MU_CMP_FULE = 0xC8
+  val MU_CMP_FORD = 0xC9
+  val MU_CMP_FOEQ = 0xCA
+  val MU_CMP_FONE = 0xCB
+  val MU_CMP_FOGT = 0xCC
+  val MU_CMP_FOGE = 0xCD
+  val MU_CMP_FOLT = 0xCE
+  val MU_CMP_FOLE = 0xCF
+
+  implicit def intToCmpOptr(cmpop: MuCmpOptr): CmpOptr.Value = cmpop match {
+    case MU_CMP_EQ     => CmpOptr.EQ
+    case MU_CMP_NE     => CmpOptr.NE
+    case MU_CMP_SGE    => CmpOptr.SGE
+    case MU_CMP_SGT    => CmpOptr.SGT
+    case MU_CMP_SLE    => CmpOptr.SLE
+    case MU_CMP_SLT    => CmpOptr.SLT
+    case MU_CMP_UGE    => CmpOptr.UGE
+    case MU_CMP_UGT    => CmpOptr.UGT
+    case MU_CMP_ULE    => CmpOptr.ULE
+    case MU_CMP_ULT    => CmpOptr.ULT
+    case MU_CMP_FFALSE => CmpOptr.FFALSE
+    case MU_CMP_FTRUE  => CmpOptr.FTRUE
+    case MU_CMP_FUNO   => CmpOptr.FUNO
+    case MU_CMP_FUEQ   => CmpOptr.FUEQ
+    case MU_CMP_FUNE   => CmpOptr.FUNE
+    case MU_CMP_FUGT   => CmpOptr.FUGT
+    case MU_CMP_FUGE   => CmpOptr.FUGE
+    case MU_CMP_FULT   => CmpOptr.FULT
+    case MU_CMP_FULE   => CmpOptr.FULE
+    case MU_CMP_FORD   => CmpOptr.FORD
+    case MU_CMP_FOEQ   => CmpOptr.FOEQ
+    case MU_CMP_FONE   => CmpOptr.FONE
+    case MU_CMP_FOGT   => CmpOptr.FOGT
+    case MU_CMP_FOGE   => CmpOptr.FOGE
+    case MU_CMP_FOLT   => CmpOptr.FOLT
+    case MU_CMP_FOLE   => CmpOptr.FOLE
+
+  }
+
+  val MU_CONV_TRUNC = 0x30
+  val MU_CONV_ZEXT = 0x31
+  val MU_CONV_SEXT = 0x32
+  val MU_CONV_FPTRUNC = 0x33
+  val MU_CONV_FPEXT = 0x34
+  val MU_CONV_FPTOUI = 0x35
+  val MU_CONV_FPTOSI = 0x36
+  val MU_CONV_UITOFP = 0x37
+  val MU_CONV_SITOFP = 0x38
+  val MU_CONV_BITCAST = 0x39
+  val MU_CONV_REFCAST = 0x3A
+  val MU_CONV_PTRCAST = 0x3B
+
+  implicit def intToConvOptr(convop: MuConvOptr): ConvOptr.Value = convop match {
+    case MU_CONV_TRUNC   => ConvOptr.TRUNC
+    case MU_CONV_ZEXT    => ConvOptr.ZEXT
+    case MU_CONV_SEXT    => ConvOptr.SEXT
+    case MU_CONV_FPTRUNC => ConvOptr.FPTRUNC
+    case MU_CONV_FPEXT   => ConvOptr.FPEXT
+    case MU_CONV_FPTOUI  => ConvOptr.FPTOUI
+    case MU_CONV_FPTOSI  => ConvOptr.FPTOSI
+    case MU_CONV_UITOFP  => ConvOptr.UITOFP
+    case MU_CONV_SITOFP  => ConvOptr.SITOFP
+    case MU_CONV_BITCAST => ConvOptr.BITCAST
+    case MU_CONV_REFCAST => ConvOptr.REFCAST
+    case MU_CONV_PTRCAST => ConvOptr.PTRCAST
+  }
+
 }
 
 object ClientAccessibleClassExposer {
@@ -459,18 +729,18 @@ object ClientAccessibleClassExposer {
   def paramMuValue(index: Int, funcName: String, tpe: ru.Type)(buffer: Buffer): Any = {
     val muValue = getMuValue(buffer, index)
     val t = mirror.classSymbol(muValue.getClass).toType
-    
+
     require(t <:< tpe, "Argument %d of %s expect %s, found %s".format(index, funcName, tpe, t))
 
     muValue
   }
   def paramOptMuValue(index: Int, funcName: String, tpe: ru.Type)(buffer: Buffer): Any = {
     val muOptValue = getOptMuValue(buffer, index)
-    
-    muOptValue foreach { muValue =>   // only check if it is Some(value)
+
+    muOptValue foreach { muValue => // only check if it is Some(value)
       val t = mirror.classSymbol(muValue.getClass).toType
       val tpeArg = tpe.typeArgs(0)
-      
+
       require(t <:< tpeArg, "Argument %d of %s expect %s, found %s".format(index, funcName, tpe, t))
     }
 
@@ -524,23 +794,23 @@ object ClientAccessibleClassExposer {
 
   // Convert to JFFI native types.
   def toJFFIType(t: ru.Type): JType = t match {
-    case t if t =:= TUnit    => JType.VOID
-    case t if t =:= TByte    => JType.SINT8
-    case t if t =:= TShort   => JType.SINT16
-    case t if t =:= TInt     => JType.SINT32
-    case t if t =:= TLong    => JType.SINT64
-    case t if t =:= TFloat   => JType.FLOAT
-    case t if t =:= TDouble  => JType.DOUBLE
-    case t if t =:= TString  => JType.POINTER
-    case t if t =:= TMicroVM => JType.POINTER
-    case t if t =:= TMuCtx   => JType.POINTER
-    case t if t <:< TMuValue => JType.POINTER
+    case t if t =:= TUnit       => JType.VOID
+    case t if t =:= TByte       => JType.SINT8
+    case t if t =:= TShort      => JType.SINT16
+    case t if t =:= TInt        => JType.SINT32
+    case t if t =:= TLong       => JType.SINT64
+    case t if t =:= TFloat      => JType.FLOAT
+    case t if t =:= TDouble     => JType.DOUBLE
+    case t if t =:= TString     => JType.POINTER
+    case t if t =:= TMicroVM    => JType.POINTER
+    case t if t =:= TMuCtx      => JType.POINTER
+    case t if t <:< TMuValue    => JType.POINTER
     case t if t <:< TOptMuValue => JType.POINTER
   }
-  
+
   val MU_NATIVE_ERRNO = 6481626 // muErrno is set to this number if an exception is thrown
   val muErrorPtr = jnrMemoryManager.allocateDirect(16)
-  
+
   def getMuError(): Int = muErrorPtr.getInt(0)
   def setMuError(errno: Int): Unit = muErrorPtr.putInt(0, errno)
 
@@ -585,16 +855,16 @@ class ClientAccessibleClassExposer[T: ru.TypeTag: ClassTag](obj: T) {
       val returnType = meth.returnType
 
       val paramGetters = for ((ty, i) <- paramTypes.zipWithIndex) yield ty match {
-        case t if t =:= TByte    => paramByte(i) _
-        case t if t =:= TShort   => paramShort(i) _
-        case t if t =:= TInt     => paramInt(i) _
-        case t if t =:= TLong    => paramLong(i) _
-        case t if t =:= TFloat   => paramFloat(i) _
-        case t if t =:= TDouble  => paramDouble(i) _
-        case t if t =:= TString  => paramString(i) _
-        case t if t =:= TMicroVM => paramMicroVM(i) _
-        case t if t =:= TMuCtx   => paramMuCtx(i) _
-        case t if t <:< TMuValue => paramMuValue(i, meth.name.toString, t) _
+        case t if t =:= TByte       => paramByte(i) _
+        case t if t =:= TShort      => paramShort(i) _
+        case t if t =:= TInt        => paramInt(i) _
+        case t if t =:= TLong       => paramLong(i) _
+        case t if t =:= TFloat      => paramFloat(i) _
+        case t if t =:= TDouble     => paramDouble(i) _
+        case t if t =:= TString     => paramString(i) _
+        case t if t =:= TMicroVM    => paramMicroVM(i) _
+        case t if t =:= TMuCtx      => paramMuCtx(i) _
+        case t if t <:< TMuValue    => paramMuValue(i, meth.name.toString, t) _
         case t if t <:< TOptMuValue => paramOptMuValue(i, meth.name.toString, t) _
       }
 
@@ -678,10 +948,14 @@ object NativeClientSupport {
   type MuValueFak = Word
   type MuTrapHandlerFP = Word
   type IntPtr = Word
+  type LongPtr = Word
   type CharArrayPtr = Word
   type MuValueFakPtr = Word
   type MuValueFakArrayPtr = Word
   type MuValuesFreerFP = Word
+  type MuFlag = Int
+  type MuFlagPtr = Word
+  type MuFlagArrayPtr = Word
 
   // Mu API C-level types.
   type MuID = Int
@@ -693,6 +967,12 @@ object NativeClientSupport {
   type MuHowToResume = Int
   type MuHowToResumePtr = IntPtr
   type MuCallConv = Int
+  type MuBinOptr = Int
+  type MuCmpOptr = Int
+  type MuConvOptr = Int
+  type MuDestKind = Int
+  type MuWPID = Int
+  type MuCommInst = Int
 
   // Give exposed objects a random "memory address" so native programs can pass them back to Mu as parameters.
   val microVMs = jnrRuntime.newObjectReferenceManager[MicroVM]()

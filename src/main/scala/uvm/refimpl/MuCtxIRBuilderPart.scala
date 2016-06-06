@@ -576,6 +576,11 @@ trait MuCtxIRBuilderPart {
     addHandle(irBuilder.newWatchPoint(bb, wpid, retTys))
   }
 
+  def newWPBranch(bb: MuBBNode, wpid: Int): MuInstNode = {
+    require(!bb.isNull, "bb must not be NULL")
+    addHandle(irBuilder.newWPBranch(bb, wpid))
+  }
+
   def newCCall(bb: MuBBNode, callConv: Flag, calleeTy: MuTypeNode, sig: MuFuncSigNode, callee: MuVarNode, args: Seq[MuVarNode]): MuInstNode = {
     require(!bb.isNull, "bb must not be NULL")
     require(!calleeTy.isNull, "calleeTy must not be NULL")
@@ -609,6 +614,12 @@ trait MuCtxIRBuilderPart {
     for((n,i) <- tys.zipWithIndex) require(!n.isNull, "tys[%d] must not be NULL".format(i))
     for((n,i) <- vars.zipWithIndex) require(!n.isNull, "vars[%d] must not be NULL".format(i))
     irBuilder.setNewStackPassValues(inst, tys, vars)
+  }
+
+  def setNewStackThrowExc(inst: MuInstNode, exc: MuVarNode): Unit = {
+    require(!inst.isNull, "inst must not be NULL")
+    require(!exc.isNull, "exc must not be NULL")
+    irBuilder.setNewStackThrowExc(inst, exc)
   }
 
   def newCommInst(bb: MuBBNode, opcode: Int, flags: Seq[Flag], tys: Seq[MuTypeNode], sigs: Seq[MuFuncSigNode], args: Seq[MuVarNode]): MuInstNode = {

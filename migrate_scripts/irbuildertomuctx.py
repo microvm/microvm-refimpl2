@@ -2,6 +2,8 @@
 USAGE: python3 migrate_scripts/irbuildertomuctx.py < src/main/scala/uvm/ir/irbuilder/IRBuilder.scala | xclip -selection c
 
 And then paste the result into src/main/scala/uvm/refimpl/MuCtxIRBuilderPart.scala
+
+Use pbcopy on Mac.
 """
 
 import re

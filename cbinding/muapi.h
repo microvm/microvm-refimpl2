@@ -122,9 +122,9 @@ typedef MuFlag MuDestKind;
 #define MU_DEST_EXCEPT      0x02
 #define MU_DEST_TRUE        0x03
 #define MU_DEST_FALSE       0x04
-#define MU_DEST_DEFAULT     0x04
-#define MU_DEST_DISABLED    0x05
-#define MU_DEST_ENABLED     0x06
+#define MU_DEST_DEFAULT     0x05
+#define MU_DEST_DISABLED    0x06
+#define MU_DEST_ENABLED     0x07
 
 // Binary operators
 typedef MuFlag MuBinOptr;
@@ -413,10 +413,10 @@ struct MuCtx {
     MuChildNode (*get_node  )(MuCtx *ctx, MuBundleNode b, MuID id);
 
     // Get the ID of the IR node "node".
-    MuID        (*get_id    )(MuCtx *ctx, MuChildNode node);
+    MuID        (*get_id    )(MuCtx *ctx, MuBundleNode b, MuChildNode node);
 
     // Set the name of the IR node. MuName is '\0' terminated char*.
-    void        (*set_name  )(MuCtx *ctx, MuChildNode node, MuName name);
+    void        (*set_name  )(MuCtx *ctx, MuBundleNode b, MuChildNode node, MuName name);
 
     /// Create top-level definitions. When created, they are added to the bundle "b".
     
@@ -463,9 +463,9 @@ struct MuCtx {
     MuConstNode (*new_const_float   )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, float value);
     MuConstNode (*new_const_double  )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, double value);
     // new_const_null works for all general reference types, but not uptr or ufuncptr.
-    MuConstNode (*new_const_null    )(MuCtx *ctx, MuBundleNode b);
+    MuConstNode (*new_const_null    )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty);
     // new_const_seq works for structs, arrays and vectors. Constants are non-recursive, so there is no populate_list_const.
-    MuConstNode (*new_const_seq     )(MuCtx *ctx, MuBundleNode b, MuConstNode *elems, int nelems);
+    MuConstNode (*new_const_seq     )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, MuConstNode *elems, int nelems);
     
     // Create global cell
     MuGlobalNode (*new_global_cell  )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty);
@@ -515,7 +515,7 @@ struct MuCtx {
 
     MuInstNode  (*new_branch        )(MuCtx *ctx, MuBBNode bb);
     MuInstNode  (*new_branch2       )(MuCtx *ctx, MuBBNode bb, MuVarNode cond);
-    MuInstNode  (*new_switch        )(MuCtx *ctx, MuBBNode bb, MuVarNode opnd);
+    MuInstNode  (*new_switch        )(MuCtx *ctx, MuBBNode bb, MuTypeNode opnd_ty, MuVarNode opnd);
     void        (*add_switch_dest   )(MuCtx *ctx, MuInstNode sw, MuConstNode key, MuBBNode dest, MuVarNode *vars, int nvars);
 
     MuInstNode  (*new_call          )(MuCtx *ctx, MuBBNode bb, MuFuncSigNode sig, MuVarNode callee, MuVarNode *args, int nargs);
@@ -543,7 +543,7 @@ struct MuCtx {
     MuInstNode  (*new_load          )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuMemOrd ord, MuTypeNode refty,   MuVarNode loc);
     MuInstNode  (*new_store         )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuMemOrd ord, MuTypeNode refty,   MuVarNode loc,     MuVarNode newval);
     MuInstNode  (*new_cmpxchg       )(MuCtx *ctx, MuBBNode bb, int is_ptr, int is_weak,  MuMemOrd ord_succ,  MuMemOrd ord_fail, MuTypeNode refty, MuVarNode loc, MuVarNode expected, MuVarNode desired);
-    MuInstNode  (*new_atomicrmw     )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuMemOrd ord, MuAtomicRMWOp optr, MuVarNode loc,     MuVarNode opnd);
+    MuInstNode  (*new_atomicrmw     )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuMemOrd ord, MuAtomicRMWOp optr, MuTypeNode refTy,  MuVarNode loc,    MuVarNode opnd);
     MuInstNode  (*new_fence         )(MuCtx *ctx, MuBBNode bb, MuMemOrd ord);
     
     MuInstNode  (*new_trap          )(MuCtx *ctx, MuBBNode bb, MuTypeNode *rettys, int nrettys);
@@ -553,10 +553,10 @@ struct MuCtx {
     MuInstNode  (*new_ccall         )(MuCtx *ctx, MuBBNode bb, MuCallConv callconv, MuTypeNode callee_ty, MuFuncSigNode sig, MuVarNode callee, MuVarNode *args, int nargs);
 
     MuInstNode  (*new_newthread     )(MuCtx *ctx, MuBBNode bb, MuVarNode stack, MuVarNode threadlocal);
-    MuInstNode  (*new_swapstack_ret )(MuCtx *ctx, MuBBNode bb, MuVarNode swappee, MuTypeNode *tys, int ntys);
+    MuInstNode  (*new_swapstack_ret )(MuCtx *ctx, MuBBNode bb, MuVarNode swappee, MuTypeNode *ret_tys, int nret_tys);
     MuInstNode  (*new_swapstack_kill)(MuCtx *ctx, MuBBNode bb, MuVarNode swappee);
 
-    void        (*set_newstack_pass_values)(MuCtx *ctx, MuInstNode inst, MuTypeNode tys, MuVarNode *vars, int nvars);
+    void        (*set_newstack_pass_values)(MuCtx *ctx, MuInstNode inst, MuTypeNode *tys, MuVarNode *vars, int nvars);
     void        (*set_newstack_throw_exc  )(MuCtx *ctx, MuInstNode inst, MuVarNode exc);
 
     MuInstNode  (*new_comminst      )(MuCtx *ctx, MuBBNode bb, MuCommInst opcode,

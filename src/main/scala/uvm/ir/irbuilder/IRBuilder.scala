@@ -1,11 +1,12 @@
 package uvm.ir.irbuilder
 
 import scala.collection.mutable.ArrayBuffer
-import uvm.utils.IDFactory
+
 import uvm._
-import uvm.types._
-import uvm.ssavariables._
 import uvm.comminsts.CommInsts
+import uvm.ssavariables._
+import uvm.types._
+import uvm.utils.IDFactory
 
 object DestKind extends Enumeration {
   val NORMAL, EXCEPT, TRUE, FALSE, DEFAULT, DISABLED, ENABLED = Value
@@ -417,6 +418,11 @@ class IRBuilder(globalBundle: GlobalBundle, idFactory: IDFactory) {
     newInst(bb, inst)
   }
 
+  def newWPBranch(bb: CN[BB], wpid: Int): CN[InstWPBranch] = {
+    val inst = InstWPBranch(wpid, null, null)
+    newInst(bb, inst)
+  }
+
   def newCCall(bb: CN[BB], callConv: Flag, calleeTy: CN[Type], sig: CN[FuncSig], callee: CN[Var], args: Seq[CN[Var]]): CN[InstCCall] = {
     val inst = InstCCall(callConv, calleeTy, sig, callee, args, None, Seq())
     newInst(bb, inst)
@@ -438,9 +444,8 @@ class IRBuilder(globalBundle: GlobalBundle, idFactory: IDFactory) {
     val inst = InstSwapStack(swappee, curStackClause, null, None, Seq())
     newInst(bb, inst)
   }
-
-  def setNewStackPassValues(inst: CN[Instruction], tys: Seq[CN[Type]], vars: Seq[CN[Var]]): Unit = {
-    val newStackClause = PassValues(tys, vars)
+  
+  private def setNewStackClause(inst: CN[Instruction], newStackClause: NewStackAction): Unit = {
     inst.obj match {
       case i: InstNewThread => i.newStackAction = newStackClause
       case i: InstSwapStack => i.newStackAction = newStackClause
@@ -448,6 +453,16 @@ class IRBuilder(globalBundle: GlobalBundle, idFactory: IDFactory) {
         throw new IllegalArgumentException("Expected NEWTHREAD or SWAPSTACK, found %s".format(i.getClass.getName))
       }
     }
+  }
+
+  def setNewStackPassValues(inst: CN[Instruction], tys: Seq[CN[Type]], vars: Seq[CN[Var]]): Unit = {
+    val newStackClause = PassValues(tys, vars)
+    setNewStackClause(inst, newStackClause)
+  }
+
+  def setNewStackThrowExc(inst: CN[Instruction], exc: CN[Var]): Unit = {
+    val newStackClause = ThrowExc(exc)
+    setNewStackClause(inst, newStackClause)
   }
 
   def newCommInst(bb: CN[BB], opcode: Int, flags: Seq[Flag], tys: Seq[CN[Type]], sigs: Seq[CN[FuncSig]], args: Seq[CN[Var]]): CN[InstCommInst] = {
