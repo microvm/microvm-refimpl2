@@ -46,15 +46,18 @@ classpath.h: classpath.txt
 	xxd -i classpath.txt > classpath.h
 
 .PHONY: tests
-tests: test_client
+tests: test_client test_client2
 
 test_client: test_client.c libmurefimpl2start.so
+	$(CC) `./refimpl2-config --istart --cflags --libs` -o $@ $<
+
+test_client2: test_client2.c libmurefimpl2start.so
 	$(CC) `./refimpl2-config --istart --cflags --libs` -o $@ $<
 
 .PHONY: clean veryclean
 
 clean:
-	rm *.so test_client
+	rm *.so test_client test_client2
 
 veryclean:
-	rm *.so test_client classpath.txt classpath.h
+	rm *.so test_client test_client2 classpath.txt classpath.h

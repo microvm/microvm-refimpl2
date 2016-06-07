@@ -512,21 +512,29 @@ object NativeMuHelpers {
   }
 
   def readFromValueFakArray[T <: MuValue](faks: MuValueFakArrayPtr, len: Long): Seq[T] = {
-    for (i <- 0L until len) yield {
-      val addr = faks + i * WORD_SIZE_BYTES
-      val valFak = theMemory.getAddress(addr)
-      val v = getMuValueNotNull(valFak)
-      v.asInstanceOf[T]
+    if (faks == 0L) {
+      Seq()
+    } else {
+      for (i <- 0L until len) yield {
+        val addr = faks + i * WORD_SIZE_BYTES
+        val valFak = theMemory.getAddress(addr)
+        val v = getMuValueNotNull(valFak)
+        v.asInstanceOf[T]
+      }
     }
   }
 
   def readFromFlagArray(flags: MuValueFakArrayPtr, len: Long): Seq[Flag] = {
-    val flagVals = for (i <- 0L until len) yield {
-      val addr = flags + i * 32
-      val flagVal = theMemory.getInt(addr)
-      flagVal
+    if (flags == 0L) {
+      Seq()
+    } else {
+      val flagVals = for (i <- 0L until len) yield {
+        val addr = flags + i * 32
+        val flagVal = theMemory.getInt(addr)
+        flagVal
+      }
+      flagVals.map(intToFlag)
     }
-    flagVals.map(intToFlag)
   }
 
   implicit class MuCtxExtras(val ctx: MuCtx) extends AnyVal {
@@ -695,11 +703,16 @@ object NativeMuHelpers {
 }
 
 object ClientAccessibleClassExposer {
+  import NativeClientSupport._
+
+  logger.debug("Creating mirror...")
 
   // Reflection utils.
   val mirror = ru.runtimeMirror(getClass.getClassLoader)
 
   val MAX_NAME_SIZE = 65536
+  
+  logger.debug("Types for common types...")
 
   // Type objects for common types.
   val TUnit = ru.typeTag[Unit].tpe
@@ -807,6 +820,8 @@ object ClientAccessibleClassExposer {
     case t if t <:< TMuValue    => JType.POINTER
     case t if t <:< TOptMuValue => JType.POINTER
   }
+  
+  logger.debug("Allocating Mu error number memory...")
 
   val MU_NATIVE_ERRNO = 6481626 // muErrno is set to this number if an exception is thrown
   val muErrorPtr = jnrMemoryManager.allocateDirect(16)
@@ -841,6 +856,8 @@ object ClientAccessibleClassExposer {
  */
 class ClientAccessibleClassExposer[T: ru.TypeTag: ClassTag](obj: T) {
   import ClientAccessibleClassExposer._
+  
+  logger.debug("Creating closure handles...")
 
   /**
    * A list of JFFI closure handles, one for each declared method in obj, in the declared order.
@@ -1014,7 +1031,9 @@ object NativeClientSupport {
   val stringPool = HashMap[String, Pointer]()
 
   // These "exposer" can repeatedly generate function tables.
+  logger.debug("Creating Mu VM Exposer...")
   val muVMExposer = new ClientAccessibleClassExposer(NativeMuVM)
+  logger.debug("Creating Mu Ctx Exposer...")
   val muCtxExposer = new ClientAccessibleClassExposer(NativeMuCtx)
 
   // Expose and unexpose objects
