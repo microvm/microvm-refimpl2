@@ -82,12 +82,8 @@ typedef uint32_t MuFlag;
 // Result of a trap handler
 typedef MuFlag MuTrapHandlerResult;
 
-// Used by new_thread
-typedef MuFlag MuHowToResume;
-
 // Values or MuTrapHandlerResult
 #define MU_THREAD_EXIT          0x00
-// Values or MuTrapHandlerResult and muHowToResume
 #define MU_REBIND_PASS_VALUES   0x01
 #define MU_REBIND_THROW_EXC     0x02
 
@@ -264,8 +260,8 @@ struct MuCtx {
     void        (*close_context)(MuCtx *ctx);
 
     // Load bundles and HAIL scripts
-    void        (*load_bundle)(MuCtx *ctx, char *buf, int sz);
-    void        (*load_hail  )(MuCtx *ctx, char *buf, int sz);
+    void        (*load_bundle)(MuCtx *ctx, char *buf, int sz); /// MUAPIPARSER buf:array:sz
+    void        (*load_hail  )(MuCtx *ctx, char *buf, int sz); /// MUAPIPARSER buf:array:sz
 
     // Convert from C values to Mu values
     MuIntValue      (*handle_from_sint8 )(MuCtx *ctx, int8_t   num, int len);
@@ -276,6 +272,7 @@ struct MuCtx {
     MuIntValue      (*handle_from_uint32)(MuCtx *ctx, uint32_t num, int len);
     MuIntValue      (*handle_from_sint64)(MuCtx *ctx, int64_t  num, int len);
     MuIntValue      (*handle_from_uint64)(MuCtx *ctx, uint64_t num, int len);
+    MuIntValue      (*handle_from_uint64s)(MuCtx *ctx, uint64_t *nums, int nnums, int len); /// MUAPIPARSER num:array:nnum
     MuFloatValue    (*handle_from_float )(MuCtx *ctx, float    num);
     MuDoubleValue   (*handle_from_double)(MuCtx *ctx, double   num);
     MuUPtrValue     (*handle_from_ptr   )(MuCtx *ctx, MuID mu_type, MuCPtr ptr);
@@ -307,9 +304,9 @@ struct MuCtx {
 
     // Compare reference or general reference types.
     // EQ. Available for ref, iref, funcref, threadref and stackref.
-    int         (*ref_eq )(MuCtx *ctx, MuGenRefValue lhs, MuGenRefValue rhs);
+    int         (*ref_eq )(MuCtx *ctx, MuGenRefValue lhs, MuGenRefValue rhs); /// MUAPIPARSER RV:bool
     // ULT. Available for iref only.
-    int         (*ref_ult)(MuCtx *ctx, MuIRefValue lhs, MuIRefValue rhs);
+    int         (*ref_ult)(MuCtx *ctx, MuIRefValue lhs, MuIRefValue rhs); /// MUAPIPARSER RV:bool
 
     // Manipulate Mu values of the struct<...> type
     MuValue         (*extract_value)(MuCtx *ctx, MuStructValue str, int index);
@@ -339,17 +336,19 @@ struct MuCtx {
     void        (*store    )(MuCtx *ctx, MuMemOrd ord, MuIRefValue loc, MuValue newval);
     MuValue     (*cmpxchg  )(MuCtx *ctx, MuMemOrd ord_succ, MuMemOrd ord_fail,
                         int weak, MuIRefValue loc, MuValue expected, MuValue desired,
-                        int *is_succ);
+                        int *is_succ); /// MUAPIPARSER weak:bool
     MuValue     (*atomicrmw)(MuCtx *ctx, MuMemOrd ord, MuAtomicRMWOp op,
                         MuIRefValue loc, MuValue opnd);
     void        (*fence    )(MuCtx *ctx, MuMemOrd ord);
 
     // Thread and stack creation and stack destruction
     MuStackRefValue     (*new_stack )(MuCtx *ctx, MuFuncRefValue func);
-    MuThreadRefValue    (*new_thread)(MuCtx *ctx, MuStackRefValue stack,
+    MuThreadRefValue    (*new_thread_nor)(MuCtx *ctx, MuStackRefValue stack,
                             MuRefValue threadlocal,
-                            MuHowToResume htr, MuValue *vals, int nvals,
-                            MuRefValue exc);
+                            MuValue *vals, int nvals); /// MUAPIPARSER threadlocal:optional;vals:array:nvals
+    MuThreadRefValue    (*new_thread_exc)(MuCtx *ctx, MuStackRefValue stack,
+                            MuRefValue threadlocal,
+                            MuRefValue exc); /// MUAPIPARSER threadlocal:optional;exc:optional
     void                (*kill_stack)(MuCtx *ctx, MuStackRefValue stack);
 
     // Thread-local object reference
@@ -430,7 +429,9 @@ struct MuCtx {
     void        (*set_type_ufuncptr )(MuCtx *ctx, MuTypeNode ufuncptr, MuFuncSigNode sig);
 
     MuTypeNode  (*new_type_struct   )(MuCtx *ctx, MuBundleNode b, MuTypeNode *fieldtys, int nfieldtys);
+                /// MUAPIPARSER fieldtys:array:nfieldtys
     MuTypeNode  (*new_type_hybrid   )(MuCtx *ctx, MuBundleNode b, MuTypeNode *fixedtys, int nfixedtys, MuTypeNode varty);
+                /// MUAPIPARSER fixedtys:array:nfixedtys
     MuTypeNode  (*new_type_array    )(MuCtx *ctx, MuBundleNode b, MuTypeNode elemty, uint64_t len);
     MuTypeNode  (*new_type_vector   )(MuCtx *ctx, MuBundleNode b, MuTypeNode elemty, uint64_t len);
     MuTypeNode  (*new_type_void     )(MuCtx *ctx, MuBundleNode b);
@@ -452,12 +453,13 @@ struct MuCtx {
 
     // Create function signatures
     MuFuncSigNode   (*new_funcsig   )(MuCtx *ctx, MuBundleNode b, MuTypeNode *paramtys, int nparamtys, MuTypeNode *rettys, int nrettys);
+                    /// MUAPIPARSER paramtys:array:nparamtys;rettys:array:nrettys
 
     // Create constants
     // new_const_int works for int<n>, uptr and ufuncptr.
     MuConstNode (*new_const_int     )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, uint64_t value);
     // new_const_int_ex works for int<n> with n > 64. The number is segmented into 64-bit words, lower word first.
-    MuConstNode (*new_const_int_ex  )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, uint64_t *values, int nvalues);
+    MuConstNode (*new_const_int_ex  )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, uint64_t *values, int nvalues); /// MUAPIPARSER values:array:nvalues
     // TODO: There is only one 'float' type and one 'double' type. Theoretically the 'ty' param is unnecessary
     // It is just added to mirror the text form. Eliminate them when we are ready to change the text form.
     MuConstNode (*new_const_float   )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, float value);
@@ -465,7 +467,7 @@ struct MuCtx {
     // new_const_null works for all general reference types, but not uptr or ufuncptr.
     MuConstNode (*new_const_null    )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty);
     // new_const_seq works for structs, arrays and vectors. Constants are non-recursive, so there is no populate_list_const.
-    MuConstNode (*new_const_seq     )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, MuConstNode *elems, int nelems);
+    MuConstNode (*new_const_seq     )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty, MuConstNode *elems, int nelems); /// MUAPIPARSER elems:array:nelems
     
     // Create global cell
     MuGlobalNode (*new_global_cell  )(MuCtx *ctx, MuBundleNode b, MuTypeNode ty);
@@ -501,7 +503,7 @@ struct MuCtx {
     /// Create common clauses for instructions.
 
     // Create a destination claues and add it to instruction "inst".
-    void    (*add_dest      )(MuCtx *ctx, MuInstNode inst, MuDestKind kind, MuBBNode dest, MuVarNode *vars, int nvars);
+    void    (*add_dest      )(MuCtx *ctx, MuInstNode inst, MuDestKind kind, MuBBNode dest, MuVarNode *vars, int nvars); /// MUAPIPARSER vars:array:nvars
 
     // Create a destination claues and add it to instruction "inst".
     void    (*add_keepalives)(MuCtx *ctx, MuInstNode inst, MuLocalVarNode *vars, int nvars);
@@ -516,11 +518,11 @@ struct MuCtx {
     MuInstNode  (*new_branch        )(MuCtx *ctx, MuBBNode bb);
     MuInstNode  (*new_branch2       )(MuCtx *ctx, MuBBNode bb, MuVarNode cond);
     MuInstNode  (*new_switch        )(MuCtx *ctx, MuBBNode bb, MuTypeNode opnd_ty, MuVarNode opnd);
-    void        (*add_switch_dest   )(MuCtx *ctx, MuInstNode sw, MuConstNode key, MuBBNode dest, MuVarNode *vars, int nvars);
+    void        (*add_switch_dest   )(MuCtx *ctx, MuInstNode sw, MuConstNode key, MuBBNode dest, MuVarNode *vars, int nvars); /// MUAPIPARSER vars:array:nvars
 
-    MuInstNode  (*new_call          )(MuCtx *ctx, MuBBNode bb, MuFuncSigNode sig, MuVarNode callee, MuVarNode *args, int nargs);
-    MuInstNode  (*new_tailcall      )(MuCtx *ctx, MuBBNode bb, MuFuncSigNode sig, MuVarNode callee, MuVarNode *args, int nargs);
-    MuInstNode  (*new_ret           )(MuCtx *ctx, MuBBNode bb, MuVarNode *rvs, int nrvs);
+    MuInstNode  (*new_call          )(MuCtx *ctx, MuBBNode bb, MuFuncSigNode sig, MuVarNode callee, MuVarNode *args, int nargs); /// MUAPIPARSER args:array:nargs
+    MuInstNode  (*new_tailcall      )(MuCtx *ctx, MuBBNode bb, MuFuncSigNode sig, MuVarNode callee, MuVarNode *args, int nargs); /// MUAPIPARSER args:array:nargs
+    MuInstNode  (*new_ret           )(MuCtx *ctx, MuBBNode bb, MuVarNode *rvs, int nrvs); /// MUAPIPARSER rvs:array:nrvs
     MuInstNode  (*new_throw         )(MuCtx *ctx, MuBBNode bb, MuVarNode exc);
 
     MuInstNode  (*new_extractvalue  )(MuCtx *ctx, MuBBNode bb, MuTypeNode strty, int index,         MuVarNode opnd);
@@ -535,28 +537,28 @@ struct MuCtx {
     MuInstNode  (*new_allocahybrid  )(MuCtx *ctx, MuBBNode bb, MuTypeNode allocty, MuTypeNode lenty, MuVarNode length);
 
     MuInstNode  (*new_getiref       )(MuCtx *ctx, MuBBNode bb, MuTypeNode refty, MuVarNode opnd);
-    MuInstNode  (*new_getfieldiref  )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuTypeNode refty, int index, MuVarNode opnd);
-    MuInstNode  (*new_getelemiref   )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuTypeNode refty, MuTypeNode indty, MuVarNode opnd, MuVarNode index);
-    MuInstNode  (*new_shiftiref     )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuTypeNode refty, MuTypeNode offty, MuVarNode opnd, MuVarNode offset);
-    MuInstNode  (*new_getvarpartiref)(MuCtx *ctx, MuBBNode bb, int is_ptr, MuTypeNode refty, MuVarNode opnd);
+    MuInstNode  (*new_getfieldiref  )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuTypeNode refty, int index, MuVarNode opnd); /// MUAPIPARSER is_ptr:bool
+    MuInstNode  (*new_getelemiref   )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuTypeNode refty, MuTypeNode indty, MuVarNode opnd, MuVarNode index); /// MUAPIPARSER is_ptr:bool
+    MuInstNode  (*new_shiftiref     )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuTypeNode refty, MuTypeNode offty, MuVarNode opnd, MuVarNode offset); /// MUAPIPARSER is_ptr:bool
+    MuInstNode  (*new_getvarpartiref)(MuCtx *ctx, MuBBNode bb, int is_ptr, MuTypeNode refty, MuVarNode opnd); /// MUAPIPARSER is_ptr:bool
 
-    MuInstNode  (*new_load          )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuMemOrd ord, MuTypeNode refty,   MuVarNode loc);
-    MuInstNode  (*new_store         )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuMemOrd ord, MuTypeNode refty,   MuVarNode loc,     MuVarNode newval);
-    MuInstNode  (*new_cmpxchg       )(MuCtx *ctx, MuBBNode bb, int is_ptr, int is_weak,  MuMemOrd ord_succ,  MuMemOrd ord_fail, MuTypeNode refty, MuVarNode loc, MuVarNode expected, MuVarNode desired);
-    MuInstNode  (*new_atomicrmw     )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuMemOrd ord, MuAtomicRMWOp optr, MuTypeNode refTy,  MuVarNode loc,    MuVarNode opnd);
+    MuInstNode  (*new_load          )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuMemOrd ord, MuTypeNode refty,   MuVarNode loc); /// MUAPIPARSER is_ptr:bool
+    MuInstNode  (*new_store         )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuMemOrd ord, MuTypeNode refty,   MuVarNode loc,     MuVarNode newval); /// MUAPIPARSER is_ptr:bool
+    MuInstNode  (*new_cmpxchg       )(MuCtx *ctx, MuBBNode bb, int is_ptr, int is_weak,  MuMemOrd ord_succ,  MuMemOrd ord_fail, MuTypeNode refty, MuVarNode loc, MuVarNode expected, MuVarNode desired); /// MUAPIPARSER is_ptr:bool;is_weak:bool
+    MuInstNode  (*new_atomicrmw     )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuMemOrd ord, MuAtomicRMWOp optr, MuTypeNode refTy,  MuVarNode loc,    MuVarNode opnd); /// MUAPIPARSER is_ptr:bool
     MuInstNode  (*new_fence         )(MuCtx *ctx, MuBBNode bb, MuMemOrd ord);
     
-    MuInstNode  (*new_trap          )(MuCtx *ctx, MuBBNode bb, MuTypeNode *rettys, int nrettys);
-    MuInstNode  (*new_watchpoint    )(MuCtx *ctx, MuBBNode bb, MuWPID wpid, MuTypeNode *rettys, int nrettys);
+    MuInstNode  (*new_trap          )(MuCtx *ctx, MuBBNode bb, MuTypeNode *rettys, int nrettys); /// MUAPIPARSER rettys:array:nrettys
+    MuInstNode  (*new_watchpoint    )(MuCtx *ctx, MuBBNode bb, MuWPID wpid, MuTypeNode *rettys, int nrettys); /// MUAPIPARSER rettys:array:nrettys
     MuInstNode  (*new_wpbranch      )(MuCtx *ctx, MuBBNode bb, MuWPID wpid);
 
-    MuInstNode  (*new_ccall         )(MuCtx *ctx, MuBBNode bb, MuCallConv callconv, MuTypeNode callee_ty, MuFuncSigNode sig, MuVarNode callee, MuVarNode *args, int nargs);
+    MuInstNode  (*new_ccall         )(MuCtx *ctx, MuBBNode bb, MuCallConv callconv, MuTypeNode callee_ty, MuFuncSigNode sig, MuVarNode callee, MuVarNode *args, int nargs); /// MUAPIPARSER args:array:nargs
 
     MuInstNode  (*new_newthread     )(MuCtx *ctx, MuBBNode bb, MuVarNode stack, MuVarNode threadlocal);
-    MuInstNode  (*new_swapstack_ret )(MuCtx *ctx, MuBBNode bb, MuVarNode swappee, MuTypeNode *ret_tys, int nret_tys);
+    MuInstNode  (*new_swapstack_ret )(MuCtx *ctx, MuBBNode bb, MuVarNode swappee, MuTypeNode *ret_tys, int nret_tys); /// MUAPIPARSER ret_tys:array:nret_tys
     MuInstNode  (*new_swapstack_kill)(MuCtx *ctx, MuBBNode bb, MuVarNode swappee);
 
-    void        (*set_newstack_pass_values)(MuCtx *ctx, MuInstNode inst, MuTypeNode *tys, MuVarNode *vars, int nvars);
+    void        (*set_newstack_pass_values)(MuCtx *ctx, MuInstNode inst, MuTypeNode *tys, MuVarNode *vars, int nvars); /// MUAPIPARSER tys:array:nvars;ret_tys:array:nret_tys
     void        (*set_newstack_throw_exc  )(MuCtx *ctx, MuInstNode inst, MuVarNode exc);
 
     MuInstNode  (*new_comminst      )(MuCtx *ctx, MuBBNode bb, MuCommInst opcode,
@@ -564,6 +566,7 @@ struct MuCtx {
                                         MuTypeNode    *tys,   int ntys,
                                         MuFuncSigNode *sigs,  int nsigs,
                                         MuVarNode     *args,  int nargs);
+                 /// MUAPIPARSER flags:array:nflags;tys:array:ntys;sigs:array:nsigs;args:array:nargs
 };
 
 // Common instruction opcodes
