@@ -4,7 +4,6 @@ Parse the muapi.h so that you can generate different bindings.
 The result will be a simple JSON object (dict of dicts).
 """
 
-import sys
 import re
 
 r_commpragma = re.compile(r'///\s*MUAPIPARSER:(.*)$')

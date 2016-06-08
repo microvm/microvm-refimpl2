@@ -10,26 +10,35 @@ Use pbcopy on Mac.
 """
 
 import sys
+import os, os.path
 import re
+import tempfile
 
-r_comment = re.compile(r'//.*$', re.MULTILINE)
-r_decl = re.compile(r'(?P<ret>\w+)\s*\(\s*\*\s*(?P<name>\w+)\s*\)\s*\((?P<params>[^)]*)\)\s*;')
-r_param = re.compile(r'\s*(?P<type>\w+)\s*(?P<ptr>\*?)\s*(?P<name>\w+)')
-r_value_ty = re.compile(r'Mu\w*(Value|Node)')
+import muapiparser
 
-begin = "/// IR Builder API"
-end = "// Common instruction opcodes"
+target_begin = '/// SCRIPT: GENERATED CODE BEGIN'
+target_end   = '/// SCRIPT: GENERATED CODE END'
 
-target_begin = '/// SCRIPT: INSERT BEGIN'
-target_begin = '/// SCRIPT: INSERT END'
+def find_line(lines, substr, start=0):
+    for i in range(start, len(lines)):
+        if substr in lines[i]:
+            return i
 
-lines = sys.stdin.read().splitlines()
-l1 = [n for (n,l) in enumerate(lines) if begin in l][0]
-l2 = [n for (n,l) in enumerate(lines) if end in l][0]
+    raise KeyError("Not found: " + substr)
 
-text = "\n".join(lines[l1+1:l2])
 
-text = r_comment.sub("", text)
+def general_inject_generated_code(parent: str, begin: str, end: str, generated: str):
+    lines = parent.splitlines()
+
+    begin_line = find_line(lines, begin)
+    end_line = find_line(lines, end, begin_line+1)
+
+    new_lines = lines[:begin_line+1] + generated.splitlines() + lines[end_line:]
+
+    return "\n".join(new_lines)
+
+def inject_generated_code(parent, generated):
+    return general_inject_generated_code(parent, target_begin, target_end, generated)
 
 _simple_map = {
         "void": "Unit",
@@ -101,70 +110,17 @@ def toCamelCase(name):
 
     return "".join(outs)
 
-_special_param = {
-        }
+src_path = os.path.join(*"src/main/scala/uvm/refimpl/nat/cStubs.scala".split("/"))
+with open(src_path) as f:
+    src_text = f.read()
 
-def conv_param_ty(name, ty):
-    if ty == "MuCtx*":
-        return "MuCtx"
-    elif r_value_ty.match(ty) is not None and ty.endswith("*"):
-        return "MuValueFakArrayPtr"
-    elif ty == "MuFlag*":
-        return "MuFlagArrayPtr"
-    elif name == "threadlocal" and ty == "MuVarNode":
-        return "Option[MuVarNode]"
-    elif ty in _special_param:
-        return _special_param[ty]
-    elif ty in _simple_map:
-        return _simple_map[ty]
-    else:
-        return ty
+generated = "// goodbye world"
 
-def conv_param_val(func, name, ty):
-    if ty == "MuValueFakArrayPtr":
-        if func == "set_newstack_pass_values":
-            lenvar = "nvars"
-        else:
-            lenvar = "n" + name
-        return "readFromValueFakArray({}, {})".format(name, lenvar)
-    elif ty == "MuFlagArrayPtr":
-        lenvar = "n" + name
-        return "readFromFlagArray({}, {})".format(name, lenvar)
-    elif name in ["is_ptr", "is_weak"]:
-        return name + " != 0"
-    else:
-        return name
+result_text = inject_generated_code(src_text, generated)
 
-_num_params = "nfieldtys nfixedtys nparamtys nrettys nelems nargs nrvs nvars nflags ntys nsigs nret_tys".split()
+with tempfile.NamedTemporaryFile("w") as f:
+    print("Backup to temporary file:", f.name)
+    f.write(src_text)
 
-def forward_call(func, params):
-    params = [p for p in params if p[0] not in _num_params]
-    return "ctx.{}({})".format(toCamelCase(func), ", ".join(
-        conv_param_val(func, n, t) for n,t in params))
-
-for m in r_decl.finditer(text):
-    name, params, ret = [m.groupdict()[k] for k in "name params ret".split()]
-
-    params_out = []
-    params = params.split(",")
-    for param in params:
-        mp = r_param.search(param)
-        pt, pp, pn = [mp.groupdict()[k] for k in "type ptr name".split()]
-        pt = conv_param_ty(pn, pt+pp)
-        params_out.append((pn, pt))
-
-    params_out_str = ", ".join("{}: {}".format(pn, pt) for pn, pt in params_out)
-
-    is_value, ret = conv_ret_ty(ret)
-
-    impl = forward_call(name, params_out[1:])
-    if is_value:
-        impl = "exposeMuValue(ctx, {})".format(impl)
-
-    print("  def {}({}): {} = {}".format(name, params_out_str, ret, impl))
-
-        
-
-
-
-
+with open(src_path, "w") as f:
+    f.write(result_text)
