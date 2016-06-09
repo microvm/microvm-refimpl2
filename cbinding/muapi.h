@@ -83,9 +83,9 @@ typedef uint32_t MuFlag;
 typedef MuFlag MuTrapHandlerResult;
 
 // Values or MuTrapHandlerResult
-#define MU_THREAD_EXIT          0x00
-#define MU_REBIND_PASS_VALUES   0x01
-#define MU_REBIND_THROW_EXC     0x02
+#define MU_THREAD_EXIT          ((MuTrapHandlerResult)0x00)
+#define MU_REBIND_PASS_VALUES   ((MuTrapHandlerResult)0x01)
+#define MU_REBIND_THROW_EXC     ((MuTrapHandlerResult)0x02)
 
 // Used by MuTrapHandler
 typedef void (*MuValuesFreer)(MuValue *values, MuCPtr freerdata);
@@ -114,106 +114,106 @@ typedef void (*MuTrapHandler)(
 
 // Destination kinds
 typedef MuFlag MuDestKind;
-#define MU_DEST_NORMAL      0x01
-#define MU_DEST_EXCEPT      0x02
-#define MU_DEST_TRUE        0x03
-#define MU_DEST_FALSE       0x04
-#define MU_DEST_DEFAULT     0x05
-#define MU_DEST_DISABLED    0x06
-#define MU_DEST_ENABLED     0x07
+#define MU_DEST_NORMAL      ((MuDeskKind)0x01)
+#define MU_DEST_EXCEPT      ((MuDeskKind)0x02)
+#define MU_DEST_TRUE        ((MuDeskKind)0x03)
+#define MU_DEST_FALSE       ((MuDeskKind)0x04)
+#define MU_DEST_DEFAULT     ((MuDeskKind)0x05)
+#define MU_DEST_DISABLED    ((MuDeskKind)0x06)
+#define MU_DEST_ENABLED     ((MuDeskKind)0x07)
 
 // Binary operators
 typedef MuFlag MuBinOptr;
-#define MU_BINOP_ADD    0x01
-#define MU_BINOP_SUB    0x02
-#define MU_BINOP_MUL    0x03
-#define MU_BINOP_SDIV   0x04
-#define MU_BINOP_SREM   0x05
-#define MU_BINOP_UDIV   0x06
-#define MU_BINOP_UREM   0x07
-#define MU_BINOP_SHL    0x08
-#define MU_BINOP_LSHR   0x09
-#define MU_BINOP_ASHR   0x0A
-#define MU_BINOP_AND    0x0B
-#define MU_BINOP_OR     0x0C
-#define MU_BINOP_XOR    0x0D
-#define MU_BINOP_FADD   0xB0
-#define MU_BINOP_FSUB   0xB1
-#define MU_BINOP_FMUL   0xB2
-#define MU_BINOP_FDIV   0xB3
-#define MU_BINOP_FREM   0xB4
+#define MU_BINOP_ADD    ((MuBinOptr)0x01)
+#define MU_BINOP_SUB    ((MuBinOptr)0x02)
+#define MU_BINOP_MUL    ((MuBinOptr)0x03)
+#define MU_BINOP_SDIV   ((MuBinOptr)0x04)
+#define MU_BINOP_SREM   ((MuBinOptr)0x05)
+#define MU_BINOP_UDIV   ((MuBinOptr)0x06)
+#define MU_BINOP_UREM   ((MuBinOptr)0x07)
+#define MU_BINOP_SHL    ((MuBinOptr)0x08)
+#define MU_BINOP_LSHR   ((MuBinOptr)0x09)
+#define MU_BINOP_ASHR   ((MuBinOptr)0x0A)
+#define MU_BINOP_AND    ((MuBinOptr)0x0B)
+#define MU_BINOP_OR     ((MuBinOptr)0x0C)
+#define MU_BINOP_XOR    ((MuBinOptr)0x0D)
+#define MU_BINOP_FADD   ((MuBinOptr)0xB0)
+#define MU_BINOP_FSUB   ((MuBinOptr)0xB1)
+#define MU_BINOP_FMUL   ((MuBinOptr)0xB2)
+#define MU_BINOP_FDIV   ((MuBinOptr)0xB3)
+#define MU_BINOP_FREM   ((MuBinOptr)0xB4)
 
 // Comparing operators
 typedef MuFlag MuCmpOptr;
-#define MU_CMP_EQ       0x20
-#define MU_CMP_NE       0x21
-#define MU_CMP_SGE      0x22
-#define MU_CMP_SGT      0x23
-#define MU_CMP_SLE      0x24
-#define MU_CMP_SLT      0x25
-#define MU_CMP_UGE      0x26
-#define MU_CMP_UGT      0x27
-#define MU_CMP_ULE      0x28
-#define MU_CMP_ULT      0x29
-#define MU_CMP_FFALSE   0xC0
-#define MU_CMP_FTRUE    0xC1
-#define MU_CMP_FUNO     0xC2
-#define MU_CMP_FUEQ     0xC3
-#define MU_CMP_FUNE     0xC4
-#define MU_CMP_FUGT     0xC5
-#define MU_CMP_FUGE     0xC6
-#define MU_CMP_FULT     0xC7
-#define MU_CMP_FULE     0xC8
-#define MU_CMP_FORD     0xC9
-#define MU_CMP_FOEQ     0xCA
-#define MU_CMP_FONE     0xCB
-#define MU_CMP_FOGT     0xCC
-#define MU_CMP_FOGE     0xCD
-#define MU_CMP_FOLT     0xCE
-#define MU_CMP_FOLE     0xCF
+#define MU_CMP_EQ       ((MuCmpOptr)0x20)
+#define MU_CMP_NE       ((MuCmpOptr)0x21)
+#define MU_CMP_SGE      ((MuCmpOptr)0x22)
+#define MU_CMP_SGT      ((MuCmpOptr)0x23)
+#define MU_CMP_SLE      ((MuCmpOptr)0x24)
+#define MU_CMP_SLT      ((MuCmpOptr)0x25)
+#define MU_CMP_UGE      ((MuCmpOptr)0x26)
+#define MU_CMP_UGT      ((MuCmpOptr)0x27)
+#define MU_CMP_ULE      ((MuCmpOptr)0x28)
+#define MU_CMP_ULT      ((MuCmpOptr)0x29)
+#define MU_CMP_FFALSE   ((MuCmpOptr)0xC0)
+#define MU_CMP_FTRUE    ((MuCmpOptr)0xC1)
+#define MU_CMP_FUNO     ((MuCmpOptr)0xC2)
+#define MU_CMP_FUEQ     ((MuCmpOptr)0xC3)
+#define MU_CMP_FUNE     ((MuCmpOptr)0xC4)
+#define MU_CMP_FUGT     ((MuCmpOptr)0xC5)
+#define MU_CMP_FUGE     ((MuCmpOptr)0xC6)
+#define MU_CMP_FULT     ((MuCmpOptr)0xC7)
+#define MU_CMP_FULE     ((MuCmpOptr)0xC8)
+#define MU_CMP_FORD     ((MuCmpOptr)0xC9)
+#define MU_CMP_FOEQ     ((MuCmpOptr)0xCA)
+#define MU_CMP_FONE     ((MuCmpOptr)0xCB)
+#define MU_CMP_FOGT     ((MuCmpOptr)0xCC)
+#define MU_CMP_FOGE     ((MuCmpOptr)0xCD)
+#define MU_CMP_FOLT     ((MuCmpOptr)0xCE)
+#define MU_CMP_FOLE     ((MuCmpOptr)0xCF)
 
 // Conversion operators
 typedef MuFlag MuConvOptr;
-#define MU_CONV_TRUNC   0x30
-#define MU_CONV_ZEXT    0x31
-#define MU_CONV_SEXT    0x32
-#define MU_CONV_FPTRUNC 0x33
-#define MU_CONV_FPEXT   0x34
-#define MU_CONV_FPTOUI  0x35
-#define MU_CONV_FPTOSI  0x36
-#define MU_CONV_UITOFP  0x37
-#define MU_CONV_SITOFP  0x38
-#define MU_CONV_BITCAST 0x39
-#define MU_CONV_REFCAST 0x3A
-#define MU_CONV_PTRCAST 0x3B
+#define MU_CONV_TRUNC   ((MuConvOptr)0x30)
+#define MU_CONV_ZEXT    ((MuConvOptr)0x31)
+#define MU_CONV_SEXT    ((MuConvOptr)0x32)
+#define MU_CONV_FPTRUNC ((MuConvOptr)0x33)
+#define MU_CONV_FPEXT   ((MuConvOptr)0x34)
+#define MU_CONV_FPTOUI  ((MuConvOptr)0x35)
+#define MU_CONV_FPTOSI  ((MuConvOptr)0x36)
+#define MU_CONV_UITOFP  ((MuConvOptr)0x37)
+#define MU_CONV_SITOFP  ((MuConvOptr)0x38)
+#define MU_CONV_BITCAST ((MuConvOptr)0x39)
+#define MU_CONV_REFCAST ((MuConvOptr)0x3A)
+#define MU_CONV_PTRCAST ((MuConvOptr)0x3B)
 
 // Memory orders
 typedef MuFlag MuMemOrd;
-#define MU_ORD_NOT_ATOMIC   0x00
-#define MU_ORD_RELAXED      0x01
-#define MU_ORD_CONSUME      0x02
-#define MU_ORD_ACQUIRE      0x03
-#define MU_ORD_RELEASE      0x04
-#define MU_ORD_ACQ_REL      0x05
-#define MU_ORD_SEQ_CST      0x06
+#define MU_ORD_NOT_ATOMIC   ((MuMemOrd)0x00)
+#define MU_ORD_RELAXED      ((MuMemOrd)0x01)
+#define MU_ORD_CONSUME      ((MuMemOrd)0x02)
+#define MU_ORD_ACQUIRE      ((MuMemOrd)0x03)
+#define MU_ORD_RELEASE      ((MuMemOrd)0x04)
+#define MU_ORD_ACQ_REL      ((MuMemOrd)0x05)
+#define MU_ORD_SEQ_CST      ((MuMemOrd)0x06)
 
 // Operations for the atomicrmw API function
-typedef MuFlag MuAtomicRMWOp;
-#define MU_ARMW_XCHG    0x00
-#define MU_ARMW_ADD     0x01
-#define MU_ARMW_SUB     0x02
-#define MU_ARMW_AND     0x03
-#define MU_ARMW_NAND    0x04
-#define MU_ARMW_OR      0x05
-#define MU_ARMW_XOR     0x06
-#define MU_ARMW_MAX     0x07
-#define MU_ARMW_MIN     0x08
-#define MU_ARMW_UMAX    0x09
-#define MU_ARMW_UMIN    0x0A
+typedef MuFlag MuAtomicRMWOptr;
+#define MU_ARMW_XCHG    ((MuAtomicRMWOptr)0x00)
+#define MU_ARMW_ADD     ((MuAtomicRMWOptr)0x01)
+#define MU_ARMW_SUB     ((MuAtomicRMWOptr)0x02)
+#define MU_ARMW_AND     ((MuAtomicRMWOptr)0x03)
+#define MU_ARMW_NAND    ((MuAtomicRMWOptr)0x04)
+#define MU_ARMW_OR      ((MuAtomicRMWOptr)0x05)
+#define MU_ARMW_XOR     ((MuAtomicRMWOptr)0x06)
+#define MU_ARMW_MAX     ((MuAtomicRMWOptr)0x07)
+#define MU_ARMW_MIN     ((MuAtomicRMWOptr)0x08)
+#define MU_ARMW_UMAX    ((MuAtomicRMWOptr)0x09)
+#define MU_ARMW_UMIN    ((MuAtomicRMWOptr)0x0A)
 
 // Calling conventions.
 typedef MuFlag MuCallConv;
-#define MU_CC_DEFAULT   0x00
+#define MU_CC_DEFAULT   ((MuCallConv)0x00)
 // Concrete Mu implementations may define more calling conventions.
 
 // Common instructions.
@@ -337,7 +337,7 @@ struct MuCtx {
     MuValue     (*cmpxchg  )(MuCtx *ctx, MuMemOrd ord_succ, MuMemOrd ord_fail,
                         int weak, MuIRefValue loc, MuValue expected, MuValue desired,
                         int *is_succ); /// MUAPIPARSER weak:bool
-    MuValue     (*atomicrmw)(MuCtx *ctx, MuMemOrd ord, MuAtomicRMWOp op,
+    MuValue     (*atomicrmw)(MuCtx *ctx, MuMemOrd ord, MuAtomicRMWOptr op,
                         MuIRefValue loc, MuValue opnd);
     void        (*fence    )(MuCtx *ctx, MuMemOrd ord);
 
@@ -545,7 +545,7 @@ struct MuCtx {
     MuInstNode  (*new_load          )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuMemOrd ord, MuTypeNode refty,   MuVarNode loc); /// MUAPIPARSER is_ptr:bool
     MuInstNode  (*new_store         )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuMemOrd ord, MuTypeNode refty,   MuVarNode loc,     MuVarNode newval); /// MUAPIPARSER is_ptr:bool
     MuInstNode  (*new_cmpxchg       )(MuCtx *ctx, MuBBNode bb, int is_ptr, int is_weak,  MuMemOrd ord_succ,  MuMemOrd ord_fail, MuTypeNode refty, MuVarNode loc, MuVarNode expected, MuVarNode desired); /// MUAPIPARSER is_ptr:bool;is_weak:bool
-    MuInstNode  (*new_atomicrmw     )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuMemOrd ord, MuAtomicRMWOp optr, MuTypeNode refTy,  MuVarNode loc,    MuVarNode opnd); /// MUAPIPARSER is_ptr:bool
+    MuInstNode  (*new_atomicrmw     )(MuCtx *ctx, MuBBNode bb, int is_ptr, MuMemOrd ord, MuAtomicRMWOptr optr, MuTypeNode refTy,  MuVarNode loc,    MuVarNode opnd); /// MUAPIPARSER is_ptr:bool
     MuInstNode  (*new_fence         )(MuCtx *ctx, MuBBNode bb, MuMemOrd ord);
     
     MuInstNode  (*new_trap          )(MuCtx *ctx, MuBBNode bb, MuTypeNode *rettys, int nrettys); /// MUAPIPARSER rettys:array:nrettys
@@ -570,49 +570,51 @@ struct MuCtx {
 };
 
 // Common instruction opcodes
-#define MU_CI_UVM_NEW_STACK               0X201
-#define MU_CI_UVM_KILL_STACK              0X202
-#define MU_CI_UVM_THREAD_EXIT             0X203
-#define MU_CI_UVM_CURRENT_STACK           0X204
-#define MU_CI_UVM_SET_THREADLOCAL         0X205
-#define MU_CI_UVM_GET_THREADLOCAL         0X206
-#define MU_CI_UVM_TR64_IS_FP              0X211
-#define MU_CI_UVM_TR64_IS_INT             0X212
-#define MU_CI_UVM_TR64_IS_REF             0X213
-#define MU_CI_UVM_TR64_FROM_FP            0X214
-#define MU_CI_UVM_TR64_FROM_INT           0X215
-#define MU_CI_UVM_TR64_FROM_REF           0X216
-#define MU_CI_UVM_TR64_TO_FP              0X217
-#define MU_CI_UVM_TR64_TO_INT             0X218
-#define MU_CI_UVM_TR64_TO_REF             0X219
-#define MU_CI_UVM_TR64_TO_TAG             0X21A
-#define MU_CI_UVM_FUTEX_WAIT              0X220
-#define MU_CI_UVM_FUTEX_WAIT_TIMEOUT      0X221
-#define MU_CI_UVM_FUTEX_WAKE              0X222
-#define MU_CI_UVM_FUTEX_CMP_REQUEUE       0X223
-#define MU_CI_UVM_KILL_DEPENDENCY         0X230
-#define MU_CI_UVM_NATIVE_PIN              0X240
-#define MU_CI_UVM_NATIVE_UNPIN            0X241
-#define MU_CI_UVM_NATIVE_EXPOSE           0X242
-#define MU_CI_UVM_NATIVE_UNEXPOSE         0X243
-#define MU_CI_UVM_NATIVE_GET_COOKIE       0X244
-#define MU_CI_UVM_META_ID_OF              0X250
-#define MU_CI_UVM_META_NAME_OF            0X251
-#define MU_CI_UVM_META_LOAD_BUNDLE        0X252
-#define MU_CI_UVM_META_LOAD_HAIL          0X253
-#define MU_CI_UVM_META_NEW_CURSOR         0X254
-#define MU_CI_UVM_META_NEXT_FRAME         0X255
-#define MU_CI_UVM_META_COPY_CURSOR        0X256
-#define MU_CI_UVM_META_CLOSE_CURSOR       0X257
-#define MU_CI_UVM_META_CUR_FUNC           0X258
-#define MU_CI_UVM_META_CUR_FUNC_VER       0X259
-#define MU_CI_UVM_META_CUR_INST           0X25A
-#define MU_CI_UVM_META_DUMP_KEEPALIVES    0X25B
-#define MU_CI_UVM_META_POP_FRAMES_TO      0X25C
-#define MU_CI_UVM_META_PUSH_FRAME         0X25D
-#define MU_CI_UVM_META_ENABLE_WATCHPOINT  0X25E
-#define MU_CI_UVM_META_DISABLE_WATCHPOINT 0X25F
-#define MU_CI_UVM_META_SET_TRAP_HANDLER   0X260
+/// SCRIPT: GENERATED COMMINSTS BEGIN
+#define MU_CI_UVM_NEW_STACK               ((MuCommInst)0x201)
+#define MU_CI_UVM_KILL_STACK              ((MuCommInst)0x202)
+#define MU_CI_UVM_THREAD_EXIT             ((MuCommInst)0x203)
+#define MU_CI_UVM_CURRENT_STACK           ((MuCommInst)0x204)
+#define MU_CI_UVM_SET_THREADLOCAL         ((MuCommInst)0x205)
+#define MU_CI_UVM_GET_THREADLOCAL         ((MuCommInst)0x206)
+#define MU_CI_UVM_TR64_IS_FP              ((MuCommInst)0x211)
+#define MU_CI_UVM_TR64_IS_INT             ((MuCommInst)0x212)
+#define MU_CI_UVM_TR64_IS_REF             ((MuCommInst)0x213)
+#define MU_CI_UVM_TR64_FROM_FP            ((MuCommInst)0x214)
+#define MU_CI_UVM_TR64_FROM_INT           ((MuCommInst)0x215)
+#define MU_CI_UVM_TR64_FROM_REF           ((MuCommInst)0x216)
+#define MU_CI_UVM_TR64_TO_FP              ((MuCommInst)0x217)
+#define MU_CI_UVM_TR64_TO_INT             ((MuCommInst)0x218)
+#define MU_CI_UVM_TR64_TO_REF             ((MuCommInst)0x219)
+#define MU_CI_UVM_TR64_TO_TAG             ((MuCommInst)0x21A)
+#define MU_CI_UVM_FUTEX_WAIT              ((MuCommInst)0x220)
+#define MU_CI_UVM_FUTEX_WAIT_TIMEOUT      ((MuCommInst)0x221)
+#define MU_CI_UVM_FUTEX_WAKE              ((MuCommInst)0x222)
+#define MU_CI_UVM_FUTEX_CMP_REQUEUE       ((MuCommInst)0x223)
+#define MU_CI_UVM_KILL_DEPENDENCY         ((MuCommInst)0x230)
+#define MU_CI_UVM_NATIVE_PIN              ((MuCommInst)0x240)
+#define MU_CI_UVM_NATIVE_UNPIN            ((MuCommInst)0x241)
+#define MU_CI_UVM_NATIVE_EXPOSE           ((MuCommInst)0x242)
+#define MU_CI_UVM_NATIVE_UNEXPOSE         ((MuCommInst)0x243)
+#define MU_CI_UVM_NATIVE_GET_COOKIE       ((MuCommInst)0x244)
+#define MU_CI_UVM_META_ID_OF              ((MuCommInst)0x250)
+#define MU_CI_UVM_META_NAME_OF            ((MuCommInst)0x251)
+#define MU_CI_UVM_META_LOAD_BUNDLE        ((MuCommInst)0x252)
+#define MU_CI_UVM_META_LOAD_HAIL          ((MuCommInst)0x253)
+#define MU_CI_UVM_META_NEW_CURSOR         ((MuCommInst)0x254)
+#define MU_CI_UVM_META_NEXT_FRAME         ((MuCommInst)0x255)
+#define MU_CI_UVM_META_COPY_CURSOR        ((MuCommInst)0x256)
+#define MU_CI_UVM_META_CLOSE_CURSOR       ((MuCommInst)0x257)
+#define MU_CI_UVM_META_CUR_FUNC           ((MuCommInst)0x258)
+#define MU_CI_UVM_META_CUR_FUNC_VER       ((MuCommInst)0x259)
+#define MU_CI_UVM_META_CUR_INST           ((MuCommInst)0x25A)
+#define MU_CI_UVM_META_DUMP_KEEPALIVES    ((MuCommInst)0x25B)
+#define MU_CI_UVM_META_POP_FRAMES_TO      ((MuCommInst)0x25C)
+#define MU_CI_UVM_META_PUSH_FRAME         ((MuCommInst)0x25D)
+#define MU_CI_UVM_META_ENABLE_WATCHPOINT  ((MuCommInst)0x25E)
+#define MU_CI_UVM_META_DISABLE_WATCHPOINT ((MuCommInst)0x25F)
+#define MU_CI_UVM_META_SET_TRAP_HANDLER   ((MuCommInst)0x260)
+/// SCRIPT: GENERATED COMMINSTS END
 
 #ifdef __cplusplus
 }
