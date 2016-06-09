@@ -6,13 +6,15 @@ The result will be a simple JSON object (dict of dicts).
 
 import re
 
+import injecttools
+
 r_commpragma = re.compile(r'///\s*MUAPIPARSER:(.*)$')
 r_comment = re.compile(r'//.*$', re.MULTILINE)
 r_decl = re.compile(r'(?P<ret>\w+\s*\*?)\s*\(\s*\*\s*(?P<name>\w+)\s*\)\s*\((?P<params>[^)]*)\)\s*;\s*(?:///\s*MUAPIPARSER\s+(?P<pragma>.*)$)?', re.MULTILINE)
 r_param = re.compile(r'\s*(?P<type>\w+\s*\*?)\s*(?P<name>\w+)')
 r_value_ty = re.compile(r'Mu\w*(Value|Node)')
 
-r_define = re.compile(r'#define\s*(?P<name>\w+)\s*(?P<value>\w+)')
+r_define = re.compile(r'^\s*#define\s*(?P<name>\w+)\s*\(\((?P<type>\w+)\)(?P<value>\w+)\)\s*$', re.MULTILINE)
 
 r_struct_start = re.compile(r'^struct\s+(\w+)\s*\{')
 r_struct_end = re.compile(r'^\};')
@@ -28,7 +30,6 @@ def extract_params(text):
         params.append({"type": ty, "name": name})
 
     return params
-
 
 def extract_pragmas(text):
     text = text.strip()
@@ -49,26 +50,14 @@ def extract_methods(body):
         
     return methods
 
-def extract_struct(lines, name):
-    for i in range(len(lines)):
-        m = r_struct_start.search(lines[i])
-        if m is not None and m.group(1) == name:
-            for j in range(i+1, len(lines)):
-                m2 = r_struct_end.search(lines[j])
-                if m2 is not None:
-                    body = lines[i+1:j]
-                    return "\n".join(body)
-            else:
-                raise Exception("Cannot find the end of struct {}".format(name))
-    else:
-        raise Exception("Cannot find the start of struct {}".format(name))
+def extract_struct(text, name):
+    return injecttools.extract_lines(text, (r_struct_start, name), (r_struct_end,))
 
-def extract_enums(lines, typename, pattern):
+def extract_enums(text, typename, pattern):
     defs = []
-    for line in lines:
-        m = r_define.search(line)
+    for m in r_define.finditer(text):
         if m is not None:
-            name, value = m.groups()
+            name, ty, value = m.groups()
             if pattern.search(name) is not None:
                 defs.append({"name": name, "value": value})
     return {
@@ -85,23 +74,22 @@ _enums = [(typename, re.compile(regex)) for typename, regex in [
     ("MuConvOptr", r'^MU_CONV_'),
     ("MuMemOrd", r'^MU_ORD_'),
     ("MuAtomicRMWOp", r'^MU_ARMW_'),
-    ("MuFlag", r'^MU_CC_'),
+    ("MuCallConv", r'^MU_CC_'),
+    ("MuCommInst", r'^MU_CI_'),
     ]]
 
 def parse_muapi(text):
     structs = []
 
-    lines = text.splitlines()
-
     for sn in _top_level_structs:
-        b = extract_struct(lines, sn)
+        b = extract_struct(text, sn)
         methods = extract_methods(b)
         structs.append({"name": sn, "methods": methods})
 
     enums = []
 
     for tn,pat in _enums:
-        enums.append(extract_enums(lines, tn, pat))
+        enums.append(extract_enums(text, tn, pat))
 
     return {
             "structs": structs,
