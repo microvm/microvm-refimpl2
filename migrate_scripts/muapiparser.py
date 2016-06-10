@@ -14,7 +14,9 @@ r_decl = re.compile(r'(?P<ret>\w+\s*\*?)\s*\(\s*\*\s*(?P<name>\w+)\s*\)\s*\((?P<
 r_param = re.compile(r'\s*(?P<type>\w+\s*\*?)\s*(?P<name>\w+)')
 r_value_ty = re.compile(r'Mu\w*(Value|Node)')
 
-r_define = re.compile(r'^\s*#define\s*(?P<name>\w+)\s*\(\((?P<type>\w+)\)(?P<value>\w+)\)\s*$', re.MULTILINE)
+r_define = re.compile(r'^\s*#define\s+(?P<name>\w+)\s*\(\((?P<type>\w+)\)(?P<value>\w+)\)\s*$', re.MULTILINE)
+
+r_typedef = re.compile(r'^\s*typedef\s+(?P<expand_to>\w+\s*\*?)\s*(?P<name>\w+)\s*;', re.MULTILINE)
 
 r_struct_start = re.compile(r'^struct\s+(\w+)\s*\{')
 r_struct_end = re.compile(r'^\};')
@@ -78,6 +80,14 @@ _enums = [(typename, re.compile(regex)) for typename, regex in [
     ("MuCommInst", r'^MU_CI_'),
     ]]
 
+def extract_typedefs(text):
+    typedefs = {}
+    for m in r_typedef.finditer(text):
+        expand_to, name = m.groups()
+        typedefs[name] = expand_to.replace(" ","")
+
+    return typedefs
+
 def parse_muapi(text):
     structs = []
 
@@ -91,9 +101,12 @@ def parse_muapi(text):
     for tn,pat in _enums:
         enums.append(extract_enums(text, tn, pat))
 
+    typedefs = extract_typedefs(text)
+
     return {
             "structs": structs,
             "enums": enums,
+            "typedefs": typedefs,
             }
 
 if __name__=='__main__':

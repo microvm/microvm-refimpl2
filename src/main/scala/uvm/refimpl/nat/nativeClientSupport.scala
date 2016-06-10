@@ -998,6 +998,9 @@ object NativeClientSupport {
 
   /** Map each MuCtx to all of its current MuValues. This is needed when closing a MuCtx. */
   val muCtxToMuValueFaks = HashMap[MuCtx, HashSet[MuValueFak]]()
+  
+  def getMicroVM(funcTableAddr: FuncTablePtr): MicroVM = getObjFromFuncTableAddrNotNull(funcTableAddr, microVMs)
+  def getMuCtx(funcTableAddr: FuncTablePtr): MuCtx = getObjFromFuncTableAddrNotNull(funcTableAddr, muCtxs)
 
   /** Given a function table pointer, get an object from a ObjectReferenceManager. Assert it is not null. */
   def getObjFromFuncTableAddrNotNull[T](funcTableAddr: FuncTablePtr, orm: ObjectReferenceManager[T]): T = {

@@ -13,6 +13,7 @@ import sys
 import os, os.path
 import re
 import tempfile
+from typing import Tuple
 
 import muapiparser
 import injecttools
@@ -41,13 +42,46 @@ _primitive_types = {
         "double":   ["Double", "DOUBLE", "getDouble", "setDoubleReturn"],
         }
 
+_funcptr_types = {"MuCFP", "MuTrapHandler", "MuValueFreer"}
+
 _self_getters = {
         "MuVM*": "getMuVM",
         "MuCtx*": "getMuCtx",
         }
 
-def type_is_ptr(ty):
+def type_is_explicit_ptr(ty):
     return ty.endswith("*")
+
+r_handle_ty = re.compile(r'Mu\w*(Value|Node)')
+
+def type_is_handle(ty):
+    return r_handle_ty.match(ty) is not None
+
+def type_is_ptr(ty):
+    return type_is_explicit_ptr(ty) or type_is_handle(ty) or ty in _funcptr_types
+
+def type_is_handle_array(ty):
+    return is_ptr(ty) and r_handle_ty.match(ty[:-1]) is not None
+
+def to_jffi_ty(cty):
+    if cty in _primitive_types:
+        jty = _primitive_types[cty][1]
+    elif type_is_ptr(cty):
+        jty = "POINTER"
+    else:
+        raise ValueError("No JFFI JType: " + cty)
+
+    return "JType." + jty
+
+def to_jffi_getter(cty):
+    if cty in _primitive_types:
+        getter = _primitive_types[cty][2]
+    elif type_is_ptr(cty):
+        getter = "getAddress"
+    else:
+        raise ValueError("No JFFI Buffer getter: " + cty)
+
+    return getter
 
 _special_cases = {
         "id":             "ID",
@@ -100,22 +134,69 @@ def toCamelCase(name):
 
     return "".join(outs)
 
-r_handle_ty = re.compile(r'Mu\w*(Value|Node)')
+def to_basic_type(typedefs, name):
+    while name in typedefs:
+        name = typedefs[name]
+    return name
 
-def is_handle(ty):
-    return r_handle_ty.match(ty) is not None
+def generate_method(typedefs, strname, meth) -> Tuple[str, str]:
+    name    = meth['name']
+    params  = meth['params']
+    ret_ty  = meth['ret_ty']
+    pragmas = meth['pragmas']
 
-def is_handle_array(ty):
-    return is_ptr(ty) and r_handle_ty.match(ty[:-1]) is not None
+    valname = strname.upper() + "__" + name.upper()
+
+    jffi_retty = to_jffi_ty(to_basic_type(typedefs, ret_ty))
+    jffi_paramtys = [to_jffi_ty(to_basic_type(typedefs, p["type"])) for p in params]
+
+    header = "val {} = exposedMethod({}, Array({})) {{ _jffiBuffer =>".format(
+            valname, jffi_retty, ", ".join(jffi_paramtys))
+
+    pragmas      = [tuple(p.split(":")) for p in pragmas]
+    stmts = []
+
+    self_param_name = params[0]["name"]
+    self_param_type = params[0]["type"]
+
+    stmts.append("val {} = _jffiBuffer.{}(0)".format(self_param_name,
+        to_jffi_getter(self_param_type)))
+
+    self_obj = "_" + self_param_name + "_obj"
+
+    stmts.append("val {} = {}({})".format(
+        self_obj, _self_getters[self_param_type], self_param_name))
+
+    footer = "}"
+
+    return (valname, "\n".join([header] + stmts + [footer]))
+
+def generate_stubs_for_struct(typedefs, st) -> str:
+    name    = st["name"]
+    methods = st["methods"]
+
+    results = []
+    ptrs    = []
+
+    for meth in methods:
+        ptrname, code = generate_method(typedefs, name, meth)
+        ptrs.append(ptrname)
+        results.append(code)
+
+    results.append("val stubsOf{} = Array[Word]({})".format(name, len(ptrs)))
+    for i,ptr in enumerate(ptrs):
+        results.append("stubsOf{}({}) = {}.address".format(name, i, ptr))
+
+    return "\n".join(results)
 
 def generate_stubs(ast):
-    stubs = []
-    for st in ast["structs"]:
-        if st["name"] == "MuCtx":
-            for meth in st["methods"]:
-                stubs.append(meth["name"])
+    struct_codes = []
 
-    return "\n".join("// "+ fn for fn in stubs)
+    for st in ast["structs"]:
+        code = generate_stubs_for_struct(ast["typedefs"], st)
+        struct_codes.append(code)
+
+    return "\n".join(struct_codes)
 
 
 def generate_things(ast):
