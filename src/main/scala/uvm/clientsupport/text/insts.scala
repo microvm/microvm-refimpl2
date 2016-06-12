@@ -206,20 +206,20 @@ object Inst {
     sig: FuncSigName,
     callee: VarName,
     argList: IList[VarName],
-    keepAliveClause: Option[KeepAliveClause]
-  ) extends PrePostInst(s"CALL <$sig> $callee ($argList)" + ?(keepAliveClause)) with SupportsExcClause {
+    keepaliveClause: Option[KeepaliveClause]
+  ) extends PrePostInst(s"CALL <$sig> $callee ($argList)" + ?(keepaliveClause)) with SupportsExcClause {
     def this(sig: FuncSigName, callee: VarName, argList: IList[VarName]) =
       this(sig, callee, argList, None)
-    def this(sig: FuncSigName, callee: VarName, argList: IList[VarName], keepAliveClause: KeepAliveClause) =
-      this(sig, callee, argList, Some(keepAliveClause))
+    def this(sig: FuncSigName, callee: VarName, argList: IList[VarName], keepaliveClause: KeepaliveClause) =
+      this(sig, callee, argList, Some(keepaliveClause))
     override def returnTypes(implicit context: Context) =
       (for (FuncSig(_, retTypes) <- context resolve sig) yield retTypes) getOrElse {
         throw TypeResolveException(s"Undefined function signature: $sig")
       }
     override def referencedVars =
-      new IList(callee +: (argList.toSeq ++ keepAliveClause.toSeq.flatMap(_.vars)))
+      new IList(callee +: (argList.toSeq ++ keepaliveClause.toSeq.flatMap(_.vars)))
     override def preExcString = s"CALL <$sig> $callee ($argList)"
-    override def postExcString = ?(keepAliveClause)
+    override def postExcString = ?(keepaliveClause)
   }
 
   case class TailCall(sig: FuncSigName, callee: VarName, argList: IList[VarName])
@@ -447,15 +447,15 @@ object Inst {
 
   case class Trap(
     retTy: IList[TypeName],
-    keepAliveClause: Option[KeepAliveClause]
-  ) extends PrePostInst(s"TRAP <$retTy>" + ?(keepAliveClause)) with SupportsExcClause {
+    keepaliveClause: Option[KeepaliveClause]
+  ) extends PrePostInst(s"TRAP <$retTy>" + ?(keepaliveClause)) with SupportsExcClause {
     def this(retTy: IList[TypeName]) = this(retTy, None)
-    def this(retTy: IList[TypeName], keepAliveClause: KeepAliveClause) =
-      this(retTy, Some(keepAliveClause))
+    def this(retTy: IList[TypeName], keepaliveClause: KeepaliveClause) =
+      this(retTy, Some(keepaliveClause))
     override def preExcString = s"TRAP <$retTy>"
-    override def postExcString = ?(keepAliveClause)
+    override def postExcString = ?(keepaliveClause)
     override def returnTypes(implicit context: Context) = retTy
-    override def referencedVars = new IList(keepAliveClause.toSeq.flatMap(_.vars))
+    override def referencedVars = new IList(keepaliveClause.toSeq.flatMap(_.vars))
   }
 
   case class PreWatchPoint(
@@ -464,12 +464,12 @@ object Inst {
     dis: LabelName,
     ena: LabelName,
     exc: Option[LabelName],
-    keepAliveClause: Option[KeepAliveClause]
+    keepaliveClause: Option[KeepaliveClause]
   ) extends PreInst {
     override def returnTypes(implicit context: Context) = retTy
     override def toString =
-      s"WATCHPOINT $wpid <$retTy> $dis $ena" + ?(exc map (l => s"WPEXC($l)")) + ?(keepAliveClause)
-    override def referencedVars = new IList(keepAliveClause.toSeq.flatMap(_.vars))
+      s"WATCHPOINT $wpid <$retTy> $dis $ena" + ?(exc map (l => s"WPEXC($l)")) + ?(keepaliveClause)
+    override def referencedVars = new IList(keepaliveClause.toSeq.flatMap(_.vars))
     override def possibleJumps = new IList(Seq(dis, ena) ++ exc)
   }
 
@@ -479,13 +479,13 @@ object Inst {
     dis: DestClause,
     ena: DestClause,
     exc: Option[DestClause],
-    keepAliveClause: Option[KeepAliveClause]
+    keepaliveClause: Option[KeepaliveClause]
   ) extends PostInst {
     override def returnTypes(implicit context: Context) = retTy
     override def toString =
-      s"WATCHPOINT $wpid <$retTy> $dis $ena" + ?(exc map (l => s"WPEXC($l)")) + ?(keepAliveClause)
+      s"WATCHPOINT $wpid <$retTy> $dis $ena" + ?(exc map (l => s"WPEXC($l)")) + ?(keepaliveClause)
     override def referencedVars =
-      new IList(dis.args ++ ena.args ++ exc.toSeq.flatMap(_.args) ++ keepAliveClause.toSeq.flatMap(_.vars))
+      new IList(dis.args ++ ena.args ++ exc.toSeq.flatMap(_.args) ++ keepaliveClause.toSeq.flatMap(_.vars))
   }
 
   // Unsafe Native Call
@@ -496,8 +496,8 @@ object Inst {
     sig: FuncSigName,
     callee: VarName,
     argList: IList[VarName],
-    keepAliveClause: Option[KeepAliveClause]
-  ) extends PrePostInst(s"CCALL $callConv <$calleeTy $sig> $callee ($argList)" + ?(keepAliveClause)) {
+    keepaliveClause: Option[KeepaliveClause]
+  ) extends PrePostInst(s"CCALL $callConv <$calleeTy $sig> $callee ($argList)" + ?(keepaliveClause)) {
     def this(
       callConv: Flag,
       calleeTy: TypeName,
@@ -511,14 +511,14 @@ object Inst {
       sig: FuncSigName,
       callee: VarName,
       argList: IList[VarName],
-      keepAliveClause: KeepAliveClause
-    ) = this(callConv, calleeTy, sig, callee, argList, Some(keepAliveClause))
+      keepaliveClause: KeepaliveClause
+    ) = this(callConv, calleeTy, sig, callee, argList, Some(keepaliveClause))
     override def returnTypes(implicit context: Context) =
       (for (FuncSig(_, retTypes) <- context resolve sig) yield retTypes) getOrElse {
         throw TypeResolveException(s"Undefined function signature: $sig")
       }
     override def referencedVars =
-      new IList(callee +: (argList.toSeq ++ keepAliveClause.toSeq.flatMap(_.vars)))
+      new IList(callee +: (argList.toSeq ++ keepaliveClause.toSeq.flatMap(_.vars)))
   }
 
   // Thread and Stack
@@ -534,19 +534,19 @@ object Inst {
     swappee: VarName,
     curStackClause: CurStackClause,
     newStackClause: NewStackClause,
-    keepAliveClause: Option[KeepAliveClause]
-  ) extends PrePostInst(s"SWAPSTACK $swappee $curStackClause $newStackClause" + ?(keepAliveClause))
+    keepaliveClause: Option[KeepaliveClause]
+  ) extends PrePostInst(s"SWAPSTACK $swappee $curStackClause $newStackClause" + ?(keepaliveClause))
     with SupportsExcClause {
     def this(swappee: VarName, curStackClause: CurStackClause, newStackClause: NewStackClause) =
       this(swappee, curStackClause, newStackClause, None)
     def this(swappee: VarName, curStackClause: CurStackClause, newStackClause: NewStackClause,
-      keepAliveClause: KeepAliveClause) =
-      this(swappee, curStackClause, newStackClause, Some(keepAliveClause))
+      keepaliveClause: KeepaliveClause) =
+      this(swappee, curStackClause, newStackClause, Some(keepaliveClause))
     override def returnTypes(implicit context: Context) = IList()
     override def referencedVars =
-      new IList(swappee +: (newStackClause.referencedVars.toSeq ++ keepAliveClause.toSeq.flatMap(_.vars)))
+      new IList(swappee +: (newStackClause.referencedVars.toSeq ++ keepaliveClause.toSeq.flatMap(_.vars)))
     override def preExcString = s"SWAPSTACK $swappee $curStackClause $newStackClause"
-    override def postExcString = ?(keepAliveClause)
+    override def postExcString = ?(keepaliveClause)
   }
 
   // Common Instructions
@@ -558,25 +558,25 @@ object Inst {
     typeList: Option[IList[TypeName]],
     funcSigList: Option[IList[FuncSigName]],
     argList: Option[IList[VarName]],
-    keepAliveClause: Option[KeepAliveClause]
+    keepaliveClause: Option[KeepaliveClause]
   ) extends PrePostInst(
     s"COMMINST $instName" +
       ?(flagList map ("[" + _ + "]")) +
       ?(typeList map ("<" + _ + ">")) +
       ?(funcSigList map ("<[" + _ + "]>")) +
       ?(argList map ("(" + _ + ")")) +
-      ?(keepAliveClause)
+      ?(keepaliveClause)
   ) with SupportsExcClause {
     // FIXME: Need source for comminst return types
     override def returnTypes(implicit context: Context) = IList()
     override def referencedVars =
-      new IList(instName +: (argList.toSeq.flatten ++ keepAliveClause.toSeq.flatMap(_.vars)))
+      new IList(instName +: (argList.toSeq.flatten ++ keepaliveClause.toSeq.flatMap(_.vars)))
     override def preExcString = s"COMMINST $instName" +
       ?(flagList map ("[" + _ + "]")) +
       ?(typeList map ("<" + _ + ">")) +
       ?(funcSigList map ("<[" + _ + "]>")) +
       ?(argList map ("(" + _ + ")"))
-    override def postExcString = ?(keepAliveClause)
+    override def postExcString = ?(keepaliveClause)
   }
 }
 
@@ -604,7 +604,7 @@ object AtomicRMWOptr extends Enumeration {
   val UnsignMin = Value("UMIN")
 }
 
-case class KeepAliveClause(vars: IList[LocalVarName]) {
+case class KeepaliveClause(vars: IList[LocalVarName]) {
   override def toString = s"KEEPALIVE(${vars mkString " "})"
 }
 case class SwitchCase[T](value: VarName, dest: T) {

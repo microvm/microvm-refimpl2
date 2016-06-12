@@ -60,8 +60,8 @@ object CommInsts extends SimpleNamespace[CommInst] {
   commInst(0x25c, "@uvm.meta.pop_frames_to")
   commInst(0x25d, "@uvm.meta.push_frame")
   
-  commInst(0x25e, "@uvm.meta.enable_watchpoint")
-  commInst(0x25f, "@uvm.meta.disable_watchpoint")
+  commInst(0x25e, "@uvm.meta.enable_watchPoint")
+  commInst(0x25f, "@uvm.meta.disable_watchPoint")
   
   commInst(0x260, "@uvm.meta.set_trap_handler")
 

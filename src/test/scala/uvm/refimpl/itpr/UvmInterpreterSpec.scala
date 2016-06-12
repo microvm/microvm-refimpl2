@@ -1320,7 +1320,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "WATCHPOINT" should "do nothing when disabled" in {
     val ctx = microVM.newContext()
 
-    ctx.disableWatchpoint(1)
+    ctx.disableWatchPoint(1)
 
     val func = ctx.handleFromFunc("@wptest")
 
@@ -1339,7 +1339,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "WATCHPOINT" should "work with all supported destinations when enabled" in {
     val ctx = microVM.newContext()
 
-    ctx.enableWatchpoint(1)
+    ctx.enableWatchPoint(1)
 
     val exc = ctx.newFixed("@i32")
     val fortyTwo = ctx.handleFromInt64(42L)
@@ -1380,7 +1380,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
   "TRAP and WATCHPOINT" should "throw exceptions out of function when no exceptional dest" in {
     val ctx = microVM.newContext()
 
-    ctx.enableWatchpoint(2)
+    ctx.enableWatchPoint(2)
 
     val exc1 = ctx.newFixed("@void")
     val exc2 = ctx.newFixed("@void")
@@ -1416,7 +1416,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     val func = ctx.handleFromFunc("@wpbranch")
 
-    ctx.disableWatchpoint(42)
+    ctx.disableWatchPoint(42)
 
     var disReached = false
 
@@ -1436,7 +1436,7 @@ class UvmInterpreterSpec extends UvmBundleTesterBase {
 
     disReached shouldBe true
 
-    ctx.enableWatchpoint(42)
+    ctx.enableWatchPoint(42)
 
     var enaReached = false
 

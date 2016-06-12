@@ -155,7 +155,7 @@ instBody
             (caseVal+=value caseDest+=destClause )* '}'                 # InstSwitch
 
     // Inter-function Control Flow
-    |   'CALL' funcCallBody excClause keepAliveClause                   # InstCall
+    |   'CALL' funcCallBody excClause keepaliveClause                   # InstCall
     |   'TAILCALL' funcCallBody                     # InstTailCall
 
     |   'RET' retVals                               # InstRet
@@ -190,20 +190,20 @@ instBody
     |   'FENCE' memord                                                              # InstFence
 
     // Trap
-    |   'TRAP' typeList excClause keepAliveClause                               # InstTrap
+    |   'TRAP' typeList excClause keepaliveClause                               # InstTrap
     |   'WATCHPOINT' wpid=intLiteral typeList
-            dis=destClause ena=destClause ('WPEXC' '(' wpExc=destClause ')')? keepAliveClause    # InstWatchPoint
+            dis=destClause ena=destClause ('WPEXC' '(' wpExc=destClause ')')? keepaliveClause    # InstWatchPoint
     |   'WPBRANCH' wpid=intLiteral dis=destClause ena=destClause                # InstWPBranch
 
     // Foreign Function Interface
-    |   'CCALL' callConv=flag '<' funcTy=type funcSig '>' callee=value argList excClause keepAliveClause   # InstCCall
+    |   'CCALL' callConv=flag '<' funcTy=type funcSig '>' callee=value argList excClause keepaliveClause   # InstCCall
 
     // Thread and Stack Operations
     |   'NEWTHREAD' stack=value threadLocalClause? newStackClause excClause                 # InstNewThread
-    |   'SWAPSTACK' swappee=value curStackClause newStackClause excClause keepAliveClause   # InstSwapStack
+    |   'SWAPSTACK' swappee=value curStackClause newStackClause excClause keepaliveClause   # InstSwapStack
 
     // Common Instructions
-    |   'COMMINST' nam=globalName flagList? typeList? funcSigList? argList? excClause keepAliveClause     # InstCommInst
+    |   'COMMINST' nam=globalName flagList? typeList? funcSigList? argList? excClause keepaliveClause     # InstCommInst
     ;
     
 retVals
@@ -231,7 +231,7 @@ excClause
     :   ('EXC' '(' nor=destClause exc=destClause ')')?
     ;
 
-keepAliveClause
+keepaliveClause
     :   ('KEEPALIVE' '(' value* ')')?
     ;
     

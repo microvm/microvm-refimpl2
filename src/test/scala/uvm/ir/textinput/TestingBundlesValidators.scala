@@ -673,7 +673,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.callee shouldBe (our value "@callee1")
           its.argList shouldBe empty
           its.excClause shouldBe None
-          its.keepAlives shouldBe empty
+          its.keepalives shouldBe empty
         }
         
         my inst "%call2" shouldBeA[InstCall] { its =>
@@ -681,7 +681,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.callee shouldBe (our value "@callee2")
           its.argList shouldEqual Seq("@I64_1", "@I64_2").map(our.value)
           its.excClause shouldBe None
-          its.keepAlives shouldBe empty
+          its.keepalives shouldBe empty
         }
   
         my inst "%call3" shouldBeA[InstCall] { its =>
@@ -691,7 +691,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.excClause shouldBe Some(ExcClause(
               DestClause(the bb "%cont", qw"%v2 %v3".map(my.ires)),
               DestClause(the bb "%catch", Seq())))
-          its.keepAlives shouldBe empty
+          its.keepalives shouldBe empty
         }  
       }
       
@@ -701,7 +701,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.callee shouldBe (our globalValue "@callee1")
           its.argList shouldBe empty
           its.excClause shouldBe None
-          its.keepAlives shouldBe Seq("%v2", "%v3").map(my.value)
+          its.keepalives shouldBe Seq("%v2", "%v3").map(my.value)
         }
   
         my inst "%call5" shouldBeA[InstCall] { its =>
@@ -711,7 +711,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.excClause shouldBe Some(ExcClause(
               DestClause(the bb "%cont2", Seq()),
               DestClause(the bb "%catch", Seq())))
-          its.keepAlives shouldEqual Seq(my ires "%v2")
+          its.keepalives shouldEqual Seq(my ires "%v2")
         }  
       }
       
@@ -1127,13 +1127,13 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
         my inst "%t" shouldBeA[InstTrap] { its =>
           its.retTys shouldBe qw"@i32".map(our.ty)
           its.excClause shouldBe None
-          its.keepAlives shouldBe Seq(my value "%a")
+          its.keepalives shouldBe Seq(my value "%a")
         }
         
         my inst "%t0" shouldBeA[InstTrap] { its =>
           its.retTys shouldBe empty
           its.excClause shouldBe None
-          its.keepAlives shouldBe empty
+          its.keepalives shouldBe empty
         }
          
         my inst "%ts" shouldBeA[InstTrap] { its =>
@@ -1141,7 +1141,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.excClause shouldBe Some(ExcClause(
               DestClause(the bb "%tp_s_cont", Seq("%a", "%b").map(my.value)),
               DestClause(the bb "%tp_s_exc", Seq())))
-          its.keepAlives shouldBe Seq(my value "%b")
+          its.keepalives shouldBe Seq(my value "%b")
         }
       }
       
@@ -1153,7 +1153,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.dis shouldBe DestClause(the bb "%wp_dis_cont", Seq(my value "%b"))
           its.ena shouldBe DestClause(the bb "%wp_ena_cont", Seq())
           its.exc shouldBe None
-          its.keepAlives shouldBe Seq(my value "%a")
+          its.keepalives shouldBe Seq(my value "%a")
         }
       }
       
@@ -1164,7 +1164,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.dis shouldBe DestClause(the bb "%wp_s_dis_cont", Seq())
           its.ena shouldBe DestClause(the bb "%wp_s_ena_cont", Seq())
           its.exc shouldBe Some(DestClause(the bb "%wp_s_exc", Seq()))
-          its.keepAlives shouldBe Seq(my value "%b")
+          its.keepalives shouldBe Seq(my value "%b")
         }
       }
       
@@ -1198,14 +1198,14 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.curStackAction shouldBe RetWith(Seq())
           its.newStackAction shouldBe PassValues(Seq(our ty "@i64"), Seq(our value "@I64_0"))
           its.excClause shouldBe None
-          its.keepAlives shouldBe empty
+          its.keepalives shouldBe empty
         }
         my inst "%ss2" shouldBeA[InstSwapStack] { its =>
           its.swappee shouldBe (my value "%main")
           its.curStackAction shouldBe KillOld()
           its.newStackAction shouldBe ThrowExc(our value "@NULLREF")
           its.excClause shouldBe None
-          its.keepAlives shouldBe empty
+          its.keepalives shouldBe empty
         }
       }
     }
@@ -1246,7 +1246,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.curStackAction shouldBe RetWith(Seq(our ty "@i64"))
           its.newStackAction shouldBe PassValues(Seq(), Seq())
           its.excClause shouldBe None
-          its.keepAlives shouldBe Seq(my value "%curstack")
+          its.keepalives shouldBe Seq(my value "%curstack")
         }
         my inst "%ss2" shouldBeA[InstSwapStack] { its =>
           its.swappee shouldBe (my value "%coro")
@@ -1255,7 +1255,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.excClause shouldBe Some(ExcClause(
               DestClause(the bb "%nor", Seq()),
               DestClause(the bb "%exc", Seq())))
-          its.keepAlives shouldBe empty
+          its.keepalives shouldBe empty
         }
       }
     }
@@ -1270,7 +1270,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.funcSigList shouldBe Seq(our sig "@iii_sig")
           its.argList shouldBe Seq(our value "@callee2")
           its.excClause shouldBe None
-          its.keepAlives shouldBe empty
+          its.keepalives shouldBe empty
         } 
   
         my inst "%ci3" shouldBeA[InstCommInst] { its =>
@@ -1280,7 +1280,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.funcSigList shouldBe Seq(our sig "@npnr_sig")
           its.argList shouldBe Seq(our func "@swapstack")
           its.excClause shouldBe None
-          its.keepAlives shouldBe empty
+          its.keepalives shouldBe empty
         }
         
         my inst "%ci4" shouldBeA[InstCommInst] { its =>
@@ -1290,7 +1290,7 @@ trait TestingBundlesValidators extends Matchers with ExtraMatchers {
           its.funcSigList shouldBe empty
           its.argList shouldBe empty
           its.excClause shouldBe None
-          its.keepAlives shouldBe empty
+          its.keepalives shouldBe empty
         }
       }
     }

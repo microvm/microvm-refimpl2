@@ -400,7 +400,7 @@ trait InterpreterActions extends InterpreterThreadState {
     catchException(exc)
   }
 
-  // Trap and watchpoint handling
+  // Trap and watchPoint handling
 
   /** Execute the trap handler in the Client. Work for both TRAP and WATCHPOINT. */
   protected def doTrap(retTys: Seq[Type], wpID: Int) = {

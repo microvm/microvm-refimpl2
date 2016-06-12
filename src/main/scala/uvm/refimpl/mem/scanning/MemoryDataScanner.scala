@@ -55,8 +55,8 @@ object MemoryDataScanner extends StrictLogging {
         val bits = memorySupport.loadLong(iRef)
         if (paranoiaLogger.underlying.isDebugEnabled()) {
           paranoiaLogger.debug(s"Tagref bits ${bits}")
-          if (OpHelper.tr64IsFp(bits)) {
-            paranoiaLogger.debug("Tagref is FP: %f".format(OpHelper.tr64ToFp(bits)))
+          if (OpHelper.tr64IsFP(bits)) {
+            paranoiaLogger.debug("Tagref is FP: %f".format(OpHelper.tr64ToFP(bits)))
           } else if (OpHelper.tr64IsInt(bits)) {
             paranoiaLogger.debug("Tagref is Int: %d".format(OpHelper.tr64ToInt(bits)))
           } else if (OpHelper.tr64IsRef(bits)) {

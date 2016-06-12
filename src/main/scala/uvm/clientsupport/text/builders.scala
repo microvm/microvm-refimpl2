@@ -400,8 +400,8 @@ private[text] class FunctionBuilderImpl(
           replacements.put(n, n2)
           n2
         } else { used += n; n }
-      def mapKeepAlive(ka: Option[KeepAliveClause]) =
-        ka map (c => KeepAliveClause(new IList(c.vars map r collect {case lv: LocalVarName => lv})))
+      def mapKeepalive(ka: Option[KeepaliveClause]) =
+        ka map (c => KeepaliveClause(new IList(c.vars map r collect {case lv: LocalVarName => lv})))
       def mapNewStackClause(c: NewStackClause): NewStackClause = c match {
         case NewStackClause.PassValue(argTy, arg) => NewStackClause.PassValue(argTy, r(arg))
         case i: NewStackClause.PassVoid => i
@@ -419,7 +419,7 @@ private[text] class FunctionBuilderImpl(
               case Select(condTy, opndTy, cond, ifTrue, ifFalse) =>
                 Select(condTy, opndTy, r(cond), r(ifTrue), r(ifFalse))
               case Call(sig, callee, argList, ka) =>
-                Call(sig, r(callee), new IList(argList map r), mapKeepAlive(ka))
+                Call(sig, r(callee), new IList(argList map r), mapKeepalive(ka))
               case TailCall(sig, callee, argList) =>
                 TailCall(sig, r(callee), new IList(argList map r))
               case Ret(rv) => Ret(new IList(rv map r))
@@ -452,14 +452,14 @@ private[text] class FunctionBuilderImpl(
               case i: CmpXchg => i.copy(loc = r(i.loc), expected = r(i.expected), desired = r(i.desired))
               case i: AtomicRMW => i.copy(loc = r(i.loc), opnd = r(i.opnd))
               case i: Fence => i
-              case Trap(retTy, ka) => Trap(retTy, mapKeepAlive(ka))
+              case Trap(retTy, ka) => Trap(retTy, mapKeepalive(ka))
               case i: CCall => i.copy(callee = r(i.callee), argList = new IList(i.argList map r),
-                keepAliveClause = mapKeepAlive(i.keepAliveClause))
+                keepaliveClause = mapKeepalive(i.keepaliveClause))
               case NewThread(stack, nsClause) => NewThread(r(stack), mapNewStackClause(nsClause))
               case SwapStack(swappee, csClause, nsClause, ka) =>
-                SwapStack(r(swappee), csClause, mapNewStackClause(nsClause), mapKeepAlive(ka))
+                SwapStack(r(swappee), csClause, mapNewStackClause(nsClause), mapKeepalive(ka))
               case i: CommInst => i.copy(argList = i.argList map (l => new IList(l map r)),
-                keepAliveClause = mapKeepAlive(i.keepAliveClause))
+                keepaliveClause = mapKeepalive(i.keepaliveClause))
             }
             Some(new IList(names map l) -> postInst)
           case Id(_, v) =>
@@ -482,7 +482,7 @@ private[text] class FunctionBuilderImpl(
               new IList(cases map (c => SwitchCase(r(c.value), mapDest(c.dest)))))))
           case PreWatchPoint(wpid, retTy, dis, ena, exc, ka) =>
             val post = PostWatchPoint(wpid, retTy, mapDest(dis), mapDest(ena), exc map mapDest,
-              mapKeepAlive(ka))
+              mapKeepalive(ka))
             Some((new IList(names map l), post))
         }
       PostBasicBlock(

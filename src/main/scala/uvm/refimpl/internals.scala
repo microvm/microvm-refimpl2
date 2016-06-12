@@ -189,8 +189,8 @@ object TypeInferer {
       case "@uvm.meta.pop_frames_to" => Seq()
       case "@uvm.meta.push_frame" => Seq()
 
-      case "@uvm.meta.enable_watchpoint" => Seq()
-      case "@uvm.meta.disable_watchpoint" => Seq()
+      case "@uvm.meta.enable_watchPoint" => Seq()
+      case "@uvm.meta.disable_watchPoint" => Seq()
 
       case "@uvm.meta.set_trap_handler" => Seq()
     }

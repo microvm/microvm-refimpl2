@@ -115,7 +115,7 @@ class BundleBuilderTest extends UvmTestBase {
       SwitchCase(LocalVarName("v1"), LabelName("d1")),
       SwitchCase(LocalVarName("v2"), LabelName("d2")),
       SwitchCase(LocalVarName("v3"), LabelName("d3")))).toString shouldEqual "SWITCH <@x> %a %l1 { %v1: %d1; %v2: %d2; %v3: %d3; }"
-    PostExcClause(Inst.Call(s, f, IList(a, b, c), Some(KeepAliveClause(IList(a, b)))), nor, exc).toString shouldEqual
+    PostExcClause(Inst.Call(s, f, IList(a, b, c), Some(KeepaliveClause(IList(a, b)))), nor, exc).toString shouldEqual
       "CALL <@s> @f (%a %b %c) EXC(%nor() %exc()) KEEPALIVE(%a %b)"
     Inst.TailCall(s, f, IList(a, b, c)).toString shouldEqual
       "TAILCALL <@s> @f (%a %b %c)"
@@ -147,35 +147,35 @@ class BundleBuilderTest extends UvmTestBase {
     PostExcClause(Inst.AtomicRMW(ptr = true, SeqConsistent, AtomicRMWOptr.Xor, x, a, b), nor, exc).toString shouldEqual
       "ATOMICRMW PTR SEQ_CST XOR <@x> %a %b EXC(%nor() %exc())"
     Inst.Fence(SeqConsistent).toString shouldEqual "FENCE SEQ_CST"
-    PostExcClause(Inst.Trap(IList(x), Some(KeepAliveClause(IList(a, b)))), nor, exc).toString shouldEqual
+    PostExcClause(Inst.Trap(IList(x), Some(KeepaliveClause(IList(a, b)))), nor, exc).toString shouldEqual
       "TRAP <@x> EXC(%nor() %exc()) KEEPALIVE(%a %b)"
-    Inst.PostWatchPoint(42, IList(x), dest1, dest2, Some(dest1), Some(KeepAliveClause(IList(a, b)))).toString shouldEqual
+    Inst.PostWatchPoint(42, IList(x), dest1, dest2, Some(dest1), Some(KeepaliveClause(IList(a, b)))).toString shouldEqual
       "WATCHPOINT 42 <@x> %l1(%a %b) %l2(%c) WPEXC(%l1(%a %b)) KEEPALIVE(%a %b)"
-    Inst.CCall(new Flag("DEFAULT"), x, s, f, IList(a, b, c), Some(KeepAliveClause(IList(a, b)))).toString shouldEqual
+    Inst.CCall(new Flag("DEFAULT"), x, s, f, IList(a, b, c), Some(KeepaliveClause(IList(a, b)))).toString shouldEqual
       "CCALL #DEFAULT <@x @s> @f (%a %b %c) KEEPALIVE(%a %b)"
     PostExcClause(Inst.NewThread(f, NewStackClause.PassVoid()), nor, exc).toString shouldEqual
       "NEWTHREAD @f PASS_VOID EXC(%nor() %exc())"
     PostExcClause(Inst.SwapStack(a,
       CurStackClause.RetWith(x),
       NewStackClause.PassValue(y, b),
-      Some(KeepAliveClause(IList(a, b)))), nor, exc).toString shouldEqual
+      Some(KeepaliveClause(IList(a, b)))), nor, exc).toString shouldEqual
       "SWAPSTACK %a RET_WITH <@x> PASS_VALUE <@y> %b EXC(%nor() %exc()) KEEPALIVE(%a %b)"
     PostExcClause(Inst.SwapStack(a,
       CurStackClause.KillOld(),
       NewStackClause.PassVoid(),
-      Some(KeepAliveClause(IList(a, b)))), nor, exc).toString shouldEqual
+      Some(KeepaliveClause(IList(a, b)))), nor, exc).toString shouldEqual
       "SWAPSTACK %a KILL_OLD PASS_VOID EXC(%nor() %exc()) KEEPALIVE(%a %b)"
     PostExcClause(Inst.SwapStack(a,
       CurStackClause.KillOld(),
       NewStackClause.ThrowExc(b),
-      Some(KeepAliveClause(IList(a, b)))), nor, exc).toString shouldEqual
+      Some(KeepaliveClause(IList(a, b)))), nor, exc).toString shouldEqual
       "SWAPSTACK %a KILL_OLD THROW_EXC %b EXC(%nor() %exc()) KEEPALIVE(%a %b)"
     PostExcClause(Inst.CommInst(GlobalVarName("foo.bar"),
       Some(IList(new Flag("A"), new Flag("B"))),
       Some(IList(x, y)),
       Some(IList(s, FuncSigName("s2"))),
       Some(IList(a, b)),
-      Some(KeepAliveClause(IList(a, b)))), nor, exc).toString shouldEqual
+      Some(KeepaliveClause(IList(a, b)))), nor, exc).toString shouldEqual
       "COMMINST @foo.bar [#A #B] <@x @y> <[@s @s2]> (%a %b) EXC(%nor() %exc()) KEEPALIVE(%a %b)"
   }
 

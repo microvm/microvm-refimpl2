@@ -240,7 +240,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
         }
       }
 
-      case i @ InstCall(sig, callee, argList, excClause, keepAlives) => {
+      case i @ InstCall(sig, callee, argList, excClause, keepalives) => {
         val calleeFunc = callee.asFunc.getOrElse {
           throw new UvmRuntimeException(ctx + "Callee must not be NULL")
         }
@@ -484,11 +484,11 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
         continueNormally()
       }
 
-      case i @ InstTrap(retTy, excClause, keepAlives) => {
+      case i @ InstTrap(retTy, excClause, keepalives) => {
         doTrap(retTy, 0)
       }
 
-      case i @ InstWatchPoint(wpID, retTy, dis, ena, exc, keepAlives) => {
+      case i @ InstWatchPoint(wpID, retTy, dis, ena, exc, keepalives) => {
         val isEnabled = microVM.trapManager.isWatchPointEnabled(wpID)
 
         if (isEnabled) {
@@ -507,7 +507,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
         }
       }
 
-      case i @ InstCCall(callConv, funcTy, sig, callee, argList, excClause, keepAlives) => {
+      case i @ InstCCall(callConv, funcTy, sig, callee, argList, excClause, keepalives) => {
         if (callConv != Flag("#DEFAULT")) {
           throw new UvmRefImplException(ctx + "Currently only support the #DEFAULT callConv. %s found.".format(callConv.name))
         }
@@ -544,7 +544,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
         continueNormally()
       }
 
-      case i @ InstSwapStack(swappee, curStackAction, newStackAction, excClause, keepAlives) => {
+      case i @ InstSwapStack(swappee, curStackAction, newStackAction, excClause, keepalives) => {
         val oldStack = curStack
         val newStack = swappee.asStack.getOrElse {
           throw new UvmUndefinedBehaviorException(ctx + "Swappee must not be NULL.")

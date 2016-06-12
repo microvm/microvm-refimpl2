@@ -551,8 +551,8 @@ class DefinedMuFrame(
 
   def keepaliveBoxes(): Seq[ValueBox] = {
     curInst match {
-      case hka: HasKeepAliveClause =>
-        val kas = hka.keepAlives
+      case hka: HasKeepaliveClause =>
+        val kas = hka.keepalives
         val kaBoxes = kas.map(boxes.apply)
         kaBoxes
       case i => throw new UvmRefImplException("Instruction does not have keepalives: " + i.repr)

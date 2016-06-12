@@ -96,8 +96,8 @@ class UvmHailBasicTest extends UvmHailTesterBase {
     }
     def assertTR64FP(id: Int, v: Double) {
       val htr = mc.loadGlobal(id).asInstanceOf[MuTagRef64Value]
-      mc.tr64IsFp(htr) shouldBe true
-      val hd = mc.tr64ToFp(htr)
+      mc.tr64IsFP(htr) shouldBe true
+      val hd = mc.tr64ToFP(htr)
       mc.handleToDouble(hd) shouldBe v
     }
     def assertTR64Int(id: Int, v: Long) {

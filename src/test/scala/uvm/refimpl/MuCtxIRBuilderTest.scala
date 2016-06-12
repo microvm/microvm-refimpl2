@@ -226,7 +226,7 @@ class MuCtxIRBuilderTest extends UvmBundleTesterBase with ExtraMatchers {
 
     val htrap1 = ctx.newTrap(hbb1, Seq())
     val htrap1_id = ctx.getID(b, htrap1)
-    ctx.addKeepAlives(htrap1, Seq(hbb1p0, hbb1p1))
+    ctx.addKeepalives(htrap1, Seq(hbb1p0, hbb1p1))
     val hthreadexit1 = ctx.newCommInst(hbb1, CommInsts("@uvm.thread_exit").id, Seq(), Seq(), Seq(), Seq())
     
     val htrap2 = ctx.newTrap(hbb2, Seq())
@@ -308,7 +308,7 @@ class MuCtxIRBuilderTest extends UvmBundleTesterBase with ExtraMatchers {
       val trap = ctx.newTrap(entry, Seq())
       val trap_id = ctx.getID(b, trap)
       ctx.setName(b, trap, "@func1.v1.entry.trap")
-      ctx.addKeepAlives(trap, Seq(res))
+      ctx.addKeepalives(trap, Seq(res))
     
       val hthreadexit = ctx.newCommInst(entry, CommInsts("@uvm.thread_exit").id, Seq(), Seq(), Seq(), Seq())
       

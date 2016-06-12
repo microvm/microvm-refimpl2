@@ -331,8 +331,8 @@ object NativeMuCtx {
   def tr64_from_int(ctx: MuCtx, value: MuIntValue): MuValueFak = exposeMuValue(ctx, ctx.tr64FromInt(value))
   def tr64_from_ref(ctx: MuCtx, ref: MuRefValue, tag: MuIntValue): MuValueFak = exposeMuValue(ctx, ctx.tr64FromRef(ref, tag))
 
-  def enable_watchpoint(ctx: MuCtx, wpid: Int): Unit = ctx.enableWatchPoint(wpid)
-  def disable_watchpoint(ctx: MuCtx, wpid: Int): Unit = ctx.disableWatchPoint(wpid)
+  def enable_watchPoint(ctx: MuCtx, wpid: Int): Unit = ctx.enableWatchPoint(wpid)
+  def disable_watchPoint(ctx: MuCtx, wpid: Int): Unit = ctx.disableWatchPoint(wpid)
 
   def pin(ctx: MuCtx, loc: MuValue): MuValueFak = exposeMuValue(ctx, ctx.pin(loc))
   def unpin(ctx: MuCtx, loc: MuValue): Unit = ctx.unpin(loc)
@@ -421,7 +421,7 @@ object NativeMuCtx {
   def new_atomicrmw(ctx: MuCtx, bb: MuBBNode, is_ptr: Int, ord: MuMemOrd, optr: MuAtomicRMWOptr, refTy: MuTypeNode, loc: MuVarNode, opnd: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newAtomicRMW(bb, is_ptr != 0, ord, optr, refTy, loc, opnd))
   def new_fence(ctx: MuCtx, bb: MuBBNode, ord: MuMemOrd): MuValueFak = exposeMuValue(ctx, ctx.newFence(bb, ord))
   def new_trap(ctx: MuCtx, bb: MuBBNode, rettys: MuValueFakArrayPtr, nrettys: Int): MuValueFak = exposeMuValue(ctx, ctx.newTrap(bb, readFromValueFakArray(rettys, nrettys)))
-  def new_watchpoint(ctx: MuCtx, bb: MuBBNode, wpid: MuWPID, rettys: MuValueFakArrayPtr, nrettys: Int): MuValueFak = exposeMuValue(ctx, ctx.newWatchPoint(bb, wpid, readFromValueFakArray(rettys, nrettys)))
+  def new_watchPoint(ctx: MuCtx, bb: MuBBNode, wpid: MuWPID, rettys: MuValueFakArrayPtr, nrettys: Int): MuValueFak = exposeMuValue(ctx, ctx.newWatchPoint(bb, wpid, readFromValueFakArray(rettys, nrettys)))
   def new_wpbranch(ctx: MuCtx, bb: MuBBNode, wpid: MuWPID): MuValueFak = exposeMuValue(ctx, ctx.newWPBranch(bb, wpid))
   def new_ccall(ctx: MuCtx, bb: MuBBNode, callconv: MuCallConv, callee_ty: MuTypeNode, sig: MuFuncSigNode, callee: MuVarNode, args: MuValueFakArrayPtr, nargs: Int): MuValueFak = exposeMuValue(ctx, ctx.newCCall(bb, callconv, callee_ty, sig, callee, readFromValueFakArray(args, nargs)))
   def new_newthread(ctx: MuCtx, bb: MuBBNode, stack: MuVarNode, threadlocal: Option[MuVarNode]): MuValueFak = exposeMuValue(ctx, ctx.newNewThread(bb, stack, threadlocal))

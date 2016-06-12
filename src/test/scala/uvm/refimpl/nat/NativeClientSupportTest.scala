@@ -117,7 +117,7 @@ class NativeClientSupportTest extends UvmBundleTesterBase {
     assertNativeSuccess(result)
   }
   
-  it should "enable and disable watchpoints" in {
+  it should "enable and disable watchPoints" in {
     val result = ncs_tests.test_wp(microVMFuncTableAddr)
     assertNativeSuccess(result)
   }

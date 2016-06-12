@@ -159,12 +159,12 @@ class UvmMemOperationsSpec extends UvmBundleTesterBase {
 
     // TODO: Test thread/stack when implemented.
 
-    val hTRFp = ctx.tr64FromFp(hdv)
-    ctx.store(NOT_ATOMIC, hs2f3, hTRFp)
-    val hTRFpOut = ctx.load(NOT_ATOMIC, hs2f3).asInstanceOf[MuTagRef64Value]
-    val hTRFpToDouble = ctx.tr64ToFp(hTRFpOut)
-    val hTRFpVal = ctx.handleToDouble(hTRFpToDouble)
-    hTRFpVal shouldEqual 42.0d
+    val hTRFP = ctx.tr64FromFP(hdv)
+    ctx.store(NOT_ATOMIC, hs2f3, hTRFP)
+    val hTRFPOut = ctx.load(NOT_ATOMIC, hs2f3).asInstanceOf[MuTagRef64Value]
+    val hTRFPToDouble = ctx.tr64ToFP(hTRFPOut)
+    val hTRFPVal = ctx.handleToDouble(hTRFPToDouble)
+    hTRFPVal shouldEqual 42.0d
 
     val hI52 = ctx.handleFromInt(0xfedcba9876543L, 52)
     val hTRInt = ctx.tr64FromInt(hI52)

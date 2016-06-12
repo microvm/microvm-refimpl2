@@ -280,7 +280,7 @@ class InstanceHailScriptLoader(microVM: MicroVM, memorySupport: MemorySupport, m
       }
 
       kind match {
-        case 1 => { val r = mc.tr64FromFp(hv.asInstanceOf[MuDoubleValue]); mc.deleteValue(hv); r }
+        case 1 => { val r = mc.tr64FromFP(hv.asInstanceOf[MuDoubleValue]); mc.deleteValue(hv); r }
         case 2 => { val r = mc.tr64FromInt(hv.asInstanceOf[MuIntValue]); mc.deleteValue(hv); r }
         case 3 => { hv.asInstanceOf[MuTagRef64Value] }
       }

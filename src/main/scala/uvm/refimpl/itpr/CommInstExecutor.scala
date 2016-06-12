@@ -22,7 +22,7 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
 
   override def interpretCurrentCommonInstruction(): Unit = {
     assert(curInst.isInstanceOf[InstCommInst])
-    val InstCommInst(ci, flagList, typeList, sigList, argList, excClause, keepAlives) = curInst
+    val InstCommInst(ci, flagList, typeList, sigList, argList, excClause, keepalives) = curInst
 
     ci.name.get match {
       // Thread and stack operations
@@ -71,7 +71,7 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
 
       case "@uvm.tr64.is_fp" => {
         val Seq(tr) = argList
-        results(0).asBoolean = OpHelper.tr64IsFp(tr.asTR64Raw)
+        results(0).asBoolean = OpHelper.tr64IsFP(tr.asTR64Raw)
         continueNormally()
       }
 
@@ -110,8 +110,8 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
       case "@uvm.tr64.to_fp" => {
         val Seq(tr) = argList
         val raw = tr.asTR64Raw
-        if (OpHelper.tr64IsFp(raw)) {
-          val result = OpHelper.tr64ToFp(raw)
+        if (OpHelper.tr64IsFP(raw)) {
+          val result = OpHelper.tr64ToFP(raw)
           results(0).asDouble = result
           continueNormally()
         } else {
@@ -357,8 +357,8 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
       case "@uvm.meta.pop_frame"          => ???
       case "@uvm.meta.push_frame"         => ???
 
-      case "@uvm.meta.enable_watchpoint"  => ???
-      case "@uvm.meta.disable_watchpoint" => ???
+      case "@uvm.meta.enable_watchPoint"  => ???
+      case "@uvm.meta.disable_watchPoint" => ???
 
       case "@uvm.meta.set_trap_handler"   => ???
 

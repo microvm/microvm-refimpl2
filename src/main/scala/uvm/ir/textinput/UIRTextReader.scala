@@ -397,7 +397,7 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
 
         implicit def resArgList(a: ArgListContext): Seq[SSAVariable] = a.value.map(resVar)
 
-        implicit def resKA(ka: KeepAliveClauseContext): Seq[LocalVariable] = ka.value.map(resLocalVar)
+        implicit def resKA(ka: KeepaliveClauseContext): Seq[LocalVariable] = ka.value.map(resLocalVar)
 
         def resFuncCallBody(fcb: FuncCallBodyContext): (FuncSig, SSAVariable, Seq[SSAVariable]) =
           (fcb.funcSig, fcb.callee, fcb.argList)
@@ -472,7 +472,7 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
             case ii: InstCallContext =>
               InstCall(null, null, null, null, null).later(phase4) { i =>
                 asgnFuncCallBody(i, ii.funcCallBody)
-                i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
+                i.excClause = ii.excClause; i.keepalives = ii.keepaliveClause
               }
             case ii: InstTailCallContext =>
               InstTailCall(null, null, null).later(phase4) { i =>
@@ -566,11 +566,11 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
               InstFence(ii.memord)
             case ii: InstTrapContext =>
               InstTrap(ii.typeList(), null, null).later(phase4) { i =>
-                i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
+                i.excClause = ii.excClause; i.keepalives = ii.keepaliveClause
               }
             case ii: InstWatchPointContext =>
               InstWatchPoint(ii.wpid.intValue(), ii.typeList(), null, null, null, null).later(phase4) { i =>
-                i.dis = ii.dis; i.ena = ii.ena; i.exc = Option(ii.wpExc).map(resDestClause); i.keepAlives = ii.keepAliveClause
+                i.dis = ii.dis; i.ena = ii.ena; i.exc = Option(ii.wpExc).map(resDestClause); i.keepalives = ii.keepaliveClause
               }
             case ii: InstWPBranchContext =>
               InstWPBranch(ii.wpid.intValue(), null, null).later(phase4) { i =>
@@ -578,7 +578,7 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
               }
             case ii: InstCCallContext =>
               InstCCall(ii.callConv, ii.funcTy, ii.funcSig, null, null, null, null).later(phase4) { i =>
-                i.callee = ii.callee; i.argList = ii.argList; i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
+                i.callee = ii.callee; i.argList = ii.argList; i.excClause = ii.excClause; i.keepalives = ii.keepaliveClause
               }
             case ii: InstNewThreadContext =>
               InstNewThread(null, null, null, null).later(phase4) { i =>
@@ -592,14 +592,14 @@ private[textinput] class InstanceUIRTextReader(idFactory: IDFactory, source: Str
                 i.swappee = ii.swappee
                 i.curStackAction = ii.curStackClause
                 i.newStackAction = ii.newStackClause
-                i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
+                i.excClause = ii.excClause; i.keepalives = ii.keepaliveClause
               }
             case ii: InstCommInstContext =>
               InstCommInst(CommInsts(ii.nam), Option(ii.flagList()).map(convFlagList).getOrElse(Seq()), null, null, null, null, null).later(phase4) { i =>
                 i.typeList = Option(ii.typeList).map(resTypeList).getOrElse(Seq())
                 i.funcSigList = Option(ii.funcSigList).map(resFuncSigList).getOrElse(Seq())
                 i.argList = Option(ii.argList).map(resArgList).getOrElse(Seq())
-                i.excClause = ii.excClause; i.keepAlives = ii.keepAliveClause
+                i.excClause = ii.excClause; i.keepalives = ii.keepaliveClause
               }
           }
 
