@@ -1,4 +1,5 @@
 *.so
 test_client
+test_client2
 classpath.txt
 classpath.h
