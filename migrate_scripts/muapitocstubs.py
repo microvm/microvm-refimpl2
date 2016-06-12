@@ -63,23 +63,33 @@ def type_is_ptr(ty):
 def type_is_handle_array(ty):
     return type_is_ptr(ty) and type_is_handle(ty[:-1])
 
-def to_jffi_ty(cty):
-    if cty in _primitive_types:
-        jty = _primitive_types[cty][1]
-    elif type_is_ptr(cty):
+def to_jffi_ty(raw_type):
+    if raw_type in _primitive_types:
+        jty = _primitive_types[raw_type][1]
+    elif type_is_ptr(raw_type):
         jty = "POINTER"
     else:
-        raise ValueError("No JFFI JType: " + cty)
+        raise ValueError("No JFFI JType: " + raw_type)
 
     return "JType." + jty
 
-def to_jffi_getter(cty):
-    if cty in _primitive_types:
-        getter = _primitive_types[cty][2]
-    elif type_is_ptr(cty):
+def to_jffi_getter(raw_type):
+    if raw_type in _primitive_types:
+        getter = _primitive_types[raw_type][2]
+    elif type_is_ptr(raw_type):
         getter = "getAddress"
     else:
-        raise ValueError("No JFFI Buffer getter: " + cty)
+        raise ValueError("No JFFI Buffer getter: " + raw_type)
+
+    return getter
+
+def to_jffi_setter(raw_type):
+    if raw_type in _primitive_types:
+        getter = _primitive_types[raw_type][3]
+    elif type_is_ptr(raw_type):
+        getter = "setAddressReturn"
+    else:
+        raise ValueError("No JFFI Buffer getter: " + raw_type)
 
     return getter
 
@@ -172,6 +182,12 @@ _special_converters = {
         "MuConvOptr"      : "toConvOptr",
         "MuCallConv"      : "toFlag",
         "MuDestKind"      : "toDestKind",
+        }
+
+_special_return_converters = {
+        "MuName" : "exposeString",
+        "MuCtx*" : "exposeMuCtx",
+        "MuVM*"  : "exposeMicroVM",
         }
 
 def param_converter(pn, pt, rn, rt, is_optional, array_sz, is_bool, is_out):
@@ -292,6 +308,27 @@ def generate_method(typedefs, strname, meth) -> Tuple[str, str]:
         self_param_name, camelName, ", ".join(args_to_pass)))
 
     # return value
+
+    if ret_ty != "void":
+        raw_ret_ty = to_basic_type(typedefs, ret_ty)
+        jffi_setter = to_jffi_setter(raw_ret_ty)
+
+        if type_is_handle(ret_ty):
+            assert(strname == "MuCtx")
+            assert(jffi_setter == "setAddressReturn")
+            stmts.append("val _RV_FAK = exposeMuValue({}, _RV)".format(
+                self_param_name))
+            stmts.append("_jffiBuffer.{}(_RV_FAK)".format(jffi_setter))
+        elif ret_ty in _special_return_converters:
+            assert(jffi_setter == "setAddressReturn")
+            stmts.append("val _RV_FAK = {}(_RV)".format(
+                _special_return_converters[ret_ty]))
+            stmts.append("_jffiBuffer.{}(_RV_FAK)".format(jffi_setter))
+        elif ("RV", "bool") in pragmas:
+            stmts.append("_jffiBuffer.{}(if(_RV) 1 else 0)".format(jffi_setter))
+        else:
+            stmts.append("_jffiBuffer.{}(_RV)".format(jffi_setter))
+
 
     footer = "}"
 

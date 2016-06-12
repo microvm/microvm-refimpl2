@@ -373,9 +373,9 @@ struct MuCtx {
     void        (*push_frame   )(MuCtx *ctx, MuStackRefValue stack, MuFuncRefValue func);
 
     // 64-bit tagged reference operations
-    int             (*tr64_is_fp   )(MuCtx *ctx, MuTagRef64Value value);
-    int             (*tr64_is_int  )(MuCtx *ctx, MuTagRef64Value value);
-    int             (*tr64_is_ref  )(MuCtx *ctx, MuTagRef64Value value);
+    int             (*tr64_is_fp   )(MuCtx *ctx, MuTagRef64Value value); /// MUAPIPARSER RV:bool
+    int             (*tr64_is_int  )(MuCtx *ctx, MuTagRef64Value value); /// MUAPIPARSER RV:bool
+    int             (*tr64_is_ref  )(MuCtx *ctx, MuTagRef64Value value); /// MUAPIPARSER RV:bool
     MuDoubleValue   (*tr64_to_fp   )(MuCtx *ctx, MuTagRef64Value value);
     MuIntValue      (*tr64_to_int  )(MuCtx *ctx, MuTagRef64Value value);
     MuRefValue      (*tr64_to_ref  )(MuCtx *ctx, MuTagRef64Value value);

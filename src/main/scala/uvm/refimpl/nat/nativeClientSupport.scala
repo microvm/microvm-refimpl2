@@ -767,7 +767,7 @@ object ClientAccessibleClassExposer {
   def retLong(buffer: Buffer, v: Any): Unit = buffer.setLongReturn(v.asInstanceOf[Long])
   def retFloat(buffer: Buffer, v: Any): Unit = buffer.setFloatReturn(v.asInstanceOf[Float])
   def retDouble(buffer: Buffer, v: Any): Unit = buffer.setDoubleReturn(v.asInstanceOf[Double])
-  def retString(buffer: Buffer, v: Any): Unit = buffer.setLongReturn(exposeStr(v.asInstanceOf[String]))
+  def retString(buffer: Buffer, v: Any): Unit = buffer.setLongReturn(exposeString(v.asInstanceOf[String]))
 
   private def getStr(buffer: Buffer, index: Int): String = {
     val addr = buffer.getAddress(index)
@@ -787,17 +787,6 @@ object ClientAccessibleClassExposer {
     } else {
       Some(NativeClientSupport.getMuValueNotNull(addr))
     }
-  }
-
-  private def exposeStr(str: String): Word = {
-    val ptr = NativeClientSupport.stringPool.getOrElseUpdate(str, {
-      val bytes = str.getBytes(StandardCharsets.US_ASCII)
-      val newPtr = jnrMemoryManager.allocateDirect(bytes.size + 1)
-      newPtr.put(0L, bytes, 0, bytes.length)
-      newPtr.putByte(bytes.length, 0)
-      newPtr
-    })
-    ptr.address()
   }
 
   private def getObjFromFuncTableAddr[T](buffer: Buffer, index: Int, orm: ObjectReferenceManager[T]): T = {
@@ -1050,6 +1039,17 @@ object NativeClientSupport {
   val muCtxExposer = new ClientAccessibleClassExposer(NativeMuCtx)
 
   // Expose and unexpose objects
+
+  def exposeString(str: String): Word = {
+    val ptr = NativeClientSupport.stringPool.getOrElseUpdate(str, {
+      val bytes = str.getBytes(StandardCharsets.US_ASCII)
+      val newPtr = jnrMemoryManager.allocateDirect(bytes.size + 1)
+      newPtr.put(0L, bytes, 0, bytes.length)
+      newPtr.putByte(bytes.length, 0)
+      newPtr
+    })
+    ptr.address()
+  }
 
   /** Expose a MicroVM. Return a pointer to the C MuVM structure. */
   def exposeMicroVM(microVM: MicroVM): FuncTablePtr = {
