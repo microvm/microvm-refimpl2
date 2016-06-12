@@ -63,8 +63,7 @@ int main() {
 
     MuFuncRefValue   func   = ctx->handle_from_func(ctx, ctx->id_of(ctx, "@hw"));
     MuStackRefValue  stack  = ctx->new_stack(ctx, func);
-    MuThreadRefValue thread = ctx->new_thread(ctx, stack, NULL,
-            MU_REBIND_PASS_VALUES, NULL, 0, NULL);
+    MuThreadRefValue thread = ctx->new_thread_nor(ctx, stack, NULL, NULL, 0);
 
     mvm->execute(mvm);
 
@@ -96,8 +95,7 @@ int main() {
     printf("Object populated. Create thread with threadlocal and execute...\n");
     MuFuncRefValue   func2   = ctx->handle_from_func(ctx, ctx->id_of(ctx, "@hw2"));
     MuStackRefValue  stack2  = ctx->new_stack(ctx, func2);
-    MuThreadRefValue thread2 = ctx->new_thread(ctx, stack2, hobj,
-            MU_REBIND_PASS_VALUES, NULL, 0, NULL);
+    MuThreadRefValue thread2 = ctx->new_thread_nor(ctx, stack2, hobj, NULL, 0);
 
     mvm->execute(mvm);
 

@@ -330,8 +330,7 @@ bool test_traps(MuVM *mvm) {
 
     MuFuncRefValue func = ctx->handle_from_func(ctx, ID("@trapper"));
     MuStackRefValue stack = ctx->new_stack(ctx, func);
-    MuThreadRefValue thread = ctx->new_thread(ctx, stack, NULL,
-            MU_REBIND_PASS_VALUES, args, 1, NULL);
+    MuThreadRefValue thread = ctx->new_thread_nor(ctx, stack, NULL, args, 1);
 
     mvm->execute(mvm);
 
@@ -411,8 +410,7 @@ bool test_load_bundle(MuVM *mvm) {
 
     MuFuncRefValue func = ctx->handle_from_func(ctx, ID("@made_in_c"));
     MuStackRefValue stack = ctx->new_stack(ctx, func);
-    MuThreadRefValue thread = ctx->new_thread(ctx, stack, NULL,
-            MU_REBIND_PASS_VALUES, args, 1, NULL);
+    MuThreadRefValue thread = ctx->new_thread_nor(ctx, stack, NULL, args, 1);
 
     mvm->execute(mvm);
 
@@ -670,8 +668,7 @@ bool test_osr(MuVM *mvm) {
 
     MuFuncRefValue func = ctx->handle_from_func(ctx, ID("@osr_test_base"));
     MuStackRefValue stack = ctx->new_stack(ctx, func);
-    MuThreadRefValue thread = ctx->new_thread(ctx, stack, NULL,
-            MU_REBIND_PASS_VALUES, args, 1, NULL);
+    MuThreadRefValue thread = ctx->new_thread_nor(ctx, stack, NULL, args, 1);
 
     mvm->execute(mvm);
 
@@ -787,8 +784,7 @@ bool test_wp(MuVM *mvm) {
 
     {
         MuStackRefValue stack = ctx->new_stack(ctx, func);
-        MuThreadRefValue thread = ctx->new_thread(ctx, stack, NULL,
-                MU_REBIND_PASS_VALUES, NULL, 0, NULL);
+        MuThreadRefValue thread = ctx->new_thread_nor(ctx, stack, NULL, NULL, 0);
 
         mvm->execute(mvm);
     }
@@ -798,8 +794,7 @@ bool test_wp(MuVM *mvm) {
 
     {
         MuStackRefValue stack = ctx->new_stack(ctx, func);
-        MuThreadRefValue thread = ctx->new_thread(ctx, stack, NULL,
-                MU_REBIND_PASS_VALUES, NULL, 0, NULL);
+        MuThreadRefValue thread = ctx->new_thread_nor(ctx, stack, NULL, NULL, 0);
 
         mvm->execute(mvm);
     }
@@ -809,8 +804,7 @@ bool test_wp(MuVM *mvm) {
 
     {
         MuStackRefValue stack = ctx->new_stack(ctx, func);
-        MuThreadRefValue thread = ctx->new_thread(ctx, stack, NULL,
-                MU_REBIND_PASS_VALUES, NULL, 0, NULL);
+        MuThreadRefValue thread = ctx->new_thread_nor(ctx, stack, NULL, NULL, 0);
 
         mvm->execute(mvm);
     }
@@ -900,8 +894,7 @@ bool test_native(MuVM *mvm) {
     MuFuncRefValue func = ctx->handle_from_func(ctx, ID("@native_test"));
 
     MuStackRefValue stack = ctx->new_stack(ctx, func);
-    MuThreadRefValue thread = ctx->new_thread(ctx, stack, NULL,
-            MU_REBIND_PASS_VALUES, args, 1, NULL);
+    MuThreadRefValue thread = ctx->new_thread_nor(ctx, stack, NULL, args, 1);
 
     mvm->execute(mvm);
 

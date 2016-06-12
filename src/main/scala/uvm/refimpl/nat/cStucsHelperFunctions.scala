@@ -15,21 +15,29 @@ import uvm.refimpl.MicroVM
 import uvm.ssavariables.Flag
 import java.nio.charset.StandardCharsets
 
-class ExposedMethod(jRetTy: JType, jParamTys: Array[JType], invokeFunc: Buffer => Unit) {
-  val closure = new SimpleClosure(invokeFunc)
+class ExposedMethod(name: String, jRetTy: JType, jParamTys: Array[JType], invokeFunc: Buffer => Unit) {
+  val closure = new SimpleClosure(name, invokeFunc)
   val handle = jffiClosureManager.newClosure(closure, jRetTy, jParamTys, CallingConvention.DEFAULT)
   def address = handle.getAddress()
 }
 
-class SimpleClosure(f: Buffer => Unit) extends Closure {
-  def invoke(buffer: Buffer): Unit = f(buffer)
+class SimpleClosure(name: String, f: Buffer => Unit) extends Closure {
+  def invoke(buffer: Buffer): Unit = try {
+    f(buffer)
+  } catch {
+    case t: Throwable => {
+      MuErrorNumber.setMuError(MuErrorNumber.MU_NATIVE_ERRNO)
+      NativeClientSupport.logger.error(
+          "Error thrown in Mu while native is calling %s. This is fatal.".format(name), t)
+    }
+  }
 }
 
 private object CDefsHelperFunctions {
   import NativeClientSupport._
 
-  def exposedMethod(jRetTy: JType, jParamTys: Array[JType])(invokeFunc: Buffer => Unit) = {
-    new ExposedMethod(jRetTy, jParamTys, invokeFunc)
+  def exposedMethod(name: String, jRetTy: JType, jParamTys: Array[JType])(invokeFunc: Buffer => Unit) = {
+    new ExposedMethod(name: String, jRetTy, jParamTys, invokeFunc)
   }
 
   def readIntArray(base: Long, len: Long): IndexedSeq[Int] = {
@@ -94,7 +102,7 @@ private object CDefsHelperFunctions {
       mvm.setTrapHandler(new NativeTrapHandler(trap_handler, userdata))
     }
 
-    def getMuErrorPtr(): MuCPtr = ClientAccessibleClassExposer.muErrorPtr.address()
+    def getMuErrorPtr(): MuCPtr = MuErrorNumber.muErrorPtr.address()
   }
 
   implicit class RichMuCtx(val ctx: MuCtx) extends AnyVal {
@@ -155,5 +163,6 @@ private object CDefsHelperFunctions {
   }
   
   implicit def makeMuValueSeqCovariant[T <: MuValue, U <: T](seq: Seq[T]): Seq[U] = seq.asInstanceOf[Seq[U]]
+  implicit def muValueAutoCast[T <: MuValue, U <: T](v: T): U = v.asInstanceOf[U]
 
 }

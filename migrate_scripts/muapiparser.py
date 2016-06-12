@@ -12,7 +12,6 @@ r_commpragma = re.compile(r'///\s*MUAPIPARSER:(.*)$')
 r_comment = re.compile(r'//.*$', re.MULTILINE)
 r_decl = re.compile(r'(?P<ret>\w+\s*\*?)\s*\(\s*\*\s*(?P<name>\w+)\s*\)\s*\((?P<params>[^)]*)\)\s*;\s*(?:///\s*MUAPIPARSER\s+(?P<pragma>.*)$)?', re.MULTILINE)
 r_param = re.compile(r'\s*(?P<type>\w+\s*\*?)\s*(?P<name>\w+)')
-r_value_ty = re.compile(r'Mu\w*(Value|Node)')
 
 r_define = re.compile(r'^\s*#define\s+(?P<name>\w+)\s*\(\((?P<type>\w+)\)(?P<value>\w+)\)\s*$', re.MULTILINE)
 

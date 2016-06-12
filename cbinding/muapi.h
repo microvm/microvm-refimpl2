@@ -366,7 +366,7 @@ struct MuCtx {
     MuID        (*cur_func       )(MuCtx *ctx, MuFCRefValue cursor);
     MuID        (*cur_func_ver   )(MuCtx *ctx, MuFCRefValue cursor);
     MuID        (*cur_inst       )(MuCtx *ctx, MuFCRefValue cursor);
-    void        (*dump_keepalives)(MuCtx *ctx, MuFCRefValue cursor, MuValue *results); /// MUAPIPARSER: results:out
+    void        (*dump_keepalives)(MuCtx *ctx, MuFCRefValue cursor, MuValue *results); /// MUAPIPARSER results:out
     
     // On-stack replacement
     void        (*pop_frames_to)(MuCtx *ctx, MuFCRefValue cursor);
@@ -558,7 +558,7 @@ struct MuCtx {
     MuInstNode  (*new_swapstack_ret )(MuCtx *ctx, MuBBNode bb, MuVarNode swappee, MuTypeNode *ret_tys, int nret_tys); /// MUAPIPARSER ret_tys:array:nret_tys
     MuInstNode  (*new_swapstack_kill)(MuCtx *ctx, MuBBNode bb, MuVarNode swappee);
 
-    void        (*set_newstack_pass_values)(MuCtx *ctx, MuInstNode inst, MuTypeNode *tys, MuVarNode *vars, int nvars); /// MUAPIPARSER tys:array:nvars;ret_tys:array:nret_tys
+    void        (*set_newstack_pass_values)(MuCtx *ctx, MuInstNode inst, MuTypeNode *tys, MuVarNode *vars, int nvars); /// MUAPIPARSER tys:array:nvars;vars:array:nvars
     void        (*set_newstack_throw_exc  )(MuCtx *ctx, MuInstNode inst, MuVarNode exc);
 
     MuInstNode  (*new_comminst      )(MuCtx *ctx, MuBBNode bb, MuCommInst opcode,

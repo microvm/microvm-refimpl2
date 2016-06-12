@@ -52,7 +52,7 @@ _self_getters = {
 def type_is_explicit_ptr(ty):
     return ty.endswith("*")
 
-r_handle_ty = re.compile(r'Mu\w*(Value|Node)')
+r_handle_ty = re.compile(r'^Mu\w*(Value|Node)$')
 
 def type_is_handle(ty):
     return r_handle_ty.match(ty) is not None
@@ -212,9 +212,9 @@ def param_converter(pn, pt, rn, rt, is_optional, array_sz, is_bool, is_out):
 
     if type_is_handle(pt):
         if is_optional:
-            return "getMuValueNullable({})".format(rn)
+            return "getMuValueNullable({}).asInstanceOf[Option[{}]]".format(rn, pt)
         else:
-            return "getMuValueNotNull({})".format(rn)
+            return "getMuValueNotNull({}).asInstanceOf[{}]".format(rn, pt)
 
     if pt in _special_converters:
         return "{}({})".format(_special_converters[pt], rn)
@@ -233,8 +233,10 @@ def generate_method(typedefs, strname, meth) -> Tuple[str, str]:
     jffi_retty = to_jffi_ty(to_basic_type(typedefs, ret_ty))
     jffi_paramtys = [to_jffi_ty(to_basic_type(typedefs, p["type"])) for p in params]
 
-    header = "val {} = exposedMethod({}, Array({})) {{ _jffiBuffer =>".format(
-            valname, jffi_retty, ", ".join(jffi_paramtys))
+    pretty_name = "{}.{}".format(strname, name)
+
+    header = 'val {} = exposedMethod("{}", {}, Array({})) {{ _jffiBuffer =>'.format(
+            valname, pretty_name, jffi_retty, ", ".join(jffi_paramtys))
 
     stmts = []
 
@@ -346,7 +348,7 @@ def generate_stubs_for_struct(typedefs, st) -> str:
         ptrs.append(ptrname)
         results.append(code)
 
-    results.append("val stubsOf{} = Array[Word]({})".format(name, len(ptrs)))
+    results.append("val stubsOf{} = new Array[Word]({})".format(name, len(ptrs)))
     for i,ptr in enumerate(ptrs):
         results.append("stubsOf{}({}) = {}.address".format(name, i, ptr))
 

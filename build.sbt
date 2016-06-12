@@ -16,7 +16,6 @@ licenses := Seq("CC BY-SA 4.0" -> url("https://creativecommons.org/licenses/by-s
 scalaVersion := "2.11.8"
 
 libraryDependencies ++= Seq(
-    "org.scala-lang" % "scala-reflect" % "2.11.8",
     "org.antlr" % "antlr4" % "4.5.2-1",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0",
     "ch.qos.logback" % "logback-classic" % "1.1.3",
