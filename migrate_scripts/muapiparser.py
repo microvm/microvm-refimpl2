@@ -70,14 +70,14 @@ def extract_enums(text, typename, pattern):
 _top_level_structs = ["MuVM", "MuCtx"]
 _enums = [(typename, re.compile(regex)) for typename, regex in [
     ("MuTrapHandlerResult", r'^MU_(THREAD|REBIND)'),
-    ("MuDestKind", r'^MU_DEST_'),
-    ("MuBinOptr", r'^MU_BINOP_'),
-    ("MuCmpOptr", r'^MU_CMP_'),
-    ("MuConvOptr", r'^MU_CONV_'),
-    ("MuMemOrd", r'^MU_ORD_'),
-    ("MuAtomicRMWOp", r'^MU_ARMW_'),
-    ("MuCallConv", r'^MU_CC_'),
-    ("MuCommInst", r'^MU_CI_'),
+    ("MuDestKind",          r'^MU_DEST_'),
+    ("MuBinOptr",           r'^MU_BINOP_'),
+    ("MuCmpOptr",           r'^MU_CMP_'),
+    ("MuConvOptr",          r'^MU_CONV_'),
+    ("MuMemOrd",            r'^MU_ORD_'),
+    ("MuAtomicRMWOptr",     r'^MU_ARMW_'),
+    ("MuCallConv",          r'^MU_CC_'),
+    ("MuCommInst",          r'^MU_CI_'),
     ]]
 
 def extract_typedefs(text):

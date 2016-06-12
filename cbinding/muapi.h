@@ -272,7 +272,7 @@ struct MuCtx {
     MuIntValue      (*handle_from_uint32)(MuCtx *ctx, uint32_t num, int len);
     MuIntValue      (*handle_from_sint64)(MuCtx *ctx, int64_t  num, int len);
     MuIntValue      (*handle_from_uint64)(MuCtx *ctx, uint64_t num, int len);
-    MuIntValue      (*handle_from_uint64s)(MuCtx *ctx, uint64_t *nums, int nnums, int len); /// MUAPIPARSER num:array:nnum
+    MuIntValue      (*handle_from_uint64s)(MuCtx *ctx, uint64_t *nums, int nnums, int len); /// MUAPIPARSER nums:array:nnums
     MuFloatValue    (*handle_from_float )(MuCtx *ctx, float    num);
     MuDoubleValue   (*handle_from_double)(MuCtx *ctx, double   num);
     MuUPtrValue     (*handle_from_ptr   )(MuCtx *ctx, MuID mu_type, MuCPtr ptr);

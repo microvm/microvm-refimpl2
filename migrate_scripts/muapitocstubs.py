@@ -42,7 +42,7 @@ _primitive_types = {
         "double":   ["Double", "DOUBLE", "getDouble", "setDoubleReturn"],
         }
 
-_funcptr_types = {"MuCFP", "MuTrapHandler", "MuValueFreer"}
+_other_ptr_types = {"MuName", "MuCFP", "MuTrapHandler", "MuValueFreer"}
 
 _self_getters = {
         "MuVM*": "getMuVM",
@@ -58,10 +58,10 @@ def type_is_handle(ty):
     return r_handle_ty.match(ty) is not None
 
 def type_is_ptr(ty):
-    return type_is_explicit_ptr(ty) or type_is_handle(ty) or ty in _funcptr_types
+    return type_is_explicit_ptr(ty) or type_is_handle(ty) or ty in _other_ptr_types
 
 def type_is_handle_array(ty):
-    return is_ptr(ty) and r_handle_ty.match(ty[:-1]) is not None
+    return type_is_ptr(ty) and r_handle_ty.match(ty[:-1]) is not None
 
 def to_jffi_ty(cty):
     if cty in _primitive_types:
@@ -139,6 +139,65 @@ def to_basic_type(typedefs, name):
         name = typedefs[name]
     return name
 
+_no_conversion = {
+        "MuID",          # It's just Int.
+        "MuName",        # Only two functions. Handle in Scala.
+        "MuTrapHandler", # It is a function pointer. Handle in Scala.
+        "MuCPtr",        # Intended to be raw pointer. Passed directly.
+        "MuCFP",         # ditto
+        "char*",         # Only used in load_bundle or load_hail. Handle in Scala.
+        "int*",          # Only used in cmpxchg as an output parameter. Handle in Scala.
+        "MuWPID",        # Just Int
+        "MuCommInst",    # Onlu used in new_comminst, and the builder uses opcode directly.
+        }
+
+_array_converters = {
+        "uint64_t*" : "readLongArray",
+        "MuFlag*"   : "readFlagArray",
+        }
+
+_special_converters = {
+        "MuMemOrd"        : "toMemoryOrder",
+        "MuAtomicRMWOptr" : "toAtomicRMWOptr",
+        "MuBinOptr"       : "toBinOptr",
+        "MuCmpOptr"       : "toCmpOptr",
+        "MuConvOptr"      : "toConvOptr",
+        "MuCallConv"      : "toFlag",
+        "MuDestKind"      : "toDestKind",
+        }
+
+def param_converter(pn, pt, rn, rt, is_optional, array_sz, is_bool):
+    if pt == "void":
+        raise ValueError("Parameter cannot be void. Param name: {}".format(pn))
+
+    if pt in _primitive_types or pt in _no_conversion:
+        return rn   # does not need conversion
+
+    if array_sz is not None:
+        if type_is_handle_array(pt):
+            ac = "readMuValueArray"
+        elif pt in _array_converters:
+            ac = _array_converters[pt]
+        else:
+            raise ValueError("I don't know how to convert array {}. "
+                    "Param name: {}, array size: {}".format(pt, pn, array_sz))
+        return "{}({}, {})".format(ac, rn, array_sz)
+
+    if type_is_handle(pt):
+        if is_optional:
+            return "getMuValueNullable({})".format(rn)
+        else:
+            return "getMuValueNotNull({})".format(rn)
+
+    if pt in _special_converters:
+        return "{}({})".format(_special_converters[pt], rn)
+
+    if pt == "int" and is_bool:
+        return "{} != 0".foramt(rn)
+
+    raise ValueError("I don't know how to convert {}. Param name: {}".format(
+        pt, pn))
+
 def generate_method(typedefs, strname, meth) -> Tuple[str, str]:
     name    = meth['name']
     params  = meth['params']
@@ -153,19 +212,67 @@ def generate_method(typedefs, strname, meth) -> Tuple[str, str]:
     header = "val {} = exposedMethod({}, Array({})) {{ _jffiBuffer =>".format(
             valname, jffi_retty, ", ".join(jffi_paramtys))
 
-    pragmas      = [tuple(p.split(":")) for p in pragmas]
     stmts = []
+
+    # pragmas
+    pragmas = [tuple(p.split(":")) for p in pragmas]
+
+    array_szs = [p[2] for p in pragmas if p[1] == 'array']
+
+    # get raw parameters
+    for i in range(len(params)):
+        param = params[i]
+        pn = param['name']
+        pt = param['type']
+        rt = to_basic_type(typedefs, pt) # raw type
+        jffi_getter = to_jffi_getter(rt)
+
+        rn = "_raw_" + pn # raw name
+
+        stmts.append("val {} = _jffiBuffer.{}({})".format(rn,
+            jffi_getter, i))
 
     self_param_name = params[0]["name"]
     self_param_type = params[0]["type"]
 
-    stmts.append("val {} = _jffiBuffer.{}(0)".format(self_param_name,
-        to_jffi_getter(self_param_type)))
-
-    self_obj = "_" + self_param_name + "_obj"
+    # get the self object (MuVM or MuCtx)
 
     stmts.append("val {} = {}({})".format(
-        self_obj, _self_getters[self_param_type], self_param_name))
+        self_param_name,
+        _self_getters[self_param_type],
+        "_raw_"+self_param_name))
+
+    # convert parameters
+    for i in range(1, len(params)):
+        param = params[i]
+        pn = param['name']
+
+        if pn in array_szs:
+            continue    # Array sizes don't need to be passed explicitly.
+
+        pt = param['type']
+        rn = "_raw_" + pn
+        rt = to_basic_type(typedefs, pt)
+
+        pps = [p for p in pragmas if p[0] == pn]
+        is_optional = False
+        array_sz = None
+        is_bool = False
+        for pp in pps:
+            if pp[1] == 'array':
+                array_sz = "_raw_" + pp[2]
+            elif pp[1] == 'optional':
+                is_optional = True
+            elif pp[1] == 'bool':
+                is_bool = True
+
+        pc = param_converter(pn, pt, rn, rt, is_optional, array_sz, is_bool)
+
+        stmts.append("val {} = {}".format(pn, pc))
+
+    # make the call
+
+    # return value
 
     footer = "}"
 
@@ -198,13 +305,58 @@ def generate_stubs(ast):
 
     return "\n".join(struct_codes)
 
+def generate_enums(ast):
+    vals = []
+
+    for enum in ast['enums']:
+        for d in enum['defs']:
+            vals.append("val {} = {}".format(d['name'], d['value']))
+
+    return "\n".join(vals)
+
+_enum_types_to_generate_converters = [
+        ("MuDestKind",      "DestKind",      'MU_DEST_'),
+        ("MuBinOptr",       "BinOptr",       'MU_BINOP_'),
+        ("MuCmpOptr",       "CmpOptr",       'MU_CMP_'),
+        ("MuConvOptr",      "ConvOptr",      'MU_CONV_'),
+        ("MuMemOrd",        "MemoryOrder",   'MU_ORD_'),
+        ("MuAtomicRMWOptr", "AtomicRMWOptr", 'MU_ARMW_'),
+        ]
+
+def generate_enum_converters(ast):
+    enums = ast['enums']
+    edict = {}
+
+    for e in enums:
+        edict[e['name']] = e['defs']
+
+    lines = []
+
+    for cty, sty, prefix in _enum_types_to_generate_converters:
+        func_name = "to"+sty
+        lines.append("def {}(cval: {}): {}.Value = cval match {{".format(
+            func_name, cty, sty))
+
+        defs = edict[cty]
+        for d in defs:
+            dn = d['name']
+            dv = d['value']
+            assert(dn.startswith(prefix))
+            sn = dn[len(prefix):]
+            lines.append("  case {} => {}.{}".format(dv, sty, sn))
+
+        lines.append("}")
+
+    return "\n".join(lines)
 
 def generate_things(ast):
     stubs = generate_stubs(ast)
 
-    enums = "" # TODO: generate_enums(ast)
+    enums = generate_enums(ast)
 
-    return "\n".join([stubs])
+    enum_convs = generate_enum_converters(ast)
+
+    return "\n".join([stubs, enums, enum_convs])
 
 src_path = "cbinding/muapi.h"
 dst_path = "src/main/scala/uvm/refimpl/nat/cStubs.scala"

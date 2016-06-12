@@ -266,7 +266,7 @@ object NativeMuCtx {
     theMemory.putInt(is_succ, if (succ) 1 else 0)
     exposeMuValue(ctx, rv)
   }
-  def atomicrmw(ctx: MuCtx, ord: MuMemOrd, op: MuAtomicRMWOp, loc: MuIRefValue, opnd: MuValue): MuValueFak = {
+  def atomicrmw(ctx: MuCtx, ord: MuMemOrd, op: MuAtomicRMWOptr, loc: MuIRefValue, opnd: MuValue): MuValueFak = {
     val rv = ctx.atomicRMW(ord, op, loc, opnd)
     exposeMuValue(ctx, rv)
   }
@@ -418,7 +418,7 @@ object NativeMuCtx {
   def new_load(ctx: MuCtx, bb: MuBBNode, is_ptr: Int, ord: MuMemOrd, refty: MuTypeNode, loc: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newLoad(bb, is_ptr != 0, ord, refty, loc))
   def new_store(ctx: MuCtx, bb: MuBBNode, is_ptr: Int, ord: MuMemOrd, refty: MuTypeNode, loc: MuVarNode, newval: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newStore(bb, is_ptr != 0, ord, refty, loc, newval))
   def new_cmpxchg(ctx: MuCtx, bb: MuBBNode, is_ptr: Int, is_weak: Int, ord_succ: MuMemOrd, ord_fail: MuMemOrd, refty: MuTypeNode, loc: MuVarNode, expected: MuVarNode, desired: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newCmpXchg(bb, is_ptr != 0, is_weak != 0, ord_succ, ord_fail, refty, loc, expected, desired))
-  def new_atomicrmw(ctx: MuCtx, bb: MuBBNode, is_ptr: Int, ord: MuMemOrd, optr: MuAtomicRMWOp, refTy: MuTypeNode, loc: MuVarNode, opnd: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newAtomicRMW(bb, is_ptr != 0, ord, optr, refTy, loc, opnd))
+  def new_atomicrmw(ctx: MuCtx, bb: MuBBNode, is_ptr: Int, ord: MuMemOrd, optr: MuAtomicRMWOptr, refTy: MuTypeNode, loc: MuVarNode, opnd: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newAtomicRMW(bb, is_ptr != 0, ord, optr, refTy, loc, opnd))
   def new_fence(ctx: MuCtx, bb: MuBBNode, ord: MuMemOrd): MuValueFak = exposeMuValue(ctx, ctx.newFence(bb, ord))
   def new_trap(ctx: MuCtx, bb: MuBBNode, rettys: MuValueFakArrayPtr, nrettys: Int): MuValueFak = exposeMuValue(ctx, ctx.newTrap(bb, readFromValueFakArray(rettys, nrettys)))
   def new_watchpoint(ctx: MuCtx, bb: MuBBNode, wpid: MuWPID, rettys: MuValueFakArrayPtr, nrettys: Int): MuValueFak = exposeMuValue(ctx, ctx.newWatchPoint(bb, wpid, readFromValueFakArray(rettys, nrettys)))
@@ -492,7 +492,7 @@ object NativeMuHelpers {
     case MU_SEQ_CST    => MemoryOrder.SEQ_CST
   }
 
-  implicit def intToMemAtomicRMWOp(op: MuAtomicRMWOp): AtomicRMWOptr.AtomicRMWOptr = op match {
+  implicit def intToMemAtomicRMWOp(op: MuAtomicRMWOptr): AtomicRMWOptr.AtomicRMWOptr = op match {
     case MU_XCHG => AtomicRMWOptr.XCHG
     case MU_ADD  => AtomicRMWOptr.ADD
     case MU_SUB  => AtomicRMWOptr.SUB
@@ -980,7 +980,7 @@ object NativeClientSupport {
   type MuCPtr = Word
   type MuCFP = Word
   type MuMemOrd = Int
-  type MuAtomicRMWOp = Int
+  type MuAtomicRMWOptr = Int
   type MuHowToResume = Int
   type MuHowToResumePtr = IntPtr
   type MuCallConv = Int
@@ -1019,6 +1019,16 @@ object NativeClientSupport {
       throw new UvmRefImplException("Exposed MuValue not found. Fake address: %d 0x%x".format(fak, fak))
     }
     muVal
+  }
+
+  /** Get the MuValue instance form a C MuValue (a pointer). */
+  def getMuValueNullable(fak: MuValueFak): Option[MuValue] = {
+    val muVal = muValues.get(jnrMemoryManager.newPointer(fak))
+    if (muVal == null) {
+      None
+    } else {
+      Some(muVal)
+    }
   }
 
   /**
