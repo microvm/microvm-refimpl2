@@ -320,19 +320,19 @@ object NativeMuCtx {
   def pop_frames_to(ctx: MuCtx, cursor: MuFCRefValue): Unit = ctx.popFramesTo(cursor)
   def push_frame(ctx: MuCtx, stack: MuStackRefValue, func: MuFuncRefValue): Unit = ctx.pushFrame(stack, func)
 
-  def tr64_is_fp(ctx: MuCtx, value: MuTagRef64Value): Int = if (ctx.tr64IsFp(value)) 1 else 0
+  def tr64_is_fp(ctx: MuCtx, value: MuTagRef64Value): Int = if (ctx.tr64IsFP(value)) 1 else 0
   def tr64_is_int(ctx: MuCtx, value: MuTagRef64Value): Int = if (ctx.tr64IsInt(value)) 1 else 0
   def tr64_is_ref(ctx: MuCtx, value: MuTagRef64Value): Int = if (ctx.tr64IsRef(value)) 1 else 0
-  def tr64_to_fp(ctx: MuCtx, value: MuTagRef64Value): MuValueFak = exposeMuValue(ctx, ctx.tr64ToFp(value))
+  def tr64_to_fp(ctx: MuCtx, value: MuTagRef64Value): MuValueFak = exposeMuValue(ctx, ctx.tr64ToFP(value))
   def tr64_to_int(ctx: MuCtx, value: MuTagRef64Value): MuValueFak = exposeMuValue(ctx, ctx.tr64ToInt(value))
   def tr64_to_ref(ctx: MuCtx, value: MuTagRef64Value): MuValueFak = exposeMuValue(ctx, ctx.tr64ToRef(value))
   def tr64_to_tag(ctx: MuCtx, value: MuTagRef64Value): MuValueFak = exposeMuValue(ctx, ctx.tr64ToTag(value))
-  def tr64_from_fp(ctx: MuCtx, value: MuDoubleValue): MuValueFak = exposeMuValue(ctx, ctx.tr64FromFp(value))
+  def tr64_from_fp(ctx: MuCtx, value: MuDoubleValue): MuValueFak = exposeMuValue(ctx, ctx.tr64FromFP(value))
   def tr64_from_int(ctx: MuCtx, value: MuIntValue): MuValueFak = exposeMuValue(ctx, ctx.tr64FromInt(value))
   def tr64_from_ref(ctx: MuCtx, ref: MuRefValue, tag: MuIntValue): MuValueFak = exposeMuValue(ctx, ctx.tr64FromRef(ref, tag))
 
-  def enable_watchpoint(ctx: MuCtx, wpid: Int): Unit = ctx.enableWatchpoint(wpid)
-  def disable_watchpoint(ctx: MuCtx, wpid: Int): Unit = ctx.disableWatchpoint(wpid)
+  def enable_watchpoint(ctx: MuCtx, wpid: Int): Unit = ctx.enableWatchPoint(wpid)
+  def disable_watchpoint(ctx: MuCtx, wpid: Int): Unit = ctx.disableWatchPoint(wpid)
 
   def pin(ctx: MuCtx, loc: MuValue): MuValueFak = exposeMuValue(ctx, ctx.pin(loc))
   def unpin(ctx: MuCtx, loc: MuValue): Unit = ctx.unpin(loc)
@@ -388,7 +388,7 @@ object NativeMuCtx {
   def new_exc_param(ctx: MuCtx, bb: MuBBNode): MuValueFak = exposeMuValue(ctx, ctx.newExcParam(bb))
   def new_inst_res(ctx: MuCtx, inst: MuInstNode): MuValueFak = exposeMuValue(ctx, ctx.newInstRes(inst))
   def add_dest(ctx: MuCtx, inst: MuInstNode, kind: MuDestKind, dest: MuBBNode, vars: MuValueFakArrayPtr, nvars: Int): Unit = ctx.addDest(inst, kind, dest, readFromValueFakArray(vars, nvars))
-  def add_keepalives(ctx: MuCtx, inst: MuInstNode, vars: MuValueFakArrayPtr, nvars: Int): Unit = ctx.addKeepAlives(inst, readFromValueFakArray(vars, nvars))
+  def add_keepalives(ctx: MuCtx, inst: MuInstNode, vars: MuValueFakArrayPtr, nvars: Int): Unit = ctx.addKeepalives(inst, readFromValueFakArray(vars, nvars))
   def new_binop(ctx: MuCtx, bb: MuBBNode, optr: MuBinOptr, ty: MuTypeNode, opnd1: MuVarNode, opnd2: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newBinOp(bb, optr, ty, opnd1, opnd2))
   def new_cmp(ctx: MuCtx, bb: MuBBNode, optr: MuCmpOptr, ty: MuTypeNode, opnd1: MuVarNode, opnd2: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newCmp(bb, optr, ty, opnd1, opnd2))
   def new_conv(ctx: MuCtx, bb: MuBBNode, optr: MuConvOptr, from_ty: MuTypeNode, to_ty: MuTypeNode, opnd: MuVarNode): MuValueFak = exposeMuValue(ctx, ctx.newConv(bb, optr, from_ty, to_ty, opnd))
@@ -1013,21 +1013,21 @@ object NativeClientSupport {
   }
 
   /** Get the MuValue instance form a C MuValue (a pointer). */
-  def getMuValueNotNull(fak: MuValueFak): MuValue = {
+  def getMuValueNotNull[T <: MuValue](fak: MuValueFak): T = {
     val muVal = muValues.get(jnrMemoryManager.newPointer(fak))
     if (muVal == null) {
       throw new UvmRefImplException("Exposed MuValue not found. Fake address: %d 0x%x".format(fak, fak))
     }
-    muVal
+    muVal.asInstanceOf[T]
   }
 
   /** Get the MuValue instance form a C MuValue (a pointer). */
-  def getMuValueNullable(fak: MuValueFak): Option[MuValue] = {
+  def getMuValueNullable[T <: MuValue](fak: MuValueFak): Option[T] = {
     val muVal = muValues.get(jnrMemoryManager.newPointer(fak))
     if (muVal == null) {
       None
     } else {
-      Some(muVal)
+      Some(muVal.asInstanceOf[T])
     }
   }
 

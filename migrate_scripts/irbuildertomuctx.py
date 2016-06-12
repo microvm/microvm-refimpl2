@@ -33,7 +33,7 @@ replaces = [(re.compile(x), y) for (x,y) in [
     (r'(CN|ChildNode)\[ExcParam\]', 'MuExcParamNode'),
     (r'(CN|ChildNode)\[InstResult\]', 'MuInstResNode'),
     (r'(CN|ChildNode)\[Inst\w+\]', 'MuInstNode'),
-    (r'(CN|ChildNode)\[HasKeepAliveClause\]', 'MuInstNode'),
+    (r'(CN|ChildNode)\[HasKeepaliveClause\]', 'MuInstNode'),
     ]]
 
 sig = re.compile(r'^(  def\s+(\w+)\s*\(([^)]*)\):\s+\w+\s+=)', re.MULTILINE)

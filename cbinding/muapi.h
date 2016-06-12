@@ -336,7 +336,7 @@ struct MuCtx {
     void        (*store    )(MuCtx *ctx, MuMemOrd ord, MuIRefValue loc, MuValue newval);
     MuValue     (*cmpxchg  )(MuCtx *ctx, MuMemOrd ord_succ, MuMemOrd ord_fail,
                         int weak, MuIRefValue loc, MuValue expected, MuValue desired,
-                        int *is_succ); /// MUAPIPARSER weak:bool
+                        int *is_succ); /// MUAPIPARSER weak:bool;is_succ:out
     MuValue     (*atomicrmw)(MuCtx *ctx, MuMemOrd ord, MuAtomicRMWOptr op,
                         MuIRefValue loc, MuValue opnd);
     void        (*fence    )(MuCtx *ctx, MuMemOrd ord);
@@ -348,7 +348,7 @@ struct MuCtx {
                             MuValue *vals, int nvals); /// MUAPIPARSER threadlocal:optional;vals:array:nvals
     MuThreadRefValue    (*new_thread_exc)(MuCtx *ctx, MuStackRefValue stack,
                             MuRefValue threadlocal,
-                            MuRefValue exc); /// MUAPIPARSER threadlocal:optional;exc:optional
+                            MuRefValue exc); /// MUAPIPARSER threadlocal:optional
     void                (*kill_stack)(MuCtx *ctx, MuStackRefValue stack);
 
     // Thread-local object reference
@@ -366,7 +366,7 @@ struct MuCtx {
     MuID        (*cur_func       )(MuCtx *ctx, MuFCRefValue cursor);
     MuID        (*cur_func_ver   )(MuCtx *ctx, MuFCRefValue cursor);
     MuID        (*cur_inst       )(MuCtx *ctx, MuFCRefValue cursor);
-    void        (*dump_keepalives)(MuCtx *ctx, MuFCRefValue cursor, MuValue *results);
+    void        (*dump_keepalives)(MuCtx *ctx, MuFCRefValue cursor, MuValue *results); /// MUAPIPARSER: results:out
     
     // On-stack replacement
     void        (*pop_frames_to)(MuCtx *ctx, MuFCRefValue cursor);
@@ -506,7 +506,7 @@ struct MuCtx {
     void    (*add_dest      )(MuCtx *ctx, MuInstNode inst, MuDestKind kind, MuBBNode dest, MuVarNode *vars, int nvars); /// MUAPIPARSER vars:array:nvars
 
     // Create a destination claues and add it to instruction "inst".
-    void    (*add_keepalives)(MuCtx *ctx, MuInstNode inst, MuLocalVarNode *vars, int nvars);
+    void    (*add_keepalives)(MuCtx *ctx, MuInstNode inst, MuLocalVarNode *vars, int nvars); /// MUAPIPARSER vars:array:nvars
     
     /// Create instructions. Instructions are appended to the basic block "bb".
 

@@ -125,8 +125,8 @@ trait HasExcClause extends Instruction with MaybeTerminator {
   override def canTerminate: Boolean = excClause.isDefined
 }
 
-trait HasKeepAliveClause extends Instruction {
-  var keepAlives: Seq[LocalVariable]
+trait HasKeepaliveClause extends Instruction {
+  var keepalives: Seq[LocalVariable]
 }
 
 abstract class AbstractCall extends CallLike
@@ -152,7 +152,7 @@ trait WorksWithPointer extends Instruction {
   var ptr: Boolean
 }
 
-abstract class AbstractTrap extends HasKeepAliveClause with OSRPoint {
+abstract class AbstractTrap extends HasKeepaliveClause with OSRPoint {
   var retTys: Seq[Type]
 }
 
@@ -188,8 +188,8 @@ case class InstSwitch(var opndTy: Type, var opnd: SSAVariable, var defDest: Dest
                       var cases: ArrayBuffer[(SSAVariable, DestClause)]) extends Instruction with Terminator
 
 case class InstCall(var sig: FuncSig, var callee: SSAVariable, var argList: Seq[SSAVariable],
-                    var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable])
-    extends AbstractCall with HasExcClause with HasKeepAliveClause with OSRPoint
+                    var excClause: Option[ExcClause], var keepalives: Seq[LocalVariable])
+    extends AbstractCall with HasExcClause with HasKeepaliveClause with OSRPoint
 
 case class InstTailCall(var sig: FuncSig, var callee: SSAVariable, var argList: Seq[SSAVariable]) extends AbstractCall with Terminator
 
@@ -242,29 +242,29 @@ case class InstAtomicRMW(var ptr: Boolean, var ord: MemoryOrder, var op: AtomicR
 
 case class InstFence(var ord: MemoryOrder) extends Instruction
 
-case class InstTrap(var retTys: Seq[Type], var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable])
+case class InstTrap(var retTys: Seq[Type], var excClause: Option[ExcClause], var keepalives: Seq[LocalVariable])
   extends AbstractTrap with HasExcClause
 
 case class InstWatchPoint(var wpID: Int, var retTys: Seq[Type],
                           var dis: DestClause, var ena: DestClause, var exc: Option[DestClause],
-                          var keepAlives: Seq[LocalVariable]) extends AbstractTrap with Terminator
+                          var keepalives: Seq[LocalVariable]) extends AbstractTrap with Terminator
 
 case class InstWPBranch(var wpID: Int, var dis: DestClause, var ena: DestClause) extends Instruction with Terminator
 
 case class InstCCall(var callConv: Flag, var funcTy: Type, var sig: FuncSig, var callee: SSAVariable,
-                     var argList: Seq[SSAVariable], var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable])
-    extends CallLike with HasExcClause with HasKeepAliveClause with OSRPoint
+                     var argList: Seq[SSAVariable], var excClause: Option[ExcClause], var keepalives: Seq[LocalVariable])
+    extends CallLike with HasExcClause with HasKeepaliveClause with OSRPoint
 
 case class InstNewThread(var stack: SSAVariable, var threadLocal: Option[SSAVariable],
                          var newStackAction: NewStackAction, var excClause: Option[ExcClause]) extends Instruction with HasExcClause
 
 case class InstSwapStack(var swappee: SSAVariable, var curStackAction: CurStackAction, var newStackAction: NewStackAction,
-                         var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable]) extends HasExcClause with HasKeepAliveClause with OSRPoint {
+                         var excClause: Option[ExcClause], var keepalives: Seq[LocalVariable]) extends HasExcClause with HasKeepaliveClause with OSRPoint {
   override def canTerminate: Boolean = curStackAction == KillOld() || excClause.isDefined
 }
 
 case class InstCommInst(var inst: CommInst, var flagList: Seq[Flag], var typeList: Seq[Type], var funcSigList: Seq[FuncSig], var argList: Seq[SSAVariable],
-                        var excClause: Option[ExcClause], var keepAlives: Seq[LocalVariable])
-    extends HasTypeList with HasArgList with HasExcClause with HasKeepAliveClause {
+                        var excClause: Option[ExcClause], var keepalives: Seq[LocalVariable])
+    extends HasTypeList with HasArgList with HasExcClause with HasKeepaliveClause {
   override def canTerminate: Boolean = excClause.isDefined || inst.isTerminator
 }

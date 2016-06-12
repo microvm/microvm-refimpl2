@@ -237,8 +237,8 @@ class IRBuilder(globalBundle: GlobalBundle, idFactory: IDFactory) {
     }
   }
 
-  def addKeepAlives(inst: CN[HasKeepAliveClause], lvs: Seq[CN[LocalVariable]]): Unit = {
-    inst.keepAlives = lvs
+  def addKeepalives(inst: CN[HasKeepaliveClause], lvs: Seq[CN[LocalVariable]]): Unit = {
+    inst.keepalives = lvs
   }
 
   private def newInst[T <: Instruction](bb: BasicBlock, inst: T): CN[T] = {

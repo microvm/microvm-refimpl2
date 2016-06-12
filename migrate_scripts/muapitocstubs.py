@@ -45,7 +45,7 @@ _primitive_types = {
 _other_ptr_types = {"MuName", "MuCFP", "MuTrapHandler", "MuValueFreer"}
 
 _self_getters = {
-        "MuVM*": "getMuVM",
+        "MuVM*": "getMicroVM",
         "MuCtx*": "getMuCtx",
         }
 
@@ -61,7 +61,7 @@ def type_is_ptr(ty):
     return type_is_explicit_ptr(ty) or type_is_handle(ty) or ty in _other_ptr_types
 
 def type_is_handle_array(ty):
-    return type_is_ptr(ty) and r_handle_ty.match(ty[:-1]) is not None
+    return type_is_ptr(ty) and type_is_handle(ty[:-1])
 
 def to_jffi_ty(cty):
     if cty in _primitive_types:
@@ -85,6 +85,16 @@ def to_jffi_getter(cty):
 
 _special_cases = {
         "id":             "ID",
+        "sint8":          "SInt8",
+        "uint8":          "UInt8",
+        "sint16":         "SInt16",
+        "uint16":         "UInt16",
+        "sint32":         "SInt32",
+        "uint32":         "UInt32",
+        "sint64":         "SInt64",
+        "uint64":         "UInt64",
+        "uint64s":        "UInt64s",
+        "fp":             "FP",
         "uptr":           "UPtr",
         "ufuncptr":       "UFuncPtr",
         "iref":           "IRef",
@@ -97,7 +107,6 @@ _special_cases = {
         "irnoderef":      "IRNodeRef",
         "funcsig":        "FuncSig",
         "bb":             "BB",
-        "keepalives":     "KeepAlives",
         "binop":          "BinOp",
         "tailcall":       "TailCall",
         "extractvalue":   "ExtractValue",
@@ -127,8 +136,8 @@ def toCamelCase(name):
     ins = name.split("_")
     outs = [ins[0]]
     for inn in ins[1:]:
-        if inn in _special_case:
-            outs.append(_special_case[inn])
+        if inn in _special_cases:
+            outs.append(_special_cases[inn])
         else:
             outs.append(inn[0].upper()+inn[1:])
 
@@ -141,22 +150,21 @@ def to_basic_type(typedefs, name):
 
 _no_conversion = {
         "MuID",          # It's just Int.
-        "MuName",        # Only two functions. Handle in Scala.
         "MuTrapHandler", # It is a function pointer. Handle in Scala.
         "MuCPtr",        # Intended to be raw pointer. Passed directly.
         "MuCFP",         # ditto
-        "char*",         # Only used in load_bundle or load_hail. Handle in Scala.
-        "int*",          # Only used in cmpxchg as an output parameter. Handle in Scala.
         "MuWPID",        # Just Int
         "MuCommInst",    # Onlu used in new_comminst, and the builder uses opcode directly.
         }
 
 _array_converters = {
+        "char*"     : "readCharArray",
         "uint64_t*" : "readLongArray",
         "MuFlag*"   : "readFlagArray",
         }
 
 _special_converters = {
+        "MuName"          : "readCString",
         "MuMemOrd"        : "toMemoryOrder",
         "MuAtomicRMWOptr" : "toAtomicRMWOptr",
         "MuBinOptr"       : "toBinOptr",
@@ -166,11 +174,14 @@ _special_converters = {
         "MuDestKind"      : "toDestKind",
         }
 
-def param_converter(pn, pt, rn, rt, is_optional, array_sz, is_bool):
+def param_converter(pn, pt, rn, rt, is_optional, array_sz, is_bool, is_out):
     if pt == "void":
         raise ValueError("Parameter cannot be void. Param name: {}".format(pn))
 
-    if pt in _primitive_types or pt in _no_conversion:
+    if pt == "int" and is_bool:
+        return "{} != 0".format(rn)
+
+    if pt in _primitive_types or pt in _no_conversion or is_out:
         return rn   # does not need conversion
 
     if array_sz is not None:
@@ -191,9 +202,6 @@ def param_converter(pn, pt, rn, rt, is_optional, array_sz, is_bool):
 
     if pt in _special_converters:
         return "{}({})".format(_special_converters[pt], rn)
-
-    if pt == "int" and is_bool:
-        return "{} != 0".foramt(rn)
 
     raise ValueError("I don't know how to convert {}. Param name: {}".format(
         pt, pn))
@@ -243,12 +251,16 @@ def generate_method(typedefs, strname, meth) -> Tuple[str, str]:
         "_raw_"+self_param_name))
 
     # convert parameters
+    args_to_pass = []
+
     for i in range(1, len(params)):
         param = params[i]
         pn = param['name']
 
         if pn in array_szs:
             continue    # Array sizes don't need to be passed explicitly.
+
+        args_to_pass.append(pn)
 
         pt = param['type']
         rn = "_raw_" + pn
@@ -258,6 +270,7 @@ def generate_method(typedefs, strname, meth) -> Tuple[str, str]:
         is_optional = False
         array_sz = None
         is_bool = False
+        is_out = False
         for pp in pps:
             if pp[1] == 'array':
                 array_sz = "_raw_" + pp[2]
@@ -265,12 +278,18 @@ def generate_method(typedefs, strname, meth) -> Tuple[str, str]:
                 is_optional = True
             elif pp[1] == 'bool':
                 is_bool = True
+            elif pp[1] == 'out':
+                is_out = True
 
-        pc = param_converter(pn, pt, rn, rt, is_optional, array_sz, is_bool)
+        pc = param_converter(pn, pt, rn, rt, is_optional, array_sz, is_bool, is_out)
 
         stmts.append("val {} = {}".format(pn, pc))
 
     # make the call
+
+    camelName = toCamelCase(name)
+    stmts.append("val _RV = {}.{}({})".format(
+        self_param_name, camelName, ", ".join(args_to_pass)))
 
     # return value
 

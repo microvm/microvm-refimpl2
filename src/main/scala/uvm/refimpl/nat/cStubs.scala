@@ -10,10 +10,10 @@ import uvm.refimpl._
 import uvm.ssavariables.{BinOptr, CmpOptr, ConvOptr, MemoryOrder, AtomicRMWOptr}
 import uvm.ir.irbuilder.DestKind
 
-import CDefsHelperFunctions._
 import uvm.refimpl.MicroVM
 
 object CDefs {
+  import CDefsHelperFunctions._
   import NativeClientSupport._
   
   exposedMethod(JType.VOID, Array(JType.SINT, JType.UINT32)) { jffiBuffer =>
@@ -25,35 +25,41 @@ object CDefs {
   /// SCRIPT: GENERATED CODE BEGIN
 val MUVM__NEW_CONTEXT = exposedMethod(JType.POINTER, Array(JType.POINTER)) { _jffiBuffer =>
 val _raw_mvm = _jffiBuffer.getAddress(0)
-val mvm = getMuVM(_raw_mvm)
+val mvm = getMicroVM(_raw_mvm)
+val _RV = mvm.newContext()
 }
 val MUVM__ID_OF = exposedMethod(JType.UINT32, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_mvm = _jffiBuffer.getAddress(0)
 val _raw_name = _jffiBuffer.getAddress(1)
-val mvm = getMuVM(_raw_mvm)
-val name = _raw_name
+val mvm = getMicroVM(_raw_mvm)
+val name = readCString(_raw_name)
+val _RV = mvm.idOf(name)
 }
 val MUVM__NAME_OF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT32)) { _jffiBuffer =>
 val _raw_mvm = _jffiBuffer.getAddress(0)
 val _raw_id = _jffiBuffer.getInt(1)
-val mvm = getMuVM(_raw_mvm)
+val mvm = getMicroVM(_raw_mvm)
 val id = _raw_id
+val _RV = mvm.nameOf(id)
 }
 val MUVM__SET_TRAP_HANDLER = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_mvm = _jffiBuffer.getAddress(0)
 val _raw_trap_handler = _jffiBuffer.getAddress(1)
 val _raw_userdata = _jffiBuffer.getAddress(2)
-val mvm = getMuVM(_raw_mvm)
+val mvm = getMicroVM(_raw_mvm)
 val trap_handler = _raw_trap_handler
 val userdata = _raw_userdata
+val _RV = mvm.setTrapHandler(trap_handler, userdata)
 }
 val MUVM__EXECUTE = exposedMethod(JType.VOID, Array(JType.POINTER)) { _jffiBuffer =>
 val _raw_mvm = _jffiBuffer.getAddress(0)
-val mvm = getMuVM(_raw_mvm)
+val mvm = getMicroVM(_raw_mvm)
+val _RV = mvm.execute()
 }
 val MUVM__GET_MU_ERROR_PTR = exposedMethod(JType.POINTER, Array(JType.POINTER)) { _jffiBuffer =>
 val _raw_mvm = _jffiBuffer.getAddress(0)
-val mvm = getMuVM(_raw_mvm)
+val mvm = getMicroVM(_raw_mvm)
+val _RV = mvm.getMuErrorPtr()
 }
 val stubsOfMuVM = Array[Word](6)
 stubsOfMuVM(0) = MUVM__NEW_CONTEXT.address
@@ -66,31 +72,36 @@ val MUCTX__ID_OF = exposedMethod(JType.UINT32, Array(JType.POINTER, JType.POINTE
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_name = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
-val name = _raw_name
+val name = readCString(_raw_name)
+val _RV = ctx.idOf(name)
 }
 val MUCTX__NAME_OF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT32)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_id = _jffiBuffer.getInt(1)
 val ctx = getMuCtx(_raw_ctx)
 val id = _raw_id
+val _RV = ctx.nameOf(id)
 }
 val MUCTX__CLOSE_CONTEXT = exposedMethod(JType.VOID, Array(JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val ctx = getMuCtx(_raw_ctx)
+val _RV = ctx.closeContext()
 }
 val MUCTX__LOAD_BUNDLE = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_buf = _jffiBuffer.getAddress(1)
 val _raw_sz = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
-val buf = _raw_buf
+val buf = readCharArray(_raw_buf, _raw_sz)
+val _RV = ctx.loadBundle(buf)
 }
 val MUCTX__LOAD_HAIL = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_buf = _jffiBuffer.getAddress(1)
 val _raw_sz = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
-val buf = _raw_buf
+val buf = readCharArray(_raw_buf, _raw_sz)
+val _RV = ctx.loadHail(buf)
 }
 val MUCTX__HANDLE_FROM_SINT8 = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.SINT8, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -99,6 +110,7 @@ val _raw_len = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val num = _raw_num
 val len = _raw_len
+val _RV = ctx.handleFromSInt8(num, len)
 }
 val MUCTX__HANDLE_FROM_UINT8 = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT8, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -107,6 +119,7 @@ val _raw_len = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val num = _raw_num
 val len = _raw_len
+val _RV = ctx.handleFromUInt8(num, len)
 }
 val MUCTX__HANDLE_FROM_SINT16 = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.SINT16, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -115,6 +128,7 @@ val _raw_len = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val num = _raw_num
 val len = _raw_len
+val _RV = ctx.handleFromSInt16(num, len)
 }
 val MUCTX__HANDLE_FROM_UINT16 = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT16, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -123,6 +137,7 @@ val _raw_len = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val num = _raw_num
 val len = _raw_len
+val _RV = ctx.handleFromUInt16(num, len)
 }
 val MUCTX__HANDLE_FROM_SINT32 = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.SINT32, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -131,6 +146,7 @@ val _raw_len = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val num = _raw_num
 val len = _raw_len
+val _RV = ctx.handleFromSInt32(num, len)
 }
 val MUCTX__HANDLE_FROM_UINT32 = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT32, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -139,6 +155,7 @@ val _raw_len = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val num = _raw_num
 val len = _raw_len
+val _RV = ctx.handleFromUInt32(num, len)
 }
 val MUCTX__HANDLE_FROM_SINT64 = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.SINT64, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -147,6 +164,7 @@ val _raw_len = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val num = _raw_num
 val len = _raw_len
+val _RV = ctx.handleFromSInt64(num, len)
 }
 val MUCTX__HANDLE_FROM_UINT64 = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT64, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -155,6 +173,7 @@ val _raw_len = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val num = _raw_num
 val len = _raw_len
+val _RV = ctx.handleFromUInt64(num, len)
 }
 val MUCTX__HANDLE_FROM_UINT64S = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -164,18 +183,21 @@ val _raw_len = _jffiBuffer.getInt(3)
 val ctx = getMuCtx(_raw_ctx)
 val nums = readLongArray(_raw_nums, _raw_nnums)
 val len = _raw_len
+val _RV = ctx.handleFromUInt64s(nums, len)
 }
 val MUCTX__HANDLE_FROM_FLOAT = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.FLOAT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_num = _jffiBuffer.getFloat(1)
 val ctx = getMuCtx(_raw_ctx)
 val num = _raw_num
+val _RV = ctx.handleFromFloat(num)
 }
 val MUCTX__HANDLE_FROM_DOUBLE = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.DOUBLE)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_num = _jffiBuffer.getDouble(1)
 val ctx = getMuCtx(_raw_ctx)
 val num = _raw_num
+val _RV = ctx.handleFromDouble(num)
 }
 val MUCTX__HANDLE_FROM_PTR = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT32, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -184,6 +206,7 @@ val _raw_ptr = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val mu_type = _raw_mu_type
 val ptr = _raw_ptr
+val _RV = ctx.handleFromPtr(mu_type, ptr)
 }
 val MUCTX__HANDLE_FROM_FP = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT32, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -192,108 +215,126 @@ val _raw_fp = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val mu_type = _raw_mu_type
 val fp = _raw_fp
+val _RV = ctx.handleFromFP(mu_type, fp)
 }
 val MUCTX__HANDLE_TO_SINT8 = exposedMethod(JType.SINT8, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.handleToSInt8(opnd)
 }
 val MUCTX__HANDLE_TO_UINT8 = exposedMethod(JType.UINT8, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.handleToUInt8(opnd)
 }
 val MUCTX__HANDLE_TO_SINT16 = exposedMethod(JType.SINT16, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.handleToSInt16(opnd)
 }
 val MUCTX__HANDLE_TO_UINT16 = exposedMethod(JType.UINT16, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.handleToUInt16(opnd)
 }
 val MUCTX__HANDLE_TO_SINT32 = exposedMethod(JType.SINT32, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.handleToSInt32(opnd)
 }
 val MUCTX__HANDLE_TO_UINT32 = exposedMethod(JType.UINT32, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.handleToUInt32(opnd)
 }
 val MUCTX__HANDLE_TO_SINT64 = exposedMethod(JType.SINT64, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.handleToSInt64(opnd)
 }
 val MUCTX__HANDLE_TO_UINT64 = exposedMethod(JType.UINT64, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.handleToUInt64(opnd)
 }
 val MUCTX__HANDLE_TO_FLOAT = exposedMethod(JType.FLOAT, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.handleToFloat(opnd)
 }
 val MUCTX__HANDLE_TO_DOUBLE = exposedMethod(JType.DOUBLE, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.handleToDouble(opnd)
 }
 val MUCTX__HANDLE_TO_PTR = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.handleToPtr(opnd)
 }
 val MUCTX__HANDLE_TO_FP = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.handleToFP(opnd)
 }
 val MUCTX__HANDLE_FROM_CONST = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT32)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_id = _jffiBuffer.getInt(1)
 val ctx = getMuCtx(_raw_ctx)
 val id = _raw_id
+val _RV = ctx.handleFromConst(id)
 }
 val MUCTX__HANDLE_FROM_GLOBAL = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT32)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_id = _jffiBuffer.getInt(1)
 val ctx = getMuCtx(_raw_ctx)
 val id = _raw_id
+val _RV = ctx.handleFromGlobal(id)
 }
 val MUCTX__HANDLE_FROM_FUNC = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT32)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_id = _jffiBuffer.getInt(1)
 val ctx = getMuCtx(_raw_ctx)
 val id = _raw_id
+val _RV = ctx.handleFromFunc(id)
 }
 val MUCTX__HANDLE_FROM_EXPOSE = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT32)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_id = _jffiBuffer.getInt(1)
 val ctx = getMuCtx(_raw_ctx)
 val id = _raw_id
+val _RV = ctx.handleFromExpose(id)
 }
 val MUCTX__DELETE_VALUE = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.deleteValue(opnd)
 }
 val MUCTX__REF_EQ = exposedMethod(JType.SINT, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -302,6 +343,7 @@ val _raw_rhs = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val lhs = getMuValueNotNull(_raw_lhs)
 val rhs = getMuValueNotNull(_raw_rhs)
+val _RV = ctx.refEq(lhs, rhs)
 }
 val MUCTX__REF_ULT = exposedMethod(JType.SINT, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -310,6 +352,7 @@ val _raw_rhs = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val lhs = getMuValueNotNull(_raw_lhs)
 val rhs = getMuValueNotNull(_raw_rhs)
+val _RV = ctx.refUlt(lhs, rhs)
 }
 val MUCTX__EXTRACT_VALUE = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -318,6 +361,7 @@ val _raw_index = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val str = getMuValueNotNull(_raw_str)
 val index = _raw_index
+val _RV = ctx.extractValue(str, index)
 }
 val MUCTX__INSERT_VALUE = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -328,6 +372,7 @@ val ctx = getMuCtx(_raw_ctx)
 val str = getMuValueNotNull(_raw_str)
 val index = _raw_index
 val newval = getMuValueNotNull(_raw_newval)
+val _RV = ctx.insertValue(str, index, newval)
 }
 val MUCTX__EXTRACT_ELEMENT = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -336,6 +381,7 @@ val _raw_index = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val str = getMuValueNotNull(_raw_str)
 val index = getMuValueNotNull(_raw_index)
+val _RV = ctx.extractElement(str, index)
 }
 val MUCTX__INSERT_ELEMENT = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -346,12 +392,14 @@ val ctx = getMuCtx(_raw_ctx)
 val str = getMuValueNotNull(_raw_str)
 val index = getMuValueNotNull(_raw_index)
 val newval = getMuValueNotNull(_raw_newval)
+val _RV = ctx.insertElement(str, index, newval)
 }
 val MUCTX__NEW_FIXED = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT32)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_mu_type = _jffiBuffer.getInt(1)
 val ctx = getMuCtx(_raw_ctx)
 val mu_type = _raw_mu_type
+val _RV = ctx.newFixed(mu_type)
 }
 val MUCTX__NEW_HYBRID = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT32, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -360,6 +408,7 @@ val _raw_length = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val mu_type = _raw_mu_type
 val length = getMuValueNotNull(_raw_length)
+val _RV = ctx.newHybrid(mu_type, length)
 }
 val MUCTX__REFCAST = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -368,12 +417,14 @@ val _raw_new_type = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
 val new_type = _raw_new_type
+val _RV = ctx.refcast(opnd, new_type)
 }
 val MUCTX__GET_IREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.getIRef(opnd)
 }
 val MUCTX__GET_FIELD_IREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -382,6 +433,7 @@ val _raw_field = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
 val field = _raw_field
+val _RV = ctx.getFieldIRef(opnd, field)
 }
 val MUCTX__GET_ELEM_IREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -390,6 +442,7 @@ val _raw_index = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
 val index = getMuValueNotNull(_raw_index)
+val _RV = ctx.getElemIRef(opnd, index)
 }
 val MUCTX__SHIFT_IREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -398,12 +451,14 @@ val _raw_offset = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
 val offset = getMuValueNotNull(_raw_offset)
+val _RV = ctx.shiftIRef(opnd, offset)
 }
 val MUCTX__GET_VAR_PART_IREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_opnd = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.getVarPartIRef(opnd)
 }
 val MUCTX__LOAD = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT32, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -412,6 +467,7 @@ val _raw_loc = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val ord = toMemoryOrder(_raw_ord)
 val loc = getMuValueNotNull(_raw_loc)
+val _RV = ctx.load(ord, loc)
 }
 val MUCTX__STORE = exposedMethod(JType.VOID, Array(JType.POINTER, JType.UINT32, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -422,6 +478,7 @@ val ctx = getMuCtx(_raw_ctx)
 val ord = toMemoryOrder(_raw_ord)
 val loc = getMuValueNotNull(_raw_loc)
 val newval = getMuValueNotNull(_raw_newval)
+val _RV = ctx.store(ord, loc, newval)
 }
 val MUCTX__CMPXCHG = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT32, JType.UINT32, JType.SINT, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -435,11 +492,12 @@ val _raw_is_succ = _jffiBuffer.getAddress(7)
 val ctx = getMuCtx(_raw_ctx)
 val ord_succ = toMemoryOrder(_raw_ord_succ)
 val ord_fail = toMemoryOrder(_raw_ord_fail)
-val weak = _raw_weak
+val weak = _raw_weak != 0
 val loc = getMuValueNotNull(_raw_loc)
 val expected = getMuValueNotNull(_raw_expected)
 val desired = getMuValueNotNull(_raw_desired)
 val is_succ = _raw_is_succ
+val _RV = ctx.cmpxchg(ord_succ, ord_fail, weak, loc, expected, desired, is_succ)
 }
 val MUCTX__ATOMICRMW = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.UINT32, JType.UINT32, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -452,18 +510,21 @@ val ord = toMemoryOrder(_raw_ord)
 val op = toAtomicRMWOptr(_raw_op)
 val loc = getMuValueNotNull(_raw_loc)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.atomicrmw(ord, op, loc, opnd)
 }
 val MUCTX__FENCE = exposedMethod(JType.VOID, Array(JType.POINTER, JType.UINT32)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_ord = _jffiBuffer.getInt(1)
 val ctx = getMuCtx(_raw_ctx)
 val ord = toMemoryOrder(_raw_ord)
+val _RV = ctx.fence(ord)
 }
 val MUCTX__NEW_STACK = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_func = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val func = getMuValueNotNull(_raw_func)
+val _RV = ctx.newStack(func)
 }
 val MUCTX__NEW_THREAD_NOR = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -475,6 +536,7 @@ val ctx = getMuCtx(_raw_ctx)
 val stack = getMuValueNotNull(_raw_stack)
 val threadlocal = getMuValueNullable(_raw_threadlocal)
 val vals = readMuValueArray(_raw_vals, _raw_nvals)
+val _RV = ctx.newThreadNor(stack, threadlocal, vals)
 }
 val MUCTX__NEW_THREAD_EXC = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -484,13 +546,15 @@ val _raw_exc = _jffiBuffer.getAddress(3)
 val ctx = getMuCtx(_raw_ctx)
 val stack = getMuValueNotNull(_raw_stack)
 val threadlocal = getMuValueNullable(_raw_threadlocal)
-val exc = getMuValueNullable(_raw_exc)
+val exc = getMuValueNotNull(_raw_exc)
+val _RV = ctx.newThreadExc(stack, threadlocal, exc)
 }
 val MUCTX__KILL_STACK = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_stack = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val stack = getMuValueNotNull(_raw_stack)
+val _RV = ctx.killStack(stack)
 }
 val MUCTX__SET_THREADLOCAL = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -499,54 +563,63 @@ val _raw_threadlocal = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val thread = getMuValueNotNull(_raw_thread)
 val threadlocal = getMuValueNotNull(_raw_threadlocal)
+val _RV = ctx.setThreadlocal(thread, threadlocal)
 }
 val MUCTX__GET_THREADLOCAL = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_thread = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val thread = getMuValueNotNull(_raw_thread)
+val _RV = ctx.getThreadlocal(thread)
 }
 val MUCTX__NEW_CURSOR = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_stack = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val stack = getMuValueNotNull(_raw_stack)
+val _RV = ctx.newCursor(stack)
 }
 val MUCTX__NEXT_FRAME = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_cursor = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val cursor = getMuValueNotNull(_raw_cursor)
+val _RV = ctx.nextFrame(cursor)
 }
 val MUCTX__COPY_CURSOR = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_cursor = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val cursor = getMuValueNotNull(_raw_cursor)
+val _RV = ctx.copyCursor(cursor)
 }
 val MUCTX__CLOSE_CURSOR = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_cursor = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val cursor = getMuValueNotNull(_raw_cursor)
+val _RV = ctx.closeCursor(cursor)
 }
 val MUCTX__CUR_FUNC = exposedMethod(JType.UINT32, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_cursor = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val cursor = getMuValueNotNull(_raw_cursor)
+val _RV = ctx.curFunc(cursor)
 }
 val MUCTX__CUR_FUNC_VER = exposedMethod(JType.UINT32, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_cursor = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val cursor = getMuValueNotNull(_raw_cursor)
+val _RV = ctx.curFuncVer(cursor)
 }
 val MUCTX__CUR_INST = exposedMethod(JType.UINT32, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_cursor = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val cursor = getMuValueNotNull(_raw_cursor)
+val _RV = ctx.curInst(cursor)
 }
 val MUCTX__DUMP_KEEPALIVES = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -555,12 +628,14 @@ val _raw_results = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val cursor = getMuValueNotNull(_raw_cursor)
 val results = getMuValueNotNull(_raw_results)
+val _RV = ctx.dumpKeepalives(cursor, results)
 }
 val MUCTX__POP_FRAMES_TO = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_cursor = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val cursor = getMuValueNotNull(_raw_cursor)
+val _RV = ctx.popFramesTo(cursor)
 }
 val MUCTX__PUSH_FRAME = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -569,60 +644,70 @@ val _raw_func = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val stack = getMuValueNotNull(_raw_stack)
 val func = getMuValueNotNull(_raw_func)
+val _RV = ctx.pushFrame(stack, func)
 }
 val MUCTX__TR64_IS_FP = exposedMethod(JType.SINT, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_value = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val value = getMuValueNotNull(_raw_value)
+val _RV = ctx.tr64IsFP(value)
 }
 val MUCTX__TR64_IS_INT = exposedMethod(JType.SINT, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_value = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val value = getMuValueNotNull(_raw_value)
+val _RV = ctx.tr64IsInt(value)
 }
 val MUCTX__TR64_IS_REF = exposedMethod(JType.SINT, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_value = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val value = getMuValueNotNull(_raw_value)
+val _RV = ctx.tr64IsRef(value)
 }
 val MUCTX__TR64_TO_FP = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_value = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val value = getMuValueNotNull(_raw_value)
+val _RV = ctx.tr64ToFP(value)
 }
 val MUCTX__TR64_TO_INT = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_value = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val value = getMuValueNotNull(_raw_value)
+val _RV = ctx.tr64ToInt(value)
 }
 val MUCTX__TR64_TO_REF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_value = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val value = getMuValueNotNull(_raw_value)
+val _RV = ctx.tr64ToRef(value)
 }
 val MUCTX__TR64_TO_TAG = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_value = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val value = getMuValueNotNull(_raw_value)
+val _RV = ctx.tr64ToTag(value)
 }
 val MUCTX__TR64_FROM_FP = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_value = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val value = getMuValueNotNull(_raw_value)
+val _RV = ctx.tr64FromFP(value)
 }
 val MUCTX__TR64_FROM_INT = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_value = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val value = getMuValueNotNull(_raw_value)
+val _RV = ctx.tr64FromInt(value)
 }
 val MUCTX__TR64_FROM_REF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -631,30 +716,35 @@ val _raw_tag = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val ref = getMuValueNotNull(_raw_ref)
 val tag = getMuValueNotNull(_raw_tag)
+val _RV = ctx.tr64FromRef(ref, tag)
 }
 val MUCTX__ENABLE_WATCHPOINT = exposedMethod(JType.VOID, Array(JType.POINTER, JType.UINT32)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_wpid = _jffiBuffer.getInt(1)
 val ctx = getMuCtx(_raw_ctx)
 val wpid = _raw_wpid
+val _RV = ctx.enableWatchPoint(wpid)
 }
 val MUCTX__DISABLE_WATCHPOINT = exposedMethod(JType.VOID, Array(JType.POINTER, JType.UINT32)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_wpid = _jffiBuffer.getInt(1)
 val ctx = getMuCtx(_raw_ctx)
 val wpid = _raw_wpid
+val _RV = ctx.disableWatchPoint(wpid)
 }
 val MUCTX__PIN = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_loc = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val loc = getMuValueNotNull(_raw_loc)
+val _RV = ctx.pin(loc)
 }
 val MUCTX__UNPIN = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_loc = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val loc = getMuValueNotNull(_raw_loc)
+val _RV = ctx.unpin(loc)
 }
 val MUCTX__EXPOSE = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -665,6 +755,7 @@ val ctx = getMuCtx(_raw_ctx)
 val func = getMuValueNotNull(_raw_func)
 val call_conv = toFlag(_raw_call_conv)
 val cookie = getMuValueNotNull(_raw_cookie)
+val _RV = ctx.expose(func, call_conv, cookie)
 }
 val MUCTX__UNEXPOSE = exposedMethod(JType.VOID, Array(JType.POINTER, JType.UINT32, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -673,22 +764,26 @@ val _raw_value = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val call_conv = toFlag(_raw_call_conv)
 val value = getMuValueNotNull(_raw_value)
+val _RV = ctx.unexpose(call_conv, value)
 }
 val MUCTX__NEW_BUNDLE = exposedMethod(JType.POINTER, Array(JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val ctx = getMuCtx(_raw_ctx)
+val _RV = ctx.newBundle()
 }
 val MUCTX__LOAD_BUNDLE_FROM_NODE = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.loadBundleFromNode(b)
 }
 val MUCTX__ABORT_BUNDLE_NODE = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.abortBundleNode(b)
 }
 val MUCTX__GET_NODE = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -697,6 +792,7 @@ val _raw_id = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val id = _raw_id
+val _RV = ctx.getNode(b, id)
 }
 val MUCTX__GET_ID = exposedMethod(JType.UINT32, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -705,6 +801,7 @@ val _raw_node = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val node = getMuValueNotNull(_raw_node)
+val _RV = ctx.getID(b, node)
 }
 val MUCTX__SET_NAME = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -714,7 +811,8 @@ val _raw_name = _jffiBuffer.getAddress(3)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val node = getMuValueNotNull(_raw_node)
-val name = _raw_name
+val name = readCString(_raw_name)
+val _RV = ctx.setName(b, node, name)
 }
 val MUCTX__NEW_TYPE_INT = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -723,24 +821,28 @@ val _raw_len = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val len = _raw_len
+val _RV = ctx.newTypeInt(b, len)
 }
 val MUCTX__NEW_TYPE_FLOAT = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.newTypeFloat(b)
 }
 val MUCTX__NEW_TYPE_DOUBLE = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.newTypeDouble(b)
 }
 val MUCTX__NEW_TYPE_UPTR = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.newTypeUPtr(b)
 }
 val MUCTX__SET_TYPE_UPTR = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -749,12 +851,14 @@ val _raw_ty = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val uptr = getMuValueNotNull(_raw_uptr)
 val ty = getMuValueNotNull(_raw_ty)
+val _RV = ctx.setTypeUPtr(uptr, ty)
 }
 val MUCTX__NEW_TYPE_UFUNCPTR = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.newTypeUFuncPtr(b)
 }
 val MUCTX__SET_TYPE_UFUNCPTR = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -763,6 +867,7 @@ val _raw_sig = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val ufuncptr = getMuValueNotNull(_raw_ufuncptr)
 val sig = getMuValueNotNull(_raw_sig)
+val _RV = ctx.setTypeUFuncPtr(ufuncptr, sig)
 }
 val MUCTX__NEW_TYPE_STRUCT = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -772,6 +877,7 @@ val _raw_nfieldtys = _jffiBuffer.getInt(3)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val fieldtys = readMuValueArray(_raw_fieldtys, _raw_nfieldtys)
+val _RV = ctx.newTypeStruct(b, fieldtys)
 }
 val MUCTX__NEW_TYPE_HYBRID = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -783,6 +889,7 @@ val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val fixedtys = readMuValueArray(_raw_fixedtys, _raw_nfixedtys)
 val varty = getMuValueNotNull(_raw_varty)
+val _RV = ctx.newTypeHybrid(b, fixedtys, varty)
 }
 val MUCTX__NEW_TYPE_ARRAY = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.UINT64)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -793,6 +900,7 @@ val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val elemty = getMuValueNotNull(_raw_elemty)
 val len = _raw_len
+val _RV = ctx.newTypeArray(b, elemty, len)
 }
 val MUCTX__NEW_TYPE_VECTOR = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.UINT64)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -803,18 +911,21 @@ val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val elemty = getMuValueNotNull(_raw_elemty)
 val len = _raw_len
+val _RV = ctx.newTypeVector(b, elemty, len)
 }
 val MUCTX__NEW_TYPE_VOID = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.newTypeVoid(b)
 }
 val MUCTX__NEW_TYPE_REF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.newTypeRef(b)
 }
 val MUCTX__SET_TYPE_REF = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -823,12 +934,14 @@ val _raw_ty = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val ref = getMuValueNotNull(_raw_ref)
 val ty = getMuValueNotNull(_raw_ty)
+val _RV = ctx.setTypeRef(ref, ty)
 }
 val MUCTX__NEW_TYPE_IREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.newTypeIRef(b)
 }
 val MUCTX__SET_TYPE_IREF = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -837,12 +950,14 @@ val _raw_ty = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val iref = getMuValueNotNull(_raw_iref)
 val ty = getMuValueNotNull(_raw_ty)
+val _RV = ctx.setTypeIRef(iref, ty)
 }
 val MUCTX__NEW_TYPE_WEAKREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.newTypeWeakRef(b)
 }
 val MUCTX__SET_TYPE_WEAKREF = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -851,12 +966,14 @@ val _raw_ty = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val weakref = getMuValueNotNull(_raw_weakref)
 val ty = getMuValueNotNull(_raw_ty)
+val _RV = ctx.setTypeWeakRef(weakref, ty)
 }
 val MUCTX__NEW_TYPE_FUNCREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.newTypeFuncRef(b)
 }
 val MUCTX__SET_TYPE_FUNCREF = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -865,36 +982,42 @@ val _raw_sig = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val funcref = getMuValueNotNull(_raw_funcref)
 val sig = getMuValueNotNull(_raw_sig)
+val _RV = ctx.setTypeFuncRef(funcref, sig)
 }
 val MUCTX__NEW_TYPE_TAGREF64 = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.newTypeTagRef64(b)
 }
 val MUCTX__NEW_TYPE_THREADREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.newTypeThreadRef(b)
 }
 val MUCTX__NEW_TYPE_STACKREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.newTypeStackRef(b)
 }
 val MUCTX__NEW_TYPE_FRAMECURSORREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.newTypeFrameCursorRef(b)
 }
 val MUCTX__NEW_TYPE_IRNODEREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
+val _RV = ctx.newTypeIRNodeRef(b)
 }
 val MUCTX__NEW_FUNCSIG = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -907,6 +1030,7 @@ val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val paramtys = readMuValueArray(_raw_paramtys, _raw_nparamtys)
 val rettys = readMuValueArray(_raw_rettys, _raw_nrettys)
+val _RV = ctx.newFuncSig(b, paramtys, rettys)
 }
 val MUCTX__NEW_CONST_INT = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.UINT64)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -917,6 +1041,7 @@ val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val ty = getMuValueNotNull(_raw_ty)
 val value = _raw_value
+val _RV = ctx.newConstInt(b, ty, value)
 }
 val MUCTX__NEW_CONST_INT_EX = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -928,6 +1053,7 @@ val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val ty = getMuValueNotNull(_raw_ty)
 val values = readLongArray(_raw_values, _raw_nvalues)
+val _RV = ctx.newConstIntEx(b, ty, values)
 }
 val MUCTX__NEW_CONST_FLOAT = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.FLOAT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -938,6 +1064,7 @@ val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val ty = getMuValueNotNull(_raw_ty)
 val value = _raw_value
+val _RV = ctx.newConstFloat(b, ty, value)
 }
 val MUCTX__NEW_CONST_DOUBLE = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.DOUBLE)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -948,6 +1075,7 @@ val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val ty = getMuValueNotNull(_raw_ty)
 val value = _raw_value
+val _RV = ctx.newConstDouble(b, ty, value)
 }
 val MUCTX__NEW_CONST_NULL = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -956,6 +1084,7 @@ val _raw_ty = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val ty = getMuValueNotNull(_raw_ty)
+val _RV = ctx.newConstNull(b, ty)
 }
 val MUCTX__NEW_CONST_SEQ = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -967,6 +1096,7 @@ val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val ty = getMuValueNotNull(_raw_ty)
 val elems = readMuValueArray(_raw_elems, _raw_nelems)
+val _RV = ctx.newConstSeq(b, ty, elems)
 }
 val MUCTX__NEW_GLOBAL_CELL = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -975,6 +1105,7 @@ val _raw_ty = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val ty = getMuValueNotNull(_raw_ty)
+val _RV = ctx.newGlobalCell(b, ty)
 }
 val MUCTX__NEW_FUNC = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -983,6 +1114,7 @@ val _raw_sig = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val sig = getMuValueNotNull(_raw_sig)
+val _RV = ctx.newFunc(b, sig)
 }
 val MUCTX__NEW_FUNC_VER = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -991,6 +1123,7 @@ val _raw_func = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b)
 val func = getMuValueNotNull(_raw_func)
+val _RV = ctx.newFuncVer(b, func)
 }
 val MUCTX__NEW_EXP_FUNC = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1003,12 +1136,14 @@ val b = getMuValueNotNull(_raw_b)
 val func = getMuValueNotNull(_raw_func)
 val callconv = toFlag(_raw_callconv)
 val cookie = getMuValueNotNull(_raw_cookie)
+val _RV = ctx.newExpFunc(b, func, callconv, cookie)
 }
 val MUCTX__NEW_BB = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_fv = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val fv = getMuValueNotNull(_raw_fv)
+val _RV = ctx.newBB(fv)
 }
 val MUCTX__NEW_NOR_PARAM = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1017,18 +1152,21 @@ val _raw_ty = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val ty = getMuValueNotNull(_raw_ty)
+val _RV = ctx.newNorParam(bb, ty)
 }
 val MUCTX__NEW_EXC_PARAM = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_bb = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
+val _RV = ctx.newExcParam(bb)
 }
 val MUCTX__NEW_INST_RES = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_inst = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val inst = getMuValueNotNull(_raw_inst)
+val _RV = ctx.newInstRes(inst)
 }
 val MUCTX__ADD_DEST = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1042,6 +1180,7 @@ val inst = getMuValueNotNull(_raw_inst)
 val kind = toDestKind(_raw_kind)
 val dest = getMuValueNotNull(_raw_dest)
 val vars = readMuValueArray(_raw_vars, _raw_nvars)
+val _RV = ctx.addDest(inst, kind, dest, vars)
 }
 val MUCTX__ADD_KEEPALIVES = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1050,8 +1189,8 @@ val _raw_vars = _jffiBuffer.getAddress(2)
 val _raw_nvars = _jffiBuffer.getInt(3)
 val ctx = getMuCtx(_raw_ctx)
 val inst = getMuValueNotNull(_raw_inst)
-val vars = getMuValueNotNull(_raw_vars)
-val nvars = _raw_nvars
+val vars = readMuValueArray(_raw_vars, _raw_nvars)
+val _RV = ctx.addKeepalives(inst, vars)
 }
 val MUCTX__NEW_BINOP = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1066,6 +1205,7 @@ val optr = toBinOptr(_raw_optr)
 val ty = getMuValueNotNull(_raw_ty)
 val opnd1 = getMuValueNotNull(_raw_opnd1)
 val opnd2 = getMuValueNotNull(_raw_opnd2)
+val _RV = ctx.newBinOp(bb, optr, ty, opnd1, opnd2)
 }
 val MUCTX__NEW_CMP = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1080,6 +1220,7 @@ val optr = toCmpOptr(_raw_optr)
 val ty = getMuValueNotNull(_raw_ty)
 val opnd1 = getMuValueNotNull(_raw_opnd1)
 val opnd2 = getMuValueNotNull(_raw_opnd2)
+val _RV = ctx.newCmp(bb, optr, ty, opnd1, opnd2)
 }
 val MUCTX__NEW_CONV = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1094,6 +1235,7 @@ val optr = toConvOptr(_raw_optr)
 val from_ty = getMuValueNotNull(_raw_from_ty)
 val to_ty = getMuValueNotNull(_raw_to_ty)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.newConv(bb, optr, from_ty, to_ty, opnd)
 }
 val MUCTX__NEW_SELECT = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1110,12 +1252,14 @@ val opnd_ty = getMuValueNotNull(_raw_opnd_ty)
 val cond = getMuValueNotNull(_raw_cond)
 val if_true = getMuValueNotNull(_raw_if_true)
 val if_false = getMuValueNotNull(_raw_if_false)
+val _RV = ctx.newSelect(bb, cond_ty, opnd_ty, cond, if_true, if_false)
 }
 val MUCTX__NEW_BRANCH = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_bb = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
+val _RV = ctx.newBranch(bb)
 }
 val MUCTX__NEW_BRANCH2 = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1124,6 +1268,7 @@ val _raw_cond = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val cond = getMuValueNotNull(_raw_cond)
+val _RV = ctx.newBranch2(bb, cond)
 }
 val MUCTX__NEW_SWITCH = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1134,6 +1279,7 @@ val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val opnd_ty = getMuValueNotNull(_raw_opnd_ty)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.newSwitch(bb, opnd_ty, opnd)
 }
 val MUCTX__ADD_SWITCH_DEST = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1147,6 +1293,7 @@ val sw = getMuValueNotNull(_raw_sw)
 val key = getMuValueNotNull(_raw_key)
 val dest = getMuValueNotNull(_raw_dest)
 val vars = readMuValueArray(_raw_vars, _raw_nvars)
+val _RV = ctx.addSwitchDest(sw, key, dest, vars)
 }
 val MUCTX__NEW_CALL = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1160,6 +1307,7 @@ val bb = getMuValueNotNull(_raw_bb)
 val sig = getMuValueNotNull(_raw_sig)
 val callee = getMuValueNotNull(_raw_callee)
 val args = readMuValueArray(_raw_args, _raw_nargs)
+val _RV = ctx.newCall(bb, sig, callee, args)
 }
 val MUCTX__NEW_TAILCALL = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1173,6 +1321,7 @@ val bb = getMuValueNotNull(_raw_bb)
 val sig = getMuValueNotNull(_raw_sig)
 val callee = getMuValueNotNull(_raw_callee)
 val args = readMuValueArray(_raw_args, _raw_nargs)
+val _RV = ctx.newTailCall(bb, sig, callee, args)
 }
 val MUCTX__NEW_RET = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1182,6 +1331,7 @@ val _raw_nrvs = _jffiBuffer.getInt(3)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val rvs = readMuValueArray(_raw_rvs, _raw_nrvs)
+val _RV = ctx.newRet(bb, rvs)
 }
 val MUCTX__NEW_THROW = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1190,6 +1340,7 @@ val _raw_exc = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val exc = getMuValueNotNull(_raw_exc)
+val _RV = ctx.newThrow(bb, exc)
 }
 val MUCTX__NEW_EXTRACTVALUE = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1202,6 +1353,7 @@ val bb = getMuValueNotNull(_raw_bb)
 val strty = getMuValueNotNull(_raw_strty)
 val index = _raw_index
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.newExtractValue(bb, strty, index, opnd)
 }
 val MUCTX__NEW_INSERTVALUE = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1216,6 +1368,7 @@ val strty = getMuValueNotNull(_raw_strty)
 val index = _raw_index
 val opnd = getMuValueNotNull(_raw_opnd)
 val newval = getMuValueNotNull(_raw_newval)
+val _RV = ctx.newInsertValue(bb, strty, index, opnd, newval)
 }
 val MUCTX__NEW_EXTRACTELEMENT = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1230,6 +1383,7 @@ val seqty = getMuValueNotNull(_raw_seqty)
 val indty = getMuValueNotNull(_raw_indty)
 val opnd = getMuValueNotNull(_raw_opnd)
 val index = getMuValueNotNull(_raw_index)
+val _RV = ctx.newExtractElement(bb, seqty, indty, opnd, index)
 }
 val MUCTX__NEW_INSERTELEMENT = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1246,6 +1400,7 @@ val indty = getMuValueNotNull(_raw_indty)
 val opnd = getMuValueNotNull(_raw_opnd)
 val index = getMuValueNotNull(_raw_index)
 val newval = getMuValueNotNull(_raw_newval)
+val _RV = ctx.newInsertElement(bb, seqty, indty, opnd, index, newval)
 }
 val MUCTX__NEW_SHUFFLEVECTOR = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1262,6 +1417,7 @@ val maskty = getMuValueNotNull(_raw_maskty)
 val vec1 = getMuValueNotNull(_raw_vec1)
 val vec2 = getMuValueNotNull(_raw_vec2)
 val mask = getMuValueNotNull(_raw_mask)
+val _RV = ctx.newShuffleVector(bb, vecty, maskty, vec1, vec2, mask)
 }
 val MUCTX__NEW_NEW = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1270,6 +1426,7 @@ val _raw_allocty = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val allocty = getMuValueNotNull(_raw_allocty)
+val _RV = ctx.newNew(bb, allocty)
 }
 val MUCTX__NEW_NEWHYBRID = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1282,6 +1439,7 @@ val bb = getMuValueNotNull(_raw_bb)
 val allocty = getMuValueNotNull(_raw_allocty)
 val lenty = getMuValueNotNull(_raw_lenty)
 val length = getMuValueNotNull(_raw_length)
+val _RV = ctx.newNewHybrid(bb, allocty, lenty, length)
 }
 val MUCTX__NEW_ALLOCA = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1290,6 +1448,7 @@ val _raw_allocty = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val allocty = getMuValueNotNull(_raw_allocty)
+val _RV = ctx.newAlloca(bb, allocty)
 }
 val MUCTX__NEW_ALLOCAHYBRID = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1302,6 +1461,7 @@ val bb = getMuValueNotNull(_raw_bb)
 val allocty = getMuValueNotNull(_raw_allocty)
 val lenty = getMuValueNotNull(_raw_lenty)
 val length = getMuValueNotNull(_raw_length)
+val _RV = ctx.newAllocaHybrid(bb, allocty, lenty, length)
 }
 val MUCTX__NEW_GETIREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1312,6 +1472,7 @@ val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val refty = getMuValueNotNull(_raw_refty)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.newGetIRef(bb, refty, opnd)
 }
 val MUCTX__NEW_GETFIELDIREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT, JType.POINTER, JType.SINT, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1322,10 +1483,11 @@ val _raw_index = _jffiBuffer.getInt(4)
 val _raw_opnd = _jffiBuffer.getAddress(5)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
-val is_ptr = _raw_is_ptr
+val is_ptr = _raw_is_ptr != 0
 val refty = getMuValueNotNull(_raw_refty)
 val index = _raw_index
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.newGetFieldIRef(bb, is_ptr, refty, index, opnd)
 }
 val MUCTX__NEW_GETELEMIREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1337,11 +1499,12 @@ val _raw_opnd = _jffiBuffer.getAddress(5)
 val _raw_index = _jffiBuffer.getAddress(6)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
-val is_ptr = _raw_is_ptr
+val is_ptr = _raw_is_ptr != 0
 val refty = getMuValueNotNull(_raw_refty)
 val indty = getMuValueNotNull(_raw_indty)
 val opnd = getMuValueNotNull(_raw_opnd)
 val index = getMuValueNotNull(_raw_index)
+val _RV = ctx.newGetElemIRef(bb, is_ptr, refty, indty, opnd, index)
 }
 val MUCTX__NEW_SHIFTIREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1353,11 +1516,12 @@ val _raw_opnd = _jffiBuffer.getAddress(5)
 val _raw_offset = _jffiBuffer.getAddress(6)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
-val is_ptr = _raw_is_ptr
+val is_ptr = _raw_is_ptr != 0
 val refty = getMuValueNotNull(_raw_refty)
 val offty = getMuValueNotNull(_raw_offty)
 val opnd = getMuValueNotNull(_raw_opnd)
 val offset = getMuValueNotNull(_raw_offset)
+val _RV = ctx.newShiftIRef(bb, is_ptr, refty, offty, opnd, offset)
 }
 val MUCTX__NEW_GETVARPARTIREF = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1367,9 +1531,10 @@ val _raw_refty = _jffiBuffer.getAddress(3)
 val _raw_opnd = _jffiBuffer.getAddress(4)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
-val is_ptr = _raw_is_ptr
+val is_ptr = _raw_is_ptr != 0
 val refty = getMuValueNotNull(_raw_refty)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.newGetVarPartIRef(bb, is_ptr, refty, opnd)
 }
 val MUCTX__NEW_LOAD = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT, JType.UINT32, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1380,10 +1545,11 @@ val _raw_refty = _jffiBuffer.getAddress(4)
 val _raw_loc = _jffiBuffer.getAddress(5)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
-val is_ptr = _raw_is_ptr
+val is_ptr = _raw_is_ptr != 0
 val ord = toMemoryOrder(_raw_ord)
 val refty = getMuValueNotNull(_raw_refty)
 val loc = getMuValueNotNull(_raw_loc)
+val _RV = ctx.newLoad(bb, is_ptr, ord, refty, loc)
 }
 val MUCTX__NEW_STORE = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT, JType.UINT32, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1395,11 +1561,12 @@ val _raw_loc = _jffiBuffer.getAddress(5)
 val _raw_newval = _jffiBuffer.getAddress(6)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
-val is_ptr = _raw_is_ptr
+val is_ptr = _raw_is_ptr != 0
 val ord = toMemoryOrder(_raw_ord)
 val refty = getMuValueNotNull(_raw_refty)
 val loc = getMuValueNotNull(_raw_loc)
 val newval = getMuValueNotNull(_raw_newval)
+val _RV = ctx.newStore(bb, is_ptr, ord, refty, loc, newval)
 }
 val MUCTX__NEW_CMPXCHG = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT, JType.SINT, JType.UINT32, JType.UINT32, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1414,14 +1581,15 @@ val _raw_expected = _jffiBuffer.getAddress(8)
 val _raw_desired = _jffiBuffer.getAddress(9)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
-val is_ptr = _raw_is_ptr
-val is_weak = _raw_is_weak
+val is_ptr = _raw_is_ptr != 0
+val is_weak = _raw_is_weak != 0
 val ord_succ = toMemoryOrder(_raw_ord_succ)
 val ord_fail = toMemoryOrder(_raw_ord_fail)
 val refty = getMuValueNotNull(_raw_refty)
 val loc = getMuValueNotNull(_raw_loc)
 val expected = getMuValueNotNull(_raw_expected)
 val desired = getMuValueNotNull(_raw_desired)
+val _RV = ctx.newCmpXchg(bb, is_ptr, is_weak, ord_succ, ord_fail, refty, loc, expected, desired)
 }
 val MUCTX__NEW_ATOMICRMW = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT, JType.UINT32, JType.UINT32, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1434,12 +1602,13 @@ val _raw_loc = _jffiBuffer.getAddress(6)
 val _raw_opnd = _jffiBuffer.getAddress(7)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
-val is_ptr = _raw_is_ptr
+val is_ptr = _raw_is_ptr != 0
 val ord = toMemoryOrder(_raw_ord)
 val optr = toAtomicRMWOptr(_raw_optr)
 val refTy = getMuValueNotNull(_raw_refTy)
 val loc = getMuValueNotNull(_raw_loc)
 val opnd = getMuValueNotNull(_raw_opnd)
+val _RV = ctx.newAtomicRMW(bb, is_ptr, ord, optr, refTy, loc, opnd)
 }
 val MUCTX__NEW_FENCE = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1448,6 +1617,7 @@ val _raw_ord = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val ord = toMemoryOrder(_raw_ord)
+val _RV = ctx.newFence(bb, ord)
 }
 val MUCTX__NEW_TRAP = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1457,6 +1627,7 @@ val _raw_nrettys = _jffiBuffer.getInt(3)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val rettys = readMuValueArray(_raw_rettys, _raw_nrettys)
+val _RV = ctx.newTrap(bb, rettys)
 }
 val MUCTX__NEW_WATCHPOINT = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1468,6 +1639,7 @@ val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val wpid = _raw_wpid
 val rettys = readMuValueArray(_raw_rettys, _raw_nrettys)
+val _RV = ctx.newWatchPoint(bb, wpid, rettys)
 }
 val MUCTX__NEW_WPBRANCH = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1476,6 +1648,7 @@ val _raw_wpid = _jffiBuffer.getInt(2)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val wpid = _raw_wpid
+val _RV = ctx.newWPBranch(bb, wpid)
 }
 val MUCTX__NEW_CCALL = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1493,6 +1666,7 @@ val callee_ty = getMuValueNotNull(_raw_callee_ty)
 val sig = getMuValueNotNull(_raw_sig)
 val callee = getMuValueNotNull(_raw_callee)
 val args = readMuValueArray(_raw_args, _raw_nargs)
+val _RV = ctx.newCCall(bb, callconv, callee_ty, sig, callee, args)
 }
 val MUCTX__NEW_NEWTHREAD = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1503,6 +1677,7 @@ val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val stack = getMuValueNotNull(_raw_stack)
 val threadlocal = getMuValueNotNull(_raw_threadlocal)
+val _RV = ctx.newNewThread(bb, stack, threadlocal)
 }
 val MUCTX__NEW_SWAPSTACK_RET = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1514,6 +1689,7 @@ val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val swappee = getMuValueNotNull(_raw_swappee)
 val ret_tys = readMuValueArray(_raw_ret_tys, _raw_nret_tys)
+val _RV = ctx.newSwapStackRet(bb, swappee, ret_tys)
 }
 val MUCTX__NEW_SWAPSTACK_KILL = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1522,6 +1698,7 @@ val _raw_swappee = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb)
 val swappee = getMuValueNotNull(_raw_swappee)
+val _RV = ctx.newSwapStackKill(bb, swappee)
 }
 val MUCTX__SET_NEWSTACK_PASS_VALUES = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1533,6 +1710,7 @@ val ctx = getMuCtx(_raw_ctx)
 val inst = getMuValueNotNull(_raw_inst)
 val tys = readMuValueArray(_raw_tys, _raw_nvars)
 val vars = getMuValueNotNull(_raw_vars)
+val _RV = ctx.setNewStackPassValues(inst, tys, vars)
 }
 val MUCTX__SET_NEWSTACK_THROW_EXC = exposedMethod(JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1541,6 +1719,7 @@ val _raw_exc = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val inst = getMuValueNotNull(_raw_inst)
 val exc = getMuValueNotNull(_raw_exc)
+val _RV = ctx.setNewStackThrowExc(inst, exc)
 }
 val MUCTX__NEW_COMMINST = exposedMethod(JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.SINT, JType.POINTER, JType.SINT, JType.POINTER, JType.SINT, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1561,6 +1740,7 @@ val flags = readFlagArray(_raw_flags, _raw_nflags)
 val tys = readMuValueArray(_raw_tys, _raw_ntys)
 val sigs = readMuValueArray(_raw_sigs, _raw_nsigs)
 val args = readMuValueArray(_raw_args, _raw_nargs)
+val _RV = ctx.newCommInst(bb, opcode, flags, tys, sigs, args)
 }
 val stubsOfMuCtx = Array[Word](175)
 stubsOfMuCtx(0) = MUCTX__ID_OF.address

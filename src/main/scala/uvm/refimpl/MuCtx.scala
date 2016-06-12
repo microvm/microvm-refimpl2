@@ -16,7 +16,7 @@ import uvm.refimpl.mem._
 import uvm.refimpl.mem.TypeSizes._
 import uvm.ssavariables._
 import uvm.ssavariables.AtomicRMWOptr._
-import uvm.ssavariables.HasKeepAliveClause
+import uvm.ssavariables.HasKeepaliveClause
 import uvm.ssavariables.MemoryOrder._
 import uvm.types._
 
@@ -541,8 +541,8 @@ class MuCtx(val ctxID: Int, _mutator: Mutator)(
       case f: DefinedMuFrame => {
         val i = f.curInst
         i match {
-          case hkac: HasKeepAliveClause => {
-            val kas = hkac.keepAlives
+          case hkac: HasKeepaliveClause => {
+            val kas = hkac.keepalives
             for (ka <- kas) yield {
               val box = f.boxes(ka)
               val ty = TypeInferer.inferType(ka)
@@ -576,8 +576,8 @@ class MuCtx(val ctxID: Int, _mutator: Mutator)(
   }
 
   /** Test if a tagref64 holds a double. */
-  def tr64IsFp(value: MuTagRef64Value): Boolean = {
-    OpHelper.tr64IsFp(value.vb.raw)
+  def tr64IsFP(value: MuTagRef64Value): Boolean = {
+    OpHelper.tr64IsFP(value.vb.raw)
   }
 
   /** Test if a tagref64 holds an int. */
@@ -591,9 +591,9 @@ class MuCtx(val ctxID: Int, _mutator: Mutator)(
   }
 
   /** Extract the double held by a tagref64. */
-  def tr64ToFp(value: MuTagRef64Value): MuDoubleValue = {
+  def tr64ToFP(value: MuTagRef64Value): MuDoubleValue = {
     val raw = value.vb.raw
-    val box = new BoxDouble(OpHelper.tr64ToFp(raw))
+    val box = new BoxDouble(OpHelper.tr64ToFP(raw))
     addHandle(MuDoubleValue(InternalTypes.DOUBLE, box))
   }
 
@@ -619,7 +619,7 @@ class MuCtx(val ctxID: Int, _mutator: Mutator)(
   }
 
   /** Convert a double to a tagref64. */
-  def tr64FromFp(value: MuDoubleValue): MuTagRef64Value = {
+  def tr64FromFP(value: MuDoubleValue): MuTagRef64Value = {
     val fp = value.vb.value
     val box = new BoxTagRef64(OpHelper.fpToTr64(fp))
     addHandle(MuTagRef64Value(InternalTypes.TAGREF64, box))
@@ -642,11 +642,11 @@ class MuCtx(val ctxID: Int, _mutator: Mutator)(
     addHandle(MuTagRef64Value(InternalTypes.TAGREF64, box))
   }
 
-  def enableWatchpoint(wpID: Int): Unit = {
+  def enableWatchPoint(wpID: Int): Unit = {
     microVM.trapManager.enableWatchPoint(wpID)
   }
 
-  def disableWatchpoint(wpID: Int): Unit = {
+  def disableWatchPoint(wpID: Int): Unit = {
     microVM.trapManager.disableWatchPoint(wpID)
   }
 

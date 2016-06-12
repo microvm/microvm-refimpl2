@@ -121,7 +121,7 @@ object OpHelper {
     (opnd & 0x7ff0000000000001L) == 0x7ff0000000000001L
   }
 
-  def tr64IsFp(opnd: Long): Boolean = {
+  def tr64IsFP(opnd: Long): Boolean = {
     (opnd & 0x7ff0000000000001L) != 0x7ff0000000000001L &&
       (opnd & 0x7ff0000000000003L) != 0x7ff0000000000002L
   }
@@ -153,7 +153,7 @@ object OpHelper {
     (((opnd & 0xffffffffffffeL) >> 1) | ((opnd & 0x8000000000000000L) >> 12) & (1L << 51))
   }
 
-  def tr64ToFp(opnd: Long): Double = java.lang.Double.longBitsToDouble(opnd)
+  def tr64ToFP(opnd: Long): Double = java.lang.Double.longBitsToDouble(opnd)
 
   def tr64ToRef(opnd: Long): Long = {
     ((opnd & 0x7ffffffffff8L) |

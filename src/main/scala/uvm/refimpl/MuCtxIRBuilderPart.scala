@@ -72,8 +72,7 @@ trait MuCtxIRBuilderPart {
     // no op
   }
   
-  // BEGIN: auto-generated code
-  def newBundle(): MuBundleNode = {
+    def newBundle(): MuBundleNode = {
     addHandle(irBuilder.newBundle())
   }
 
@@ -321,10 +320,10 @@ trait MuCtxIRBuilderPart {
     irBuilder.addDest(inst, kind, bb, vars)
   }
 
-  def addKeepAlives(inst: MuInstNode, lvs: Seq[MuLocalVarNode]): Unit = {
+  def addKeepalives(inst: MuInstNode, lvs: Seq[MuLocalVarNode]): Unit = {
     require(!inst.isNull, "inst must not be NULL")
     for((n,i) <- lvs.zipWithIndex) require(!n.isNull, "lvs[%d] must not be NULL".format(i))
-    irBuilder.addKeepAlives(inst, lvs)
+    irBuilder.addKeepalives(inst, lvs)
   }
 
   def newBinOp(bb: MuBBNode, optr: BinOptr.Value, ty: MuTypeNode, opnd1: MuVarNode, opnd2: MuVarNode): MuInstNode = {
@@ -630,7 +629,6 @@ trait MuCtxIRBuilderPart {
     addHandle(irBuilder.newCommInst(bb, opcode, flags, tys, sigs, args))
   }
 
-
-
+// BEGIN: auto-generated code
   // END: auto-generated code
 }
