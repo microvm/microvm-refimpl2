@@ -71,7 +71,10 @@ private object CDefsHelperFunctions {
   def readFlagArray(base: Long, len: Long): IndexedSeq[Flag] = {
     readIntArray(base, len).map(toFlag)
   }
-
+  
+  def intToBoolean(v: Int): Boolean = v != 0
+  def booleanToInt(v: Boolean): Int = if (v) 1 else 0
+  
   def toFlag(cval: Int): Flag = cval match {
     case 0x00 => Flag("#DEFAULT")
     case _    => throw new IllegalArgumentException("Unknown calling convention %d (0x%x)".format(cval, cval))
@@ -84,8 +87,9 @@ private object CDefsHelperFunctions {
     str
   }
 
-  def readCharArray(base: Long, len: Int): String = {
-    val str = theMemory.getString(base, len, StandardCharsets.US_ASCII)
+  def readCharArray(base: Long, len: Long): String = {
+    require(len <= Int.MaxValue, "Currently Mu refimpl2 only supports string length with 32-bit range")
+    val str = theMemory.getString(base, len.toInt, StandardCharsets.US_ASCII)
     str
   }
   

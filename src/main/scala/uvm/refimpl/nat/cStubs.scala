@@ -91,18 +91,18 @@ val _raw_ctx = _jffiBuffer.getAddress(0)
 val ctx = getMuCtx(_raw_ctx)
 val _RV = ctx.closeContext()
 }
-val MUCTX__LOAD_BUNDLE = exposedMethod("MuCtx.load_bundle", JType.VOID, Array(JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__LOAD_BUNDLE = exposedMethod("MuCtx.load_bundle", JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_buf = _jffiBuffer.getAddress(1)
-val _raw_sz = _jffiBuffer.getInt(2)
+val _raw_sz = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val buf = readCharArray(_raw_buf, _raw_sz)
 val _RV = ctx.loadBundle(buf)
 }
-val MUCTX__LOAD_HAIL = exposedMethod("MuCtx.load_hail", JType.VOID, Array(JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__LOAD_HAIL = exposedMethod("MuCtx.load_hail", JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_buf = _jffiBuffer.getAddress(1)
-val _raw_sz = _jffiBuffer.getInt(2)
+val _raw_sz = _jffiBuffer.getAddress(2)
 val ctx = getMuCtx(_raw_ctx)
 val buf = readCharArray(_raw_buf, _raw_sz)
 val _RV = ctx.loadHail(buf)
@@ -195,10 +195,10 @@ val _RV = ctx.handleFromUInt64(num, len)
 val _RV_FAK = exposeMuValue(ctx, _RV)
 _jffiBuffer.setAddressReturn(_RV_FAK)
 }
-val MUCTX__HANDLE_FROM_UINT64S = exposedMethod("MuCtx.handle_from_uint64s", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT, JType.SINT)) { _jffiBuffer =>
+val MUCTX__HANDLE_FROM_UINT64S = exposedMethod("MuCtx.handle_from_uint64s", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_nums = _jffiBuffer.getAddress(1)
-val _raw_nnums = _jffiBuffer.getInt(2)
+val _raw_nnums = _jffiBuffer.getAddress(2)
 val _raw_len = _jffiBuffer.getInt(3)
 val ctx = getMuCtx(_raw_ctx)
 val nums = readLongArray(_raw_nums, _raw_nnums)
@@ -394,7 +394,8 @@ val ctx = getMuCtx(_raw_ctx)
 val lhs = getMuValueNotNull(_raw_lhs).asInstanceOf[MuGenRefValue]
 val rhs = getMuValueNotNull(_raw_rhs).asInstanceOf[MuGenRefValue]
 val _RV = ctx.refEq(lhs, rhs)
-_jffiBuffer.setIntReturn(if(_RV) 1 else 0)
+val _RV_FAK = booleanToInt(_RV)
+_jffiBuffer.setIntReturn(_RV_FAK)
 }
 val MUCTX__REF_ULT = exposedMethod("MuCtx.ref_ult", JType.SINT, Array(JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -404,7 +405,8 @@ val ctx = getMuCtx(_raw_ctx)
 val lhs = getMuValueNotNull(_raw_lhs).asInstanceOf[MuIRefValue]
 val rhs = getMuValueNotNull(_raw_rhs).asInstanceOf[MuIRefValue]
 val _RV = ctx.refUlt(lhs, rhs)
-_jffiBuffer.setIntReturn(if(_RV) 1 else 0)
+val _RV_FAK = booleanToInt(_RV)
+_jffiBuffer.setIntReturn(_RV_FAK)
 }
 val MUCTX__EXTRACT_VALUE = exposedMethod("MuCtx.extract_value", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -570,7 +572,7 @@ val _raw_is_succ = _jffiBuffer.getAddress(7)
 val ctx = getMuCtx(_raw_ctx)
 val ord_succ = toMemoryOrder(_raw_ord_succ)
 val ord_fail = toMemoryOrder(_raw_ord_fail)
-val weak = _raw_weak != 0
+val weak = intToBoolean(_raw_weak)
 val loc = getMuValueNotNull(_raw_loc).asInstanceOf[MuIRefValue]
 val expected = getMuValueNotNull(_raw_expected).asInstanceOf[MuValue]
 val desired = getMuValueNotNull(_raw_desired).asInstanceOf[MuValue]
@@ -749,7 +751,8 @@ val _raw_value = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val value = getMuValueNotNull(_raw_value).asInstanceOf[MuTagRef64Value]
 val _RV = ctx.tr64IsFP(value)
-_jffiBuffer.setIntReturn(if(_RV) 1 else 0)
+val _RV_FAK = booleanToInt(_RV)
+_jffiBuffer.setIntReturn(_RV_FAK)
 }
 val MUCTX__TR64_IS_INT = exposedMethod("MuCtx.tr64_is_int", JType.SINT, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -757,7 +760,8 @@ val _raw_value = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val value = getMuValueNotNull(_raw_value).asInstanceOf[MuTagRef64Value]
 val _RV = ctx.tr64IsInt(value)
-_jffiBuffer.setIntReturn(if(_RV) 1 else 0)
+val _RV_FAK = booleanToInt(_RV)
+_jffiBuffer.setIntReturn(_RV_FAK)
 }
 val MUCTX__TR64_IS_REF = exposedMethod("MuCtx.tr64_is_ref", JType.SINT, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -765,7 +769,8 @@ val _raw_value = _jffiBuffer.getAddress(1)
 val ctx = getMuCtx(_raw_ctx)
 val value = getMuValueNotNull(_raw_value).asInstanceOf[MuTagRef64Value]
 val _RV = ctx.tr64IsRef(value)
-_jffiBuffer.setIntReturn(if(_RV) 1 else 0)
+val _RV_FAK = booleanToInt(_RV)
+_jffiBuffer.setIntReturn(_RV_FAK)
 }
 val MUCTX__TR64_TO_FP = exposedMethod("MuCtx.tr64_to_fp", JType.POINTER, Array(JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
@@ -1002,11 +1007,11 @@ val ufuncptr = getMuValueNotNull(_raw_ufuncptr).asInstanceOf[MuTypeNode]
 val sig = getMuValueNotNull(_raw_sig).asInstanceOf[MuFuncSigNode]
 val _RV = ctx.setTypeUFuncPtr(ufuncptr, sig)
 }
-val MUCTX__NEW_TYPE_STRUCT = exposedMethod("MuCtx.new_type_struct", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__NEW_TYPE_STRUCT = exposedMethod("MuCtx.new_type_struct", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val _raw_fieldtys = _jffiBuffer.getAddress(2)
-val _raw_nfieldtys = _jffiBuffer.getInt(3)
+val _raw_nfieldtys = _jffiBuffer.getAddress(3)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b).asInstanceOf[MuBundleNode]
 val fieldtys = readMuValueArray(_raw_fieldtys, _raw_nfieldtys)
@@ -1014,11 +1019,11 @@ val _RV = ctx.newTypeStruct(b, fieldtys)
 val _RV_FAK = exposeMuValue(ctx, _RV)
 _jffiBuffer.setAddressReturn(_RV_FAK)
 }
-val MUCTX__NEW_TYPE_HYBRID = exposedMethod("MuCtx.new_type_hybrid", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT, JType.POINTER)) { _jffiBuffer =>
+val MUCTX__NEW_TYPE_HYBRID = exposedMethod("MuCtx.new_type_hybrid", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val _raw_fixedtys = _jffiBuffer.getAddress(2)
-val _raw_nfixedtys = _jffiBuffer.getInt(3)
+val _raw_nfixedtys = _jffiBuffer.getAddress(3)
 val _raw_varty = _jffiBuffer.getAddress(4)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b).asInstanceOf[MuBundleNode]
@@ -1180,13 +1185,13 @@ val _RV = ctx.newTypeIRNodeRef(b)
 val _RV_FAK = exposeMuValue(ctx, _RV)
 _jffiBuffer.setAddressReturn(_RV_FAK)
 }
-val MUCTX__NEW_FUNCSIG = exposedMethod("MuCtx.new_funcsig", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__NEW_FUNCSIG = exposedMethod("MuCtx.new_funcsig", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val _raw_paramtys = _jffiBuffer.getAddress(2)
-val _raw_nparamtys = _jffiBuffer.getInt(3)
+val _raw_nparamtys = _jffiBuffer.getAddress(3)
 val _raw_rettys = _jffiBuffer.getAddress(4)
-val _raw_nrettys = _jffiBuffer.getInt(5)
+val _raw_nrettys = _jffiBuffer.getAddress(5)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b).asInstanceOf[MuBundleNode]
 val paramtys = readMuValueArray(_raw_paramtys, _raw_nparamtys)
@@ -1208,12 +1213,12 @@ val _RV = ctx.newConstInt(b, ty, value)
 val _RV_FAK = exposeMuValue(ctx, _RV)
 _jffiBuffer.setAddressReturn(_RV_FAK)
 }
-val MUCTX__NEW_CONST_INT_EX = exposedMethod("MuCtx.new_const_int_ex", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__NEW_CONST_INT_EX = exposedMethod("MuCtx.new_const_int_ex", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val _raw_ty = _jffiBuffer.getAddress(2)
 val _raw_values = _jffiBuffer.getAddress(3)
-val _raw_nvalues = _jffiBuffer.getInt(4)
+val _raw_nvalues = _jffiBuffer.getAddress(4)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b).asInstanceOf[MuBundleNode]
 val ty = getMuValueNotNull(_raw_ty).asInstanceOf[MuTypeNode]
@@ -1259,12 +1264,12 @@ val _RV = ctx.newConstNull(b, ty)
 val _RV_FAK = exposeMuValue(ctx, _RV)
 _jffiBuffer.setAddressReturn(_RV_FAK)
 }
-val MUCTX__NEW_CONST_SEQ = exposedMethod("MuCtx.new_const_seq", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__NEW_CONST_SEQ = exposedMethod("MuCtx.new_const_seq", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_b = _jffiBuffer.getAddress(1)
 val _raw_ty = _jffiBuffer.getAddress(2)
 val _raw_elems = _jffiBuffer.getAddress(3)
-val _raw_nelems = _jffiBuffer.getInt(4)
+val _raw_nelems = _jffiBuffer.getAddress(4)
 val ctx = getMuCtx(_raw_ctx)
 val b = getMuValueNotNull(_raw_b).asInstanceOf[MuBundleNode]
 val ty = getMuValueNotNull(_raw_ty).asInstanceOf[MuTypeNode]
@@ -1359,13 +1364,13 @@ val _RV = ctx.newInstRes(inst)
 val _RV_FAK = exposeMuValue(ctx, _RV)
 _jffiBuffer.setAddressReturn(_RV_FAK)
 }
-val MUCTX__ADD_DEST = exposedMethod("MuCtx.add_dest", JType.VOID, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__ADD_DEST = exposedMethod("MuCtx.add_dest", JType.VOID, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_inst = _jffiBuffer.getAddress(1)
 val _raw_kind = _jffiBuffer.getInt(2)
 val _raw_dest = _jffiBuffer.getAddress(3)
 val _raw_vars = _jffiBuffer.getAddress(4)
-val _raw_nvars = _jffiBuffer.getInt(5)
+val _raw_nvars = _jffiBuffer.getAddress(5)
 val ctx = getMuCtx(_raw_ctx)
 val inst = getMuValueNotNull(_raw_inst).asInstanceOf[MuInstNode]
 val kind = toDestKind(_raw_kind)
@@ -1373,11 +1378,11 @@ val dest = getMuValueNotNull(_raw_dest).asInstanceOf[MuBBNode]
 val vars = readMuValueArray(_raw_vars, _raw_nvars)
 val _RV = ctx.addDest(inst, kind, dest, vars)
 }
-val MUCTX__ADD_KEEPALIVES = exposedMethod("MuCtx.add_keepalives", JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__ADD_KEEPALIVES = exposedMethod("MuCtx.add_keepalives", JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_inst = _jffiBuffer.getAddress(1)
 val _raw_vars = _jffiBuffer.getAddress(2)
-val _raw_nvars = _jffiBuffer.getInt(3)
+val _raw_nvars = _jffiBuffer.getAddress(3)
 val ctx = getMuCtx(_raw_ctx)
 val inst = getMuValueNotNull(_raw_inst).asInstanceOf[MuInstNode]
 val vars = readMuValueArray(_raw_vars, _raw_nvars)
@@ -1486,13 +1491,13 @@ val _RV = ctx.newSwitch(bb, opnd_ty, opnd)
 val _RV_FAK = exposeMuValue(ctx, _RV)
 _jffiBuffer.setAddressReturn(_RV_FAK)
 }
-val MUCTX__ADD_SWITCH_DEST = exposedMethod("MuCtx.add_switch_dest", JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__ADD_SWITCH_DEST = exposedMethod("MuCtx.add_switch_dest", JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_sw = _jffiBuffer.getAddress(1)
 val _raw_key = _jffiBuffer.getAddress(2)
 val _raw_dest = _jffiBuffer.getAddress(3)
 val _raw_vars = _jffiBuffer.getAddress(4)
-val _raw_nvars = _jffiBuffer.getInt(5)
+val _raw_nvars = _jffiBuffer.getAddress(5)
 val ctx = getMuCtx(_raw_ctx)
 val sw = getMuValueNotNull(_raw_sw).asInstanceOf[MuInstNode]
 val key = getMuValueNotNull(_raw_key).asInstanceOf[MuConstNode]
@@ -1500,13 +1505,13 @@ val dest = getMuValueNotNull(_raw_dest).asInstanceOf[MuBBNode]
 val vars = readMuValueArray(_raw_vars, _raw_nvars)
 val _RV = ctx.addSwitchDest(sw, key, dest, vars)
 }
-val MUCTX__NEW_CALL = exposedMethod("MuCtx.new_call", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__NEW_CALL = exposedMethod("MuCtx.new_call", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_bb = _jffiBuffer.getAddress(1)
 val _raw_sig = _jffiBuffer.getAddress(2)
 val _raw_callee = _jffiBuffer.getAddress(3)
 val _raw_args = _jffiBuffer.getAddress(4)
-val _raw_nargs = _jffiBuffer.getInt(5)
+val _raw_nargs = _jffiBuffer.getAddress(5)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
 val sig = getMuValueNotNull(_raw_sig).asInstanceOf[MuFuncSigNode]
@@ -1516,13 +1521,13 @@ val _RV = ctx.newCall(bb, sig, callee, args)
 val _RV_FAK = exposeMuValue(ctx, _RV)
 _jffiBuffer.setAddressReturn(_RV_FAK)
 }
-val MUCTX__NEW_TAILCALL = exposedMethod("MuCtx.new_tailcall", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__NEW_TAILCALL = exposedMethod("MuCtx.new_tailcall", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_bb = _jffiBuffer.getAddress(1)
 val _raw_sig = _jffiBuffer.getAddress(2)
 val _raw_callee = _jffiBuffer.getAddress(3)
 val _raw_args = _jffiBuffer.getAddress(4)
-val _raw_nargs = _jffiBuffer.getInt(5)
+val _raw_nargs = _jffiBuffer.getAddress(5)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
 val sig = getMuValueNotNull(_raw_sig).asInstanceOf[MuFuncSigNode]
@@ -1532,11 +1537,11 @@ val _RV = ctx.newTailCall(bb, sig, callee, args)
 val _RV_FAK = exposeMuValue(ctx, _RV)
 _jffiBuffer.setAddressReturn(_RV_FAK)
 }
-val MUCTX__NEW_RET = exposedMethod("MuCtx.new_ret", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__NEW_RET = exposedMethod("MuCtx.new_ret", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_bb = _jffiBuffer.getAddress(1)
 val _raw_rvs = _jffiBuffer.getAddress(2)
-val _raw_nrvs = _jffiBuffer.getInt(3)
+val _raw_nrvs = _jffiBuffer.getAddress(3)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
 val rvs = readMuValueArray(_raw_rvs, _raw_nrvs)
@@ -1716,7 +1721,7 @@ val _raw_index = _jffiBuffer.getInt(4)
 val _raw_opnd = _jffiBuffer.getAddress(5)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
-val is_ptr = _raw_is_ptr != 0
+val is_ptr = intToBoolean(_raw_is_ptr)
 val refty = getMuValueNotNull(_raw_refty).asInstanceOf[MuTypeNode]
 val index = _raw_index
 val opnd = getMuValueNotNull(_raw_opnd).asInstanceOf[MuVarNode]
@@ -1734,7 +1739,7 @@ val _raw_opnd = _jffiBuffer.getAddress(5)
 val _raw_index = _jffiBuffer.getAddress(6)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
-val is_ptr = _raw_is_ptr != 0
+val is_ptr = intToBoolean(_raw_is_ptr)
 val refty = getMuValueNotNull(_raw_refty).asInstanceOf[MuTypeNode]
 val indty = getMuValueNotNull(_raw_indty).asInstanceOf[MuTypeNode]
 val opnd = getMuValueNotNull(_raw_opnd).asInstanceOf[MuVarNode]
@@ -1753,7 +1758,7 @@ val _raw_opnd = _jffiBuffer.getAddress(5)
 val _raw_offset = _jffiBuffer.getAddress(6)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
-val is_ptr = _raw_is_ptr != 0
+val is_ptr = intToBoolean(_raw_is_ptr)
 val refty = getMuValueNotNull(_raw_refty).asInstanceOf[MuTypeNode]
 val offty = getMuValueNotNull(_raw_offty).asInstanceOf[MuTypeNode]
 val opnd = getMuValueNotNull(_raw_opnd).asInstanceOf[MuVarNode]
@@ -1770,7 +1775,7 @@ val _raw_refty = _jffiBuffer.getAddress(3)
 val _raw_opnd = _jffiBuffer.getAddress(4)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
-val is_ptr = _raw_is_ptr != 0
+val is_ptr = intToBoolean(_raw_is_ptr)
 val refty = getMuValueNotNull(_raw_refty).asInstanceOf[MuTypeNode]
 val opnd = getMuValueNotNull(_raw_opnd).asInstanceOf[MuVarNode]
 val _RV = ctx.newGetVarPartIRef(bb, is_ptr, refty, opnd)
@@ -1786,7 +1791,7 @@ val _raw_refty = _jffiBuffer.getAddress(4)
 val _raw_loc = _jffiBuffer.getAddress(5)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
-val is_ptr = _raw_is_ptr != 0
+val is_ptr = intToBoolean(_raw_is_ptr)
 val ord = toMemoryOrder(_raw_ord)
 val refty = getMuValueNotNull(_raw_refty).asInstanceOf[MuTypeNode]
 val loc = getMuValueNotNull(_raw_loc).asInstanceOf[MuVarNode]
@@ -1804,7 +1809,7 @@ val _raw_loc = _jffiBuffer.getAddress(5)
 val _raw_newval = _jffiBuffer.getAddress(6)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
-val is_ptr = _raw_is_ptr != 0
+val is_ptr = intToBoolean(_raw_is_ptr)
 val ord = toMemoryOrder(_raw_ord)
 val refty = getMuValueNotNull(_raw_refty).asInstanceOf[MuTypeNode]
 val loc = getMuValueNotNull(_raw_loc).asInstanceOf[MuVarNode]
@@ -1826,8 +1831,8 @@ val _raw_expected = _jffiBuffer.getAddress(8)
 val _raw_desired = _jffiBuffer.getAddress(9)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
-val is_ptr = _raw_is_ptr != 0
-val is_weak = _raw_is_weak != 0
+val is_ptr = intToBoolean(_raw_is_ptr)
+val is_weak = intToBoolean(_raw_is_weak)
 val ord_succ = toMemoryOrder(_raw_ord_succ)
 val ord_fail = toMemoryOrder(_raw_ord_fail)
 val refty = getMuValueNotNull(_raw_refty).asInstanceOf[MuTypeNode]
@@ -1849,7 +1854,7 @@ val _raw_loc = _jffiBuffer.getAddress(6)
 val _raw_opnd = _jffiBuffer.getAddress(7)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
-val is_ptr = _raw_is_ptr != 0
+val is_ptr = intToBoolean(_raw_is_ptr)
 val ord = toMemoryOrder(_raw_ord)
 val optr = toAtomicRMWOptr(_raw_optr)
 val refTy = getMuValueNotNull(_raw_refTy).asInstanceOf[MuTypeNode]
@@ -1870,11 +1875,11 @@ val _RV = ctx.newFence(bb, ord)
 val _RV_FAK = exposeMuValue(ctx, _RV)
 _jffiBuffer.setAddressReturn(_RV_FAK)
 }
-val MUCTX__NEW_TRAP = exposedMethod("MuCtx.new_trap", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__NEW_TRAP = exposedMethod("MuCtx.new_trap", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_bb = _jffiBuffer.getAddress(1)
 val _raw_rettys = _jffiBuffer.getAddress(2)
-val _raw_nrettys = _jffiBuffer.getInt(3)
+val _raw_nrettys = _jffiBuffer.getAddress(3)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
 val rettys = readMuValueArray(_raw_rettys, _raw_nrettys)
@@ -1882,12 +1887,12 @@ val _RV = ctx.newTrap(bb, rettys)
 val _RV_FAK = exposeMuValue(ctx, _RV)
 _jffiBuffer.setAddressReturn(_RV_FAK)
 }
-val MUCTX__NEW_WATCHPOINT = exposedMethod("MuCtx.new_watchpoint", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__NEW_WATCHPOINT = exposedMethod("MuCtx.new_watchpoint", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_bb = _jffiBuffer.getAddress(1)
 val _raw_wpid = _jffiBuffer.getInt(2)
 val _raw_rettys = _jffiBuffer.getAddress(3)
-val _raw_nrettys = _jffiBuffer.getInt(4)
+val _raw_nrettys = _jffiBuffer.getAddress(4)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
 val wpid = _raw_wpid
@@ -1907,7 +1912,7 @@ val _RV = ctx.newWPBranch(bb, wpid)
 val _RV_FAK = exposeMuValue(ctx, _RV)
 _jffiBuffer.setAddressReturn(_RV_FAK)
 }
-val MUCTX__NEW_CCALL = exposedMethod("MuCtx.new_ccall", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__NEW_CCALL = exposedMethod("MuCtx.new_ccall", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_bb = _jffiBuffer.getAddress(1)
 val _raw_callconv = _jffiBuffer.getInt(2)
@@ -1915,7 +1920,7 @@ val _raw_callee_ty = _jffiBuffer.getAddress(3)
 val _raw_sig = _jffiBuffer.getAddress(4)
 val _raw_callee = _jffiBuffer.getAddress(5)
 val _raw_args = _jffiBuffer.getAddress(6)
-val _raw_nargs = _jffiBuffer.getInt(7)
+val _raw_nargs = _jffiBuffer.getAddress(7)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
 val callconv = toFlag(_raw_callconv)
@@ -1940,12 +1945,12 @@ val _RV = ctx.newNewThread(bb, stack, threadlocal)
 val _RV_FAK = exposeMuValue(ctx, _RV)
 _jffiBuffer.setAddressReturn(_RV_FAK)
 }
-val MUCTX__NEW_SWAPSTACK_RET = exposedMethod("MuCtx.new_swapstack_ret", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__NEW_SWAPSTACK_RET = exposedMethod("MuCtx.new_swapstack_ret", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_bb = _jffiBuffer.getAddress(1)
 val _raw_swappee = _jffiBuffer.getAddress(2)
 val _raw_ret_tys = _jffiBuffer.getAddress(3)
-val _raw_nret_tys = _jffiBuffer.getInt(4)
+val _raw_nret_tys = _jffiBuffer.getAddress(4)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
 val swappee = getMuValueNotNull(_raw_swappee).asInstanceOf[MuVarNode]
@@ -1965,12 +1970,12 @@ val _RV = ctx.newSwapStackKill(bb, swappee)
 val _RV_FAK = exposeMuValue(ctx, _RV)
 _jffiBuffer.setAddressReturn(_RV_FAK)
 }
-val MUCTX__SET_NEWSTACK_PASS_VALUES = exposedMethod("MuCtx.set_newstack_pass_values", JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__SET_NEWSTACK_PASS_VALUES = exposedMethod("MuCtx.set_newstack_pass_values", JType.VOID, Array(JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_inst = _jffiBuffer.getAddress(1)
 val _raw_tys = _jffiBuffer.getAddress(2)
 val _raw_vars = _jffiBuffer.getAddress(3)
-val _raw_nvars = _jffiBuffer.getInt(4)
+val _raw_nvars = _jffiBuffer.getAddress(4)
 val ctx = getMuCtx(_raw_ctx)
 val inst = getMuValueNotNull(_raw_inst).asInstanceOf[MuInstNode]
 val tys = readMuValueArray(_raw_tys, _raw_nvars)
@@ -1986,18 +1991,18 @@ val inst = getMuValueNotNull(_raw_inst).asInstanceOf[MuInstNode]
 val exc = getMuValueNotNull(_raw_exc).asInstanceOf[MuVarNode]
 val _RV = ctx.setNewStackThrowExc(inst, exc)
 }
-val MUCTX__NEW_COMMINST = exposedMethod("MuCtx.new_comminst", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.SINT, JType.POINTER, JType.SINT, JType.POINTER, JType.SINT, JType.POINTER, JType.SINT)) { _jffiBuffer =>
+val MUCTX__NEW_COMMINST = exposedMethod("MuCtx.new_comminst", JType.POINTER, Array(JType.POINTER, JType.POINTER, JType.UINT32, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER, JType.POINTER)) { _jffiBuffer =>
 val _raw_ctx = _jffiBuffer.getAddress(0)
 val _raw_bb = _jffiBuffer.getAddress(1)
 val _raw_opcode = _jffiBuffer.getInt(2)
 val _raw_flags = _jffiBuffer.getAddress(3)
-val _raw_nflags = _jffiBuffer.getInt(4)
+val _raw_nflags = _jffiBuffer.getAddress(4)
 val _raw_tys = _jffiBuffer.getAddress(5)
-val _raw_ntys = _jffiBuffer.getInt(6)
+val _raw_ntys = _jffiBuffer.getAddress(6)
 val _raw_sigs = _jffiBuffer.getAddress(7)
-val _raw_nsigs = _jffiBuffer.getInt(8)
+val _raw_nsigs = _jffiBuffer.getAddress(8)
 val _raw_args = _jffiBuffer.getAddress(9)
-val _raw_nargs = _jffiBuffer.getInt(10)
+val _raw_nargs = _jffiBuffer.getAddress(10)
 val ctx = getMuCtx(_raw_ctx)
 val bb = getMuValueNotNull(_raw_bb).asInstanceOf[MuBBNode]
 val opcode = _raw_opcode

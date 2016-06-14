@@ -27,22 +27,28 @@ def inject_generated_code(parent, generated):
 # C types to Scala types, JFFI types and JFFI Buffer getters and setters
 
 _primitive_types = {
-        "void":     ["Unit",   "VOID",   None,        None   ],
-        "int":      ["Int",    "SINT",   "getInt",    "setIntReturn"],
-        "long":     ["Long",   "SLONG",  "getLong",   "setLongReturn"],
-        "int8_t":   ["Byte",   "SINT8",  "getByte",   "setByteReturn"],
-        "uint8_t":  ["Byte",   "UINT8",  "getByte",   "setByteReturn"],
-        "int16_t":  ["Short",  "SINT16", "getShort",  "setShortReturn"],
-        "uint16_t": ["Short",  "UINT16", "getShort",  "setShortReturn"],
-        "int32_t":  ["Int",    "SINT32", "getInt",    "setIntReturn"],
-        "uint32_t": ["Int",    "UINT32", "getInt",    "setIntReturn"],
-        "int64_t":  ["Long",   "SINT64", "getLong",   "setLongReturn"],
-        "uint64_t": ["Long",   "UINT64", "getLong",   "setLongReturn"],
-        "float":    ["Float",  "FLOAT",  "getFloat",  "setFloatReturn"],
-        "double":   ["Double", "DOUBLE", "getDouble", "setDoubleReturn"],
+        "void"      : ["Unit"   , "VOID"    , None         , None               ],
+        "int"       : ["Int"    , "SINT"    , "getInt"     , "setIntReturn"     ],
+        "long"      : ["Long"   , "SLONG"   , "getLong"    , "setLongReturn"    ],
+        "int8_t"    : ["Byte"   , "SINT8"   , "getByte"    , "setByteReturn"    ],
+        "uint8_t"   : ["Byte"   , "UINT8"   , "getByte"    , "setByteReturn"    ],
+        "int16_t"   : ["Short"  , "SINT16"  , "getShort"   , "setShortReturn"   ],
+        "uint16_t"  : ["Short"  , "UINT16"  , "getShort"   , "setShortReturn"   ],
+        "int32_t"   : ["Int"    , "SINT32"  , "getInt"     , "setIntReturn"     ],
+        "uint32_t"  : ["Int"    , "UINT32"  , "getInt"     , "setIntReturn"     ],
+        "int64_t"   : ["Long"   , "SINT64"  , "getLong"    , "setLongReturn"    ],
+        "uint64_t"  : ["Long"   , "UINT64"  , "getLong"    , "setLongReturn"    ],
+        "intptr_t"  : ["Long"   , "POINTER" , "getAddress" , "setAddressReturn" ],
+        "uintptr_t" : ["Long"   , "POINTER" , "getAddress" , "setAddressReturn" ],
+        "float"     : ["Float"  , "FLOAT"   , "getFloat"   , "setFloatReturn"   ],
+        "double"    : ["Double" , "DOUBLE"  , "getDouble"  , "setDoubleReturn"  ],
         }
 
-_other_ptr_types = {"MuName", "MuCFP", "MuTrapHandler", "MuValueFreer"}
+_other_ptr_types = {
+        # In the most recent muapi.h, these can be identified as explicit pointers.
+        #"MuName", "MuCFP", "MuTrapHandler", "MuValueFreer"
+        # Add more types here if the regexp cannot identify some pointer types.
+        }
 
 _self_getters = {
         "MuVM*": "getMicroVM",
@@ -174,6 +180,7 @@ _array_converters = {
         }
 
 _special_converters = {
+        "MuBool"          : "intToBoolean",
         "MuName"          : "readCString",
         "MuMemOrd"        : "toMemoryOrder",
         "MuAtomicRMWOptr" : "toAtomicRMWOptr",
@@ -185,17 +192,15 @@ _special_converters = {
         }
 
 _special_return_converters = {
+        "MuBool" : "booleanToInt",
         "MuName" : "exposeString",
         "MuCtx*" : "exposeMuCtx",
         "MuVM*"  : "exposeMicroVM",
         }
 
-def param_converter(pn, pt, rn, rt, is_optional, array_sz, is_bool, is_out):
+def param_converter(pn, pt, rn, rt, is_optional, array_sz, is_out):
     if pt == "void":
         raise ValueError("Parameter cannot be void. Param name: {}".format(pn))
-
-    if pt == "int" and is_bool:
-        return "{} != 0".format(rn)
 
     if pt in _primitive_types or pt in _no_conversion or is_out:
         return rn   # does not need conversion
@@ -287,7 +292,6 @@ def generate_method(typedefs, strname, meth) -> Tuple[str, str]:
         pps = [p for p in pragmas if p[0] == pn]
         is_optional = False
         array_sz = None
-        is_bool = False
         is_out = False
         for pp in pps:
             if pp[1] == 'array':
@@ -295,11 +299,12 @@ def generate_method(typedefs, strname, meth) -> Tuple[str, str]:
             elif pp[1] == 'optional':
                 is_optional = True
             elif pp[1] == 'bool':
+                raise ValueError("bool pragma is deprecated")
                 is_bool = True
             elif pp[1] == 'out':
                 is_out = True
 
-        pc = param_converter(pn, pt, rn, rt, is_optional, array_sz, is_bool, is_out)
+        pc = param_converter(pn, pt, rn, rt, is_optional, array_sz, is_out)
 
         stmts.append("val {} = {}".format(pn, pc))
 
@@ -322,7 +327,7 @@ def generate_method(typedefs, strname, meth) -> Tuple[str, str]:
                 self_param_name))
             stmts.append("_jffiBuffer.{}(_RV_FAK)".format(jffi_setter))
         elif ret_ty in _special_return_converters:
-            assert(jffi_setter == "setAddressReturn")
+            assert(ret_ty == "MuBool" or jffi_setter == "setAddressReturn")
             stmts.append("val _RV_FAK = {}(_RV)".format(
                 _special_return_converters[ret_ty]))
             stmts.append("_jffiBuffer.{}(_RV_FAK)".format(jffi_setter))
