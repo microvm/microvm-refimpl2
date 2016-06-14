@@ -239,14 +239,19 @@ struct MuVM {
     // Set handlers
     void    (*set_trap_handler      )(MuVM *mvm, MuTrapHandler trap_handler, MuCPtr userdata);
 
-    // Proprietary API: let the micro VM execute
+    // Proprietary API: Let the micro VM execute.
     void    (*execute)(MuVM *mvm);
+
+    // Proprietary API: Get the pointer to the internal error number allocate in
+    // the micro VM. It is set to non-zero whenevern an exception is thrown when
+    // the client calls through this C API. This gives the client a chance to
+    // terminate because JNI is not able to propagate JVM exceptions to C.
     int*    (*get_mu_error_ptr)(MuVM *mvm);
 };
 
 // A local context. It can only be used by one thread at a time. It holds many
 // states which are typically held by a Mu thread, such as object references,
-// local heap allocation pool, and an object-pinning set. It also holds many Munew_
+// local heap allocation pool, and an object-pinning set. It also holds many Mu
 // values and expose them to the client as opaque handles (MuValue and its
 // subtypes).
 struct MuCtx {
