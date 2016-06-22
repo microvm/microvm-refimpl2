@@ -5,7 +5,7 @@ genSrc <<= (sourceGenerators in Compile) { _.join.map(_.flatten.toList) }
 
 organization := "org.microvm"
 
-name := "microvm-refimpl2"
+name := "mu-impl-ref2"
 
 version := "2.2.0"
 

@@ -7,13 +7,8 @@ Version 2.2.0
 This project is the current reference implementation of Mu, the micro virtual
 machine designed by [The Micro Virtual Machine Project](http://microvm.org).
 
-Version 2.2.0 implements the [Mu Specification with experimental threadlocal
-object references](https://github.com/microvm/microvm-spec/tree/issue52-threadlocal).
-
-This project is based on the previous works of
-[simplest-microvm-project](https://github.com/microvm/simplest-microvm-project).
-[microvm-refimpl](https://github.com/microvm-project/microvm-refimpl) is the
-previous reference implementation.
+Version 2.2.0 implements the current [Mu
+Specification](https://gitlab.anu.edu.au/mu/mu-spec).
 
 ## How to compile
 
@@ -31,10 +26,16 @@ previous reference implementation.
 * Clone this repository:
 
 ```bash
-git clone git@github.com:microvm/microvm-refimpl2.git
+git clone git@gitlab.anu.edu.au:mu/mu-impl-ref2.git
 ```
 
-* In the directory `microvm-refimpl2`, do the following:
+If you do not have SSH access to the ANU GitLab repositories, use the HTTPS URL:
+
+```bash
+git clone https://gitlab.anu.edu.au/mu/mu-impl-ref2.git
+```
+
+* In the directory `mu-impl-ref2`, do the following:
 
 ```bash
 sbt update genSrc eclipse
@@ -120,13 +121,12 @@ and may also be used by Mu micro VM implementers as a reference to compare with.
 
 The micro VM is implemented as an interpreter written in Scala. The main class
 is `uvm.refimpl.MicroVM`, which implements the `MuVM` struct specified by the
-[client
-API](https://github.com/microvm/microvm-spec/blob/master/uvm-client-interface.rest),
-but is more Scala-like. The client interacts with the micro VM via
-`uvm.refimpl.MuCtx` instances created by the `MicroVM` instance, which
-corresponds to the `MuCtx` struct in the spec. `uvm.refimpl.MuValue` and its
-subclasses implement the `MuValue` handles, but has a real Scala type hierarchy
-and does extra type checking when converting, which is not required by the spec.
+[client API](https://gitlab.anu.edu.au/mu/mu-spec/blob/master/api.rst), but is
+more Scala-like. The client interacts with the micro VM via `uvm.refimpl.MuCtx`
+instances created by the `MicroVM` instance, which corresponds to the `MuCtx`
+struct in the spec. `uvm.refimpl.MuValue` and its subclasses implement the
+`MuValue` handles, but has a real Scala type hierarchy and does extra type
+checking when converting, which is not required by the spec.
 
 The client can also be written in C, Python or other languages that can
 interface with C.
@@ -144,7 +144,7 @@ example:
 - Waiting for other Mu threads in the trap handler. The trap handler is executed
   by the same thread executing the Mu IR. During trap handler, no Mu program is
   executed. So if you want to use
-  [watchpoints](https://github.com/microvm/microvm-spec/blob/master/instruction-set.rest#traps-and-watchpoints)
+  [watchpoints](https://gitlab.anu.edu.au/mu/mu-spec/blob/master/instruction-set.rst#traps-and-watchpoints)
   to wait for certain Mu thread to come to a certain rendezvous point (a common
   optimisation trick), you should either wait within Mu IR (not in trap
   handlers) or try the high-performance Mu implementation which is still being
@@ -211,7 +211,7 @@ mark-region small object space and a mark-sweep large object space.
 
 This reference implementation assumes it is running on x86-64 on either Linux or
 OSX. It implements the [AMD64 Unix Native
-Interface](https://github.com/microvm/microvm-spec/blob/master/native-interface-x64-unix.rest)
+Interface](https://gitlab.anu.edu.au/mu/mu-spec/blob/master/native-interface-x64-unix.rst)
 of the specification. It can call native functions from Mu IR and let native
 programs call back to Mu IR. 
 
