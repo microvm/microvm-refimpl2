@@ -186,8 +186,8 @@ class TestRefImpl2CBinding(unittest.TestCase):
         hnum1 = ctx.handle_from_int(100, 32)
         hnum2 = ctx.handle_from_int(200, 64)
 
-        ctx.store(ir10, hnum1, ord=MU_SEQ_CST)
-        hr10 = ctx.load(ir10, ord=MU_SEQ_CST).cast(MuIntValue)
+        ctx.store(ir10, hnum1, ord=MuMemOrd.SEQ_CST)
+        hr10 = ctx.load(ir10, ord=MuMemOrd.SEQ_CST).cast(MuIntValue)
         vr10 = ctx.handle_to_sint(hr10)
         self.assertEqual(vr10, 100)
 
@@ -232,7 +232,7 @@ class TestRefImpl2CBinding(unittest.TestCase):
         h100 = ctx.handle_from_int(100, 64)
         h200 = ctx.handle_from_int(200, 64)
         h300 = ctx.handle_from_int(300, 64)
-        ctx.store(ir, h100, ord=MU_SEQ_CST)
+        ctx.store(ir, h100, ord=MuMemOrd.SEQ_CST)
 
         h, succ = ctx.cmpxchg(ir, h100, h200)
         h = h.cast(MuIntValue)
@@ -246,8 +246,8 @@ class TestRefImpl2CBinding(unittest.TestCase):
         self.assertEqual(v2, 200)
         self.assertFalse(succ2)
 
-        h3 = ctx.atomicrmw(MU_ADD, ir, h300).cast(MuIntValue)
-        h4 = ctx.load(ir, ord=MU_SEQ_CST).cast(MuIntValue)
+        h3 = ctx.atomicrmw(MuAtomicRMWOptr.ADD, ir, h300).cast(MuIntValue)
+        h4 = ctx.load(ir, ord=MuMemOrd.SEQ_CST).cast(MuIntValue)
         v3 = ctx.handle_to_sint(h3)
         v4 = ctx.handle_to_sint(h4)
         self.assertEqual(v3, 200)

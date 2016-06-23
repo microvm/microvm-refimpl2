@@ -8,12 +8,12 @@ import re
 
 import injecttools
 
-r_commpragma = re.compile(r'///\s*MUAPIPARSER:(.*)$')
+rfrag_commpragma = r'(?:///\s*MUAPIPARSER\s+(?P<pragma>.*))?'
 r_comment = re.compile(r'//.*$', re.MULTILINE)
-r_decl = re.compile(r'(?P<ret>\w+\s*\*?)\s*\(\s*\*\s*(?P<name>\w+)\s*\)\s*\((?P<params>[^)]*)\)\s*;\s*(?:///\s*MUAPIPARSER\s+(?P<pragma>.*)$)?', re.MULTILINE)
+r_decl = re.compile(r'(?P<ret>\w+\s*\*?)\s*\(\s*\*\s*(?P<name>\w+)\s*\)\s*\((?P<params>[^)]*)\)\s*;\s*' + rfrag_commpragma, re.MULTILINE)
 r_param = re.compile(r'\s*(?P<type>\w+\s*\*?)\s*(?P<name>\w+)')
 
-r_define = re.compile(r'^\s*#define\s+(?P<name>\w+)\s*\(\((?P<type>\w+)\)(?P<value>\w+)\)\s*$', re.MULTILINE)
+r_define = re.compile(r'^\s*#define\s+(?P<name>\w+)\s*\(\((?P<type>\w+)\)(?P<value>\w+)\)\s*' + rfrag_commpragma + r'\s*$', re.MULTILINE)
 
 r_typedef = re.compile(r'^\s*typedef\s+(?P<expand_to>\w+\s*\*?)\s*(?P<name>\w+)\s*;', re.MULTILINE)
 
@@ -56,11 +56,13 @@ def extract_struct(text, name):
 
 def extract_enums(text, typename, pattern):
     defs = []
-    for m in r_define.finditer(text):
-        if m is not None:
-            name, ty, value = m.groups()
-            if pattern.search(name) is not None:
-                defs.append({"name": name, "value": value})
+    for name, ty, value, pragma in r_define.findall(text):
+        if pattern.search(name) is not None:
+            defs.append({
+                "name": name,
+                "value": value,
+                "pragmas": extract_pragmas(pragma),
+                })
     return {
             "name": typename,
             "defs": defs,
@@ -81,11 +83,14 @@ _enums = [(typename, re.compile(regex)) for typename, regex in [
 
 def extract_typedefs(text):
     typedefs = {}
+    typedefs_order = []
     for m in r_typedef.finditer(text):
         expand_to, name = m.groups()
-        typedefs[name] = expand_to.replace(" ","")
+        expand_to = expand_to.replace(" ","")
+        typedefs[name] = expand_to
+        typedefs_order.append((name, expand_to))
 
-    return typedefs
+    return typedefs, typedefs_order
 
 def parse_muapi(text):
     structs = []
@@ -100,12 +105,13 @@ def parse_muapi(text):
     for tn,pat in _enums:
         enums.append(extract_enums(text, tn, pat))
 
-    typedefs = extract_typedefs(text)
+    typedefs, typedefs_order = extract_typedefs(text)
 
     return {
             "structs": structs,
             "enums": enums,
             "typedefs": typedefs,
+            "typedefs_order": typedefs_order,
             }
 
 if __name__=='__main__':

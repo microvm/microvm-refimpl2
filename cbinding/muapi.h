@@ -78,12 +78,9 @@ typedef MuGenRefValue MuFuncRefValue;       // funcref<sig>
 typedef MuGenRefValue MuThreadRefValue;     // threadref
 typedef MuGenRefValue MuStackRefValue;      // stackref
 typedef MuGenRefValue MuFCRefValue;         // framecursorref
-typedef MuGenRefValue MuIRNodeRefValue;     // irnoderef
+typedef MuGenRefValue MuIRNode;             // irnoderef
 
 // Subtypes of MuIRNodeRefValue. These are used in the IR Builder API.
-
-// Shorter aliases
-typedef MuIRNodeRefValue MuIRNode;      // All IR Nodes
 
 // IR node reference hierarchy
 typedef MuIRNode MuBundleNode;          // Bundle
@@ -403,7 +400,7 @@ struct MuCtx {
     MuStackRefValue     (*new_stack )(MuCtx *ctx, MuFuncRefValue func);
     MuThreadRefValue    (*new_thread_nor)(MuCtx *ctx, MuStackRefValue stack,
                             MuRefValue threadlocal,
-                            MuValue *vals, MuBool nvals); /// MUAPIPARSER threadlocal:optional;vals:array:nvals
+                            MuValue *vals, MuArraySize nvals); /// MUAPIPARSER threadlocal:optional;vals:array:nvals
     MuThreadRefValue    (*new_thread_exc)(MuCtx *ctx, MuStackRefValue stack,
                             MuRefValue threadlocal,
                             MuRefValue exc); /// MUAPIPARSER threadlocal:optional
@@ -629,49 +626,138 @@ struct MuCtx {
 
 // Common instruction opcodes
 /// SCRIPT: GENERATED COMMINSTS BEGIN
-#define MU_CI_UVM_NEW_STACK               ((MuCommInst)0x201)
-#define MU_CI_UVM_KILL_STACK              ((MuCommInst)0x202)
-#define MU_CI_UVM_THREAD_EXIT             ((MuCommInst)0x203)
-#define MU_CI_UVM_CURRENT_STACK           ((MuCommInst)0x204)
-#define MU_CI_UVM_SET_THREADLOCAL         ((MuCommInst)0x205)
-#define MU_CI_UVM_GET_THREADLOCAL         ((MuCommInst)0x206)
-#define MU_CI_UVM_TR64_IS_FP              ((MuCommInst)0x211)
-#define MU_CI_UVM_TR64_IS_INT             ((MuCommInst)0x212)
-#define MU_CI_UVM_TR64_IS_REF             ((MuCommInst)0x213)
-#define MU_CI_UVM_TR64_FROM_FP            ((MuCommInst)0x214)
-#define MU_CI_UVM_TR64_FROM_INT           ((MuCommInst)0x215)
-#define MU_CI_UVM_TR64_FROM_REF           ((MuCommInst)0x216)
-#define MU_CI_UVM_TR64_TO_FP              ((MuCommInst)0x217)
-#define MU_CI_UVM_TR64_TO_INT             ((MuCommInst)0x218)
-#define MU_CI_UVM_TR64_TO_REF             ((MuCommInst)0x219)
-#define MU_CI_UVM_TR64_TO_TAG             ((MuCommInst)0x21A)
-#define MU_CI_UVM_FUTEX_WAIT              ((MuCommInst)0x220)
-#define MU_CI_UVM_FUTEX_WAIT_TIMEOUT      ((MuCommInst)0x221)
-#define MU_CI_UVM_FUTEX_WAKE              ((MuCommInst)0x222)
-#define MU_CI_UVM_FUTEX_CMP_REQUEUE       ((MuCommInst)0x223)
-#define MU_CI_UVM_KILL_DEPENDENCY         ((MuCommInst)0x230)
-#define MU_CI_UVM_NATIVE_PIN              ((MuCommInst)0x240)
-#define MU_CI_UVM_NATIVE_UNPIN            ((MuCommInst)0x241)
-#define MU_CI_UVM_NATIVE_EXPOSE           ((MuCommInst)0x242)
-#define MU_CI_UVM_NATIVE_UNEXPOSE         ((MuCommInst)0x243)
-#define MU_CI_UVM_NATIVE_GET_COOKIE       ((MuCommInst)0x244)
-#define MU_CI_UVM_META_ID_OF              ((MuCommInst)0x250)
-#define MU_CI_UVM_META_NAME_OF            ((MuCommInst)0x251)
-#define MU_CI_UVM_META_LOAD_BUNDLE        ((MuCommInst)0x252)
-#define MU_CI_UVM_META_LOAD_HAIL          ((MuCommInst)0x253)
-#define MU_CI_UVM_META_NEW_CURSOR         ((MuCommInst)0x254)
-#define MU_CI_UVM_META_NEXT_FRAME         ((MuCommInst)0x255)
-#define MU_CI_UVM_META_COPY_CURSOR        ((MuCommInst)0x256)
-#define MU_CI_UVM_META_CLOSE_CURSOR       ((MuCommInst)0x257)
-#define MU_CI_UVM_META_CUR_FUNC           ((MuCommInst)0x258)
-#define MU_CI_UVM_META_CUR_FUNC_VER       ((MuCommInst)0x259)
-#define MU_CI_UVM_META_CUR_INST           ((MuCommInst)0x25A)
-#define MU_CI_UVM_META_DUMP_KEEPALIVES    ((MuCommInst)0x25B)
-#define MU_CI_UVM_META_POP_FRAMES_TO      ((MuCommInst)0x25C)
-#define MU_CI_UVM_META_PUSH_FRAME         ((MuCommInst)0x25D)
-#define MU_CI_UVM_META_ENABLE_WATCHPOINT  ((MuCommInst)0x25E)
-#define MU_CI_UVM_META_DISABLE_WATCHPOINT ((MuCommInst)0x25F)
-#define MU_CI_UVM_META_SET_TRAP_HANDLER   ((MuCommInst)0x260)
+#define MU_CI_UVM_NEW_STACK                          ((MuCommInst)0x201) /// MUAPIPARSER muname:@uvm.new_stack
+#define MU_CI_UVM_KILL_STACK                         ((MuCommInst)0x202) /// MUAPIPARSER muname:@uvm.kill_stack
+#define MU_CI_UVM_THREAD_EXIT                        ((MuCommInst)0x203) /// MUAPIPARSER muname:@uvm.thread_exit
+#define MU_CI_UVM_CURRENT_STACK                      ((MuCommInst)0x204) /// MUAPIPARSER muname:@uvm.current_stack
+#define MU_CI_UVM_SET_THREADLOCAL                    ((MuCommInst)0x205) /// MUAPIPARSER muname:@uvm.set_threadlocal
+#define MU_CI_UVM_GET_THREADLOCAL                    ((MuCommInst)0x206) /// MUAPIPARSER muname:@uvm.get_threadlocal
+#define MU_CI_UVM_TR64_IS_FP                         ((MuCommInst)0x211) /// MUAPIPARSER muname:@uvm.tr64.is_fp
+#define MU_CI_UVM_TR64_IS_INT                        ((MuCommInst)0x212) /// MUAPIPARSER muname:@uvm.tr64.is_int
+#define MU_CI_UVM_TR64_IS_REF                        ((MuCommInst)0x213) /// MUAPIPARSER muname:@uvm.tr64.is_ref
+#define MU_CI_UVM_TR64_FROM_FP                       ((MuCommInst)0x214) /// MUAPIPARSER muname:@uvm.tr64.from_fp
+#define MU_CI_UVM_TR64_FROM_INT                      ((MuCommInst)0x215) /// MUAPIPARSER muname:@uvm.tr64.from_int
+#define MU_CI_UVM_TR64_FROM_REF                      ((MuCommInst)0x216) /// MUAPIPARSER muname:@uvm.tr64.from_ref
+#define MU_CI_UVM_TR64_TO_FP                         ((MuCommInst)0x217) /// MUAPIPARSER muname:@uvm.tr64.to_fp
+#define MU_CI_UVM_TR64_TO_INT                        ((MuCommInst)0x218) /// MUAPIPARSER muname:@uvm.tr64.to_int
+#define MU_CI_UVM_TR64_TO_REF                        ((MuCommInst)0x219) /// MUAPIPARSER muname:@uvm.tr64.to_ref
+#define MU_CI_UVM_TR64_TO_TAG                        ((MuCommInst)0x21a) /// MUAPIPARSER muname:@uvm.tr64.to_tag
+#define MU_CI_UVM_FUTEX_WAIT                         ((MuCommInst)0x220) /// MUAPIPARSER muname:@uvm.futex.wait
+#define MU_CI_UVM_FUTEX_WAIT_TIMEOUT                 ((MuCommInst)0x221) /// MUAPIPARSER muname:@uvm.futex.wait_timeout
+#define MU_CI_UVM_FUTEX_WAKE                         ((MuCommInst)0x222) /// MUAPIPARSER muname:@uvm.futex.wake
+#define MU_CI_UVM_FUTEX_CMP_REQUEUE                  ((MuCommInst)0x223) /// MUAPIPARSER muname:@uvm.futex.cmp_requeue
+#define MU_CI_UVM_KILL_DEPENDENCY                    ((MuCommInst)0x230) /// MUAPIPARSER muname:@uvm.kill_dependency
+#define MU_CI_UVM_NATIVE_PIN                         ((MuCommInst)0x240) /// MUAPIPARSER muname:@uvm.native.pin
+#define MU_CI_UVM_NATIVE_UNPIN                       ((MuCommInst)0x241) /// MUAPIPARSER muname:@uvm.native.unpin
+#define MU_CI_UVM_NATIVE_EXPOSE                      ((MuCommInst)0x242) /// MUAPIPARSER muname:@uvm.native.expose
+#define MU_CI_UVM_NATIVE_UNEXPOSE                    ((MuCommInst)0x243) /// MUAPIPARSER muname:@uvm.native.unexpose
+#define MU_CI_UVM_NATIVE_GET_COOKIE                  ((MuCommInst)0x244) /// MUAPIPARSER muname:@uvm.native.get_cookie
+#define MU_CI_UVM_META_ID_OF                         ((MuCommInst)0x250) /// MUAPIPARSER muname:@uvm.meta.id_of
+#define MU_CI_UVM_META_NAME_OF                       ((MuCommInst)0x251) /// MUAPIPARSER muname:@uvm.meta.name_of
+#define MU_CI_UVM_META_LOAD_BUNDLE                   ((MuCommInst)0x252) /// MUAPIPARSER muname:@uvm.meta.load_bundle
+#define MU_CI_UVM_META_LOAD_HAIL                     ((MuCommInst)0x253) /// MUAPIPARSER muname:@uvm.meta.load_hail
+#define MU_CI_UVM_META_NEW_CURSOR                    ((MuCommInst)0x254) /// MUAPIPARSER muname:@uvm.meta.new_cursor
+#define MU_CI_UVM_META_NEXT_FRAME                    ((MuCommInst)0x255) /// MUAPIPARSER muname:@uvm.meta.next_frame
+#define MU_CI_UVM_META_COPY_CURSOR                   ((MuCommInst)0x256) /// MUAPIPARSER muname:@uvm.meta.copy_cursor
+#define MU_CI_UVM_META_CLOSE_CURSOR                  ((MuCommInst)0x257) /// MUAPIPARSER muname:@uvm.meta.close_cursor
+#define MU_CI_UVM_META_CUR_FUNC                      ((MuCommInst)0x258) /// MUAPIPARSER muname:@uvm.meta.cur_func
+#define MU_CI_UVM_META_CUR_FUNC_VER                  ((MuCommInst)0x259) /// MUAPIPARSER muname:@uvm.meta.cur_func_Ver
+#define MU_CI_UVM_META_CUR_INST                      ((MuCommInst)0x25a) /// MUAPIPARSER muname:@uvm.meta.cur_inst
+#define MU_CI_UVM_META_DUMP_KEEPALIVES               ((MuCommInst)0x25b) /// MUAPIPARSER muname:@uvm.meta.dump_keepalives
+#define MU_CI_UVM_META_POP_FRAMES_TO                 ((MuCommInst)0x25c) /// MUAPIPARSER muname:@uvm.meta.pop_frames_to
+#define MU_CI_UVM_META_PUSH_FRAME                    ((MuCommInst)0x25d) /// MUAPIPARSER muname:@uvm.meta.push_frame
+#define MU_CI_UVM_META_ENABLE_WATCHPOINT             ((MuCommInst)0x25e) /// MUAPIPARSER muname:@uvm.meta.enable_watchpoint
+#define MU_CI_UVM_META_DISABLE_WATCHPOINT            ((MuCommInst)0x25f) /// MUAPIPARSER muname:@uvm.meta.disable_watchpoint
+#define MU_CI_UVM_META_SET_TRAP_HANDLER              ((MuCommInst)0x260) /// MUAPIPARSER muname:@uvm.meta.set_trap_handler
+#define MU_CI_UVM_IRBUILDER_NEW_BUNDLE               ((MuCommInst)0x300) /// MUAPIPARSER muname:@uvm.irbuilder.new_bundle
+#define MU_CI_UVM_IRBUILDER_LOAD_BUNDLE_FROM_NODE    ((MuCommInst)0x301) /// MUAPIPARSER muname:@uvm.irbuilder.load_bundle_from_node
+#define MU_CI_UVM_IRBUILDER_ABORT_BUNDLE_NODE        ((MuCommInst)0x302) /// MUAPIPARSER muname:@uvm.irbuilder.abort_bundle_node
+#define MU_CI_UVM_IRBUILDER_GET_NODE                 ((MuCommInst)0x303) /// MUAPIPARSER muname:@uvm.irbuilder.get_node
+#define MU_CI_UVM_IRBUILDER_GET_ID                   ((MuCommInst)0x304) /// MUAPIPARSER muname:@uvm.irbuilder.get_id
+#define MU_CI_UVM_IRBUILDER_SET_NAME                 ((MuCommInst)0x305) /// MUAPIPARSER muname:@uvm.irbuilder.set_name
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_INT             ((MuCommInst)0x306) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_int
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_FLOAT           ((MuCommInst)0x307) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_float
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_DOUBLE          ((MuCommInst)0x308) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_double
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_UPTR            ((MuCommInst)0x309) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_uptr
+#define MU_CI_UVM_IRBUILDER_SET_TYPE_UPTR            ((MuCommInst)0x30a) /// MUAPIPARSER muname:@uvm.irbuilder.set_type_uptr
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_UFUNCPTR        ((MuCommInst)0x30b) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_ufuncptr
+#define MU_CI_UVM_IRBUILDER_SET_TYPE_UFUNCPTR        ((MuCommInst)0x30c) /// MUAPIPARSER muname:@uvm.irbuilder.set_type_ufuncptr
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_STRUCT          ((MuCommInst)0x30d) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_struct
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_HYBRID          ((MuCommInst)0x30e) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_hybrid
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_ARRAY           ((MuCommInst)0x30f) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_array
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_VECTOR          ((MuCommInst)0x310) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_vector
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_VOID            ((MuCommInst)0x311) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_void
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_REF             ((MuCommInst)0x312) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_ref
+#define MU_CI_UVM_IRBUILDER_SET_TYPE_REF             ((MuCommInst)0x313) /// MUAPIPARSER muname:@uvm.irbuilder.set_type_ref
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_IREF            ((MuCommInst)0x314) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_iref
+#define MU_CI_UVM_IRBUILDER_SET_TYPE_IREF            ((MuCommInst)0x315) /// MUAPIPARSER muname:@uvm.irbuilder.set_type_iref
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_WEAKREF         ((MuCommInst)0x316) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_weakref
+#define MU_CI_UVM_IRBUILDER_SET_TYPE_WEAKREF         ((MuCommInst)0x317) /// MUAPIPARSER muname:@uvm.irbuilder.set_type_weakref
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_FUNCREF         ((MuCommInst)0x318) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_funcref
+#define MU_CI_UVM_IRBUILDER_SET_TYPE_FUNCREF         ((MuCommInst)0x319) /// MUAPIPARSER muname:@uvm.irbuilder.set_type_funcref
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_TAGREF64        ((MuCommInst)0x31a) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_tagref64
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_THREADREF       ((MuCommInst)0x31b) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_threadref
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_STACKREF        ((MuCommInst)0x31c) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_stackref
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_FRAMECURSORREF  ((MuCommInst)0x31d) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_framecursorref
+#define MU_CI_UVM_IRBUILDER_NEW_TYPE_IRNODEREF       ((MuCommInst)0x31e) /// MUAPIPARSER muname:@uvm.irbuilder.new_type_irnoderef
+#define MU_CI_UVM_IRBUILDER_NEW_FUNCSIG              ((MuCommInst)0x31f) /// MUAPIPARSER muname:@uvm.irbuilder.new_funcsig
+#define MU_CI_UVM_IRBUILDER_NEW_CONST_INT            ((MuCommInst)0x320) /// MUAPIPARSER muname:@uvm.irbuilder.new_const_int
+#define MU_CI_UVM_IRBUILDER_NEW_CONST_INT_EX         ((MuCommInst)0x321) /// MUAPIPARSER muname:@uvm.irbuilder.new_const_int_ex
+#define MU_CI_UVM_IRBUILDER_NEW_CONST_FLOAT          ((MuCommInst)0x322) /// MUAPIPARSER muname:@uvm.irbuilder.new_const_float
+#define MU_CI_UVM_IRBUILDER_NEW_CONST_DOUBLE         ((MuCommInst)0x323) /// MUAPIPARSER muname:@uvm.irbuilder.new_const_double
+#define MU_CI_UVM_IRBUILDER_NEW_CONST_NULL           ((MuCommInst)0x324) /// MUAPIPARSER muname:@uvm.irbuilder.new_const_null
+#define MU_CI_UVM_IRBUILDER_NEW_CONST_SEQ            ((MuCommInst)0x325) /// MUAPIPARSER muname:@uvm.irbuilder.new_const_seq
+#define MU_CI_UVM_IRBUILDER_NEW_GLOBAL_CELL          ((MuCommInst)0x326) /// MUAPIPARSER muname:@uvm.irbuilder.new_global_cell
+#define MU_CI_UVM_IRBUILDER_NEW_FUNC                 ((MuCommInst)0x327) /// MUAPIPARSER muname:@uvm.irbuilder.new_func
+#define MU_CI_UVM_IRBUILDER_NEW_FUNC_VER             ((MuCommInst)0x328) /// MUAPIPARSER muname:@uvm.irbuilder.new_func_ver
+#define MU_CI_UVM_IRBUILDER_NEW_EXP_FUNC             ((MuCommInst)0x329) /// MUAPIPARSER muname:@uvm.irbuilder.new_exp_func
+#define MU_CI_UVM_IRBUILDER_NEW_BB                   ((MuCommInst)0x32a) /// MUAPIPARSER muname:@uvm.irbuilder.new_bb
+#define MU_CI_UVM_IRBUILDER_NEW_NOR_PARAM            ((MuCommInst)0x32b) /// MUAPIPARSER muname:@uvm.irbuilder.new_nor_param
+#define MU_CI_UVM_IRBUILDER_NEW_EXC_PARAM            ((MuCommInst)0x32c) /// MUAPIPARSER muname:@uvm.irbuilder.new_exc_param
+#define MU_CI_UVM_IRBUILDER_NEW_INST_RES             ((MuCommInst)0x32d) /// MUAPIPARSER muname:@uvm.irbuilder.new_inst_res
+#define MU_CI_UVM_IRBUILDER_ADD_DEST                 ((MuCommInst)0x32e) /// MUAPIPARSER muname:@uvm.irbuilder.add_dest
+#define MU_CI_UVM_IRBUILDER_ADD_KEEPALIVES           ((MuCommInst)0x32f) /// MUAPIPARSER muname:@uvm.irbuilder.add_keepalives
+#define MU_CI_UVM_IRBUILDER_NEW_BINOP                ((MuCommInst)0x330) /// MUAPIPARSER muname:@uvm.irbuilder.new_binop
+#define MU_CI_UVM_IRBUILDER_NEW_CMP                  ((MuCommInst)0x331) /// MUAPIPARSER muname:@uvm.irbuilder.new_cmp
+#define MU_CI_UVM_IRBUILDER_NEW_CONV                 ((MuCommInst)0x332) /// MUAPIPARSER muname:@uvm.irbuilder.new_conv
+#define MU_CI_UVM_IRBUILDER_NEW_SELECT               ((MuCommInst)0x333) /// MUAPIPARSER muname:@uvm.irbuilder.new_select
+#define MU_CI_UVM_IRBUILDER_NEW_BRANCH               ((MuCommInst)0x334) /// MUAPIPARSER muname:@uvm.irbuilder.new_branch
+#define MU_CI_UVM_IRBUILDER_NEW_BRANCH2              ((MuCommInst)0x335) /// MUAPIPARSER muname:@uvm.irbuilder.new_branch2
+#define MU_CI_UVM_IRBUILDER_NEW_SWITCH               ((MuCommInst)0x336) /// MUAPIPARSER muname:@uvm.irbuilder.new_switch
+#define MU_CI_UVM_IRBUILDER_ADD_SWITCH_DEST          ((MuCommInst)0x337) /// MUAPIPARSER muname:@uvm.irbuilder.add_switch_dest
+#define MU_CI_UVM_IRBUILDER_NEW_CALL                 ((MuCommInst)0x338) /// MUAPIPARSER muname:@uvm.irbuilder.new_call
+#define MU_CI_UVM_IRBUILDER_NEW_TAILCALL             ((MuCommInst)0x339) /// MUAPIPARSER muname:@uvm.irbuilder.new_tailcall
+#define MU_CI_UVM_IRBUILDER_NEW_RET                  ((MuCommInst)0x33a) /// MUAPIPARSER muname:@uvm.irbuilder.new_ret
+#define MU_CI_UVM_IRBUILDER_NEW_THROW                ((MuCommInst)0x33b) /// MUAPIPARSER muname:@uvm.irbuilder.new_throw
+#define MU_CI_UVM_IRBUILDER_NEW_EXTRACTVALUE         ((MuCommInst)0x33c) /// MUAPIPARSER muname:@uvm.irbuilder.new_extractvalue
+#define MU_CI_UVM_IRBUILDER_NEW_INSERTVALUE          ((MuCommInst)0x33d) /// MUAPIPARSER muname:@uvm.irbuilder.new_insertvalue
+#define MU_CI_UVM_IRBUILDER_NEW_EXTRACTELEMENT       ((MuCommInst)0x33e) /// MUAPIPARSER muname:@uvm.irbuilder.new_extractelement
+#define MU_CI_UVM_IRBUILDER_NEW_INSERTELEMENT        ((MuCommInst)0x33f) /// MUAPIPARSER muname:@uvm.irbuilder.new_insertelement
+#define MU_CI_UVM_IRBUILDER_NEW_SHUFFLEVECTOR        ((MuCommInst)0x340) /// MUAPIPARSER muname:@uvm.irbuilder.new_shufflevector
+#define MU_CI_UVM_IRBUILDER_NEW_NEW                  ((MuCommInst)0x341) /// MUAPIPARSER muname:@uvm.irbuilder.new_new
+#define MU_CI_UVM_IRBUILDER_NEW_NEWHYBRID            ((MuCommInst)0x342) /// MUAPIPARSER muname:@uvm.irbuilder.new_newhybrid
+#define MU_CI_UVM_IRBUILDER_NEW_ALLOCA               ((MuCommInst)0x343) /// MUAPIPARSER muname:@uvm.irbuilder.new_alloca
+#define MU_CI_UVM_IRBUILDER_NEW_ALLOCAHYBRID         ((MuCommInst)0x344) /// MUAPIPARSER muname:@uvm.irbuilder.new_allocahybrid
+#define MU_CI_UVM_IRBUILDER_NEW_GETIREF              ((MuCommInst)0x345) /// MUAPIPARSER muname:@uvm.irbuilder.new_getiref
+#define MU_CI_UVM_IRBUILDER_NEW_GETFIELDIREF         ((MuCommInst)0x346) /// MUAPIPARSER muname:@uvm.irbuilder.new_getfieldiref
+#define MU_CI_UVM_IRBUILDER_NEW_GETELEMIREF          ((MuCommInst)0x347) /// MUAPIPARSER muname:@uvm.irbuilder.new_getelemiref
+#define MU_CI_UVM_IRBUILDER_NEW_SHIFTIREF            ((MuCommInst)0x348) /// MUAPIPARSER muname:@uvm.irbuilder.new_shiftiref
+#define MU_CI_UVM_IRBUILDER_NEW_GETVARPARTIREF       ((MuCommInst)0x349) /// MUAPIPARSER muname:@uvm.irbuilder.new_getvarpartiref
+#define MU_CI_UVM_IRBUILDER_NEW_LOAD                 ((MuCommInst)0x34a) /// MUAPIPARSER muname:@uvm.irbuilder.new_load
+#define MU_CI_UVM_IRBUILDER_NEW_STORE                ((MuCommInst)0x34b) /// MUAPIPARSER muname:@uvm.irbuilder.new_store
+#define MU_CI_UVM_IRBUILDER_NEW_CMPXCHG              ((MuCommInst)0x34c) /// MUAPIPARSER muname:@uvm.irbuilder.new_cmpxchg
+#define MU_CI_UVM_IRBUILDER_NEW_ATOMICRMW            ((MuCommInst)0x34d) /// MUAPIPARSER muname:@uvm.irbuilder.new_atomicrmw
+#define MU_CI_UVM_IRBUILDER_NEW_FENCE                ((MuCommInst)0x34e) /// MUAPIPARSER muname:@uvm.irbuilder.new_fence
+#define MU_CI_UVM_IRBUILDER_NEW_TRAP                 ((MuCommInst)0x34f) /// MUAPIPARSER muname:@uvm.irbuilder.new_trap
+#define MU_CI_UVM_IRBUILDER_NEW_WATCHPOINT           ((MuCommInst)0x350) /// MUAPIPARSER muname:@uvm.irbuilder.new_watchpoint
+#define MU_CI_UVM_IRBUILDER_NEW_WPBRANCH             ((MuCommInst)0x351) /// MUAPIPARSER muname:@uvm.irbuilder.new_wpbranch
+#define MU_CI_UVM_IRBUILDER_NEW_CCALL                ((MuCommInst)0x352) /// MUAPIPARSER muname:@uvm.irbuilder.new_ccall
+#define MU_CI_UVM_IRBUILDER_NEW_NEWTHREAD            ((MuCommInst)0x353) /// MUAPIPARSER muname:@uvm.irbuilder.new_newthread
+#define MU_CI_UVM_IRBUILDER_NEW_SWAPSTACK_RET        ((MuCommInst)0x354) /// MUAPIPARSER muname:@uvm.irbuilder.new_swapstack_ret
+#define MU_CI_UVM_IRBUILDER_NEW_SWAPSTACK_KILL       ((MuCommInst)0x355) /// MUAPIPARSER muname:@uvm.irbuilder.new_swapstack_kill
+#define MU_CI_UVM_IRBUILDER_SET_NEWSTACK_PASS_VALUES ((MuCommInst)0x356) /// MUAPIPARSER muname:@uvm.irbuilder.set_newstack_pass_values
+#define MU_CI_UVM_IRBUILDER_SET_NEWSTACK_THROW_EXC   ((MuCommInst)0x357) /// MUAPIPARSER muname:@uvm.irbuilder.set_newstack_throw_exc
+#define MU_CI_UVM_IRBUILDER_NEW_COMMINST             ((MuCommInst)0x358) /// MUAPIPARSER muname:@uvm.irbuilder.new_comminst
 /// SCRIPT: GENERATED COMMINSTS END
 
 #ifdef __cplusplus
