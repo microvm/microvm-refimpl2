@@ -163,13 +163,13 @@ typedef _MuTrapHandler_Func* MuTrapHandler;
 
 // Destination kinds
 typedef MuFlag MuDestKind;
-#define MU_DEST_NORMAL      ((MuDeskKind)0x01)
-#define MU_DEST_EXCEPT      ((MuDeskKind)0x02)
-#define MU_DEST_TRUE        ((MuDeskKind)0x03)
-#define MU_DEST_FALSE       ((MuDeskKind)0x04)
-#define MU_DEST_DEFAULT     ((MuDeskKind)0x05)
-#define MU_DEST_DISABLED    ((MuDeskKind)0x06)
-#define MU_DEST_ENABLED     ((MuDeskKind)0x07)
+#define MU_DEST_NORMAL      ((MuDestKind)0x01)
+#define MU_DEST_EXCEPT      ((MuDestKind)0x02)
+#define MU_DEST_TRUE        ((MuDestKind)0x03)
+#define MU_DEST_FALSE       ((MuDestKind)0x04)
+#define MU_DEST_DEFAULT     ((MuDestKind)0x05)
+#define MU_DEST_DISABLED    ((MuDestKind)0x06)
+#define MU_DEST_ENABLED     ((MuDestKind)0x07)
 
 // Binary operators
 typedef MuFlag MuBinOptr;
