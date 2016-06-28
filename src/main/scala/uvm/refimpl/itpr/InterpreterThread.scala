@@ -13,6 +13,7 @@ import uvm.refimpl.mem.TypeSizes.Word
 import uvm.ssavariables._
 import uvm.types._
 import uvm.refimpl.nat.NativeCallResult
+import uvm.ir.irbuilder.IRNode
 
 object InterpreterThread {
   val logger = Logger(LoggerFactory.getLogger(getClass.getName))
@@ -421,7 +422,7 @@ trait InterpreterActions extends InterpreterThreadState {
       }
       case TrapHandlerResult.Rebind(newStack, htr) => {
         val ns = newStack.vb.stack.getOrElse {
-          throw new UvmRuntimeException(curCtx + "Attempt to rebind to NULL stack when returning from trap.")
+          throw new UvmNullGenRefException(curCtx + "Attempt to rebind to NULL stack when returning from trap.")
         }
 
         htr match {
@@ -510,14 +511,16 @@ object MagicalBox {
     def asBoolean: Boolean = OpHelper.prepareUnsigned(box.asIntRaw, 1) == 1
     def asFloat: Float = box.asInstanceOf[BoxFloat].value
     def asDouble: Double = box.asInstanceOf[BoxDouble].value
+    def asPtr: Word = box.asInstanceOf[BoxPointer].addr
+    def asSeq: Seq[ValueBox] = box.asInstanceOf[BoxSeq].values
     def asRef: Word = box.asInstanceOf[BoxRef].objRef
     def asIRef: (Word, Word) = box.asInstanceOf[BoxIRef].oo
+    def asTR64Raw: Long = box.asInstanceOf[BoxTagRef64].raw
     def asFunc: Option[Function] = box.asInstanceOf[BoxFunc].func
     def asThread: Option[InterpreterThread] = box.asInstanceOf[BoxThread].thread
     def asStack: Option[InterpreterStack] = box.asInstanceOf[BoxStack].stack
-    def asTR64Raw: Long = box.asInstanceOf[BoxTagRef64].raw
-    def asPtr: Word = box.asInstanceOf[BoxPointer].addr
-    def asSeq: Seq[ValueBox] = box.asInstanceOf[BoxSeq].values
+    def asFrameCursor: Option[FrameCursor] = box.asInstanceOf[BoxFrameCursor].cursor
+    def asIRNode: Option[IRNode] = box.asInstanceOf[BoxIRNode].node
 
     def asIntRaw_=(v: BigInt): Unit = box.asInstanceOf[BoxInt].value = v
     def asInt1_=(v: BigInt): Unit = box.setInt(v, 1)
@@ -530,18 +533,16 @@ object MagicalBox {
     def asBoolean_=(v: Boolean): Unit = box.setInt(if (v) 1 else 0, 1)
     def asFloat_=(v: Float): Unit = box.asInstanceOf[BoxFloat].value = v
     def asDouble_=(v: Double): Unit = box.asInstanceOf[BoxDouble].value = v
+    def asPtr_=(v: Word): Unit = box.asInstanceOf[BoxPointer].addr = v
+    def asSeq_=(vs: Seq[ValueBox]): Unit = { for ((dst, src) <- box.asSeq zip vs) { dst copyFrom src } }
     def asRef_=(v: Word): Unit = box.asInstanceOf[BoxRef].objRef = v
     def asIRef_=(oo: (Word, Word)): Unit = box.asInstanceOf[BoxIRef].oo = oo
+    def asTR64Raw_=(v: Long): Unit = box.asInstanceOf[BoxTagRef64].raw = v
     def asFunc_=(v: Option[Function]): Unit = box.asInstanceOf[BoxFunc].func = v
     def asThread_=(v: Option[InterpreterThread]): Unit = box.asInstanceOf[BoxThread].thread = v
     def asStack_=(v: Option[InterpreterStack]): Unit = box.asInstanceOf[BoxStack].stack = v
-    def asTR64Raw_=(v: Long): Unit = box.asInstanceOf[BoxTagRef64].raw = v
-    def asPtr_=(v: Word): Unit = box.asInstanceOf[BoxPointer].addr = v
-    def asSeq_=(vs: Seq[ValueBox]): Unit = {
-      for ((dst, src) <- box.asSeq zip vs) {
-        dst copyFrom src
-      }
-    }
+    def asFrameCursor_=(v: Option[FrameCursor]): Unit = box.asInstanceOf[BoxFrameCursor].cursor = v
+    def asIRNode_=(v: Option[IRNode]): Unit = box.asInstanceOf[BoxIRNode].node = v
 
     def getSInt(len: Int): BigInt = OpHelper.prepareSigned(box.asIntRaw, len)
     def getUInt(len: Int): BigInt = OpHelper.prepareUnsigned(box.asIntRaw, len)

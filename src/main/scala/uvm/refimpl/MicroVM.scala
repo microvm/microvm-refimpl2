@@ -13,6 +13,7 @@ import uvm.refimpl.nat.NativeCallHelper
 import uvm.staticanalysis.StaticAnalyzer
 import uvm.utils.IDFactory
 import uvm.ir.irbuilder.IRBuilder
+import uvm.ir.irbuilder.IRNode
 
 object MicroVM {
   val DEFAULT_SOS_SIZE: Word = 2L * 1024L * 1024L; // 2MiB
@@ -52,6 +53,7 @@ class MicroVM(vmConf: VMConf) {
 
   val idFactory = new IDFactory(MicroVM.FIRST_CLIENT_USABLE_ID)
   val irBuilder = new IRBuilder(globalBundle, idFactory)
+  val irNodeRegistry = new SequentialObjectKeeper[IRNode]()
   val irReader = new UIRTextReader(idFactory, recordSourceInfo=vmConf.sourceInfo)
   val hailScriptLoader = new HailScriptLoader(recordSourceInfo=vmConf.sourceInfo)
   val staticAnalyzer = new StaticAnalyzer()

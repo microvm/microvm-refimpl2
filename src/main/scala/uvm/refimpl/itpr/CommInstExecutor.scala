@@ -34,7 +34,7 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner with IRBuild
         val Seq(sig) = sigList
         val Seq(func) = argList
         val funcVal = func.asFunc.getOrElse {
-          throw new UvmRuntimeException(ctx + "Attempt to create new thread for NULL Mu function.")
+          throw new UvmNullGenRefException(ctx + "Attempt to create new thread for NULL Mu function.")
         }
 
         val sta = microVM.threadStackManager.newStack(funcVal, mutator)
@@ -45,7 +45,7 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner with IRBuild
       case "@uvm.kill_stack" => {
         val Seq(s) = argList
         val sta = s.asStack.getOrElse {
-          throw new UvmRuntimeException(ctx + "Attempt to kill NULL stack.")
+          throw new UvmNullGenRefException(ctx + "Attempt to kill NULL stack.")
         }
         sta.kill()
         continueNormally()
@@ -281,7 +281,7 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner with IRBuild
         val Seq(func, cookie) = argList
 
         val f = func.asFunc.getOrElse {
-          throw new UvmRuntimeException(ctx + "Attempt to expose NULL Mu function")
+          throw new UvmNullGenRefException(ctx + "Attempt to expose NULL Mu function")
         }
 
         val c = boxOf(cookie).asSInt64.longValue

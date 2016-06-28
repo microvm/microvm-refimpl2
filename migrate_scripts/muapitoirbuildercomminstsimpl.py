@@ -25,7 +25,7 @@ CommInstDesc = namedtuple("CommInstDesc", """
         pragmas
         arrays
         sizes
-        bools
+        optionals
         """.split())
 
 _type_map = {
@@ -90,7 +90,7 @@ def get_comminsts(ast):
         pragmas = meth["pragmas"]
         arrays = {}
         sizes = set()
-        bools = set()
+        optionals = set()
 
         paramnames = []
         cparamtys = []
@@ -111,8 +111,8 @@ def get_comminsts(ast):
                     sz = pragma[2]
                     arrays[pn] = sz
                     sizes.add(sz)
-                elif pragma[1] == "bool":
-                    bools.add(pn)
+                elif pragma[1] == "optional":
+                    optionals.add(pn)
 
         muretty = to_mu_ty(cretty)
 
@@ -128,7 +128,7 @@ def get_comminsts(ast):
             muretty    = muretty,
             arrays     = arrays,
             sizes      = sizes,
-            bools      = bools,
+            optionals  = optionals,
             )
         comminsts.append(comminst)
 
@@ -171,11 +171,177 @@ def gen_comminsts_retvals(comminsts):
 
     return "\n".join(lines)
 
+_get_arg_meths = {
+        "int<64>": "asInt64.toLong",
+        "int<32>": "asInt32.toInt",
+        "float": "asFloat",
+        "double": "asDouble",
+        }
+
+def get_arg_meth(mty, cty, cname):
+    if mty in _get_arg_meths:
+        return _get_arg_meths[mty]
+    elif mty.startswith("iref<"):
+        return "asIRef"
+
+    raise Exception("I don't know how to get arg: {}, {}, {}".format(mty, cty, cname))
+
+def get_arg(ind, mty, cty, cname, is_optional):
+    if cty == "MuBundleNode":
+        meth = 'asIRNode.getOrElse(throw new UvmNullGenRefException("CommInst arg %{} must not be null")).asInstanceOf[BundleNode]'.format(cname)
+    elif mty == "irnoderef":
+        if is_optional:
+            meth = 'asIRNode'
+        else:
+            meth = 'asIRNode.getOrElse(throw new UvmNullGenRefException("CommInst arg %{} must not be null"))'.format(cname)
+    else:
+        meth = get_arg_meth(mty, cty, cname)
+    return "        val {} = argList({}).{}".format(cname, ind, meth)
+
+_set_arg_meths = {
+        "int<32>": "asInt32",
+        }
+
+def set_arg_meth(mty, cty):
+    if mty in _set_arg_meths:
+        return _set_arg_meths[mty]
+    elif mty.startswith("iref<"):
+        return "asIRef"
+
+    raise Exception("I don't know how to set return value: {}, {}".format(mty, cty))
+
+def set_ret(ind, mty, cty, value):
+    if mty == "irnoderef":
+        meth = 'asIRNode'
+        return "        results({}).{} = Some({})".format(ind, meth, value)
+    else:
+        meth = set_arg_meth(mty, cty)
+        return "        results({}).{} = {}".format(ind, meth, value)
+
+_special_cases = {
+        "id":             "ID",
+        "sint8":          "SInt8",
+        "uint8":          "UInt8",
+        "sint16":         "SInt16",
+        "uint16":         "UInt16",
+        "sint32":         "SInt32",
+        "uint32":         "UInt32",
+        "sint64":         "SInt64",
+        "uint64":         "UInt64",
+        "uint64s":        "UInt64s",
+        "fp":             "FP",
+        "uptr":           "UPtr",
+        "ufuncptr":       "UFuncPtr",
+        "iref":           "IRef",
+        "weakref":        "WeakRef",
+        "funcref":        "FuncRef",
+        "tagref64":       "TagRef64",
+        "threadref":      "ThreadRef",
+        "stackref":       "StackRef",
+        "framecursorref": "FrameCursorRef",
+        "irnoderef":      "IRNodeRef",
+        "funcsig":        "FuncSig",
+        "bb":             "BB",
+        "binop":          "BinOp",
+        "tailcall":       "TailCall",
+        "extractvalue":   "ExtractValue",
+        "insertvalue":    "InsertValue",
+        "extractelement": "ExtractElement",
+        "insertelement":  "InsertElement",
+        "shufflevector":  "ShuffleVector",
+        "newhybrid":      "NewHybrid",
+        "allocahybrid":   "AllocaHybrid",
+        "getiref":        "GetIRef",
+        "getfieldiref":   "GetFieldIRef",
+        "getelemiref":    "GetElemIRef",
+        "shiftiref":      "ShiftIRef",
+        "getvarpartiref": "GetVarPartIRef",
+        "cmpxchg":        "CmpXchg",
+        "atomicrmw":      "AtomicRMW",
+        "watchpoint":     "WatchPoint",
+        "wpbranch":       "WPBranch",
+        "ccall":          "CCall",
+        "newthread":      "NewThread",
+        "newstack":       "NewStack",
+        "swapstack":      "SwapStack",
+        "comminst":       "CommInst",
+        }
+
+def toCamelCase(name):
+    ins = name.split("_")
+    outs = [ins[0]]
+    for inn in ins[1:]:
+        if inn in _special_cases:
+            outs.append(_special_cases[inn])
+        else:
+            outs.append(inn[0].upper()+inn[1:])
+
+    return "".join(outs)
+
+def gen_comminst_impl(comminst):
+    lines = []
+
+    lines.append('      case "{}" => {{'.format(comminst.muname))
+
+    for ind, (cty, mty, cname) in enumerate(zip(
+            comminst.cparamtys, comminst.muparamtys, comminst.paramnames)):
+        lines.append(get_arg(ind, mty, cty, cname,
+            is_optional=(cname in comminst.optionals)))
+
+    ir_builder_args = []
+
+    for cty, mty, cname in zip(
+            comminst.cparamtys, comminst.muparamtys, comminst.paramnames):
+        if cname in comminst.arrays:
+            sz = comminst.arrays[cname]
+            loaded_array_name = "_ary_" + cname
+            if mty == "iref<irnoderef>":
+                loader_func = "loadIRNodeArray"
+            elif mty == "iref<int<64>>":
+                loader_func = "loadInt64Array"
+            elif cty == "MuFlag*":
+                loader_func = "loadFlagArray"
+            else:
+                raise Exception("I don't know how to load array: {}, {}, {}".format(
+                    cty, mty, cname))
+            lines.append('        val {} = {}({}, {})'.format(
+                loaded_array_name, loader_func, cname, sz))
+            ir_builder_args.append(loaded_array_name)
+        elif cname in comminst.sizes:
+            pass    # skip array sizes
+        elif cty == "MuBool":
+            bool_name = "_bool_" + cname
+            lines.append('        val {} = {} != 0'.format(bool_name, cname))
+            ir_builder_args.append(bool_name)
+        else:
+            ir_builder_args.append(cname)
+
+    ir_builder_meth_name = toCamelCase(comminst.funcname)
+    lines.append('        val _rv = irBuilder.{}({})'.format(
+        ir_builder_meth_name, ", ".join(ir_builder_args)))
+
+    if comminst.cretty != "void":
+        lines.append(set_ret(0, comminst.muretty, comminst.cretty, "_rv"))
+    
+    lines.append("        continueNormally()")
+    lines.append("      }")
+
+    return "\n".join(lines)
+
+# These functions are too speical. Implemented manually in Scala.
+_blacklist = [
+        "load_bundle_from_node",
+        "abort_bundle_node",
+        "set_name",
+        "new_const_int_ex",
+        ]
+
 def gen_comminsts_impls(comminsts):
     lines = []
 
     for comminst in comminsts:
-        lines.append('      case "{}" => ???'.format(comminst.muname))
+        if comminst.funcname not in _blacklist:
+            lines.append(gen_comminst_impl(comminst))
 
     return "\n".join(lines)
 

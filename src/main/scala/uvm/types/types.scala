@@ -32,20 +32,20 @@ abstract class AbstractPointerType extends Type
 case class TypeInt(var length: Int) extends Type
 case class TypeFloat() extends FPType
 case class TypeDouble() extends FPType
+case class TypeUPtr(var ty: Type) extends AbstractPointerType
+case class TypeUFuncPtr(var sig: FuncSig) extends AbstractPointerType
+case class TypeStruct(var fieldTys: Seq[Type]) extends AbstractStructType
+case class TypeHybrid(var fieldTys: Seq[Type], var varTy: Type) extends AbstractStructType
+case class TypeArray(var elemTy: Type, var len: Long) extends AbstractSeqType
+case class TypeVector(var elemTy: Type, var len: Long) extends AbstractSeqType
+case class TypeVoid() extends Type
 case class TypeRef(var ty: Type) extends AbstractObjRefType
 case class TypeIRef(var ty: Type) extends AbstractRefType
 case class TypeWeakRef(var ty: Type) extends AbstractObjRefType
-case class TypeStruct(var fieldTys: Seq[Type]) extends AbstractStructType
-case class TypeArray(var elemTy: Type, var len: Long) extends AbstractSeqType
-case class TypeHybrid(var fieldTys: Seq[Type], var varTy: Type) extends AbstractStructType
-case class TypeVoid() extends Type
+case class TypeTagRef64() extends Type
 case class TypeFuncRef(var sig: FuncSig) extends AbstractGenRefType
 case class TypeThreadRef() extends AbstractGenRefType
 case class TypeStackRef() extends AbstractGenRefType
-case class TypeTagRef64() extends Type
-case class TypeVector(var elemTy: Type, var len: Long) extends AbstractSeqType
-case class TypeUPtr(var ty: Type) extends AbstractPointerType
-case class TypeUFuncPtr(var sig: FuncSig) extends AbstractPointerType
 case class TypeFrameCursorRef() extends AbstractGenRefType
 case class TypeIRNodeRef() extends AbstractGenRefType
 

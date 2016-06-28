@@ -242,7 +242,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
 
       case i @ InstCall(sig, callee, argList, excClause, keepalives) => {
         val calleeFunc = callee.asFunc.getOrElse {
-          throw new UvmRuntimeException(ctx + "Callee must not be NULL")
+          throw new UvmNullGenRefException(ctx + "Callee must not be NULL")
         }
 
         val argBoxes = argList.map(boxOf)
@@ -255,7 +255,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
 
       case i @ InstTailCall(sig, callee, argList) => {
         val calleeFunc = callee.asFunc.getOrElse {
-          throw new UvmRuntimeException(ctx + "Callee must not be NULL")
+          throw new UvmNullGenRefException(ctx + "Callee must not be NULL")
         }
 
         val argBoxes = argList.map(boxOf)
@@ -386,7 +386,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
       case i @ InstGetIRef(referentTy, opnd) => {
         val baseAddr = opnd.asRef
         if (baseAddr == 0L) {
-          throw new UvmUndefinedBehaviorException(ctx + "Attempted to use GETIREF on a NULL reference")
+          throw new UvmNullGenRefException(ctx + "Attempted to use GETIREF on a NULL reference")
         }
         results(0).asIRef = (baseAddr, 0L)
         continueNormally()
@@ -524,7 +524,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
 
       case i @ InstNewThread(stack, threadLocal, newStackAction, excClause) => {
         val newStack = stack.asStack.getOrElse {
-          throw new UvmUndefinedBehaviorException(ctx + "Attempt to bind a new thread to a NULL stack.")
+          throw new UvmNullGenRefException(ctx + "Attempt to bind a new thread to a NULL stack.")
         }
         
         val threadLocalAddr = threadLocal.map(tl => tl.asRef).getOrElse(0L)
@@ -547,7 +547,7 @@ trait InstructionExecutor extends InterpreterActions with CommInstExecutor {
       case i @ InstSwapStack(swappee, curStackAction, newStackAction, excClause, keepalives) => {
         val oldStack = curStack
         val newStack = swappee.asStack.getOrElse {
-          throw new UvmUndefinedBehaviorException(ctx + "Swappee must not be NULL.")
+          throw new UvmNullGenRefException(ctx + "Swappee must not be NULL.")
         }
 
         def handleOldStack() = curStackAction match {

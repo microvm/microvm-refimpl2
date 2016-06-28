@@ -10,6 +10,7 @@ import uvm.refimpl.mem.TypeSizes
 import uvm.ssavariables._
 import uvm.ssavariables.AtomicRMWOptr._
 import uvm.types._
+import uvm.ir.irbuilder.IRNode
 
 object OpHelper {
 
@@ -365,6 +366,9 @@ object MemoryOperations {
       case _: TypeDouble =>
         val dv = memorySupport.loadDouble(loc, !ptr)
         br.asInstanceOf[BoxDouble].value = dv
+      case _: AbstractPointerType =>
+        val addr = memorySupport.loadLong(loc, !ptr)
+        br.asInstanceOf[BoxPointer].addr = addr
       case _: TypeRef =>
         noAccessViaPointer(ptr, ty)
         val addr = memorySupport.loadLong(loc)
@@ -374,6 +378,10 @@ object MemoryOperations {
         val base = memorySupport.loadLong(loc)
         val offset = memorySupport.loadLong(loc + WORD_SIZE_BYTES)
         br.asInstanceOf[BoxIRef].oo = (base, offset)
+      case _: TypeTagRef64 =>
+        noAccessViaPointer(ptr, ty)
+        val raw = memorySupport.loadLong(loc)
+        br.asInstanceOf[BoxTagRef64].raw = raw
       case _: TypeFuncRef =>
         noAccessViaPointer(ptr, ty)
         val fid = memorySupport.loadLong(loc).toInt
@@ -389,13 +397,10 @@ object MemoryOperations {
         val sid = memorySupport.loadLong(loc).toInt
         val sta = microVM.threadStackManager.stackRegistry.get(sid)
         br.asInstanceOf[BoxStack].stack = sta
-      case _: TypeTagRef64 =>
+      case _: TypeIRNodeRef =>
         noAccessViaPointer(ptr, ty)
-        val raw = memorySupport.loadLong(loc)
-        br.asInstanceOf[BoxTagRef64].raw = raw
-      case _: TypeUPtr | _: TypeUFuncPtr =>
-        val addr = memorySupport.loadLong(loc, !ptr)
-        br.asInstanceOf[BoxPointer].addr = addr
+        val maybeIRNode = loadIRNode(loc)
+        br.asInstanceOf[BoxIRNode].node = maybeIRNode
       case _ => throw new UvmUnimplementedOperationException("Loading of type %s is not supporing".format(ty.getClass.getName))
     }
 
@@ -410,7 +415,7 @@ object MemoryOperations {
     }
   }
 
-  def store(ptr: Boolean, ty: Type, loc: Word, nvb: ValueBox)(implicit memorySupport: MemorySupport): Unit = {
+  def store(ptr: Boolean, ty: Type, loc: Word, nvb: ValueBox)(implicit microVM: MicroVM, memorySupport: MemorySupport): Unit = {
     def storeScalar(ty: Type, loc: Word, nvb: ValueBox): Unit = ty match {
       case TypeInt(l) =>
         val bi = nvb.asInstanceOf[BoxInt].value
@@ -431,6 +436,9 @@ object MemoryOperations {
       case _: TypeDouble =>
         val dv = nvb.asInstanceOf[BoxDouble].value
         memorySupport.storeDouble(loc, dv, !ptr)
+      case _: AbstractPointerType =>
+        val addr = nvb.asInstanceOf[BoxPointer].addr
+        memorySupport.storeLong(loc, addr, !ptr)
       case _: TypeRef =>
         noAccessViaPointer(ptr, ty)
         val addr = nvb.asInstanceOf[BoxRef].objRef
@@ -440,6 +448,10 @@ object MemoryOperations {
         val BoxIRef(base, offset) = nvb.asInstanceOf[BoxIRef]
         memorySupport.storeLong(loc, base)
         memorySupport.storeLong(loc + WORD_SIZE_BYTES, offset)
+      case _: TypeTagRef64 =>
+        noAccessViaPointer(ptr, ty)
+        val raw = nvb.asInstanceOf[BoxTagRef64].raw
+        memorySupport.storeLong(loc, raw)
       case _: TypeFuncRef =>
         noAccessViaPointer(ptr, ty)
         val fid = nvb.asInstanceOf[BoxFunc].func.map(_.id).getOrElse(0)
@@ -452,13 +464,10 @@ object MemoryOperations {
         noAccessViaPointer(ptr, ty)
         val sid = nvb.asInstanceOf[BoxStack].stack.map(_.id).getOrElse(0)
         memorySupport.storeLong(loc, sid.toLong & 0xFFFFFFFFL)
-      case _: TypeTagRef64 =>
+      case _: TypeIRNodeRef =>
         noAccessViaPointer(ptr, ty)
-        val raw = nvb.asInstanceOf[BoxTagRef64].raw
-        memorySupport.storeLong(loc, raw)
-      case _: TypeUPtr | _: TypeUFuncPtr =>
-        val addr = nvb.asInstanceOf[BoxPointer].addr
-        memorySupport.storeLong(loc, addr, !ptr)
+        val maybeIRNode = nvb.asInstanceOf[BoxIRNode].node
+        storeIRNode(loc, maybeIRNode)
       case _ => throw new UvmUnimplementedOperationException("Storing of type %s is not supporing".format(ty.getClass.getName))
     }
 
@@ -493,6 +502,12 @@ object MemoryOperations {
           case _ => throw new UvmUnimplementedOperationException("CmpXchg on int of length %d is not supported".format(l))
         }
         br.asInstanceOf[BoxInt].value = OpHelper.unprepare(rbi, l)
+        succ
+      case _: AbstractPointerType =>
+        val el = eb.asInstanceOf[BoxPointer].addr
+        val dl = db.asInstanceOf[BoxPointer].addr
+        val (succ, rl) = memorySupport.cmpXchgLong(loc, el, dl, !ptr)
+        br.asInstanceOf[BoxPointer].addr = rl
         succ
       case _: TypeRef =>
         noAccessViaPointer(ptr, ty)
@@ -532,12 +547,6 @@ object MemoryOperations {
         val rs = microVM.threadStackManager.stackRegistry.get(rl.toInt)
         br.asInstanceOf[BoxStack].stack = rs
         succ
-      case _: TypeUPtr | _: TypeUFuncPtr =>
-        val el = eb.asInstanceOf[BoxPointer].addr
-        val dl = db.asInstanceOf[BoxPointer].addr
-        val (succ, rl) = memorySupport.cmpXchgLong(loc, el, dl, !ptr)
-        br.asInstanceOf[BoxPointer].addr = rl
-        succ
       case _ => throw new UvmUnimplementedOperationException("CmpXchg of type %s is not supporing".format(ty.getClass.getName))
     }
   }
@@ -557,6 +566,10 @@ object MemoryOperations {
           throw new UvmUnimplementedOperationException("AtomicRMW operation other than XCHG only supports int. %s found.".format(ty.getClass.getName))
         } else {
           ty match {
+            case _: AbstractPointerType =>
+              val ol = ob.asInstanceOf[BoxPointer].addr
+              val rl = memorySupport.atomicRMWLong(op, loc, ol, !ptr)
+              br.asInstanceOf[BoxPointer].addr = rl
             case _: TypeRef =>
               noAccessViaPointer(ptr, ty)
               val ol = ob.asInstanceOf[BoxRef].objRef
@@ -590,10 +603,6 @@ object MemoryOperations {
               val ol = ob.asInstanceOf[BoxTagRef64].raw
               val rl = memorySupport.atomicRMWLong(op, loc, ol)
               br.asInstanceOf[BoxTagRef64].raw = rl
-            case _: TypeUPtr | _: TypeUFuncPtr =>
-              val ol = ob.asInstanceOf[BoxPointer].addr
-              val rl = memorySupport.atomicRMWLong(op, loc, ol, !ptr)
-              br.asInstanceOf[BoxPointer].addr = rl
             case _ =>
               throw new UvmUnimplementedOperationException("AtomicRMW XCHG of type %s is not supporing".format(ty.getClass.getName))
           }
@@ -650,6 +659,58 @@ object MemoryOperations {
     memorySupport.storeBytes(begin, bytes, 0, len, true)
 
     loc
+  }
+  
+  /**
+   * Load irnoderef value from the memory. Use fake value from microVM.irNodeRegistry
+   */
+  def loadIRNode(loc: Word)(implicit microVM: MicroVM, memorySupport: MemorySupport): Option[IRNode] = {
+    val irNodeLong = memorySupport.loadLong(loc).toInt
+    val maybeIRNode = microVM.irNodeRegistry.longToObj(irNodeLong)
+    maybeIRNode
+  }
+
+  /**
+   * Store irnoderef value into the memory. Use fake value from microVM.irNodeRegistry
+   */
+  def storeIRNode(loc: Word, maybeIRNode: Option[IRNode])(implicit microVM: MicroVM, memorySupport: MemorySupport): Unit = {
+    val irNodeLong = microVM.irNodeRegistry.objGetLong(maybeIRNode)
+    memorySupport.storeLong(loc, irNodeLong)
+  }
+
+  def loadInt32Array(base: Word, len: Word)(implicit memorySupport: MemorySupport): IndexedSeq[Int] = {
+    if (base == 0L) {
+      IndexedSeq[Int]()
+    } else {
+      for (i <- 0L until len) yield {
+        val addr = base + i * 4L
+        val v = memorySupport.loadInt(addr)
+        v
+      }
+    }
+  }
+
+  def loadInt64Array(base: Word, len: Word)(implicit memorySupport: MemorySupport): IndexedSeq[Long] = {
+    if (base == 0L) {
+      IndexedSeq[Long]()
+    } else {
+      for (i <- 0L until len) yield {
+        val addr = base + i * WORD_SIZE_BYTES
+        val v = memorySupport.loadLong(addr)
+        v
+      }
+    }
+  }
+  
+  def loadIRNodeArray(base: Word, sz: Word)(implicit microVM: MicroVM, memorySupport: MemorySupport): IndexedSeq[IRNode] = {
+    if (base == 0L) {
+      IndexedSeq[IRNode]()
+    } else {
+      for (i <- 0L until sz) yield {
+        val loc = base + i * WORD_SIZE_BYTES
+        loadIRNode(loc).get
+      }
+    }
   }
 }
 

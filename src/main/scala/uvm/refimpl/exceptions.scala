@@ -27,6 +27,9 @@ class UvmUndefinedBehaviorException(message: String = null, cause: Throwable = n
 /** Thrown when a division by zero is executed and the exception clause is not present. */
 class UvmDivisionByZeroException(message: String = null, cause: Throwable = null) extends UvmUndefinedBehaviorException(message, cause)
 
+/** Thrown when a general reference value is null when it must not be. */
+class UvmNullGenRefException(message: String = null, cause: Throwable = null) extends UvmUndefinedBehaviorException(message, cause)
+
 /** Thrown when accessing Mu memory but the address is outside the allocated region. */
 class UvmIllegalMemoryAccessException(message: String = null, cause: Throwable = null) extends UvmRuntimeException(message, cause)
 
