@@ -1,12 +1,10 @@
 """
 Converts MuCtx methods in muapi.h to nativeClientSupport
 
-USAGE: python3 muapitoncs.py < cbinding/muapi.h | xclip -selection c
+USAGE: python3 muapitoncs.py
 
-then paste in function signatures, then paste the result in
-src/main/scala/uvm/refimpl/nat/nativeClientSupport.scala
+Code will be automatically generated to cStubs.scala
 
-Use pbcopy on Mac.
 """
 
 import sys
@@ -17,6 +15,7 @@ from typing import Tuple
 
 import muapiparser
 import injecttools
+from refimpl2injectablefiles import injectable_files, muapi_h_path
 
 target_begin = '/// SCRIPT: GENERATED CODE BEGIN'
 target_end   = '/// SCRIPT: GENERATED CODE END'
@@ -421,27 +420,16 @@ def generate_things(ast):
 
     return "\n".join([stubs, enums, enum_convs])
 
-src_path = "cbinding/muapi.h"
-dst_path = "src/main/scala/uvm/refimpl/nat/cStubs.scala"
-
 def main():
-    with open(src_path) as f:
+    with open(muapi_h_path) as f:
         src_text = f.read()
 
     ast = muapiparser.parse_muapi(src_text)
 
     generated = generate_things(ast)
 
-    with open(dst_path) as f:
-        dst_text = f.read()
-
-    result_text = inject_generated_code(dst_text, generated)
-
-    with tempfile.NamedTemporaryFile("w") as f:
-        print("Backup to temporary file:", f.name)
-        f.write(dst_text)
-
-    with open(dst_path, "w") as f:
-        f.write(result_text)
+    injectable_files["cStubs.scala"].inject_many({
+        "STUBS": generated,
+        })
 
 main()

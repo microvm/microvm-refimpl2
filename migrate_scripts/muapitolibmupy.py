@@ -11,14 +11,7 @@ import tempfile
 from typing import Tuple
 
 import muapiparser
-import injecttools
-
-region_pattern = '## GEN:{}:{}'
-
-def inject_region(parent, name, generated):
-    begin = region_pattern.format("BEGIN", name)
-    end = region_pattern.format("END", name)
-    return injecttools.inject_lines(parent, begin, end, generated)
+from refimpl2injectablefiles import injectable_files, muapi_h_path
 
 # C types to ctypes types
 
@@ -287,19 +280,11 @@ def generate_stubs_for_struct(ast, name) -> str:
 
     return "\n".join(results)
 
-
-my_dir = os.path.dirname(__file__)
-src_path = os.path.join(my_dir, "../cbinding/muapi.h")
-dst_path = os.path.join(my_dir, "../pythonbinding/libmu.py")
-
 def main():
-    with open(src_path) as f:
+    with open(muapi_h_path) as f:
         src_text = f.read()
 
     ast = muapiparser.parse_muapi(src_text)
-
-    with open(dst_path) as f:
-        dst_text = f.read()
 
     c_types = generate_ctypes(ast)
     c_enums = generate_cenums(ast)
@@ -307,20 +292,12 @@ def main():
     muvm_stubs = generate_stubs_for_struct(ast, "MuVM")
     muctx_stubs = generate_stubs_for_struct(ast, "MuCtx")
 
-    result_text = dst_text
-    result_text = inject_region(result_text, "CTYPES", c_types)
-    result_text = inject_region(result_text, "CENUMS", c_enums)
-    result_text = inject_region(result_text, "MUVALUE", muvalues)
-    result_text = inject_region(result_text, "MuVM", muvm_stubs)
-    result_text = inject_region(result_text, "MuCtx", muctx_stubs)
-    if not result_text.endswith("\n"):
-        result_text += "\n"
-
-    with tempfile.NamedTemporaryFile("w") as f:
-        print("Backup to temporary file:", f.name)
-        f.write(dst_text)
-
-    with open(dst_path, "w") as f:
-        f.write(result_text)
+    injectable_files["libmu.py"].inject_many({
+        "CTYPES":  c_types,
+        "CENUMS":  c_enums,
+        "MUVALUE": muvalues,
+        "MuVM":    muvm_stubs,
+        "MuCtx":   muctx_stubs,
+        })
 
 main()

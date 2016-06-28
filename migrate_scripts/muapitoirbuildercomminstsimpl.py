@@ -8,7 +8,7 @@ import muapiparser
 import sys, os
 from collections import namedtuple
 
-from refimpl2injectablefiles import injectable_files
+from refimpl2injectablefiles import injectable_files, muapi_h_path
 
 start_id_comminst = 0x300   # this is in the spec
 #start_id_constant = 0x400
@@ -179,10 +179,6 @@ def gen_comminsts_impls(comminsts):
 
     return "\n".join(lines)
 
-my_dir = os.path.dirname(__file__)
-muapi_h_path = os.path.join(my_dir, "../cbinding/muapi.h")
-#dst_path = os.path.join(my_dir, "../pythonbinding/libmu.py")
-
 def main():
     with open(muapi_h_path) as f:
         txt = f.read()
@@ -197,14 +193,16 @@ def main():
 
     #print(comminsts_defs)
 
-    injectable_files["comminsts.scala"].inject_many({
-        "IRBUILDER_COMMINSTS": comminsts_defs,
-        })
-    injectable_files["internals.scala"].inject_many({
-        "IRBUILDER_RETVALS": comminsts_retvals,
-        })
-    injectable_files["ir-ci-exec"].inject_many({
-        "IRBUILDER_IMPL": comminsts_impls,
+    injectable_files.inject_many({
+        "comminsts.scala": {
+            "IRBUILDER_COMMINSTS": comminsts_defs,
+            },
+        "internals.scala": {
+            "IRBUILDER_RETVALS": comminsts_retvals,
+            },
+        "ir-ci-exec": {
+            "IRBUILDER_IMPL": comminsts_impls,
+            },
         })
 
     #print()

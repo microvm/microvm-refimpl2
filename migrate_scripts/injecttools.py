@@ -90,6 +90,9 @@ class StandardInjectableFile(object):
             new_txt = inject_lines(txt, inj_begin, inj_end, inj_content)
             txt = new_txt
 
+        if not txt.endswith("\n"):
+            txt += "\n"
+
         with tempfile.NamedTemporaryFile("w", delete=False) as f:
             print("Backup to temporary file: {} -> {}".format(self.path, f.name))
             f.write(orig_txt)
@@ -102,23 +105,15 @@ def make_injectable_file_set(
         root_path: str,
         items    : List[Tuple[str, str, List[str]]],
         ) -> Mapping[str, StandardInjectableFile]:
-    m = {}
+    m = InjectableFileSet()
     for name, path, inj_points in items:
         full_path = os.path.join(root_path, path)
         sif = StandardInjectableFile(full_path, inj_points)
         m[name] = sif
     return m
         
-class InjectableFileSet(object):
-    def __init__(self, m: Mapping[str, List[str]]):
-        self.injectable_files = {}
-        for path, inj_points in m.items():
-            inj_file = StandardInjectableFile(path, inj_points)
-            self.injectable_files[path] = inj_file
-            
-    def __getitem__(self, key):
-        try:
-            return self.injectable_files[key]
-        except KeyError as e:
-            raise Exception("Unknown injectable file {}".format(key))
+class InjectableFileSet(dict):
+    def inject_many(self, m: Mapping[str, Mapping[str, str]]):
+        for name, mm in m.items():
+            self[name].inject_many(mm)
 
