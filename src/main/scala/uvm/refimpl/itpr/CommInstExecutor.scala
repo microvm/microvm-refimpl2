@@ -14,7 +14,7 @@ import uvm.refimpl.nat.NativeCallResult
 /**
  * A part of the InterpreterThread that interprets common instructions
  */
-trait CommInstExecutor extends InterpreterActions with ObjectPinner {
+trait CommInstExecutor extends InterpreterActions with ObjectPinner with IRBuilderCommInstExecutor {
   import InterpreterThread.logger
 
   implicit protected def mutator: Mutator
@@ -23,6 +23,10 @@ trait CommInstExecutor extends InterpreterActions with ObjectPinner {
   override def interpretCurrentCommonInstruction(): Unit = {
     assert(curInst.isInstanceOf[InstCommInst])
     val InstCommInst(ci, flagList, typeList, sigList, argList, excClause, keepalives) = curInst
+    
+    if (ci.name.get.startsWith("@uvm.irbuilder")) {
+      return interpretCurrentIRBuilderCommonInstruction()
+    }
 
     ci.name.get match {
       // Thread and stack operations

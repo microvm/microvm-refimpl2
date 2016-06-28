@@ -1,6 +1,8 @@
 import re
-from typing import List, Union, Tuple, Any, Callable, TypeVar
+from typing import List, Union, Tuple, Any, Callable, TypeVar, Mapping
 from typing.re import Pattern
+
+import tempfile, os.path
 
 Predicate = Union[str,
         Tuple[Pattern, ...],
@@ -62,3 +64,61 @@ def inject_lines(parent: str, begin: Predicate, end: Predicate, generated: str) 
     new_lines = lines[:begin_line+1] + generated.splitlines() + lines[end_line:]
 
     return "\n".join(new_lines)
+
+STANDARD_PREFIX_BEGIN = "GEN:BEGIN:"
+STANDARD_PREFIX_END   = "GEN:END:"
+
+class StandardInjectableFile(object):
+    def __init__(self, path: str, injection_points: List[str] = None):
+        self.path = path
+        if injection_points is None:
+            injection_points = []
+        self.injection_points = injection_points
+
+    def inject_many(self, m: Mapping[str, str], force=False):
+        with open(self.path) as f:
+            orig_txt = f.read()
+
+        txt = orig_txt
+
+        for inj_point, inj_content in m.items():
+            if inj_point not in self.injection_points and not force:
+                raise Exception("Unknown injection point '{}'".format(inj_point))
+            inj_begin = STANDARD_PREFIX_BEGIN + inj_point
+            inj_end   = STANDARD_PREFIX_END   + inj_point
+
+            new_txt = inject_lines(txt, inj_begin, inj_end, inj_content)
+            txt = new_txt
+
+        with tempfile.NamedTemporaryFile("w", delete=False) as f:
+            print("Backup to temporary file: {} -> {}".format(self.path, f.name))
+            f.write(orig_txt)
+
+        with open(self.path, "w") as f:
+            print("Writing to file: {}".format(self.path))
+            f.write(txt)
+
+def make_injectable_file_set(
+        root_path: str,
+        items    : List[Tuple[str, str, List[str]]],
+        ) -> Mapping[str, StandardInjectableFile]:
+    m = {}
+    for name, path, inj_points in items:
+        full_path = os.path.join(root_path, path)
+        sif = StandardInjectableFile(full_path, inj_points)
+        m[name] = sif
+    return m
+        
+class InjectableFileSet(object):
+    def __init__(self, m: Mapping[str, List[str]]):
+        self.injectable_files = {}
+        for path, inj_points in m.items():
+            inj_file = StandardInjectableFile(path, inj_points)
+            self.injectable_files[path] = inj_file
+            
+    def __getitem__(self, key):
+        try:
+            return self.injectable_files[key]
+        except KeyError as e:
+            raise Exception("Unknown injectable file {}".format(key))
+
