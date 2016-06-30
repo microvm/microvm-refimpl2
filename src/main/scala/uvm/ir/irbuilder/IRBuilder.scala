@@ -181,10 +181,11 @@ class IRBuilder(globalBundle: GlobalBundle, idFactory: IDFactory) {
     val destClause = DestClause(bb, vars)
     kind match {
       case DestKind.NORMAL => inst.obj match {
+        case i: InstBranch => i.dest = destClause
         case i: HasExcClause => getOrCreateExcClause(i).nor = destClause
         case i => {
           throw new IllegalArgumentException(
-            "NORMAL requires instruction with exception clause. Found: %s".format(i.getClass.getName))
+            "NORMAL requires BRANCH or instructions with exception clause. Found: %s".format(i.getClass.getName))
         }
       }
       case DestKind.EXCEPT => inst.obj match {
@@ -194,7 +195,7 @@ class IRBuilder(globalBundle: GlobalBundle, idFactory: IDFactory) {
         }
         case i => {
           throw new IllegalArgumentException(
-            "EXCEPT requires WATCHPOINT or instruction with exception clause. Found: %s".format(i.getClass.getName))
+            "EXCEPT requires WATCHPOINT or instructions with exception clause. Found: %s".format(i.getClass.getName))
         }
       }
       case DestKind.TRUE => inst.obj match {

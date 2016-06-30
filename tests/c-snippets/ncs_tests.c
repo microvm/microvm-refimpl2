@@ -227,10 +227,21 @@ void malloc_freer(MuValue *values, MuCPtr freerdata) {
 void nop_freer(MuValue *values, MuCPtr freerdata) {
 }
 
-void simple_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
-        MuStackRefValue stack, MuWPID wpid, MuTrapHandlerResult *result,
-        MuStackRefValue *new_stack, MuValue **values, int *nvalues,
-        MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
+void simple_trap_handler(
+        // input parameters
+        MuCtx *ctx,
+        MuThreadRefValue thread,
+        MuStackRefValue stack,
+        MuWPID wpid,
+        // output parameters
+        MuTrapHandlerResult *result,
+        MuStackRefValue *new_stack,
+        MuValue **values,
+        MuArraySize *nvalues,
+        MuValuesFreer *freer,
+        MuCPtr *freerdata,
+        MuRefValue *exception,
+        // input parameter (userdata)
         MuCPtr userdata) {
 
     muprintf("Hi! I am the native trap handler!\n");
@@ -339,10 +350,21 @@ bool test_traps(MuVM *mvm) {
     return true;
 }
 
-void load_bundle_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
-        MuStackRefValue stack, MuWPID wpid, MuTrapHandlerResult *result,
-        MuStackRefValue *new_stack, MuValue **values, int *nvalues,
-        MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
+void load_bundle_trap_handler(
+        // input parameters
+        MuCtx *ctx,
+        MuThreadRefValue thread,
+        MuStackRefValue stack,
+        MuWPID wpid,
+        // output parameters
+        MuTrapHandlerResult *result,
+        MuStackRefValue *new_stack,
+        MuValue **values,
+        MuArraySize *nvalues,
+        MuValuesFreer *freer,
+        MuCPtr *freerdata,
+        MuRefValue *exception,
+        // input parameter (userdata)
         MuCPtr userdata) {
 
     muprintf("Hi! I am the native trap handler!\n");
@@ -539,10 +561,21 @@ bool test_memory_ops(MuVM *mvm) {
     return true;
 }
 
-void osr_bundle_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
-        MuStackRefValue stack, MuWPID wpid, MuTrapHandlerResult *result,
-        MuStackRefValue *new_stack, MuValue **values, int *nvalues,
-        MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
+void osr_bundle_trap_handler(
+        // input parameters
+        MuCtx *ctx,
+        MuThreadRefValue thread,
+        MuStackRefValue stack,
+        MuWPID wpid,
+        // output parameters
+        MuTrapHandlerResult *result,
+        MuStackRefValue *new_stack,
+        MuValue **values,
+        MuArraySize *nvalues,
+        MuValuesFreer *freer,
+        MuCPtr *freerdata,
+        MuRefValue *exception,
+        // input parameter (userdata)
         MuCPtr userdata) {
 
     muprintf("Hi! I am the native trap handler!\n");
@@ -736,10 +769,21 @@ struct wp_trap_data {
     int which;
 };
 
-void wp_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
-        MuStackRefValue stack, MuWPID wpid, MuTrapHandlerResult *result,
-        MuStackRefValue *new_stack, MuValue **values, int *nvalues,
-        MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
+void wp_trap_handler(
+        // input parameters
+        MuCtx *ctx,
+        MuThreadRefValue thread,
+        MuStackRefValue stack,
+        MuWPID wpid,
+        // output parameters
+        MuTrapHandlerResult *result,
+        MuStackRefValue *new_stack,
+        MuValue **values,
+        MuArraySize *nvalues,
+        MuValuesFreer *freer,
+        MuCPtr *freerdata,
+        MuRefValue *exception,
+        // input parameter (userdata)
         MuCPtr userdata) {
 
     muprintf("Hi! I am the native trap handler!\n");
@@ -828,10 +872,21 @@ int native_callback(int v2) {
     return v2+1;
 }
 
-void native_trap_handler(MuCtx *ctx, MuThreadRefValue thread,
-        MuStackRefValue stack, MuWPID wpid, MuTrapHandlerResult *result,
-        MuStackRefValue *new_stack, MuValue **values, int *nvalues,
-        MuValuesFreer *freer, MuCPtr *freerdata, MuRefValue *exception,
+void native_trap_handler(
+        // input parameters
+        MuCtx *ctx,
+        MuThreadRefValue thread,
+        MuStackRefValue stack,
+        MuWPID wpid,
+        // output parameters
+        MuTrapHandlerResult *result,
+        MuStackRefValue *new_stack,
+        MuValue **values,
+        MuArraySize *nvalues,
+        MuValuesFreer *freer,
+        MuCPtr *freerdata,
+        MuRefValue *exception,
+        // input parameter (userdata)
         MuCPtr userdata) {
 
     muprintf("Hi! I am the native trap handler!\n");

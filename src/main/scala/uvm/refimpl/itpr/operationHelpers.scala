@@ -695,7 +695,7 @@ object MemoryOperations {
       IndexedSeq[Long]()
     } else {
       for (i <- 0L until len) yield {
-        val addr = base + i * WORD_SIZE_BYTES
+        val addr = base + i * 8L
         val v = memorySupport.loadLong(addr)
         v
       }
